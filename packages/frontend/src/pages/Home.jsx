@@ -246,7 +246,7 @@ const Home = () => {
               label="Instagram" 
             />
             <SocialIcon 
-              href="https://github.com/salva-Nexus/Salva-V1" 
+              href="https://github.com/salva-Nexus/Salva-V1.git" 
               icon={<Github size={20} />} 
               label="GitHub" 
             />
