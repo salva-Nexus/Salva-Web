@@ -1944,7 +1944,7 @@ app.listen(PORT, "0.0.0.0", () => {
 // KEEP-ALIVE (Update with your actual domain)
 // ===============================================
 const INTERVAL = 10 * 60 * 1000;
-const URL = "https://salva-api.onrender.com/api/stats"; // Update if different
+const URL = "https://salva-api-lx2t.onrender.com/api/stats"; // Update if different
 
 function reloadWebsite() {
   fetch(URL)
