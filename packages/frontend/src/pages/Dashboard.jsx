@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/backend/src/pages/Dashboard.jsx
-import { API_BASE_URL } from "../config";
+import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
@@ -79,7 +79,7 @@ const Dashboard = () => {
           // ✅ FIX: Use email if available, fallback to username
           const identifier = user.email || user.username;
           const res = await fetch(
-            `${API_BASE_URL}/api/user/pin-status/${identifier}`,
+            `${SALVA_API_URL}/api/user/pin-status/${identifier}`,
           );
           const data = await res.json();
 
@@ -130,7 +130,7 @@ const Dashboard = () => {
 
   const fetchBalance = async (address) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/balance/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
       const data = await res.json();
       setBalance(parseFloat(data.balance || 0).toFixed(2));
     } catch {
@@ -140,7 +140,7 @@ const Dashboard = () => {
 
   const fetchTransactions = async (address) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/transactions/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
       const data = await res.json();
       setTransactions(Array.isArray(data) ? data : []);
     } catch {
@@ -151,7 +151,7 @@ const Dashboard = () => {
   const fetchApprovals = async (address, silent = false) => {
     if (!silent) setIsRefreshingApprovals(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/approvals/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/approvals/${address}`);
       const data = await res.json();
       setApprovals(data);
     } catch (err) {
@@ -164,7 +164,7 @@ const Dashboard = () => {
   const fetchIncomingAllowances = async (address, silent = false) => {
     if (!silent) setIsRefreshingApprovals(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/allowances-for/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/allowances-for/${address}`);
       const data = await res.json();
       setIncomingAllowances(data);
     } catch (err) {
@@ -304,7 +304,7 @@ const downloadReceipt = (e, tx) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/resolve-account-info`, {
+      const response = await fetch(`${SALVA_API_URL}/api/resolve-account-info`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ accountNumberOrAddress: accountInput }),
@@ -397,7 +397,7 @@ const downloadReceipt = (e, tx) => {
       // ✅ FIX: Use email if available, fallback to username
       const identifier = user.email || user.username;
 
-      const response = await fetch(`${API_BASE_URL}/api/user/verify-pin`, {
+      const response = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -452,7 +452,7 @@ const downloadReceipt = (e, tx) => {
     showMsg("Transaction queued, waiting for confirmation...", "info");
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transfer`, {
+      const response = await fetch(`${SALVA_API_URL}/api/transfer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -489,7 +489,7 @@ const downloadReceipt = (e, tx) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/approve`, {
+      const response = await fetch(`${SALVA_API_URL}/api/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -523,7 +523,7 @@ const downloadReceipt = (e, tx) => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transferFrom`, {
+      const response = await fetch(`${SALVA_API_URL}/api/transferFrom`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

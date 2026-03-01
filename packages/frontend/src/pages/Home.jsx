@@ -108,8 +108,8 @@ const Home = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
-        const res = await fetch(`${API_BASE_URL}/api/stats`, { signal: AbortSignal.timeout(10000) });
+        const SALVA_API_URL = process.env.REACT_APP_API_URL || 'http://localhost:3001';
+        const res = await fetch(`${SALVA_API_URL}/api/stats`, { signal: AbortSignal.timeout(10000) });
         if (!res.ok) throw new Error();
         const data = await res.json();
         setStats({ 

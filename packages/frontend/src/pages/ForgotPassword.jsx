@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/ForgotPassword.jsx
-import { API_BASE_URL } from '../config';
+import { SALVA_API_URL } from '../config';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, Link } from 'react-router-dom';
@@ -24,7 +24,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -46,7 +46,7 @@ const ForgotPassword = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: otp })
@@ -88,7 +88,7 @@ const ForgotPassword = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword })

@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/AccountSettings.jsx
-import { API_BASE_URL } from '../config';
+import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
@@ -43,7 +43,7 @@ const AccountSettings = () => {
 
   const checkPinStatus = async (email) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/user/pin-status/${email}`);
+      const res = await fetch(`${SALVA_API_URL}/api/user/pin-status/${email}`);
       const data = await res.json();
       setPinStatus(data);
     } catch (err) {
@@ -68,7 +68,7 @@ const AccountSettings = () => {
   const sendOTP = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email })
@@ -89,7 +89,7 @@ const AccountSettings = () => {
   const verifyOTP = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, code: otp })
@@ -153,7 +153,7 @@ const AccountSettings = () => {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const res = await fetch(`${SALVA_API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)

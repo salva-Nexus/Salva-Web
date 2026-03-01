@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/backend/src/pages/Transactions.jsx
-import { API_BASE_URL } from "../config";
+import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -87,7 +87,7 @@ const Transactions = () => {
 
   const fetchTransactions = async (address) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/transactions/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
       const data = await res.json();
       setTransactions(Array.isArray(data) ? data : []);
     } catch (err) {

@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/SetTransactionPin.jsx
-import { API_BASE_URL } from '../config';
+import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -46,7 +46,7 @@ const SetTransactionPin = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user/set-pin`, {
+      const response = await fetch(`${SALVA_API_URL}/api/user/set-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/backend/src/pages/Login.jsx
-import { API_BASE_URL } from '../config';
+import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
@@ -112,7 +112,7 @@ const Login = () => {
     setLoading(true);
     
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: sanitizedEmail })
@@ -145,7 +145,7 @@ const Login = () => {
       }
       
       try {
-        const verifyRes = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+        const verifyRes = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
@@ -175,7 +175,7 @@ const Login = () => {
         password: formData.password // Don't sanitize password (might remove valid chars)
       };
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(`${SALVA_API_URL}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sanitizedData)
@@ -205,7 +205,7 @@ const Login = () => {
         // Check if user needs to set PIN
         try {
           const pinStatusRes = await fetch(
-            `${API_BASE_URL}/api/user/pin-status/${encodeURIComponent(formData.email)}`
+            `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(formData.email)}`
           );
           const pinStatus = await pinStatusRes.json();
           
