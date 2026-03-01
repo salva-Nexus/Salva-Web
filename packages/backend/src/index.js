@@ -126,12 +126,12 @@ const allowedOrigins =
     ? [
         "https://salva-nexus.org",
         "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com/",
+        "https://salva-web.onrender.com",
       ]
     : [
         "https://salva-nexus.org",
         "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com/",
+        "https://salva-web.onrender.com",
         "http://localhost:3000",
         "http://localhost:5173",
       ];
