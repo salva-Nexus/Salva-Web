@@ -2,7 +2,7 @@
   <h1>🛡️ Salva Nexus</h1>
   <p><b>On-Chain Payment Infrastructure for the Next Billion</b></p>
   
-  <img src="https://img.shields.io/badge/Network-Base_Sepolia-blue?style=for-the-badge&logo=base" />
+  <img src="https://img.shields.io/badge/Network-Base-blue?style=for-the-badge&logo=base" />
   <img src="https://img.shields.io/badge/Stack-Node.js_|_React-61DAFB?style=for-the-badge&logo=react" />
   <img src="https://img.shields.io/badge/Standard-ERC--4337-orange?style=for-the-badge" />
 </div>
