@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🛡️ Salva Nexus</h1>
+  <h1>🛡️ Salva </h1>
   <p><b>On-Chain Payment Infrastructure for the Next Billion</b></p>
   
   <img src="https://img.shields.io/badge/Network-Base-blue?style=for-the-badge&logo=base" />
