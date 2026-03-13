@@ -806,7 +806,8 @@ const executeTransfer = async (privateKey) => {
                 <input
                   required
                   placeholder="Amount to Limit"
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={approveAmountDisplay}
                   className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
                   onChange={(e) => {
@@ -999,7 +1000,8 @@ const executeTransfer = async (privateKey) => {
                 <input
                   required
                   placeholder="Amount"
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={fromAmountDisplay}
                   className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
                   onChange={(e) => {
