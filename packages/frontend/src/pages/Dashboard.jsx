@@ -566,12 +566,16 @@ const Dashboard = () => {
   };
 
   const handleAutofillFromAllowance = (allowance) => {
+    const fromVal = allowance.allower;
+    const toVal = allowance.spenderDisplay;
     setTransferFromData({
-      from: allowance.allower,
-      to: allowance.spenderDisplay,
+      from: fromVal,
+      to: toVal,
       amount: allowance.amount,
     });
     setFromAmountDisplay(formatAmountInput(allowance.amount));
+    setShowFromRegistryDropdown(/^\d+$/.test(fromVal.trim()));
+    setShowToRegistryDropdown(/^\d+$/.test(toVal.trim()));
     showMsg("Form autofilled from allowance", "success");
   };
 
@@ -851,12 +855,12 @@ const Dashboard = () => {
                         className="flex justify-between items-center p-3 bg-black/20 rounded-xl border border-white/5"
                       >
                         <div className="min-w-0 pr-2">
+                          {app.displayName && (
+                            <p className="text-[10px] text-white font-black truncate">{app.displayName}</p>
+                          )}
                           <p className="font-mono text-[10px] text-salvaGold truncate">
                             {app.displaySpender || app.spender}
                           </p>
-                          {app.displayName && (
-                            <p className="text-[8px] text-white/60 font-bold truncate">{app.displayName}</p>
-                          )}
                           <p className="text-[8px] uppercase opacity-40 font-bold">
                             Authorized Spender
                           </p>
@@ -867,11 +871,13 @@ const Dashboard = () => {
                           </p>
                           <button
                             onClick={() => {
+                              const spenderVal = app.displaySpender || app.spender;
                               setApproveData({
-                                spender: app.displaySpender || app.spender,
+                                spender: spenderVal,
                                 amount: "0",
                               });
                               setApproveAmountDisplay("0");
+                              setShowApproveRegistryDropdown(/^\d+$/.test(spenderVal.trim()));
                             }}
                             className="text-[8px] text-red-500 font-bold uppercase hover:underline"
                           >
@@ -1051,12 +1057,12 @@ const Dashboard = () => {
                       >
                         <div className="flex justify-between items-center">
                           <div className="min-w-0 pr-2">
+                            {app.displayName && (
+                              <p className="text-[10px] text-white font-black truncate">{app.displayName}</p>
+                            )}
                             <p className="font-mono text-[10px] text-salvaGold truncate">
                               {app.allower}
                             </p>
-                            {app.displayName && (
-                              <p className="text-[8px] text-white/60 font-bold truncate">{app.displayName}</p>
-                            )}
                             <p className="text-[8px] uppercase opacity-40 font-bold">
                               Authorized Me
                             </p>
