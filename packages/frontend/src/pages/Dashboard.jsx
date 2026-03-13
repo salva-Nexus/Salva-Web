@@ -440,7 +440,7 @@ const Dashboard = () => {
     }
   };
 
-const executeTransfer = async (privateKey) => {
+  const executeTransfer = async (privateKey) => {
     if (amountError) return showMsg("Insufficient balance", "error");
 
     setLoading(true);
@@ -854,6 +854,9 @@ const executeTransfer = async (privateKey) => {
                           <p className="font-mono text-[10px] text-salvaGold truncate">
                             {app.displaySpender || app.spender}
                           </p>
+                          {app.displayName && (
+                            <p className="text-[8px] text-white/60 font-bold truncate">{app.displayName}</p>
+                          )}
                           <p className="text-[8px] uppercase opacity-40 font-bold">
                             Authorized Spender
                           </p>
@@ -863,12 +866,13 @@ const executeTransfer = async (privateKey) => {
                             {formatNumber(app.amount)}
                           </p>
                           <button
-                            onClick={() =>
+                            onClick={() => {
                               setApproveData({
                                 spender: app.displaySpender || app.spender,
                                 amount: "0",
-                              })
-                            }
+                              });
+                              setApproveAmountDisplay("0");
+                            }}
                             className="text-[8px] text-red-500 font-bold uppercase hover:underline"
                           >
                             Revoke
@@ -1050,6 +1054,9 @@ const executeTransfer = async (privateKey) => {
                             <p className="font-mono text-[10px] text-salvaGold truncate">
                               {app.allower}
                             </p>
+                            {app.displayName && (
+                              <p className="text-[8px] text-white/60 font-bold truncate">{app.displayName}</p>
+                            )}
                             <p className="text-[8px] uppercase opacity-40 font-bold">
                               Authorized Me
                             </p>

@@ -972,8 +972,15 @@ app.get("/api/approvals/:address", async (req, res) => {
             app.amount = liveAmount;
           }
 
-          let displaySpender;
+          // --- SURGICAL ADDITION: USER LOOKUP ---
+          const spenderUser = await User.findOne({
+            $or: [
+              { safeAddress: spenderAddress.toLowerCase() },
+              { accountNumber: app.spenderInput } 
+            ]
+          });
 
+          let displaySpender;
           if (app.spenderInputType === "accountNumber") {
             displaySpender = app.spenderInput;
           } else {
@@ -984,6 +991,7 @@ app.get("/api/approvals/:address", async (req, res) => {
             _id: app._id,
             spender: spenderAddress,
             displaySpender: displaySpender,
+            displayName: spenderUser?.username || null, // Added Display Name
             amount: app.amount,
             date: app.date,
             inputType: app.spenderInputType,
@@ -1027,12 +1035,9 @@ app.get("/api/allowances-for/:address", async (req, res) => {
 
     for (const app of allApprovals) {
       try {
-        // ✅ FIX: Use app.spender directly (it's already the resolved address)
         const spenderAddress = app.spender.toLowerCase();
 
-        // Check if this approval's spender matches current user
         if (spenderAddress === userAddress) {
-          // Check live allowance amount
           const liveAllowanceWei = await tokenContract.allowance(
             app.owner,
             userAddress,
@@ -1040,7 +1045,6 @@ app.get("/api/allowances-for/:address", async (req, res) => {
           const liveAmount = ethers.formatUnits(liveAllowanceWei, 6);
 
           if (parseFloat(liveAmount) > 0) {
-            // Update amount if changed
             if (liveAmount !== app.amount) {
               await Approval.updateOne(
                 { _id: app._id },
@@ -1048,31 +1052,30 @@ app.get("/api/allowances-for/:address", async (req, res) => {
               );
             }
 
-            // ✅ FIX: Use spenderInputType to determine what approver used
+            // --- SURGICAL ADDITION: ALLOWER LOOKUP ---
+            const allowerUser = await User.findOne({ 
+              safeAddress: app.owner.toLowerCase() 
+            });
+
             let ownerDisplay, spenderDisplay;
 
             if (app.spenderInputType === "accountNumber") {
-              // Approver used account number for spender
-              // So display owner's account number and spender's account number
-              ownerDisplay = await getAccountNumberFromAddress(app.owner);
-              if (!ownerDisplay) ownerDisplay = app.owner; // Fallback to address
-              spenderDisplay = app.spenderInput; // ✅ What approver originally typed
+              ownerDisplay = allowerUser?.accountNumber || app.owner;
+              spenderDisplay = app.spenderInput; 
             } else {
-              // Approver used address for spender
-              // So display owner's address and spender's address
               ownerDisplay = app.owner;
               spenderDisplay = userAddress;
             }
 
             relevantApprovals.push({
-              allower: ownerDisplay, // ✅ What to show in "FROM" field
-              allowerAddress: app.owner, // Actual address for backend
-              spenderDisplay: spenderDisplay, // ✅ What to show in "TO" field
+              allower: ownerDisplay, 
+              allowerAddress: app.owner, 
+              displayName: allowerUser?.username || null, // Added Display Name
+              spenderDisplay: spenderDisplay, 
               amount: liveAmount,
               date: app.date,
             });
           } else {
-            // Remove if allowance is 0
             await Approval.deleteOne({ _id: app._id });
           }
         }
