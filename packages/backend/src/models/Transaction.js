@@ -5,7 +5,7 @@ const TransactionSchema = new mongoose.Schema({
     fromAccountNumber: { type: String },
     fromUsername: { type: String }, // ✅ NEW
     toAddress: { type: String },
-    toAccountNumber: { type: String, required: true },
+    toAccountNumber: { type: String },
     toUsername: { type: String }, // ✅ NEW
     senderDisplayIdentifier: { type: String },
     executorAddress: { type: String },
