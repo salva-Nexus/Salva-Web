@@ -222,6 +222,17 @@ const Dashboard = () => {
     }
   };
 
+  const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
+  const [approveAmountDisplay, setApproveAmountDisplay] = useState("");
+  const [fromAmountDisplay, setFromAmountDisplay] = useState("");
+
+  const formatAmountInput = (raw) => {
+    const digits = raw.replace(/[^0-9.]/g, "");
+    const parts = digits.split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
+  };
+
   const formatNumber = (num) =>
     parseFloat(num).toLocaleString("en-US", {
       minimumFractionDigits: 2,
@@ -429,7 +440,7 @@ const Dashboard = () => {
     }
   };
 
-  const executeTransfer = async (privateKey) => {
+const executeTransfer = async (privateKey) => {
     if (amountError) return showMsg("Insufficient balance", "error");
 
     setLoading(true);
@@ -454,6 +465,7 @@ const Dashboard = () => {
         showMsg("Transfer Successful!");
         setIsSendOpen(false);
         setTransferData({ to: "", amount: "" });
+        setTransferAmountDisplay("");
         setSelectedRegistry(null);
         setShowRegistryDropdown(false);
         setTimeout(() => {
@@ -490,6 +502,7 @@ const Dashboard = () => {
       if (response.ok) {
         showMsg("Approval updated on-chain!");
         setApproveData({ spender: "", amount: "" });
+        setApproveAmountDisplay("");
         setApproveRegistry(null);
         setShowApproveRegistryDropdown(false);
         setTimeout(() => {
@@ -530,6 +543,7 @@ const Dashboard = () => {
       if (response.ok) {
         showMsg("Pull queued, waiting for confirmation...");
         setTransferFromData({ from: "", to: "", amount: "" });
+        setFromAmountDisplay("");
         setFromRegistry(null);
         setToRegistry(null);
         setShowFromRegistryDropdown(false);
@@ -557,6 +571,7 @@ const Dashboard = () => {
       to: allowance.spenderDisplay,
       amount: allowance.amount,
     });
+    setFromAmountDisplay(formatAmountInput(allowance.amount));
     showMsg("Form autofilled from allowance", "success");
   };
 
@@ -651,11 +666,10 @@ const Dashboard = () => {
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
-                activeTab === tab
-                  ? "border-b-2 border-salvaGold text-salvaGold"
-                  : "opacity-40 hover:opacity-100"
-              }`}
+              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab
+                ? "border-b-2 border-salvaGold text-salvaGold"
+                : "opacity-40 hover:opacity-100"
+                }`}
             >
               {tab === "activity"
                 ? "Recent Activity"
@@ -698,11 +712,10 @@ const Dashboard = () => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p
-                        className={`font-black text-sm sm:text-base ${
-                          tx.displayType === "receive"
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
+                        className={`font-black text-sm sm:text-base ${tx.displayType === "receive"
+                          ? "text-green-400"
+                          : "text-red-400"
+                          }`}
                       >
                         {tx.displayType === "receive" ? "+" : "-"}
                         {formatNumber(tx.amount)}
@@ -780,7 +793,7 @@ const Dashboard = () => {
                         ) || null,
                       )
                     }
-                    className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                    className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
                   >
                     <option value="">-- Choose Wallet --</option>
                     {registries.map((reg) => (
@@ -794,11 +807,13 @@ const Dashboard = () => {
                   required
                   placeholder="Amount to Limit"
                   type="number"
-                  value={approveData.amount}
+                  value={approveAmountDisplay}
                   className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  onChange={(e) =>
-                    setApproveData({ ...approveData, amount: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const formatted = formatAmountInput(e.target.value);
+                    setApproveAmountDisplay(formatted);
+                    setApproveData({ ...approveData, amount: formatted.replace(/,/g, "") });
+                  }}
                 />
                 <button
                   disabled={loading}
@@ -817,9 +832,8 @@ const Dashboard = () => {
                 </h4>
                 <button
                   onClick={() => fetchApprovals(user.safeAddress)}
-                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${
-                    isRefreshingApprovals ? "animate-pulse" : ""
-                  }`}
+                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${isRefreshingApprovals ? "animate-pulse" : ""
+                    }`}
                 >
                   {isRefreshingApprovals ? "SYNCING..." : "REFRESH ↻"}
                 </button>
@@ -932,7 +946,7 @@ const Dashboard = () => {
                           ) || null,
                         )
                       }
-                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
                     >
                       <option value="">-- Choose Wallet (From) --</option>
                       {registries.map((reg) => (
@@ -970,7 +984,7 @@ const Dashboard = () => {
                           ) || null,
                         )
                       }
-                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
                     >
                       <option value="">-- Choose Wallet (To) --</option>
                       {registries.map((reg) => (
@@ -986,14 +1000,13 @@ const Dashboard = () => {
                   required
                   placeholder="Amount"
                   type="number"
-                  value={transferFromData.amount}
+                  value={fromAmountDisplay}
                   className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  onChange={(e) =>
-                    setTransferFromData({
-                      ...transferFromData,
-                      amount: e.target.value,
-                    })
-                  }
+                  onChange={(e) => {
+                    const formatted = formatAmountInput(e.target.value);
+                    setFromAmountDisplay(formatted);
+                    setTransferFromData({ ...transferFromData, amount: formatted.replace(/,/g, "") });
+                  }}
                 />
                 <button
                   disabled={loading}
@@ -1012,9 +1025,8 @@ const Dashboard = () => {
                 </h4>
                 <button
                   onClick={() => fetchIncomingAllowances(user.safeAddress)}
-                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${
-                    isRefreshingApprovals ? "animate-pulse" : ""
-                  }`}
+                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${isRefreshingApprovals ? "animate-pulse" : ""
+                    }`}
                 >
                   {isRefreshingApprovals ? "SYNCING..." : "REFRESH ↻"}
                 </button>
@@ -1337,7 +1349,7 @@ const Dashboard = () => {
                           );
                           setSelectedRegistry(reg || null);
                         }}
-                        className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
+                        className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
                       >
                         <option value="">-- Select Wallet --</option>
                         {registries.map((reg) => (
@@ -1361,21 +1373,20 @@ const Dashboard = () => {
                   <div className="relative">
                     <input
                       required
-                      type="number"
-                      step="0.01"
-                      value={transferData.amount}
+                      type="text"
+                      inputMode="decimal"
+                      value={transferAmountDisplay}
                       onChange={(e) => {
-                        setTransferData({
-                          ...transferData,
-                          amount: e.target.value,
-                        });
-                        computeFeePreview(e.target.value);
+                        const formatted = formatAmountInput(e.target.value);
+                        setTransferAmountDisplay(formatted);
+                        const raw = formatted.replace(/,/g, "");
+                        setTransferData({ ...transferData, amount: raw });
+                        computeFeePreview(raw);
                       }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${
-                        amountError
-                          ? "border border-red-500 text-red-500"
-                          : "border border-transparent"
-                      }`}
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError
+                        ? "border border-red-500 text-red-500"
+                        : "border border-transparent"
+                        }`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       NGN
@@ -1408,11 +1419,10 @@ const Dashboard = () => {
                 <button
                   disabled={loading || amountError}
                   type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${
-                    loading || amountError
-                      ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
-                      : "bg-salvaGold text-black hover:brightness-110 active:scale-95"
-                  }`}
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError
+                    ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                    : "bg-salvaGold text-black hover:brightness-110 active:scale-95"
+                    }`}
                 >
                   {loading ? "PROCESSING…" : "CONFIRM SEND"}
                 </button>
@@ -1429,11 +1439,10 @@ const Dashboard = () => {
             initial={{ y: 100, x: "-50%", opacity: 0 }}
             animate={{ y: 0, x: "-50%", opacity: 1 }}
             exit={{ y: 100, x: "-50%", opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${
-              notification.type === "error"
-                ? "bg-red-600 text-white"
-                : "bg-salvaGold text-black"
-            }`}
+            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${notification.type === "error"
+              ? "bg-red-600 text-white"
+              : "bg-salvaGold text-black"
+              }`}
           >
             {notification.message}
           </motion.div>
