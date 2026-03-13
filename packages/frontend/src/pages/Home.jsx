@@ -131,7 +131,7 @@ const Home = () => {
     const formData = new FormData(e.target);
     const subject = `SALVA SUPPORT: ${formData.get('topic')}`;
     const body = `Name: ${formData.get('name')}\nAccount: ${formData.get('account')}\nIssue: ${formData.get('message')}`;
-    window.location.href = `mailto:salva.notify@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     setIsSupportOpen(false);
   };
 
