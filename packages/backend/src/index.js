@@ -37,6 +37,12 @@ const {
   sendEmailChangeConfirmation,
 } = require("./services/emailService");
 
+const User = require("./models/User");
+const AccountNumberCounter = require("./models/AccountNumberCounter");
+
+const WalletRegistry = require("./models/WalletRegistry");
+const FeeConfig = require("./models/FeeConfig");
+
 // ===============================================
 // SECURITY PACKAGES
 // ===============================================
@@ -462,6 +468,83 @@ async function cleanupStaleQueueEntries() {
   }
 }
 
+// ===============================================
+// HELPER: Get fee for a given human-readable NGN amount
+// Returns fee in Wei (6 decimals) and human NGN amount
+// ===============================================
+async function getFeeForAmount(amountNGN) {
+  let config = await FeeConfig.findById('main');
+  if (!config) {
+    // Seed default config on first call
+    config = await FeeConfig.create({ _id: 'main' });
+  }
+
+  const amount = parseFloat(amountNGN);
+
+  if (amount >= config.tier2Min) {
+    return {
+      feeNGN: config.tier2Fee,
+      feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6)
+    };
+  }
+
+  if (amount >= config.tier1Min && amount <= config.tier1Max) {
+    return {
+      feeNGN: config.tier1Fee,
+      feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6)
+    };
+  }
+
+  // Below tier1Min — free
+  return { feeNGN: 0, feeWei: 0n };
+}
+
+// ===============================================
+// GET ALL ACTIVE REGISTRIES (for frontend dropdown)
+// ===============================================
+app.get("/api/registries", async (req, res) => {
+  try {
+    // Seed Salva's own registry on first call if DB is empty
+    const count = await WalletRegistry.countDocuments();
+    if (count === 0) {
+      await WalletRegistry.create({
+        name: "Salva Wallet",
+        registryAddress: process.env.REGISTRY_CONTRACT_ADDRESS,
+        description: "Official Salva on-chain payment registry",
+        active: true
+      });
+      console.log("✅ Salva registry seeded into WalletRegistry collection");
+    }
+
+    const registries = await WalletRegistry.find({ active: true }).select('name registryAddress description');
+    res.json(registries);
+  } catch (error) {
+    console.error("❌ Failed to fetch registries:", error);
+    return handleError(error, res, "Failed to fetch registries");
+  }
+});
+
+// ===============================================
+// GET FEE CONFIG (for frontend to preview fees)
+// ===============================================
+app.get("/api/fee-config", async (req, res) => {
+  try {
+    let config = await FeeConfig.findById('main');
+    if (!config) {
+      config = await FeeConfig.create({ _id: 'main' });
+    }
+    res.json({
+      tier1Min: config.tier1Min,
+      tier1Max: config.tier1Max,
+      tier1Fee: config.tier1Fee,
+      tier2Min: config.tier2Min,
+      tier2Fee: config.tier2Fee
+    });
+  } catch (error) {
+    return handleError(error, res, "Failed to fetch fee config");
+  }
+});
+
 const {
   isAccountNumber,
   getAccountNumberFromAddress,
@@ -613,7 +696,7 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
 });
 
 // ===============================================
-// REPLACE THE /api/register ROUTE WITH THIS
+// REGISTER — Sequential account number + on-chain link before saving user
 // ===============================================
 app.post(
   "/api/register",
@@ -628,48 +711,101 @@ app.post(
         return res.status(400).json({ message: "Email already registered" });
       }
 
+      // ── STEP 1: Deploy the Safe wallet ─────────────────────────────────────
       console.log("🚀 Generating Safe Wallet & Deploying...");
       const identityData = await generateAndDeploySalvaIdentity(
         process.env.BASE_SEPOLIA_RPC_URL,
       );
 
-      console.log("📝 Registering account via Backend Manager wallet...");
+      // ── STEP 2: Read next account number from DB (atomic increment) ────────
+      // findOneAndUpdate with upsert ensures the counter document is created
+      // on first run. $inc on lastAssigned is done in JS below to keep it as
+      // a String. We use findOne + save inside a retry-safe block instead.
+      let counterDoc = await AccountNumberCounter.findById('main');
+      if (!counterDoc) {
+        // First ever registration — seed the counter document
+        counterDoc = await AccountNumberCounter.create({
+          _id: 'main',
+          lastAssigned: '1122746244' // will become 1122746245 after +1
+        });
+      }
 
-      const REGISTRY_ABI = ["function registerNumber(uint128,address)"];
+      const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
+      console.log(`🔢 Assigning account number: ${nextNumber}`);
+
+      // ── STEP 3: Call linkNumber() on the Registry via the backend wallet ───
+      // This is NOT a Gelato call — the backend manager wallet pays gas here
+      // because this is a privileged registry operation, not a user action.
+      console.log("📝 Linking account number on-chain via Registry...");
+
+      const REGISTRY_ABI = [
+        "function linkNumber(uint128,address) external",
+      ];
       const registryContract = new ethers.Contract(
         process.env.REGISTRY_CONTRACT_ADDRESS,
         REGISTRY_ABI,
-        wallet,
+        wallet, // backend manager wallet
       );
 
-      const tx = await registryContract.registerNumber(
-        identityData.accountNumber,
-        identityData.safeAddress,
-      );
+      let linkTx;
+      try {
+        linkTx = await registryContract.linkNumber(
+          BigInt(nextNumber),
+          identityData.safeAddress,
+        );
+        console.log(`⏳ linkNumber TX sent: ${linkTx.hash}`);
+      } catch (linkSendError) {
+        // TX failed to even send (e.g. revert estimation)
+        console.error("❌ linkNumber send failed:", linkSendError.message);
+        return res.status(500).json({
+          message: "On-chain registration failed. Please try again.",
+        });
+      }
 
-      console.log(`⏳ Registration TX sent: ${tx.hash}`);
-      await tx.wait();
-      console.log("✅ On-chain Registration Successful!");
+      let linkReceipt;
+      try {
+        linkReceipt = await linkTx.wait();
+      } catch (waitError) {
+        // TX was mined but reverted
+        console.error("❌ linkNumber reverted on-chain:", waitError.message);
+        return res.status(500).json({
+          message: "On-chain registration reverted. Account number not assigned. Please try again.",
+        });
+      }
 
+      if (!linkReceipt || linkReceipt.status === 0) {
+        console.error("❌ linkNumber receipt shows failure");
+        return res.status(500).json({
+          message: "On-chain registration failed (receipt status 0). Please try again.",
+        });
+      }
+
+      console.log("✅ On-chain account number linked successfully!");
+
+      // ── STEP 4: Increment counter in DB — only AFTER on-chain success ──────
+      counterDoc.lastAssigned = nextNumber;
+      await counterDoc.save();
+      console.log(`✅ Counter updated to: ${nextNumber}`);
+
+      // ── STEP 5: Save user to MongoDB ────────────────────────────────────────
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = new User({
         username,
         email,
         password: hashedPassword,
         safeAddress: identityData.safeAddress,
-        accountNumber: identityData.accountNumber,
+        accountNumber: nextNumber,
         ownerPrivateKey: identityData.ownerPrivateKey,
       });
 
       await newUser.save();
       console.log("✅ User saved to database");
 
-      // ✅ SEND WELCOME EMAIL (Only after successful registration)
+      // ── STEP 6: Send welcome email ───────────────────────────────────────────
       try {
         await sendWelcomeEmail(email, username);
       } catch (emailError) {
         console.error("❌ Welcome email error:", emailError.message);
-        // Don't fail registration if email fails
       }
 
       res.json({
@@ -677,7 +813,7 @@ app.post(
         safeAddress: newUser.safeAddress,
         accountNumber: newUser.accountNumber,
         ownerPrivateKey: newUser.ownerPrivateKey,
-        registrationTx: tx.hash,
+        registrationTx: linkTx.hash,
       });
     } catch (error) {
       console.error("❌ Registration failed:", error);
@@ -954,45 +1090,66 @@ app.get("/api/allowances-for/:address", async (req, res) => {
 });
 
 // ===============================================
-// REPLACE THE /api/transfer ROUTE WITH THIS
+// TRANSFER — with fee, registry resolution, multicall
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
-    const { userPrivateKey, safeAddress, toInput, amount } = req.body;
+    const { userPrivateKey, safeAddress, toInput, amount, registryAddress } = req.body;
 
     validateAmount(amount);
-    const amountWei = ethers.parseUnits(amount.toString(), 6);
 
+    // ── Resolve recipient ───────────────────────────────────────────────────
     let recipientAddress;
     try {
-      recipientAddress = await resolveToAddress(toInput);
+      // If toInput is an account number, registryAddress must be provided
+      recipientAddress = await resolveToAddress(toInput, registryAddress || null);
     } catch (error) {
       return res.status(404).json({ message: error.message });
     }
 
-    const senderUsedAccountNumber = isAccountNumber(toInput);
-    let senderDisplayIdentifier;
-    let senderAccountNumber = null;
+    // ── Fee calculation ─────────────────────────────────────────────────────
+    const { feeNGN, feeWei } = await getFeeForAmount(amount);
+    const amountNum = parseFloat(amount);
 
-    if (senderUsedAccountNumber) {
-      senderAccountNumber = await getAccountNumberFromAddress(safeAddress);
-      senderDisplayIdentifier =
-        senderAccountNumber || safeAddress.toLowerCase();
+    // Determine how much recipient actually receives
+    // If sender has enough balance to cover amount + fee: recipient gets full amount
+    // If sender only has enough for amount: fee is deducted from amount
+    // (balance check happens on-chain; we decide the split here for UX display)
+    const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)"];
+    const tokenContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
+    const balanceWei = await tokenContract.balanceOf(safeAddress);
+    const balanceNum = parseFloat(ethers.formatUnits(balanceWei, 6));
+
+    let actualAmountWei;    // what recipient gets
+    let actualFeeWei;       // what treasury gets
+    let recipientReceives;  // human-readable for display
+
+    if (feeNGN === 0) {
+      // Free tier
+      actualAmountWei = ethers.parseUnits(amount.toString(), 6);
+      actualFeeWei = 0n;
+      recipientReceives = amountNum;
+    } else if (balanceNum >= amountNum + feeNGN) {
+      // Sender covers full amount + fee from their balance
+      actualAmountWei = ethers.parseUnits(amount.toString(), 6);
+      actualFeeWei = feeWei;
+      recipientReceives = amountNum;
+    } else if (balanceNum >= amountNum) {
+      // Fee comes out of the sent amount (recipient gets less)
+      recipientReceives = amountNum - feeNGN;
+      if (recipientReceives <= 0) {
+        return res.status(400).json({ message: "Amount too small to cover fee" });
+      }
+      actualAmountWei = ethers.parseUnits(recipientReceives.toString(), 6);
+      actualFeeWei = feeWei;
     } else {
-      senderDisplayIdentifier = safeAddress.toLowerCase();
+      return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    // ✅ NEW: Get sender's username
-    const senderUser = await User.findOne({
-      safeAddress: normalizeAddress(safeAddress),
-    });
-    const senderUsername = senderUser?.username || null;
-
-    // ✅ NEW: Get recipient's username
-    const recipientUser = await User.findOne({
-      safeAddress: normalizeAddress(recipientAddress),
-    });
-    const recipientUsername = recipientUser?.username || null;
+    // ── Sender / recipient metadata ─────────────────────────────────────────
+    const senderUser = await User.findOne({ safeAddress: normalizeAddress(safeAddress) });
+    const recipientUser = await User.findOne({ safeAddress: normalizeAddress(recipientAddress) });
+    const senderAccountNumber = senderUser?.accountNumber || null;
 
     await delayBeforeBlockchain(safeAddress, "Transfer queued");
 
@@ -1000,7 +1157,7 @@ app.post("/api/transfer", async (req, res) => {
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
       type: "transfer",
-      payload: { toInput, amount, recipientAddress },
+      payload: { toInput, amount, recipientAddress, feeNGN },
     }).save();
 
     try {
@@ -1011,8 +1168,9 @@ app.post("/api/transfer", async (req, res) => {
       const result = await sponsorSafeTransfer(
         safeAddress,
         userPrivateKey,
-        toInput,
-        amountWei,
+        recipientAddress,
+        actualAmountWei,
+        actualFeeWei,
       );
 
       if (!result || !result.taskId) {
@@ -1023,11 +1181,11 @@ app.post("/api/transfer", async (req, res) => {
         await new Transaction({
           fromAddress: safeAddress.toLowerCase(),
           fromAccountNumber: senderAccountNumber,
-          fromUsername: senderUsername, // ✅ NEW
+          fromUsername: senderUser?.username || null,
           toAddress: recipientAddress,
-          toAccountNumber: toInput,
-          toUsername: recipientUsername, // ✅ NEW
-          senderDisplayIdentifier: senderDisplayIdentifier,
+          toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+          toUsername: recipientUser?.username || null,
+          senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
           amount: amount,
           status: "failed",
           taskId: null,
@@ -1035,10 +1193,7 @@ app.post("/api/transfer", async (req, res) => {
           date: new Date(),
         }).save();
 
-        return res.status(400).json({
-          success: false,
-          message: "Transfer failed on blockchain",
-        });
+        return res.status(400).json({ success: false, message: "Transfer failed on blockchain" });
       }
 
       queueEntry.taskId = result.taskId;
@@ -1046,85 +1201,44 @@ app.post("/api/transfer", async (req, res) => {
 
       const taskStatus = await checkGelatoTaskStatus(result.taskId);
 
+      const txRecord = {
+        fromAddress: safeAddress.toLowerCase(),
+        fromAccountNumber: senderAccountNumber,
+        fromUsername: senderUser?.username || null,
+        toAddress: recipientAddress,
+        toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+        toUsername: recipientUser?.username || null,
+        senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
+        amount: amount,
+        status: taskStatus.success ? "successful" : "failed",
+        taskId: result.taskId,
+        type: "transfer",
+        date: new Date(),
+      };
+
+      await new Transaction(txRecord).save();
+
       if (taskStatus.success) {
         queueEntry.status = "CONFIRMED";
         queueEntry.updatedAt = new Date();
         await queueEntry.save();
-
-        await new Transaction({
-          fromAddress: safeAddress.toLowerCase(),
-          fromAccountNumber: senderAccountNumber,
-          fromUsername: senderUsername, // ✅ NEW
-          toAddress: recipientAddress,
-          toAccountNumber: toInput,
-          toUsername: recipientUsername, // ✅ NEW
-          senderDisplayIdentifier: senderDisplayIdentifier,
-          amount: amount,
-          status: "successful",
-          taskId: result.taskId,
-          type: "transfer",
-          date: new Date(),
-        }).save();
-
         await applyCooldown(safeAddress, 20);
 
-        // Send emails
-        if (senderUser && senderUser.email) {
-          try {
-            await sendTransactionEmailToSender(
-              senderUser.email,
-              senderUser.username,
-              toInput,
-              amount,
-              "successful",
-            );
-            console.log(`✅ Sender email sent to: ${senderUser.email}`);
-          } catch (emailError) {
-            console.error("❌ Sender email FAILED:", emailError.message);
-          }
+        if (senderUser?.email) {
+          try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, toInput, amount, "successful"); } catch (e) { console.error("❌ Sender email:", e.message); }
+        }
+        if (recipientUser?.email) {
+          try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, senderAccountNumber || safeAddress, amount); } catch (e) { console.error("❌ Receiver email:", e.message); }
         }
 
-        if (recipientUser && recipientUser.email) {
-          try {
-            await sendTransactionEmailToReceiver(
-              recipientUser.email,
-              recipientUser.username,
-              senderDisplayIdentifier,
-              amount,
-            );
-            console.log(`✅ Receiver email sent to: ${recipientUser.email}`);
-          } catch (emailError) {
-            console.error("❌ Receiver email FAILED:", emailError.message);
-          }
-        }
+        return res.json({ success: true, taskId: result.taskId, feeNGN, recipientReceives });
       } else {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = taskStatus.reason;
         queueEntry.updatedAt = new Date();
         await queueEntry.save();
-
-        await new Transaction({
-          fromAddress: safeAddress.toLowerCase(),
-          fromAccountNumber: senderAccountNumber,
-          fromUsername: senderUsername, // ✅ NEW
-          toAddress: recipientAddress,
-          toAccountNumber: toInput,
-          toUsername: recipientUsername, // ✅ NEW
-          senderDisplayIdentifier: senderDisplayIdentifier,
-          amount: amount,
-          status: "failed",
-          taskId: result.taskId,
-          type: "transfer",
-          date: new Date(),
-        }).save();
-
-        return res.status(400).json({
-          success: false,
-          message: taskStatus.reason || "Transfer reverted on blockchain",
-        });
+        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted on blockchain" });
       }
-
-      res.json({ success: true, taskId: result.taskId });
     } catch (error) {
       queueEntry.status = "FAILED";
       queueEntry.errorMessage = error.message;
@@ -1139,11 +1253,11 @@ app.post("/api/transfer", async (req, res) => {
 });
 
 // ===============================================
-// APPROVE - FIXED VERSION
+// APPROVE — registry resolution, no fee
 // ===============================================
 app.post("/api/approve", async (req, res) => {
   try {
-    const { userPrivateKey, safeAddress, spenderInput, amount } = req.body;
+    const { userPrivateKey, safeAddress, spenderInput, amount, registryAddress } = req.body;
 
     const numAmount = parseFloat(amount);
     if (isNaN(numAmount) || numAmount < 0 || numAmount > 1000000000) {
@@ -1152,7 +1266,7 @@ app.post("/api/approve", async (req, res) => {
 
     let finalSpenderAddress;
     try {
-      finalSpenderAddress = await resolveToAddress(spenderInput);
+      finalSpenderAddress = await resolveToAddress(spenderInput, registryAddress || null);
     } catch (error) {
       return res.status(404).json({ message: `Spender: ${error.message}` });
     }
@@ -1173,12 +1287,8 @@ app.post("/api/approve", async (req, res) => {
       queueEntry.updatedAt = new Date();
       await queueEntry.save();
 
-      const result = await sponsorSafeApprove(
-        safeAddress,
-        userPrivateKey,
-        finalSpenderAddress,
-        amountWei,
-      );
+      // No fee on approvals — pass resolved address directly
+      const result = await sponsorSafeApprove(safeAddress, userPrivateKey, finalSpenderAddress, amountWei);
 
       if (!result || !result.taskId) {
         queueEntry.status = "FAILED";
@@ -1197,94 +1307,35 @@ app.post("/api/approve", async (req, res) => {
         queueEntry.errorMessage = taskStatus.reason;
         queueEntry.updatedAt = new Date();
         await queueEntry.save();
-        return res.status(400).json({
-          success: false,
-          message: taskStatus.reason || "Approval reverted",
-        });
+        return res.status(400).json({ success: false, message: taskStatus.reason || "Approval reverted" });
       }
 
       queueEntry.status = "CONFIRMED";
       queueEntry.updatedAt = new Date();
       await queueEntry.save();
 
-      const inputType = isAccountNumber(spenderInput)
-        ? "accountNumber"
-        : "address";
+      const inputType = isAccountNumber(spenderInput) ? "accountNumber" : "address";
 
       if (numAmount === 0) {
-        await Approval.deleteOne({
-          owner: safeAddress.toLowerCase(),
-          spender: finalSpenderAddress.toLowerCase(),
-        });
+        await Approval.deleteOne({ owner: safeAddress.toLowerCase(), spender: finalSpenderAddress.toLowerCase() });
       } else {
         await Approval.findOneAndUpdate(
-          {
-            owner: safeAddress.toLowerCase(),
-            spender: finalSpenderAddress.toLowerCase(),
-          },
-          {
-            amount: amount,
-            date: new Date(),
-            spenderInput: spenderInput,
-            spenderInputType: inputType,
-          },
+          { owner: safeAddress.toLowerCase(), spender: finalSpenderAddress.toLowerCase() },
+          { amount: amount, date: new Date(), spenderInput: spenderInput, spenderInputType: inputType },
           { upsert: true, new: true },
         );
       }
 
       await applyCooldown(safeAddress, 20);
 
-      // ✅ SEND APPROVAL EMAILS (Only on Success)
-      console.log(`🔍 Looking for approver: ${normalizeAddress(safeAddress)}`);
-      console.log(
-        `🔍 Looking for spender: ${normalizeAddress(finalSpenderAddress)}`,
-      );
+      const approverUser = await User.findOne({ safeAddress: normalizeAddress(safeAddress) });
+      const spenderUser = await User.findOne({ safeAddress: normalizeAddress(finalSpenderAddress) });
 
-      const approverUser = await User.findOne({
-        safeAddress: normalizeAddress(safeAddress),
-      });
-      const spenderUser = await User.findOne({
-        safeAddress: normalizeAddress(finalSpenderAddress),
-      });
-
-      console.log(
-        `🔍 Approver found: ${!!approverUser}, Email: ${approverUser?.email || "NONE"}`,
-      );
-      console.log(
-        `🔍 Spender found: ${!!spenderUser}, Email: ${spenderUser?.email || "NONE"}`,
-      );
-
-      console.log(
-        `📧 Preparing approval emails - Approver: ${approverUser?.email || "NOT FOUND"}, Spender: ${spenderUser?.email || "NOT FOUND"}`,
-      );
-
-      if (approverUser && approverUser.email) {
-        try {
-          await sendApprovalEmailToApprover(
-            approverUser.email,
-            approverUser.username,
-            spenderInput,
-            amount,
-          );
-          console.log(`✅ Approver email sent to: ${approverUser.email}`);
-        } catch (emailError) {
-          console.error("❌ Approver email FAILED:", emailError.message);
-        }
+      if (approverUser?.email) {
+        try { await sendApprovalEmailToApprover(approverUser.email, approverUser.username, spenderInput, amount); } catch (e) { console.error("❌ Approver email:", e.message); }
       }
-
-      // Notify spender (always send, even for revoke)
-      if (spenderUser && spenderUser.email) {
-        try {
-          await sendApprovalEmailToSpender(
-            spenderUser.email,
-            spenderUser.username,
-            approverUser?.username || safeAddress,
-            amount,
-          );
-          console.log(`✅ Spender email sent to: ${spenderUser.email}`);
-        } catch (emailError) {
-          console.error("❌ Spender email FAILED:", emailError.message);
-        }
+      if (spenderUser?.email) {
+        try { await sendApprovalEmailToSpender(spenderUser.email, spenderUser.username, approverUser?.username || safeAddress, amount); } catch (e) { console.error("❌ Spender email:", e.message); }
       }
 
       res.json({ success: true, taskId: result.taskId });
@@ -1345,38 +1396,53 @@ app.get("/api/transactions/:address", async (req, res) => {
 });
 
 // ===============================================
-// TRANSFER FROM - COMPLETE FIXED VERSION
+// TRANSFERFROM — fee, registry resolution, multicall
 // ===============================================
 app.post("/api/transferFrom", async (req, res) => {
   try {
-    const { userPrivateKey, safeAddress, fromInput, toInput, amount } = req.body;
+    const { userPrivateKey, safeAddress, fromInput, toInput, amount, fromRegistry, toRegistry } = req.body;
 
     validateAmount(amount);
-    const amountWei = ethers.parseUnits(amount.toString(), 6);
 
     let fromAddress, toAddress;
     try {
-      fromAddress = await resolveToAddress(fromInput);
+      fromAddress = await resolveToAddress(fromInput, fromRegistry || null);
     } catch (error) {
       return res.status(404).json({ success: false, message: `Source: ${error.message}` });
     }
-
     try {
-      toAddress = await resolveToAddress(toInput);
+      toAddress = await resolveToAddress(toInput, toRegistry || null);
     } catch (error) {
       return res.status(404).json({ success: false, message: `Destination: ${error.message}` });
     }
 
-    const fromInputWasAccountNumber = isAccountNumber(fromInput);
-    let senderDisplayIdentifier = fromInputWasAccountNumber ? fromInput : fromAddress;
+    // ── Fee calculation (same logic as transfer) ────────────────────────────
+    const { feeNGN, feeWei } = await getFeeForAmount(amount);
+    const amountNum = parseFloat(amount);
 
-    // ✅ NEW: Get usernames BEFORE queue entry
-    const fromUser = await User.findOne({
-      safeAddress: normalizeAddress(fromAddress),
-    });
-    const toUser = await User.findOne({
-      safeAddress: normalizeAddress(toAddress),
-    });
+    let actualAmountWei;
+    let actualFeeWei;
+    let recipientReceives;
+
+    if (feeNGN === 0) {
+      actualAmountWei = ethers.parseUnits(amount.toString(), 6);
+      actualFeeWei = 0n;
+      recipientReceives = amountNum;
+    } else {
+      // For transferFrom, fee comes out of the amount (allowance covers amount+fee or amount only)
+      // We deduct fee from the transfer amount to keep it simple
+      recipientReceives = amountNum - feeNGN;
+      if (recipientReceives <= 0) {
+        return res.status(400).json({ message: "Amount too small to cover fee" });
+      }
+      actualAmountWei = ethers.parseUnits(recipientReceives.toString(), 6);
+      actualFeeWei = feeWei;
+    }
+
+    const fromUser = await User.findOne({ safeAddress: normalizeAddress(fromAddress) });
+    const toUser = await User.findOne({ safeAddress: normalizeAddress(toAddress) });
+    const fromInputWasAccountNumber = isAccountNumber(fromInput);
+    const senderDisplayIdentifier = fromInputWasAccountNumber ? fromInput : fromAddress;
 
     await delayBeforeBlockchain(safeAddress, "TransferFrom queued");
 
@@ -1384,7 +1450,7 @@ app.post("/api/transferFrom", async (req, res) => {
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
       type: "transferFrom",
-      payload: { fromInput, toInput, amount, fromAddress, toAddress },
+      payload: { fromInput, toInput, amount, fromAddress, toAddress, feeNGN },
     }).save();
 
     try {
@@ -1397,7 +1463,8 @@ app.post("/api/transferFrom", async (req, res) => {
         safeAddress,
         fromAddress,
         toAddress,
-        amountWei,
+        actualAmountWei,
+        actualFeeWei,
       );
 
       if (!result || !result.taskId) {
@@ -1406,15 +1473,15 @@ app.post("/api/transferFrom", async (req, res) => {
         await queueEntry.save();
 
         await new Transaction({
-          fromAddress: fromAddress,
+          fromAddress,
           fromAccountNumber: fromInputWasAccountNumber ? fromInput : null,
-          fromUsername: fromUser?.username || null, // ✅ ADD THIS
-          toAddress: toAddress,
-          toAccountNumber: toInput,
-          toUsername: toUser?.username || null, // ✅ ADD THIS
-          senderDisplayIdentifier: senderDisplayIdentifier,
+          fromUsername: fromUser?.username || null,
+          toAddress,
+          toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+          toUsername: toUser?.username || null,
+          senderDisplayIdentifier,
           executorAddress: safeAddress.toLowerCase(),
-          amount: amount,
+          amount,
           status: "failed",
           taskId: null,
           type: "transferFrom",
@@ -1429,28 +1496,21 @@ app.post("/api/transferFrom", async (req, res) => {
 
       const taskStatus = await checkGelatoTaskStatus(result.taskId);
 
-      if (taskStatus.success) {
-        queueEntry.status = "CONFIRMED";
-        queueEntry.updatedAt = new Date();
-        await queueEntry.save();
-      } else {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = taskStatus.reason;
-        queueEntry.updatedAt = new Date();
-        await queueEntry.save();
-      }
+      queueEntry.status = taskStatus.success ? "CONFIRMED" : "FAILED";
+      queueEntry.errorMessage = taskStatus.success ? null : taskStatus.reason;
+      queueEntry.updatedAt = new Date();
+      await queueEntry.save();
 
-      // ✅ Save transaction with usernames
       await new Transaction({
-        fromAddress: fromAddress,
+        fromAddress,
         fromAccountNumber: fromInputWasAccountNumber ? fromInput : null,
-        fromUsername: fromUser?.username || null, // ✅ ADD THIS
-        toAddress: toAddress,
-        toAccountNumber: toInput,
-        toUsername: toUser?.username || null, // ✅ ADD THIS
-        senderDisplayIdentifier: senderDisplayIdentifier,
+        fromUsername: fromUser?.username || null,
+        toAddress,
+        toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+        toUsername: toUser?.username || null,
+        senderDisplayIdentifier,
         executorAddress: safeAddress.toLowerCase(),
-        amount: amount,
+        amount,
         status: taskStatus.success ? "successful" : "failed",
         type: "transferFrom",
         taskId: result.taskId,
@@ -1458,45 +1518,19 @@ app.post("/api/transferFrom", async (req, res) => {
       }).save();
 
       if (!taskStatus.success) {
-        return res.status(400).json({
-          success: false,
-          message: taskStatus.reason || "Transfer reverted",
-        });
+        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted" });
       }
 
       await applyCooldown(safeAddress, 20);
 
-      // ✅ SEND EMAILS (Only on Success)
-      if (fromUser && fromUser.email) {
-        try {
-          await sendTransactionEmailToSender(
-            fromUser.email,
-            fromUser.username,
-            toInput,
-            amount,
-            "successful",
-          );
-          console.log(`✅ From-user email sent to: ${fromUser.email}`);
-        } catch (emailError) {
-          console.error("❌ From-user email FAILED:", emailError.message);
-        }
+      if (fromUser?.email) {
+        try { await sendTransactionEmailToSender(fromUser.email, fromUser.username, toInput, amount, "successful"); } catch (e) { console.error("❌ From email:", e.message); }
+      }
+      if (toUser?.email) {
+        try { await sendTransactionEmailToReceiver(toUser.email, toUser.username, fromInput, amount); } catch (e) { console.error("❌ To email:", e.message); }
       }
 
-      if (toUser && toUser.email) {
-        try {
-          await sendTransactionEmailToReceiver(
-            toUser.email,
-            toUser.username,
-            fromInput,
-            amount,
-          );
-          console.log(`✅ To-user email sent to: ${toUser.email}`);
-        } catch (emailError) {
-          console.error("❌ To-user email FAILED:", emailError.message);
-        }
-      }
-
-      res.json({ success: true, taskId: result.taskId });
+      res.json({ success: true, taskId: result.taskId, feeNGN, recipientReceives });
     } catch (error) {
       queueEntry.status = "FAILED";
       queueEntry.errorMessage = error.message;

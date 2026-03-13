@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /dashboard
+Disallow: /account-settings
+Disallow: /transactions
+Disallow: /set-transaction-pin
 
 Sitemap: https://salva-nexus.org/sitemap.xml

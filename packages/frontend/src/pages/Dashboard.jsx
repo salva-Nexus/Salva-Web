@@ -31,10 +31,27 @@ const Dashboard = () => {
   const [incomingAllowances, setIncomingAllowances] = useState([]);
   const [isRefreshingApprovals, setIsRefreshingApprovals] = useState(false);
 
-  // ✅ NEW: Confirmation modal state
+  // Confirmation modal state
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
-  const [pendingAction, setPendingAction] = useState(null); // 'send', 'approve', 'transferFrom'
+  const [pendingAction, setPendingAction] = useState(null);
+
+  // Registry dropdown state
+  const [registries, setRegistries] = useState([]);
+  const [selectedRegistry, setSelectedRegistry] = useState(null);
+  const [showRegistryDropdown, setShowRegistryDropdown] = useState(false);
+  // Approve registry
+  const [approveRegistry, setApproveRegistry] = useState(null);
+  const [showApproveRegistryDropdown, setShowApproveRegistryDropdown] = useState(false);
+  // TransferFrom registries
+  const [fromRegistry, setFromRegistry] = useState(null);
+  const [showFromRegistryDropdown, setShowFromRegistryDropdown] = useState(false);
+  const [toRegistry, setToRegistry] = useState(null);
+  const [showToRegistryDropdown, setShowToRegistryDropdown] = useState(false);
+  // Fee preview
+  const [feePreview, setFeePreview] = useState({ feeNGN: 0, recipientReceives: null });
+  const [feeConfig, setFeeConfig] = useState(null);
+
   // PIN VERIFICATION STATE
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [transactionPin, setTransactionPin] = useState("");
@@ -58,7 +75,7 @@ const Dashboard = () => {
         fetchApprovals(parsedUser.safeAddress);
         fetchIncomingAllowances(parsedUser.safeAddress);
         const interval = setInterval(() => {
-          fetchTransactions(parsedUser.safeAddress); // ✅ ADD THIS
+          fetchTransactions(parsedUser.safeAddress);
           fetchApprovals(parsedUser.safeAddress, true);
           fetchIncomingAllowances(parsedUser.safeAddress, true);
         }, 30000);
@@ -76,7 +93,6 @@ const Dashboard = () => {
     const checkAccountStatus = async () => {
       if (user && (user.email || user.username)) {
         try {
-          // ✅ FIX: Use email if available, fallback to username
           const identifier = user.email || user.username;
           const res = await fetch(
             `${SALVA_API_URL}/api/user/pin-status/${identifier}`,
@@ -104,6 +120,38 @@ const Dashboard = () => {
       checkAccountStatus();
     }
   }, [user]);
+
+  // Fetch registries and fee config on mount
+  useEffect(() => {
+    const fetchMeta = async () => {
+      try {
+        const [regRes, feeRes] = await Promise.all([
+          fetch(`${SALVA_API_URL}/api/registries`),
+          fetch(`${SALVA_API_URL}/api/fee-config`),
+        ]);
+        const regData = await regRes.json();
+        const feeData = await feeRes.json();
+        setRegistries(Array.isArray(regData) ? regData : []);
+        setFeeConfig(feeData);
+      } catch (err) {
+        console.error("Failed to fetch registries/fee config");
+      }
+    };
+    fetchMeta();
+  }, []);
+
+  // Compute fee preview whenever amount changes
+  const computeFeePreview = (amount) => {
+    if (!feeConfig || !amount)
+      return setFeePreview({ feeNGN: 0, recipientReceives: null });
+    const amt = parseFloat(amount);
+    if (isNaN(amt)) return;
+    let fee = 0;
+    if (amt >= feeConfig.tier2Min) fee = feeConfig.tier2Fee;
+    else if (amt >= feeConfig.tier1Min && amt <= feeConfig.tier1Max)
+      fee = feeConfig.tier1Fee;
+    setFeePreview({ feeNGN: fee, recipientReceives: fee > 0 ? amt - fee : amt });
+  };
 
   useEffect(() => {
     if (notification.show) {
@@ -180,125 +228,119 @@ const Dashboard = () => {
       maximumFractionDigits: 2,
     });
 
-// Receipt generation with correct status and timestamp
-const downloadReceipt = (e, tx) => {
-  e.stopPropagation();
-  const doc = new jsPDF();
-  const gold = [212, 175, 55];
-  const dark = [10, 10, 11];
-  const red = [239, 68, 68];
-  const isReceived = tx.displayType === "receive";
-  const isSuccessful = tx.status === "successful";
+  const downloadReceipt = (e, tx) => {
+    e.stopPropagation();
+    const doc = new jsPDF();
+    const gold = [212, 175, 55];
+    const dark = [10, 10, 11];
+    const red = [239, 68, 68];
+    const isReceived = tx.displayType === "receive";
+    const isSuccessful = tx.status === "successful";
 
-  doc.setFillColor(dark[0], dark[1], dark[2]);
-  doc.rect(0, 0, 210, 297, "F");
-  doc.setDrawColor(gold[0], gold[1], gold[2]);
-  doc.setLineWidth(1);
-  doc.rect(10, 10, 190, 277);
-  doc.setTextColor(gold[0], gold[1], gold[2]);
-  doc.setFontSize(40);
-  doc.setFont("helvetica", "bold");
-  doc.text("SALVA", 105, 45, { align: "center" });
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text("OFFICIAL TRANSACTION RECEIPT", 105, 55, { align: "center" });
-  doc.setDrawColor(255, 255, 255, 0.1);
-  doc.line(30, 65, 180, 65);
-
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("AMOUNT TRANSFERRED", 40, 90);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.text(`${formatNumber(tx.amount)} NGNs`, 40, 102);
-
-  // ✅ UPDATED: SENDER (FROM) - Show both name AND account number
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("FROM (SENDER)", 40, 125);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  
-  if (isReceived) {
-    // Show sender's username (or fallback) AND their account number
-    const senderName = tx.fromUsername || "Unknown";
-    const senderAccount = tx.fromAccountNumber || tx.fromAddress;
-    doc.text(senderName, 40, 135);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${senderAccount}`, 40, 142);
-  } else {
-    // Current user is sender
-    doc.text(user.username, 40, 135);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${user.accountNumber}`, 40, 142);
-  }
-
-  // ✅ UPDATED: RECIPIENT (TO) - Show both name AND account number
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("TO (RECIPIENT)", 40, 160);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  
-  if (isReceived) {
-    // Current user is recipient
-    doc.text(user.username, 40, 170);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${user.accountNumber}`, 40, 177);
-  } else {
-    // Show recipient's username (or fallback) AND their account number
-    const recipientName = tx.toUsername || "Unknown";
-    const recipientAccount = tx.toAccountNumber || tx.toAddress;
-    doc.text(recipientName, 40, 170);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${recipientAccount}`, 40, 177);
-  }
-
-  // DATE & TIME
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("DATE & TIME", 40, 195);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  const date = new Date(tx.date);
-  const dateStr = date.toLocaleDateString();
-  const timeStr = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-  doc.text(`${dateStr} ${timeStr}`, 40, 205);
-
-  // BLOCKCHAIN STATUS
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("BLOCKCHAIN STATUS", 40, 225);
-  doc.setFontSize(14);
-
-  if (isSuccessful) {
+    doc.setFillColor(dark[0], dark[1], dark[2]);
+    doc.rect(0, 0, 210, 297, "F");
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(1);
+    doc.rect(10, 10, 190, 277);
     doc.setTextColor(gold[0], gold[1], gold[2]);
-    doc.text("VERIFIED ON-CHAIN (BASE SEPOLIA)", 40, 237);
-  } else {
-    doc.setTextColor(red[0], red[1], red[2]);
-    doc.text("FAILED ON-CHAIN", 40, 237);
-  }
+    doc.setFontSize(40);
+    doc.setFont("helvetica", "bold");
+    doc.text("SALVA", 105, 45, { align: "center" });
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text("OFFICIAL TRANSACTION RECEIPT", 105, 55, { align: "center" });
+    doc.setDrawColor(255, 255, 255, 0.1);
+    doc.line(30, 65, 180, 65);
 
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`REF: ${tx._id || "SALVA-TX"}`, 105, 270, { align: "center" });
+    doc.setFontSize(12);
+    doc.setTextColor(150, 150, 150);
+    doc.text("AMOUNT TRANSFERRED", 40, 90);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.text(`${formatNumber(tx.amount)} NGNs`, 40, 102);
 
-  doc.save(`Salva_Receipt_${Date.now()}.pdf`);
-  showMsg("Professional receipt downloaded!");
-};
+    doc.setFontSize(12);
+    doc.setTextColor(150, 150, 150);
+    doc.text("FROM (SENDER)", 40, 125);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
 
-  // ✅ NEW: Resolve and confirm recipient
-  const resolveAndConfirm = async (accountInput, amount, action) => {
+    if (isReceived) {
+      const senderName = tx.fromUsername || "Unknown";
+      const senderAccount = tx.fromAccountNumber || tx.fromAddress;
+      doc.text(senderName, 40, 135);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account: ${senderAccount}`, 40, 142);
+    } else {
+      doc.text(user.username, 40, 135);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account: ${user.accountNumber}`, 40, 142);
+    }
+
+    doc.setFontSize(12);
+    doc.setTextColor(150, 150, 150);
+    doc.text("TO (RECIPIENT)", 40, 160);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+
+    if (isReceived) {
+      doc.text(user.username, 40, 170);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account: ${user.accountNumber}`, 40, 177);
+    } else {
+      const recipientName = tx.toUsername || "Unknown";
+      const recipientAccount = tx.toAccountNumber || tx.toAddress;
+      doc.text(recipientName, 40, 170);
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account: ${recipientAccount}`, 40, 177);
+    }
+
+    doc.setFontSize(12);
+    doc.setTextColor(150, 150, 150);
+    doc.text("DATE & TIME", 40, 195);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(10);
+    const date = new Date(tx.date);
+    const dateStr = date.toLocaleDateString();
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    doc.text(`${dateStr} ${timeStr}`, 40, 205);
+
+    doc.setFontSize(12);
+    doc.setTextColor(150, 150, 150);
+    doc.text("BLOCKCHAIN STATUS", 40, 225);
+    doc.setFontSize(14);
+
+    if (isSuccessful) {
+      doc.setTextColor(gold[0], gold[1], gold[2]);
+      doc.text("VERIFIED ON-CHAIN (BASE SEPOLIA)", 40, 237);
+    } else {
+      doc.setTextColor(red[0], red[1], red[2]);
+      doc.text("FAILED ON-CHAIN", 40, 237);
+    }
+
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`REF: ${tx._id || "SALVA-TX"}`, 105, 270, { align: "center" });
+
+    doc.save(`Salva_Receipt_${Date.now()}.pdf`);
+    showMsg("Professional receipt downloaded!");
+  };
+
+  const resolveAndConfirm = async (accountInput, amount, action, registryAddr = null) => {
     if (!accountInput || !amount) {
       return showMsg("Please fill all fields", "error");
+    }
+
+    if (/^\d+$/.test(accountInput.trim()) && !registryAddr) {
+      return showMsg("Please select a wallet from the dropdown", "error");
     }
 
     setLoading(true);
@@ -317,12 +359,14 @@ const downloadReceipt = (e, tx) => {
         return showMsg("Account not found or invalid", "error");
       }
 
-      // Show confirmation modal
       setConfirmationData({
         username: data.username,
         accountNumber: data.accountNumber,
         amount: amount,
         originalInput: accountInput,
+        registryAddress: registryAddr,
+        feeNGN: feePreview.feeNGN,
+        recipientReceives: feePreview.recipientReceives ?? parseFloat(amount),
       });
       setPendingAction(action);
       setIsConfirmModalOpen(true);
@@ -333,59 +377,12 @@ const downloadReceipt = (e, tx) => {
     }
   };
 
-  // ✅ FIX 1: SEND button opens form first (not PIN modal)
   const handleTransferClick = () => {
-    if (isAccountLocked) {
-      return showMsg(lockMessage, "error");
-    }
-
-    if (noPinWarning) {
-      return; // Warning is already showing
-    }
-
-    // Open send form FIRST (PIN will be asked on submit)
+    if (isAccountLocked) return showMsg(lockMessage, "error");
+    if (noPinWarning) return;
     setIsSendOpen(true);
   };
 
-  // ✅ FIX 2: Approve asks for PIN immediately (form already visible)
-  const handleApproveClick = (e) => {
-    e.preventDefault();
-
-    if (isAccountLocked) {
-      return showMsg(lockMessage, "error");
-    }
-
-    if (noPinWarning) {
-      return showMsg("Please set transaction PIN in Account Settings", "error");
-    }
-
-    // Ask for PIN immediately for approve (since form is already visible)
-    setPendingTransaction("approve");
-    setIsPinModalOpen(true);
-    setTransactionPin("");
-    setPinAttempts(0);
-  };
-
-  // ✅ FIX 3: TransferFrom asks for PIN immediately (form already visible)
-  const handleTransferFromClick = (e) => {
-    e.preventDefault();
-
-    if (isAccountLocked) {
-      return showMsg(lockMessage, "error");
-    }
-
-    if (noPinWarning) {
-      return showMsg("Please set transaction PIN in Account Settings", "error");
-    }
-
-    // Ask for PIN immediately for transferFrom (since form is already visible)
-    setPendingTransaction("transferFrom");
-    setIsPinModalOpen(true);
-    setTransactionPin("");
-    setPinAttempts(0);
-  };
-
-  // Verify PIN and proceed with transaction
   const verifyPinAndProceed = async () => {
     if (transactionPin.length !== 4) {
       return showMsg("PIN must be 4 digits", "error");
@@ -394,16 +391,12 @@ const downloadReceipt = (e, tx) => {
     setLoading(true);
 
     try {
-      // ✅ FIX: Use email if available, fallback to username
       const identifier = user.email || user.username;
 
       const response = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: identifier,
-          pin: transactionPin,
-        }),
+        body: JSON.stringify({ email: identifier, pin: transactionPin }),
       });
 
       const data = await response.json();
@@ -413,7 +406,6 @@ const downloadReceipt = (e, tx) => {
         setIsPinModalOpen(false);
 
         if (pendingTransaction === "send") {
-          // Don't open send form again, it's already open
           executeTransfer(data.privateKey);
         } else if (pendingTransaction === "approve") {
           executeApproval(data.privateKey);
@@ -424,17 +416,10 @@ const downloadReceipt = (e, tx) => {
         setPinAttempts((prev) => prev + 1);
 
         if (pinAttempts >= 2) {
-          // Changed from >= 3 to >= 2 (on 3rd failed attempt)
-          showMsg(
-            "Too many failed attempts. Redirecting to settings...",
-            "error",
-          );
+          showMsg("Too many failed attempts. Redirecting to settings...", "error");
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
-          showMsg(
-            `Invalid PIN. ${3 - pinAttempts - 1} attempts remaining`,
-            "error",
-          );
+          showMsg(`Invalid PIN. ${3 - pinAttempts - 1} attempts remaining`, "error");
         }
       }
     } catch (err) {
@@ -444,7 +429,6 @@ const downloadReceipt = (e, tx) => {
     }
   };
 
-  // Execute actual transfer (called after PIN verification)
   const executeTransfer = async (privateKey) => {
     if (amountError) return showMsg("Insufficient balance", "error");
 
@@ -460,6 +444,7 @@ const downloadReceipt = (e, tx) => {
           safeAddress: user.safeAddress,
           toInput: transferData.to,
           amount: transferData.amount,
+          registryAddress: confirmationData?.registryAddress || null,
         }),
       });
 
@@ -469,6 +454,8 @@ const downloadReceipt = (e, tx) => {
         showMsg("Transfer Successful!");
         setIsSendOpen(false);
         setTransferData({ to: "", amount: "" });
+        setSelectedRegistry(null);
+        setShowRegistryDropdown(false);
         setTimeout(() => {
           fetchBalance(user.safeAddress);
           fetchTransactions(user.safeAddress);
@@ -484,7 +471,6 @@ const downloadReceipt = (e, tx) => {
     }
   };
 
-  // Execute approval (called after PIN verification)
   const executeApproval = async (privateKey) => {
     setLoading(true);
 
@@ -497,12 +483,15 @@ const downloadReceipt = (e, tx) => {
           safeAddress: user.safeAddress,
           spenderInput: approveData.spender,
           amount: approveData.amount,
+          registryAddress: approveRegistry?.registryAddress || null,
         }),
       });
 
       if (response.ok) {
         showMsg("Approval updated on-chain!");
         setApproveData({ spender: "", amount: "" });
+        setApproveRegistry(null);
+        setShowApproveRegistryDropdown(false);
         setTimeout(() => {
           fetchApprovals(user.safeAddress);
           fetchIncomingAllowances(user.safeAddress, true);
@@ -518,7 +507,6 @@ const downloadReceipt = (e, tx) => {
     }
   };
 
-  // Execute transferFrom (called after PIN verification)
   const executeTransferFrom = async (privateKey) => {
     setLoading(true);
 
@@ -532,6 +520,8 @@ const downloadReceipt = (e, tx) => {
           fromInput: transferFromData.from,
           toInput: transferFromData.to,
           amount: transferFromData.amount,
+          fromRegistry: fromRegistry?.registryAddress || null,
+          toRegistry: toRegistry?.registryAddress || null,
         }),
       });
 
@@ -540,6 +530,10 @@ const downloadReceipt = (e, tx) => {
       if (response.ok) {
         showMsg("Pull queued, waiting for confirmation...");
         setTransferFromData({ from: "", to: "", amount: "" });
+        setFromRegistry(null);
+        setToRegistry(null);
+        setShowFromRegistryDropdown(false);
+        setShowToRegistryDropdown(false);
         setTimeout(() => {
           fetchBalance(user.safeAddress);
           fetchTransactions(user.safeAddress);
@@ -557,14 +551,12 @@ const downloadReceipt = (e, tx) => {
     }
   };
 
-  // Autofill function - use matching types
   const handleAutofillFromAllowance = (allowance) => {
     setTransferFromData({
       from: allowance.allower,
       to: allowance.spenderDisplay,
       amount: allowance.amount,
     });
-
     showMsg("Form autofilled from allowance", "success");
   };
 
@@ -574,6 +566,8 @@ const downloadReceipt = (e, tx) => {
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-4xl mx-auto relative z-10">
+
+        {/* ── Header ── */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-12">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-salvaGold font-bold">
@@ -593,6 +587,7 @@ const downloadReceipt = (e, tx) => {
           </div>
         </header>
 
+        {/* ── Balance Card ── */}
         <div className="rounded-3xl bg-gray-100 dark:bg-black p-6 sm:p-10 mb-8 border border-white/5 shadow-2xl overflow-hidden">
           <div className="flex justify-between items-center mb-4">
             <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
@@ -632,6 +627,7 @@ const downloadReceipt = (e, tx) => {
           </div>
         </div>
 
+        {/* ── Wallet Address ── */}
         <div
           onClick={() => {
             navigator.clipboard.writeText(user.safeAddress);
@@ -649,12 +645,17 @@ const downloadReceipt = (e, tx) => {
           </p>
         </div>
 
+        {/* ── Tabs ── */}
         <div className="flex border-b border-white/10 mb-6 gap-8 overflow-x-auto no-scrollbar">
           {["activity", "approve", "transferFrom"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab ? "border-b-2 border-salvaGold text-salvaGold" : "opacity-40 hover:opacity-100"}`}
+              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
+                activeTab === tab
+                  ? "border-b-2 border-salvaGold text-salvaGold"
+                  : "opacity-40 hover:opacity-100"
+              }`}
             >
               {tab === "activity"
                 ? "Recent Activity"
@@ -663,6 +664,7 @@ const downloadReceipt = (e, tx) => {
           ))}
         </div>
 
+        {/* ── Activity Tab ── */}
         {activeTab === "activity" && (
           <section className="px-1">
             <div className="flex justify-between items-end mb-6">
@@ -696,7 +698,11 @@ const downloadReceipt = (e, tx) => {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p
-                        className={`font-black text-sm sm:text-base ${tx.displayType === "receive" ? "text-green-400" : "text-red-400"}`}
+                        className={`font-black text-sm sm:text-base ${
+                          tx.displayType === "receive"
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }`}
                       >
                         {tx.displayType === "receive" ? "+" : "-"}
                         {formatNumber(tx.amount)}
@@ -719,12 +725,14 @@ const downloadReceipt = (e, tx) => {
           </section>
         )}
 
+        {/* ── Approve Tab ── */}
         {activeTab === "approve" && (
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
           >
+            {/* Approve Form */}
             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-white/5">
               <h4 className="text-salvaGold font-black text-xs mb-4 uppercase tracking-widest">
                 Update Permission
@@ -742,6 +750,7 @@ const downloadReceipt = (e, tx) => {
                     approveData.spender,
                     approveData.amount,
                     "approve",
+                    approveRegistry?.registryAddress || null,
                   );
                 }}
                 className="space-y-4"
@@ -751,10 +760,36 @@ const downloadReceipt = (e, tx) => {
                   placeholder="Spender Account or Address"
                   value={approveData.spender}
                   className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  onChange={(e) =>
-                    setApproveData({ ...approveData, spender: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setApproveData({ ...approveData, spender: val });
+                    setShowApproveRegistryDropdown(
+                      /^\d+$/.test(val.trim()) && val.trim().length > 0,
+                    );
+                    if (!/^\d+$/.test(val.trim())) setApproveRegistry(null);
+                  }}
                 />
+                {/* Approve Registry Dropdown */}
+                {showApproveRegistryDropdown && registries.length > 0 && (
+                  <select
+                    value={approveRegistry?.registryAddress || ""}
+                    onChange={(e) =>
+                      setApproveRegistry(
+                        registries.find(
+                          (r) => r.registryAddress === e.target.value,
+                        ) || null,
+                      )
+                    }
+                    className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                  >
+                    <option value="">-- Choose Wallet --</option>
+                    {registries.map((reg) => (
+                      <option key={reg.registryAddress} value={reg.registryAddress}>
+                        {reg.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <input
                   required
                   placeholder="Amount to Limit"
@@ -773,6 +808,8 @@ const downloadReceipt = (e, tx) => {
                 </button>
               </form>
             </div>
+
+            {/* Active Permissions List */}
             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-white/5 flex flex-col h-full min-h-[350px]">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h4 className="text-salvaGold font-black text-xs uppercase tracking-widest">
@@ -780,7 +817,9 @@ const downloadReceipt = (e, tx) => {
                 </h4>
                 <button
                   onClick={() => fetchApprovals(user.safeAddress)}
-                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${isRefreshingApprovals ? "animate-pulse" : ""}`}
+                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${
+                    isRefreshingApprovals ? "animate-pulse" : ""
+                  }`}
                 >
                   {isRefreshingApprovals ? "SYNCING..." : "REFRESH ↻"}
                 </button>
@@ -837,12 +876,14 @@ const downloadReceipt = (e, tx) => {
           </motion.section>
         )}
 
+        {/* ── TransferFrom Tab ── */}
         {activeTab === "transferFrom" && (
           <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start"
           >
+            {/* TransferFrom Form */}
             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-white/5 min-h-[350px]">
               <h4 className="text-salvaGold font-black text-xs mb-4 uppercase tracking-widest">
                 Execute Approved Pull
@@ -860,34 +901,87 @@ const downloadReceipt = (e, tx) => {
                     transferFromData.from,
                     transferFromData.amount,
                     "transferFrom",
+                    fromRegistry?.registryAddress || null,
                   );
                 }}
                 className="space-y-4"
               >
-                <input
-                  required
-                  placeholder="From (Account or Address)"
-                  value={transferFromData.from}
-                  className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  onChange={(e) =>
-                    setTransferFromData({
-                      ...transferFromData,
-                      from: e.target.value,
-                    })
-                  }
-                />
-                <input
-                  required
-                  placeholder="To (Account or Address)"
-                  value={transferFromData.to}
-                  className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  onChange={(e) =>
-                    setTransferFromData({
-                      ...transferFromData,
-                      to: e.target.value,
-                    })
-                  }
-                />
+                {/* From Input + Registry Dropdown */}
+                <div className="space-y-2">
+                  <input
+                    required
+                    placeholder="From (Account or Address)"
+                    value={transferFromData.from}
+                    className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTransferFromData({ ...transferFromData, from: val });
+                      setShowFromRegistryDropdown(
+                        /^\d+$/.test(val.trim()) && val.trim().length > 0,
+                      );
+                      if (!/^\d+$/.test(val.trim())) setFromRegistry(null);
+                    }}
+                  />
+                  {showFromRegistryDropdown && registries.length > 0 && (
+                    <select
+                      value={fromRegistry?.registryAddress || ""}
+                      onChange={(e) =>
+                        setFromRegistry(
+                          registries.find(
+                            (r) => r.registryAddress === e.target.value,
+                          ) || null,
+                        )
+                      }
+                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                    >
+                      <option value="">-- Choose Wallet (From) --</option>
+                      {registries.map((reg) => (
+                        <option key={reg.registryAddress} value={reg.registryAddress}>
+                          {reg.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                {/* To Input + Registry Dropdown */}
+                <div className="space-y-2">
+                  <input
+                    required
+                    placeholder="To (Account or Address)"
+                    value={transferFromData.to}
+                    className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTransferFromData({ ...transferFromData, to: val });
+                      setShowToRegistryDropdown(
+                        /^\d+$/.test(val.trim()) && val.trim().length > 0,
+                      );
+                      if (!/^\d+$/.test(val.trim())) setToRegistry(null);
+                    }}
+                  />
+                  {showToRegistryDropdown && registries.length > 0 && (
+                    <select
+                      value={toRegistry?.registryAddress || ""}
+                      onChange={(e) =>
+                        setToRegistry(
+                          registries.find(
+                            (r) => r.registryAddress === e.target.value,
+                          ) || null,
+                        )
+                      }
+                      className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
+                    >
+                      <option value="">-- Choose Wallet (To) --</option>
+                      {registries.map((reg) => (
+                        <option key={reg.registryAddress} value={reg.registryAddress}>
+                          {reg.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
                 <input
                   required
                   placeholder="Amount"
@@ -909,6 +1003,8 @@ const downloadReceipt = (e, tx) => {
                 </button>
               </form>
             </div>
+
+            {/* Allowances For Me List */}
             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-3xl border border-white/5 flex flex-col h-full min-h-[350px]">
               <div className="flex justify-between items-center mb-4 flex-shrink-0">
                 <h4 className="text-salvaGold font-black text-xs uppercase tracking-widest">
@@ -916,7 +1012,9 @@ const downloadReceipt = (e, tx) => {
                 </h4>
                 <button
                   onClick={() => fetchIncomingAllowances(user.safeAddress)}
-                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${isRefreshingApprovals ? "animate-pulse" : ""}`}
+                  className={`text-[10px] font-bold text-salvaGold hover:opacity-70 transition-all flex items-center gap-1 ${
+                    isRefreshingApprovals ? "animate-pulse" : ""
+                  }`}
                 >
                   {isRefreshingApprovals ? "SYNCING..." : "REFRESH ↻"}
                 </button>
@@ -972,7 +1070,7 @@ const downloadReceipt = (e, tx) => {
         )}
       </div>
 
-      {/* No PIN Warning Slide-in */}
+      {/* ── No PIN Warning Slide-in ── */}
       <AnimatePresence>
         {noPinWarning && (
           <motion.div
@@ -1005,7 +1103,7 @@ const downloadReceipt = (e, tx) => {
         )}
       </AnimatePresence>
 
-      {/* ✅ NEW: Confirmation Modal */}
+      {/* ── Confirmation Modal ── */}
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
@@ -1027,12 +1125,8 @@ const downloadReceipt = (e, tx) => {
                 <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">✓</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">
-                  Confirm Transaction
-                </h3>
-                <p className="text-sm opacity-60">
-                  Please verify the details below
-                </p>
+                <h3 className="text-2xl font-black mb-2">Confirm Transaction</h3>
+                <p className="text-sm opacity-60">Please verify the details below</p>
               </div>
 
               <div className="space-y-4 mb-6">
@@ -1045,18 +1139,35 @@ const downloadReceipt = (e, tx) => {
 
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-xs opacity-60 mb-1">Account Number</p>
-                  <p className="font-mono font-bold">
-                    {confirmationData.accountNumber}
-                  </p>
+                  <p className="font-mono font-bold">{confirmationData.accountNumber}</p>
                 </div>
 
+                {/* ── Fee-aware amount display ── */}
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
-                  <p className="text-xs opacity-60 mb-1">Amount</p>
+                  <p className="text-xs opacity-60 mb-1">You Send</p>
                   <p className="font-black text-xl">
                     {formatNumber(confirmationData.amount)}{" "}
                     <span className="text-salvaGold">NGNs</span>
                   </p>
                 </div>
+
+                {confirmationData.feeNGN > 0 && (
+                  <>
+                    <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
+                      <p className="text-xs opacity-60 mb-1">Network Fee</p>
+                      <p className="font-black text-base text-red-400">
+                        -{formatNumber(confirmationData.feeNGN)} NGNs
+                      </p>
+                    </div>
+                    <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30">
+                      <p className="text-xs opacity-60 mb-1">Recipient Receives</p>
+                      <p className="font-black text-xl text-green-400">
+                        {formatNumber(confirmationData.recipientReceives)}{" "}
+                        <span className="text-salvaGold">NGNs</span>
+                      </p>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="flex gap-3">
@@ -1088,7 +1199,7 @@ const downloadReceipt = (e, tx) => {
         )}
       </AnimatePresence>
 
-      {/* PIN Verification Modal */}
+      {/* ── PIN Verification Modal ── */}
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -1110,12 +1221,8 @@ const downloadReceipt = (e, tx) => {
                 <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">
-                  Enter Transaction PIN
-                </h3>
-                <p className="text-sm opacity-60">
-                  Verify your identity to proceed
-                </p>
+                <h3 className="text-2xl font-black mb-2">Enter Transaction PIN</h3>
+                <p className="text-sm opacity-60">Verify your identity to proceed</p>
               </div>
 
               <input
@@ -1159,7 +1266,7 @@ const downloadReceipt = (e, tx) => {
         )}
       </AnimatePresence>
 
-      {/* Send Modal */}
+      {/* ── Send Modal ── */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -1178,9 +1285,7 @@ const downloadReceipt = (e, tx) => {
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1">
-                Send NGNs
-              </h3>
+              <h3 className="text-2xl sm:text-3xl font-black mb-1">Send NGNs</h3>
               <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
                 Salva Secure Transfer
               </p>
@@ -1191,11 +1296,13 @@ const downloadReceipt = (e, tx) => {
                     transferData.to,
                     transferData.amount,
                     "send",
+                    selectedRegistry?.registryAddress || null,
                   );
                 }}
                 className="space-y-5"
               >
-                <div>
+                {/* Recipient Input + Registry Dropdown */}
+                <div className="space-y-2">
                   <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
                     Recipient
                   </label>
@@ -1204,12 +1311,49 @@ const downloadReceipt = (e, tx) => {
                     type="text"
                     placeholder="Enter Account Number or Address"
                     value={transferData.to}
-                    onChange={(e) =>
-                      setTransferData({ ...transferData, to: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setTransferData({ ...transferData, to: val });
+                      if (/^\d+$/.test(val.trim()) && val.trim().length > 0) {
+                        setShowRegistryDropdown(true);
+                      } else {
+                        setShowRegistryDropdown(false);
+                        setSelectedRegistry(null);
+                      }
+                    }}
                     className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
                   />
+                  {showRegistryDropdown && registries.length > 0 && (
+                    <div>
+                      <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                        Choose Wallet
+                      </label>
+                      <select
+                        required
+                        value={selectedRegistry?.registryAddress || ""}
+                        onChange={(e) => {
+                          const reg = registries.find(
+                            (r) => r.registryAddress === e.target.value,
+                          );
+                          setSelectedRegistry(reg || null);
+                        }}
+                        className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
+                      >
+                        <option value="">-- Select Wallet --</option>
+                        {registries.map((reg) => (
+                          <option
+                            key={reg.registryAddress}
+                            value={reg.registryAddress}
+                          >
+                            {reg.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
+
+                {/* Amount Input */}
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
                     Amount (NGN)
@@ -1220,13 +1364,18 @@ const downloadReceipt = (e, tx) => {
                       type="number"
                       step="0.01"
                       value={transferData.amount}
-                      onChange={(e) =>
+                      onChange={(e) => {
                         setTransferData({
                           ...transferData,
                           amount: e.target.value,
-                        })
-                      }
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
+                        });
+                        computeFeePreview(e.target.value);
+                      }}
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${
+                        amountError
+                          ? "border border-red-500 text-red-500"
+                          : "border border-transparent"
+                      }`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       NGN
@@ -1237,11 +1386,33 @@ const downloadReceipt = (e, tx) => {
                       ⚠️ Balance too low.
                     </p>
                   )}
+                  {/* Live fee preview below amount input */}
+                  {feePreview.feeNGN > 0 && transferData.amount && !amountError && (
+                    <div className="mt-3 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px] space-y-1">
+                      <div className="flex justify-between">
+                        <span className="opacity-50 uppercase font-bold">Network Fee</span>
+                        <span className="text-red-400 font-black">
+                          -{formatNumber(feePreview.feeNGN)} NGNs
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="opacity-50 uppercase font-bold">Recipient Gets</span>
+                        <span className="text-green-400 font-black">
+                          {formatNumber(feePreview.recipientReceives)} NGNs
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
+
                 <button
                   disabled={loading || amountError}
                   type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${
+                    loading || amountError
+                      ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                      : "bg-salvaGold text-black hover:brightness-110 active:scale-95"
+                  }`}
                 >
                   {loading ? "PROCESSING…" : "CONFIRM SEND"}
                 </button>
@@ -1251,14 +1422,18 @@ const downloadReceipt = (e, tx) => {
         )}
       </AnimatePresence>
 
-      {/* Notification Toast */}
+      {/* ── Notification Toast ── */}
       <AnimatePresence>
         {notification.show && (
           <motion.div
             initial={{ y: 100, x: "-50%", opacity: 0 }}
             animate={{ y: 0, x: "-50%", opacity: 1 }}
             exit={{ y: 100, x: "-50%", opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${notification.type === "error" ? "bg-red-600 text-white" : "bg-salvaGold text-black"}`}
+            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${
+              notification.type === "error"
+                ? "bg-red-600 text-white"
+                : "bg-salvaGold text-black"
+            }`}
           >
             {notification.message}
           </motion.div>

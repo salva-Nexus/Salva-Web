@@ -5,27 +5,26 @@ const { wallet, provider } = require('./walletSigner');
 
 async function generateAndDeploySalvaIdentity(providerUrl) {
     console.log("🏗️  Starting Safe Wallet Generation & Deployment...");
-    
+
     // 1. Create a random EOA to own the Safe
     const owner = ethers.Wallet.createRandom();
     console.log("✅ Owner Address Generated:", owner.address);
 
     // 2. Define the BLUEPRINT (Predicted Safe)
-    // This tells the Kit what the Safe will look like before it exists
     const predictedSafe = {
         safeAccountConfig: {
             owners: [owner.address],
             threshold: 1
         },
         safeDeploymentConfig: {
-            safeVersion: '1.3.0' 
+            safeVersion: '1.3.0'
         }
     };
 
     // 3. Initialize Safe with Predicted Config
     const protocolKit = await Safe.init({
         provider: providerUrl,
-        signer: wallet.privateKey, // Backend wallet pays deployment gas
+        signer: wallet.privateKey,
         predictedSafe: predictedSafe
     });
 
@@ -35,7 +34,7 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     // 4. DEPLOY THE SAFE ON-CHAIN
     console.log("🚀 Deploying Safe on-chain (backend pays gas)...");
     const deploymentTransaction = await protocolKit.createSafeDeploymentTransaction();
-    
+
     const txResponse = await wallet.sendTransaction({
         to: deploymentTransaction.to,
         data: deploymentTransaction.data,
@@ -46,15 +45,12 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     await txResponse.wait();
     console.log("✅ Safe Deployed! TX:", txResponse.hash);
 
-    // 5. VERIFY DEPLOYMENT (With Retry Logic for Node Sync)
+    // 5. VERIFY DEPLOYMENT
     console.log("⏳ Verifying deployment on-chain...");
-    
-    // Give the RPC node a 3-second breather to catch up
     await new Promise(resolve => setTimeout(resolve, 3000));
 
     let code = await provider.getCode(safeAddress);
-    
-    // If it's still 0x, try one more time after another 3 seconds
+
     if (code === '0x') {
         console.log("🔄 Node hasn't synced yet, retrying verification...");
         await new Promise(resolve => setTimeout(resolve, 3000));
@@ -66,15 +62,12 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     }
     console.log("✅ Safe deployment verified on-chain");
 
-    // 6. Generate 10-digit Account Number
-    const accountNumber = Math.floor(1000000000 + Math.random() * 9000000000).toString();
-    console.log("🔢 Account Number:", accountNumber);
-
+    // NOTE: Account number is NO LONGER generated here.
+    // It is assigned in the registration route AFTER on-chain linking succeeds.
     return {
         ownerAddress: owner.address,
         ownerPrivateKey: owner.privateKey,
         safeAddress: safeAddress,
-        accountNumber: accountNumber,
         deploymentTx: txResponse.hash
     };
 }

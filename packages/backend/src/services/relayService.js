@@ -1,25 +1,9 @@
-// Salva-Digital-Tech/Packages/backend/src/services/relayService.js
+// Salva-Digital-Tech/packages/backend/src/services/relayService.js
 const { GelatoRelayPack } = require('@safe-global/relay-kit');
 const SafeClient = require('@safe-global/protocol-kit').default;
 const { ethers } = require('ethers');
 
 const sponsorKey = process.env.GELATO_RELAY_API_KEY;
-
-/**
- * HELPER: Formats input to BigInt if it's an account number, 
- * otherwise returns the address string.
- */
-const formatTarget = (input) => {
-    const isAlias = !input.startsWith('0x') && input.length <= 15;
-    return isAlias ? BigInt(input) : input;
-};
-
-/**
- * HELPER: Determines if input is an account number
- */
-const isAccountNumber = (input) => {
-    return !input.startsWith('0x') && input.length <= 15;
-};
 
 async function initKits(safeAddress, ownerKey) {
     const protocolKit = await SafeClient.init({
@@ -31,126 +15,117 @@ async function initKits(safeAddress, ownerKey) {
     return { protocolKit, relayKit };
 }
 
-// 1. FLEXIBLE TRANSFER - Uses correct function based on input type
-async function sponsorSafeTransfer(safeAddress, ownerKey, recipient, amountWei) {
+/**
+ * Sponsors a transfer() call.
+ * recipient must already be a resolved wallet address (0x...).
+ * If feeAmount > 0, a second transfer to treasury is bundled in the same tx.
+ */
+async function sponsorSafeTransfer(safeAddress, ownerKey, recipientAddress, amountWei, feeWei = 0n) {
     const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
-    
-    const isAlias = isAccountNumber(recipient);
-    
+
     const iface = new ethers.Interface([
-        isAlias 
-            ? "function transferViaAccountAlias(uint128,uint256)" 
-            : "function transfer(address,uint256)"
+        "function transfer(address,uint256)"
     ]);
 
-    const calldata = iface.encodeFunctionData(
-        isAlias ? "transferViaAccountAlias" : "transfer", 
-        [isAlias ? BigInt(recipient) : recipient, amountWei]
-    );
+    const mainCalldata = iface.encodeFunctionData("transfer", [recipientAddress, amountWei]);
 
-    console.log(`📤 Transfer Type: ${isAlias ? 'Account Alias' : 'Address'}`);
-    console.log(`📤 Recipient: ${recipient}`);
+    const transactions = [
+        { to: process.env.NGN_TOKEN_ADDRESS, data: mainCalldata, value: '0' }
+    ];
 
-    const transactions = [{ to: process.env.NGN_TOKEN_ADDRESS, data: calldata, value: '0' }];
+    // If there is a fee, bundle a second transfer to treasury in the same multicall
+    if (feeWei > 0n) {
+        const feeCalldata = iface.encodeFunctionData("transfer", [
+            process.env.TREASURY_CONTRACT_ADDRESS,
+            feeWei
+        ]);
+        transactions.push({ to: process.env.NGN_TOKEN_ADDRESS, data: feeCalldata, value: '0' });
+    }
+
     const safeTransaction = await relayKit.createTransaction({ transactions, options: { isSponsored: true } });
     const signedSafeTransaction = await protocolKit.signTransaction(safeTransaction);
-    
-    const result = await relayKit.executeTransaction({ 
-        executable: signedSafeTransaction, 
-        options: { isSponsored: true } 
+
+    const result = await relayKit.executeTransaction({
+        executable: signedSafeTransaction,
+        options: { isSponsored: true }
     });
 
     console.log(`✅ Transfer TaskId: ${result.taskId}`);
     return result;
 }
 
-// 2. FLEXIBLE APPROVE
-async function sponsorSafeApprove(safeAddress, ownerKey, spender, amountWei) {
+/**
+ * Sponsors an approve() call.
+ * spenderAddress must already be a resolved wallet address (0x...).
+ * No fee is charged on approvals.
+ */
+async function sponsorSafeApprove(safeAddress, ownerKey, spenderAddress, amountWei) {
     const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
-    
-    const isAlias = isAccountNumber(spender);
 
     const iface = new ethers.Interface([
-        isAlias 
-            ? "function approveViaAccountAlias(uint128,uint256)" 
-            : "function approve(address,uint256)"
+        "function approve(address,uint256)"
     ]);
 
-    const calldata = iface.encodeFunctionData(
-        isAlias ? "approveViaAccountAlias" : "approve", 
-        [isAlias ? BigInt(spender) : spender, amountWei]
-    );
-
-    console.log(`🔐 Approve Type: ${isAlias ? 'Account Alias' : 'Address'}`);
-    console.log(`🔐 Spender: ${spender}`);
+    const calldata = iface.encodeFunctionData("approve", [spenderAddress, amountWei]);
 
     const transactions = [{ to: process.env.NGN_TOKEN_ADDRESS, data: calldata, value: '0' }];
     const safeTransaction = await relayKit.createTransaction({ transactions, options: { isSponsored: true } });
     const signedSafeTransaction = await protocolKit.signTransaction(safeTransaction);
-    
-    const result = await relayKit.executeTransaction({ 
-        executable: signedSafeTransaction, 
-        options: { isSponsored: true } 
+
+    const result = await relayKit.executeTransaction({
+        executable: signedSafeTransaction,
+        options: { isSponsored: true }
     });
 
     console.log(`✅ Approve TaskId: ${result.taskId}`);
     return result;
 }
 
-// 3. FLEXIBLE TRANSFER FROM - Uses correct function based on input types
-async function sponsorSafeTransferFrom(ownerKey, safeAddress, from, to, amountWei) {
+/**
+ * Sponsors a transferFrom() call.
+ * fromAddress and toAddress must already be resolved wallet addresses (0x...).
+ * If feeWei > 0, a second transferFrom to treasury is bundled in the same tx.
+ */
+async function sponsorSafeTransferFrom(ownerKey, safeAddress, fromAddress, toAddress, amountWei, feeWei = 0n) {
     const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
-    
-    const isFromAlias = isAccountNumber(from);
-    const isToAlias = isAccountNumber(to);
 
-    let abi, functionName, params;
+    const iface = new ethers.Interface([
+        "function transferFrom(address,address,uint256)"
+    ]);
 
-    // Use alias function if EITHER from or to is an account number
-    if (isFromAlias || isToAlias) {
-        functionName = "transferFromViaAccountAlias"; 
-        abi = ["function transferFromViaAccountAlias(uint128,uint128,uint256)"];
-        
-        // Convert to BigInt for account numbers, keep as-is for addresses
-        // Note: If mixing address+alias, the contract must handle address→uint128 conversion
-        params = [
-            isFromAlias ? BigInt(from) : from,
-            isToAlias ? BigInt(to) : to,
-            amountWei
-        ];
-    } else {
-        // Both are addresses, use standard transferFrom
-        functionName = "transferFrom";
-        abi = ["function transferFrom(address,address,uint256)"];
-        params = [from, to, amountWei];
+    const mainCalldata = iface.encodeFunctionData("transferFrom", [fromAddress, toAddress, amountWei]);
+
+    const transactions = [
+        { to: process.env.NGN_TOKEN_ADDRESS, data: mainCalldata, value: '0' }
+    ];
+
+    // Bundle fee deduction from same allowance
+    if (feeWei > 0n) {
+        const feeCalldata = iface.encodeFunctionData("transferFrom", [
+            fromAddress,
+            process.env.TREASURY_CONTRACT_ADDRESS,
+            feeWei
+        ]);
+        transactions.push({ to: process.env.NGN_TOKEN_ADDRESS, data: feeCalldata, value: '0' });
     }
 
-    console.log(`🔄 TransferFrom Type: ${functionName}`);
-    console.log(`🔄 From: ${from} (${isFromAlias ? 'Alias' : 'Address'})`);
-    console.log(`🔄 To: ${to} (${isToAlias ? 'Alias' : 'Address'})`);
-
-    const iface = new ethers.Interface(abi);
-    const calldata = iface.encodeFunctionData(functionName, params);
-
-    const transactions = [{ to: process.env.NGN_TOKEN_ADDRESS, data: calldata, value: '0' }];
-    
-    const safeTransaction = await relayKit.createTransaction({ 
-        transactions, 
-        options: { isSponsored: true } 
+    const safeTransaction = await relayKit.createTransaction({
+        transactions,
+        options: { isSponsored: true }
     });
     const signedSafeTransaction = await protocolKit.signTransaction(safeTransaction);
-    
-    const result = await relayKit.executeTransaction({ 
-        executable: signedSafeTransaction, 
-        options: { isSponsored: true } 
+
+    const result = await relayKit.executeTransaction({
+        executable: signedSafeTransaction,
+        options: { isSponsored: true }
     });
 
     console.log(`✅ TransferFrom TaskId: ${result.taskId}`);
     return result;
 }
 
-module.exports = { 
-    sponsorSafeTransfer, 
-    sponsorSafeApprove, 
-    sponsorSafeTransferFrom 
+module.exports = {
+    sponsorSafeTransfer,
+    sponsorSafeApprove,
+    sponsorSafeTransferFrom
 };
