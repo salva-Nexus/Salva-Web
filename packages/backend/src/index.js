@@ -13,7 +13,6 @@ const {
   sponsorSafeTransferFrom,
   sponsorSafeApprove,
 } = require("./services/relayService");
-const User = require("./models/User");
 const Transaction = require("./models/Transaction");
 const mongoose = require("mongoose");
 const { Resend } = require("resend");
