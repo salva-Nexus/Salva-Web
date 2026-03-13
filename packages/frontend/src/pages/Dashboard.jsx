@@ -1171,13 +1171,6 @@ const executeTransfer = async (privateKey) => {
                         -{formatNumber(confirmationData.feeNGN)} NGNs
                       </p>
                     </div>
-                    <div className="p-4 rounded-xl bg-green-500/10 border border-green-500/30">
-                      <p className="text-xs opacity-60 mb-1">Recipient Receives</p>
-                      <p className="font-black text-xl text-green-400">
-                        {formatNumber(confirmationData.recipientReceives)}{" "}
-                        <span className="text-salvaGold">NGNs</span>
-                      </p>
-                    </div>
                   </>
                 )}
               </div>
@@ -1404,12 +1397,6 @@ const executeTransfer = async (privateKey) => {
                         <span className="opacity-50 uppercase font-bold">Network Fee</span>
                         <span className="text-red-400 font-black">
                           -{formatNumber(feePreview.feeNGN)} NGNs
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="opacity-50 uppercase font-bold">Recipient Gets</span>
-                        <span className="text-green-400 font-black">
-                          {formatNumber(feePreview.recipientReceives)} NGNs
                         </span>
                       </div>
                     </div>
