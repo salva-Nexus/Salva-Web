@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /login
 Disallow: /dashboard
 Disallow: /account-settings
 Disallow: /transactions
