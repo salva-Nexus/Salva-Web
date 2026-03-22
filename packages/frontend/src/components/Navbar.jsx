@@ -60,9 +60,9 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 px-8 py-6 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
+    <nav className="fixed top-0 w-full z-50 px-8 py-2 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
 
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0px', textDecoration: 'none' }}>
         <img
           src="/salva-logo.png"
           alt="Salva"
