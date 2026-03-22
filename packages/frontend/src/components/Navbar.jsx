@@ -64,14 +64,72 @@ const Navbar = () => {
 
   return (
     <nav className="fixed top-0 w-full z-50 px-8 py-6 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
-      <Link to="/" className="text-2xl font-black tracking-tighter text-black dark:text-white transition-colors">
-        SALVA<span className="text-salvaGold">.</span>
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+        <svg
+          className="salva-nav-logo"
+          width="44"
+          height="44"
+          viewBox="0 0 80 80"
+          fill="none"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <style>{`
+      .salva-nav-logo .nr { stroke:#C9A84C; fill:none; stroke-width:2.5; stroke-dasharray:56; stroke-dashoffset:56; animation: drawR 0.5s ease forwards 0.1s; }
+      .salva-nav-logo .nnr { stroke:#1a3a6e; fill:none; stroke-width:2.5; stroke-dasharray:56; stroke-dashoffset:56; animation: drawR 0.5s ease forwards 0.6s; }
+      .salva-nav-logo .nd { fill:#C9A84C; animation: popD 0.3s ease forwards 0.55s; r:0; }
+      .salva-nav-logo .nnd { fill:#1a3a6e; animation: popD 0.3s ease forwards 1.05s; r:0; }
+      .salva-nav-logo .at { stroke:#C9A84C; fill:none; stroke-width:2; stroke-linecap:round; stroke-dasharray:22; stroke-dashoffset:22; animation: drawR 0.4s ease forwards 1.1s; }
+      .salva-nav-logo .ab { stroke:#1a3a6e; fill:none; stroke-width:2; stroke-linecap:round; stroke-dasharray:22; stroke-dashoffset:22; animation: drawR 0.4s ease forwards 1.3s; }
+      .salva-nav-logo .pg { fill:none; stroke:#C9A84C; stroke-width:1.2; opacity:0; animation: pR 2s ease-out infinite 2s; }
+      .salva-nav-logo .pn { fill:none; stroke:#1a3a6e; stroke-width:1.2; opacity:0; animation: pR 2s ease-out infinite 2.6s; }
+      @keyframes drawR { to { stroke-dashoffset:0; } }
+      @keyframes popD { 0%{r:0} 60%{r:5px} 100%{r:3.5px} }
+      @keyframes pR { 0%{r:9px;opacity:0.7} 100%{r:20px;opacity:0} }
+      .salva-nav-logo .ta {
+        offset-path: path('M31 40 C40 28, 49 28, 58 40');
+        animation: tG 1.4s ease-in-out infinite 1.8s;
+        fill: #C9A84C;
+      }
+      .salva-nav-logo .tb {
+        offset-path: path('M31 40 C40 52, 49 52, 58 40');
+        animation: tN 1.4s ease-in-out infinite 2.5s;
+        fill: #8ab4d4;
+      }
+      @keyframes tG {
+        0%{offset-distance:0%;opacity:0}
+        5%{opacity:1}
+        95%{opacity:1}
+        100%{offset-distance:100%;opacity:0}
+      }
+      @keyframes tN {
+        0%{offset-distance:100%;opacity:0}
+        5%{opacity:1}
+        95%{opacity:1}
+        100%{offset-distance:0%;opacity:0}
+      }
+    `}</style>
+
+          <circle className="pg" cx="22" cy="40" />
+          <circle className="pn" cx="58" cy="40" />
+          <circle className="nr" cx="22" cy="40" r="9" />
+          <circle className="nnr" cx="58" cy="40" r="9" />
+          <circle className="nd" cx="22" cy="40" />
+          <circle className="nnd" cx="58" cy="40" />
+          <path className="at" d="M31 40 C40 28, 49 28, 58 40" />
+          <path className="ab" d="M31 40 C40 52, 49 52, 58 40" />
+          <circle className="ta" r="3" />
+          <circle className="tb" r="2.5" />
+        </svg>
+
+        <span className="text-2xl font-black tracking-tighter text-black dark:text-white">
+          SALVA<span className="text-salvaGold">.</span>
+        </span>
       </Link>
-      
+
       <div className="flex items-center gap-8">
         {!isLoggedIn ? (
-          <Link 
-            to="/login" 
+          <Link
+            to="/login"
             className="text-xs font-bold uppercase tracking-[0.2em] text-black dark:text-white opacity-60 hover:opacity-100 transition-opacity"
           >
             Login
@@ -126,25 +184,25 @@ const Navbar = () => {
           <span className="text-[10px] uppercase tracking-widest opacity-40 font-black hidden sm:block text-black dark:text-white">
             {darkMode ? 'Dark' : 'Light'}
           </span>
-          
-          <motion.button 
+
+          <motion.button
             onClick={() => setDarkMode(!darkMode)}
             aria-label="Toggle Theme"
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
             className="relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
           >
-            <motion.svg 
-              width="28" 
-              height="28" 
-              viewBox="0 0 24 24" 
+            <motion.svg
+              width="28"
+              height="28"
+              viewBox="0 0 24 24"
               fill="none"
               animate={{ rotate: darkMode ? 0 : 180 }}
               transition={{ duration: 0.5, ease: "easeInOut" }}
             >
-              <motion.circle 
-                cx="12" 
-                cy="12" 
+              <motion.circle
+                cx="12"
+                cy="12"
                 animate={{
                   r: darkMode ? 4 : 5,
                   fill: darkMode ? "#ffffff" : "#000000"
