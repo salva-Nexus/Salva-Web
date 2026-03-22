@@ -62,13 +62,14 @@ const Navbar = () => {
   return (
     <nav className="fixed top-0 w-full z-50 px-8 py-1 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
 
-      <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '0px', textDecoration: 'none' }}>
+      <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', position: 'relative' }}>
         <img
           src="/salva-logo.png"
           alt="Salva"
           style={{ width: '80px', height: '80px', objectFit: 'contain', display: 'block', flexShrink: 0 }}
         />
-        <span className="text-1.5xl font-black tracking-tighter text-black dark:text-white">
+        <span className="text-1.5xl font-black tracking-tighter text-black dark:text-white"
+          style={{ position: 'absolute', left: '52px' }}>
           SALVA<span className="text-salvaGold">.</span>
         </span>
       </Link>
