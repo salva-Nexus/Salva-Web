@@ -60,7 +60,7 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 px-2 py-1 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
+    <nav className="fixed top-0 w-full z-50 px-0.5 py-1 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
 
       <Link to="/" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', position: 'relative' }}>
         <img
