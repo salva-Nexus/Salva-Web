@@ -68,7 +68,7 @@ const Navbar = () => {
           alt="Salva"
           style={{ width: '40px', height: '40px', objectFit: 'contain', display: 'block', flexShrink: 0 }}
         />
-        <span className="text-4xl font-black tracking-tighter text-black dark:text-white">
+        <span className="text-1.5xl font-black tracking-tighter text-black dark:text-white">
           SALVA<span className="text-salvaGold">.</span>
         </span>
       </Link>
