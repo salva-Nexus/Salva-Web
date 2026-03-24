@@ -239,11 +239,6 @@ const AccountSettings = () => {
           </div>
 
           <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
-            <p className="text-xs uppercase opacity-40 font-bold mb-1">Account Number</p>
-            <p className="text-lg font-black font-mono text-salvaGold">{user.accountNumber}</p>
-          </div>
-
-          <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs uppercase opacity-40 font-bold mb-1">Email Address</p>

@@ -31,7 +31,26 @@ const Dashboard = () => {
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0 });
   const [amountError, setAmountError] = useState(false);
-  const [aliasStatus, setAliasStatus] = useState({ hasName: false, hasNumber: false, nameAlias: null, numberAlias: null });
+const [aliasStatus, setAliasStatus] = useState(() => {
+  try {
+    const saved = localStorage.getItem("salva_user");
+    if (saved) {
+      const u = JSON.parse(saved);
+      return {
+        hasName: !!u.nameAlias,
+        hasNumber: !!u.numberAlias,
+        nameAlias: u.nameAlias || null,
+        numberAlias: u.numberAlias || null,
+      };
+    }
+  } catch {}
+  return {
+    hasName: false,
+    hasNumber: false,
+    nameAlias: null,
+    numberAlias: null,
+  };
+});
   const [showAliasModal, setShowAliasModal] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
@@ -50,6 +69,19 @@ const Dashboard = () => {
 
   const navigate = useNavigate();
 
+  const refreshUserStatus = async (email, currentUser) => {
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.isValidator !== currentUser.isValidator || data.nameAlias !== currentUser.nameAlias || data.numberAlias !== currentUser.numberAlias) {
+      const updatedUser = { ...currentUser, isValidator: data.isValidator, nameAlias: data.nameAlias, numberAlias: data.numberAlias };
+      localStorage.setItem("salva_user", JSON.stringify(updatedUser));
+      setUser(updatedUser);
+    }
+  } catch {}
+};
+
   // ── Init ────────────────────────────────────────────────────────────────
   useEffect(() => {
     const savedUser = localStorage.getItem("salva_user");
@@ -59,6 +91,7 @@ const Dashboard = () => {
         setUser(parsedUser);
         fetchBalance(parsedUser.safeAddress);
         fetchAliasStatus(parsedUser.safeAddress);
+        refreshUserStatus(parsedUser.email, parsedUser);
       } catch {
         window.location.href = "/login";
       }
@@ -120,6 +153,9 @@ const Dashboard = () => {
       const feeData = await feeRes.json();
       setRegistries(Array.isArray(regData) ? regData : []);
       setFeeConfig(feeData);
+      if (regs.length === 1) {
+        setSelectedRegistry(regs[0]);
+      }
     } catch {}
   };
 
@@ -172,17 +208,19 @@ const Dashboard = () => {
       const data = await res.json();
       if (!data.found) { showMsg("Account not found", "error"); return; }
 
-      // Determine display for confirmation card
-      const isNumber = /^\d+$/.test(to.trim());
-      const isName = /[a-zA-Z]/.test(to.trim());
-      let resolvedDisplay = '';
-      if (isNumber) {
-        resolvedDisplay = `${to}@${selectedRegistry?.name?.toLowerCase().replace(/\s/g, '') || 'salva'}`;
-      } else if (isName && !to.startsWith('0x')) {
-        const ns = selectedRegistry?.name?.toLowerCase().replace(/\s/g, '') || 'salva';
-        resolvedDisplay = `${to}@${ns}`;
+      const isName = !isNumber && !to.startsWith("0x");
+      let resolvedDisplay = "";
+      if (isName) {
+        // For name inputs, weld with selected registry name for display
+        const nsDisplay =
+          selectedRegistry?.name?.replace(/\s+/g, "").toLowerCase() || "salva";
+        resolvedDisplay = `${to}@${nsDisplay}`;
+      } else if (isNumber) {
+        const nsDisplay =
+          selectedRegistry?.name?.replace(/\s+/g, "").toLowerCase() || "salva";
+        resolvedDisplay = `${to}@${nsDisplay}`;
       } else {
-        resolvedDisplay = to; // raw address
+        resolvedDisplay = to;
       }
 
       setConfirmationData({
@@ -442,26 +480,37 @@ const Dashboard = () => {
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-4xl mx-auto relative z-10">
-
         {/* ── Header ── */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-salvaGold font-bold">Salva Citizen{user.isValidator ? ' · Validator' : ''}</p>
-            <h2 className="text-3xl sm:text-4xl font-black truncate max-w-[220px] sm:max-w-none">{user.username}</h2>
+            <p className="text-[10px] uppercase tracking-widest text-salvaGold font-bold">
+              Salva Citizen{user.isValidator ? " · Validator" : ""}
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-black truncate max-w-[220px] sm:max-w-none">
+              {user.username}
+            </h2>
           </div>
           {/* Alias display — only shows if at least one alias registered */}
           {(aliasStatus.hasName || aliasStatus.hasNumber) && (
             <div className="bg-gray-100 dark:bg-white/5 p-4 rounded-2xl w-full sm:w-auto space-y-1">
               {aliasStatus.hasName && (
                 <div>
-                  <p className="text-[9px] uppercase opacity-40 font-bold">Name Alias</p>
-                  <p className="font-mono font-bold text-salvaGold text-sm">{aliasStatus.nameAlias}@salva</p>
+                  <p className="text-[9px] uppercase opacity-40 font-bold">
+                    Name Alias
+                  </p>
+                  <p className="font-mono font-bold text-salvaGold text-sm">
+                    {aliasStatus.nameAlias}@salva
+                  </p>
                 </div>
               )}
               {aliasStatus.hasNumber && (
                 <div>
-                  <p className="text-[9px] uppercase opacity-40 font-bold">Account Number</p>
-                  <p className="font-mono font-bold text-salvaGold text-sm">{aliasStatus.numberAlias}</p>
+                  <p className="text-[9px] uppercase opacity-40 font-bold">
+                    Account Number
+                  </p>
+                  <p className="font-mono font-bold text-salvaGold text-sm">
+                    {aliasStatus.numberAlias}
+                  </p>
                 </div>
               )}
             </div>
@@ -477,22 +526,33 @@ const Dashboard = () => {
             className="w-full mb-6 p-4 rounded-2xl border border-dashed border-salvaGold/40 bg-salvaGold/5 hover:border-salvaGold hover:bg-salvaGold/10 transition-all flex items-center justify-between group"
           >
             <div className="text-left">
-              <p className="font-black text-sm text-salvaGold">Register an Alias</p>
+              <p className="font-black text-sm text-salvaGold">
+                Register an Alias
+              </p>
               <p className="text-[10px] opacity-50 mt-0.5">
-                {!aliasStatus.hasName && !aliasStatus.hasNumber ? 'Register a name or account number to receive payments' :
-                  !aliasStatus.hasName ? 'Add a name alias (number already registered)' :
-                  'Add an account number (name already registered)'}
+                {!aliasStatus.hasName && !aliasStatus.hasNumber
+                  ? "Register a name or account number to receive payments"
+                  : !aliasStatus.hasName
+                    ? "Add a name alias (number already registered)"
+                    : "Add an account number (name already registered)"}
               </p>
             </div>
-            <span className="text-salvaGold text-xl group-hover:translate-x-1 transition-transform">→</span>
+            <span className="text-salvaGold text-xl group-hover:translate-x-1 transition-transform">
+              →
+            </span>
           </motion.button>
         )}
 
         {/* ── Balance Card ── */}
         <div className="rounded-3xl bg-gray-100 dark:bg-black p-6 sm:p-10 mb-8 border border-white/5 shadow-2xl overflow-hidden">
           <div className="flex justify-between items-center mb-4">
-            <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">Available Balance</p>
-            <button onClick={() => setShowBalance(!showBalance)} className="hover:scale-110 transition-transform p-2">
+            <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
+              Available Balance
+            </p>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="hover:scale-110 transition-transform p-2"
+            >
               {showBalance ? "👁" : "👁‍🗨"}
             </button>
           </div>
@@ -500,67 +560,105 @@ const Dashboard = () => {
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none whitespace-nowrap">
               {showBalance ? formatNumber(balance) : "••••••.••"}
             </h1>
-            <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">NGNs</span>
+            <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">
+              NGNs
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-8 sm:mt-10">
-            <button onClick={handleTransferClick}
-              className="bg-salvaGold hover:bg-yellow-600 transition-colors text-black font-black py-4 rounded-2xl shadow-lg shadow-salvaGold/20 text-sm sm:text-base">
+            <button
+              onClick={handleTransferClick}
+              className="bg-salvaGold hover:bg-yellow-600 transition-colors text-black font-black py-4 rounded-2xl shadow-lg shadow-salvaGold/20 text-sm sm:text-base"
+            >
               SEND
             </button>
-            <button onClick={() => {
-              const copyText = aliasStatus.hasNumber ? aliasStatus.numberAlias : user.safeAddress;
-              navigator.clipboard.writeText(copyText);
-              showMsg(aliasStatus.hasNumber ? "Account number copied!" : "Wallet address copied!");
-            }}
-              className="border border-salvaGold/30 hover:bg-white/5 transition-all py-4 rounded-2xl font-bold text-sm sm:text-base">
+            <button
+              onClick={() => {
+                const copyText = aliasStatus.hasNumber
+                  ? aliasStatus.numberAlias
+                  : user.safeAddress;
+                navigator.clipboard.writeText(copyText);
+                showMsg(
+                  aliasStatus.hasNumber
+                    ? "Account number copied!"
+                    : "Wallet address copied!",
+                );
+              }}
+              className="border border-salvaGold/30 hover:bg-white/5 transition-all py-4 rounded-2xl font-bold text-sm sm:text-base"
+            >
               RECEIVE
             </button>
           </div>
         </div>
 
         {/* ── Smart wallet address ── */}
-        <div onClick={() => { navigator.clipboard.writeText(user.safeAddress); showMsg("Wallet address copied!"); }}
-          className="mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-salvaGold/30 transition-all">
-          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">Smart Wallet Address (Base)</p>
+        <div
+          onClick={() => {
+            navigator.clipboard.writeText(user.safeAddress);
+            showMsg("Wallet address copied!");
+          }}
+          className="mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-salvaGold/30 transition-all"
+        >
+          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">
+            Smart Wallet Address (Base)
+          </p>
           <p className="font-mono text-[10px] sm:text-xs text-salvaGold font-medium break-all truncate">
-            {showBalance ? user.safeAddress : "0x••••••••••••••••••••••••••••••••••••••••"}
+            {showBalance
+              ? user.safeAddress
+              : "0x••••••••••••••••••••••••••••••••••••••••"}
           </p>
         </div>
 
         {/* ── View Transactions button ── */}
-        <Link to="/transactions"
-          className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center">
-          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">View Transaction History →</p>
+        <Link
+          to="/transactions"
+          className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
+        >
+          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">
+            View Transaction History →
+          </p>
         </Link>
 
         {/* ── Tabs ── */}
         <div className="flex border-b border-white/10 mb-8 gap-8 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab.id ? 'border-b-2 border-salvaGold text-salvaGold' : 'opacity-40 hover:opacity-100'}`}>
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab.id ? "border-b-2 border-salvaGold text-salvaGold" : "opacity-40 hover:opacity-100"}`}
+            >
               {tab.label}
             </button>
           ))}
         </div>
 
         {/* ── Buy NGNs Tab ── */}
-        {activeTab === 'buy' && (
-          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[300px] text-center py-16">
+        {activeTab === "buy" && (
+          <motion.section
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center min-h-[300px] text-center py-16"
+          >
             <div className="w-20 h-20 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-4xl font-black text-salvaGold">₦</span>
             </div>
             <h3 className="text-2xl font-black mb-2">Buy NGNs</h3>
-            <p className="opacity-50 text-sm mb-8 max-w-xs">Purchase Nigerian Naira stablecoin directly into your wallet</p>
-            <button disabled
-              className="px-10 py-4 bg-salvaGold text-black font-black rounded-2xl text-sm uppercase tracking-widest opacity-50 cursor-not-allowed shadow-lg shadow-salvaGold/20">
+            <p className="opacity-50 text-sm mb-8 max-w-xs">
+              Purchase Nigerian Naira stablecoin directly into your wallet
+            </p>
+            <button
+              disabled
+              className="px-10 py-4 bg-salvaGold text-black font-black rounded-2xl text-sm uppercase tracking-widest opacity-50 cursor-not-allowed shadow-lg shadow-salvaGold/20"
+            >
               BUY NGNs
             </button>
-            <p className="text-[10px] uppercase tracking-[0.3em] opacity-30 font-bold mt-3">Coming Soon</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] opacity-30 font-bold mt-3">
+              Coming Soon
+            </p>
           </motion.section>
         )}
 
         {/* ── Admin Panel Tab ── */}
-        {activeTab === 'admin' && user.isValidator && (
+        {activeTab === "admin" && user.isValidator && (
           <AdminPanel user={user} showMsg={showMsg} />
         )}
       </div>
@@ -568,73 +666,147 @@ const Dashboard = () => {
       {/* ── No PIN Warning ── */}
       <AnimatePresence>
         {noPinWarning && (
-          <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-red-500 text-white p-6 rounded-l-3xl shadow-2xl max-w-sm">
-            <h4 className="font-black text-lg mb-2">🔐 Transaction PIN Required</h4>
-            <p className="text-sm mb-4">Set a transaction PIN before sending.</p>
+          <motion.div
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
+            className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-red-500 text-white p-6 rounded-l-3xl shadow-2xl max-w-sm"
+          >
+            <h4 className="font-black text-lg mb-2">
+              🔐 Transaction PIN Required
+            </h4>
+            <p className="text-sm mb-4">
+              Set a transaction PIN before sending.
+            </p>
             <div className="flex gap-2">
-              <button onClick={() => navigate("/account-settings")} className="flex-1 bg-white text-red-500 py-2 rounded-xl font-bold text-sm">Go to Settings</button>
-              <button onClick={() => setNoPinWarning(false)} className="px-4 bg-red-600 py-2 rounded-xl font-bold text-sm">✕</button>
+              <button
+                onClick={() => navigate("/account-settings")}
+                className="flex-1 bg-white text-red-500 py-2 rounded-xl font-bold text-sm"
+              >
+                Go to Settings
+              </button>
+              <button
+                onClick={() => setNoPinWarning(false)}
+                className="px-4 bg-red-600 py-2 rounded-xl font-bold text-sm"
+              >
+                ✕
+              </button>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* ── Alias Modal ── */}
-      <AnimatePresence>
-        {showAliasModal && <AliasModal />}
-      </AnimatePresence>
+      <AnimatePresence>{showAliasModal && <AliasModal />}</AnimatePresence>
 
       {/* ── Send Modal ── */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
-            <motion.div onClick={() => !loading && setIsSendOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div className="relative bg-white dark:bg-zinc-900 p-6 sm:p-12 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl"
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }}>
+            <motion.div
+              onClick={() => !loading && setIsSendOpen(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              className="relative bg-white dark:bg-zinc-900 p-6 sm:p-12 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1">Send NGNs</h3>
-              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">Salva Secure Transfer</p>
+              <h3 className="text-2xl sm:text-3xl font-black mb-1">
+                Send NGNs
+              </h3>
+              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
+                Salva Secure Transfer
+              </p>
 
-              <form onSubmit={(e) => { e.preventDefault(); resolveAndConfirm(); }} className="space-y-5">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  resolveAndConfirm();
+                }}
+                className="space-y-5"
+              >
                 {/* Recipient */}
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase opacity-40 font-bold block">Recipient</label>
-                  <input required type="text" placeholder="Name, account number, or 0x address"
+                  <label className="text-[10px] uppercase opacity-40 font-bold block">
+                    Recipient
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    placeholder="Name, account number, or 0x address"
                     value={transferData.to}
                     onChange={(e) => {
                       const val = e.target.value;
                       setTransferData({ ...transferData, to: val });
-                      if (/^\d+$/.test(val.trim()) && val.trim().length > 0) {
+                      // Show registry dropdown for ANY non-address input (name OR number)
+                      // Only hide for raw 0x addresses
+                      if (
+                        val.trim().length > 0 &&
+                        !val.trim().startsWith("0x")
+                      ) {
                         setShowRegistryDropdown(true);
                       } else {
                         setShowRegistryDropdown(false);
                         setSelectedRegistry(null);
                       }
                     }}
-                    className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm" />
+                    className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
+                  />
 
                   {/* Registry dropdown — shown for number inputs OR when multiple registries exist */}
-                  {(showRegistryDropdown || (registries.length > 1 && transferData.to && !transferData.to.startsWith('0x'))) && registries.length > 0 && (
-                    <div>
-                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Select Wallet</label>
-                      <select required value={selectedRegistry?.registryAddress || ""}
-                        onChange={(e) => setSelectedRegistry(registries.find(r => r.registryAddress === e.target.value) || null)}
-                        className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white">
-                        <option value="">-- Select Wallet --</option>
-                        {registries.map((reg) => (
-                          <option key={reg.registryAddress} value={reg.registryAddress}>{reg.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {(showRegistryDropdown ||
+                    (registries.length > 1 &&
+                      transferData.to &&
+                      !transferData.to.startsWith("0x"))) &&
+                    registries.length > 0 && (
+                      <div>
+                        <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                          Select Wallet
+                        </label>
+                        <select
+                          required
+                          value={selectedRegistry?.registryAddress || ""}
+                          onChange={(e) =>
+                            setSelectedRegistry(
+                              registries.find(
+                                (r) => r.registryAddress === e.target.value,
+                              ) || null,
+                            )
+                          }
+                          className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
+                        >
+                          <option value="">-- Select Wallet --</option>
+                          {registries.map((reg) => (
+                            <option
+                              key={reg.registryAddress}
+                              value={reg.registryAddress}
+                            >
+                              {reg.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
                 </div>
 
                 {/* Amount */}
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Amount (NGNs)</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                    Amount (NGNs)
+                  </label>
                   <div className="relative">
-                    <input required type="text" inputMode="decimal" value={transferAmountDisplay}
+                    <input
+                      required
+                      type="text"
+                      inputMode="decimal"
+                      value={transferAmountDisplay}
                       onChange={(e) => {
                         const fmt = formatAmountInput(e.target.value);
                         setTransferAmountDisplay(fmt);
@@ -642,22 +814,38 @@ const Dashboard = () => {
                         setTransferData({ ...transferData, amount: raw });
                         computeFeePreview(raw);
                       }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? 'border border-red-500 text-red-500' : 'border border-transparent'}`} />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">NGNs</span>
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
+                      NGNs
+                    </span>
                   </div>
-                  {amountError && <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">⚠️ Insufficient balance</p>}
-                  {feePreview.feeNGN > 0 && transferData.amount && !amountError && (
-                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
-                      <div className="flex justify-between">
-                        <span className="opacity-50 uppercase font-bold">Network Fee</span>
-                        <span className="text-red-400 font-black">-{formatNumber(feePreview.feeNGN)} NGNs</span>
-                      </div>
-                    </div>
+                  {amountError && (
+                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">
+                      ⚠️ Insufficient balance
+                    </p>
                   )}
+                  {feePreview.feeNGN > 0 &&
+                    transferData.amount &&
+                    !amountError && (
+                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="opacity-50 uppercase font-bold">
+                            Network Fee
+                          </span>
+                          <span className="text-red-400 font-black">
+                            -{formatNumber(feePreview.feeNGN)} NGNs
+                          </span>
+                        </div>
+                      </div>
+                    )}
                 </div>
 
-                <button disabled={loading || amountError} type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-salvaGold text-black hover:brightness-110 active:scale-95'}`}>
+                <button
+                  disabled={loading || amountError}
+                  type="submit"
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
+                >
                   {loading ? "PROCESSING…" : "REVIEW & SEND"}
                 </button>
               </form>
@@ -670,46 +858,77 @@ const Dashboard = () => {
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-            <motion.div onClick={() => setIsConfirmModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
-
+            <motion.div
+              onClick={() => setIsConfirmModalOpen(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">⚠️</span>
                 </div>
                 <h3 className="text-xl font-black mb-1">Verify Recipient</h3>
-                <p className="text-sm opacity-60">Double-check before sending. Blockchain transactions are irreversible.</p>
+                <p className="text-sm opacity-60">
+                  Double-check before sending. Blockchain transactions are
+                  irreversible.
+                </p>
               </div>
 
               <div className="space-y-3 mb-6">
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-lg text-salvaGold">{confirmationData.resolvedDisplay}</p>
-                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">{confirmationData.resolvedAddress}</p>
-                  <p className="text-[10px] text-yellow-400 font-bold mt-2">⚠️ Make sure this is the correct recipient</p>
+                  <p className="font-black text-lg text-salvaGold">
+                    {confirmationData.resolvedDisplay}
+                  </p>
+                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
+                    {confirmationData.resolvedAddress}
+                  </p>
+                  <p className="text-[10px] text-yellow-400 font-bold mt-2">
+                    ⚠️ Make sure this is the correct recipient
+                  </p>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
-                  <p className="font-black text-xl">{formatNumber(confirmationData.amount)} <span className="text-salvaGold">NGNs</span></p>
+                  <p className="font-black text-xl">
+                    {formatNumber(confirmationData.amount)}{" "}
+                    <span className="text-salvaGold">NGNs</span>
+                  </p>
                 </div>
                 {confirmationData.feeNGN > 0 && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
-                    <p className="font-black text-base text-red-400">-{formatNumber(confirmationData.feeNGN)} NGNs</p>
+                    <p className="font-black text-base text-red-400">
+                      -{formatNumber(confirmationData.feeNGN)} NGNs
+                    </p>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-3">
-                <button onClick={() => setIsConfirmModalOpen(false)} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all">Go Back</button>
-                <button onClick={() => {
-                  setIsConfirmModalOpen(false);
-                  setIsPinModalOpen(true);
-                  setTransactionPin("");
-                  setPinAttempts(0);
-                }}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all">
+                <button
+                  onClick={() => setIsConfirmModalOpen(false)}
+                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={() => {
+                    setIsConfirmModalOpen(false);
+                    setIsPinModalOpen(true);
+                    setTransactionPin("");
+                    setPinAttempts(0);
+                  }}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
+                >
                   Confirm & Sign
                 </button>
               </div>
@@ -722,22 +941,60 @@ const Dashboard = () => {
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <motion.div onClick={() => !loading && setIsPinModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+            <motion.div
+              onClick={() => !loading && setIsPinModalOpen(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4"><span className="text-3xl">🔐</span></div>
-                <h3 className="text-2xl font-black mb-2">Enter Transaction PIN</h3>
+                <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-3xl">🔐</span>
+                </div>
+                <h3 className="text-2xl font-black mb-2">
+                  Enter Transaction PIN
+                </h3>
                 <p className="text-sm opacity-60">Verify identity to proceed</p>
               </div>
-              <input type="password" inputMode="numeric" pattern="\d{4}" maxLength="4"
-                value={transactionPin} onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ""))}
-                placeholder="••••" autoFocus
-                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6" />
-              {pinAttempts > 0 && <p className="text-xs text-red-500 text-center mb-4 font-bold">⚠️ {3 - pinAttempts} attempts remaining</p>}
+              <input
+                type="password"
+                inputMode="numeric"
+                pattern="\d{4}"
+                maxLength="4"
+                value={transactionPin}
+                onChange={(e) =>
+                  setTransactionPin(e.target.value.replace(/\D/g, ""))
+                }
+                placeholder="••••"
+                autoFocus
+                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
+              />
+              {pinAttempts > 0 && (
+                <p className="text-xs text-red-500 text-center mb-4 font-bold">
+                  ⚠️ {3 - pinAttempts} attempts remaining
+                </p>
+              )}
               <div className="flex gap-3">
-                <button onClick={() => setIsPinModalOpen(false)} disabled={loading} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all">Cancel</button>
-                <button onClick={verifyPinAndProceed} disabled={loading || transactionPin.length !== 4} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all">
+                <button
+                  onClick={() => setIsPinModalOpen(false)}
+                  disabled={loading}
+                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={verifyPinAndProceed}
+                  disabled={loading || transactionPin.length !== 4}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all"
+                >
                   {loading ? "VERIFYING..." : "VERIFY"}
                 </button>
               </div>
@@ -749,8 +1006,12 @@ const Dashboard = () => {
       {/* ── Toast ── */}
       <AnimatePresence>
         {notification.show && (
-          <motion.div initial={{ y: 100, x: "-50%", opacity: 0 }} animate={{ y: 0, x: "-50%", opacity: 1 }} exit={{ y: 100, x: "-50%", opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${notification.type === "error" ? "bg-red-600 text-white" : "bg-salvaGold text-black"}`}>
+          <motion.div
+            initial={{ y: 100, x: "-50%", opacity: 0 }}
+            animate={{ y: 0, x: "-50%", opacity: 1 }}
+            exit={{ y: 100, x: "-50%", opacity: 0 }}
+            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${notification.type === "error" ? "bg-red-600 text-white" : "bg-salvaGold text-black"}`}
+          >
             {notification.message}
           </motion.div>
         )}

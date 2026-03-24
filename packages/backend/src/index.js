@@ -863,60 +863,61 @@ app.post("/api/login", authLimiter, async (req, res) => {
 });
 
 // ===============================================
-// ALIAS REGISTRATION — LINK NAME
+// GET USER STATUS (for dashboard refresh)
 // ===============================================
-app.post("/api/alias/link-name", async (req, res) => {
+app.get("/api/user/status/:email", async (req, res) => {
   try {
-    const { safeAddress, name } = req.body;
+    const email = sanitizeEmail(req.params.email);
+    const user = await User.findOne({ email });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json({
+      isValidator: user.isValidator || false,
+      nameAlias: user.nameAlias || null,
+      numberAlias: user.numberAlias || null,
+    });
+  } catch (error) {
+    return handleError(error, res, "Failed to get user status");
+  }
+});
 
-    if (!name || !/^[a-z0-9._-]{1,16}$/.test(name)) {
-      return res.status(400).json({ message: "Invalid name. Use lowercase letters, digits, dots, dashes, underscores. Max 16 chars." });
-    }
+// ===============================================
+// ALIAS REGISTRATION — LINK NUMBER
+// Fixed: uses existing accountNumber, not a new counter
+// ===============================================
+app.post("/api/alias/link-number", async (req, res) => {
+  try {
+    const { safeAddress } = req.body;
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.nameAlias) return res.status(400).json({ message: "Name alias already registered" });
+    if (user.numberAlias) return res.status(400).json({ message: "Number alias already registered" });
 
-    // Weld name@salva
-    const weldedName = `${name}@salva`;
+    // Use the accountNumber already assigned at registration
+    const numberToLink = user.accountNumber;
+    if (!numberToLink) return res.status(400).json({ message: "No account number assigned to this user" });
 
-    // Check if taken via resolve
-    const REGISTRY_ABI_RESOLVE = [
-      "function resolveViaName(string calldata) view returns (address)"
-    ];
+    // Link on-chain via registry
+    const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
     const registryContract = new ethers.Contract(
       process.env.REGISTRY_CONTRACT_ADDRESS,
-      REGISTRY_ABI_RESOLVE,
-      provider
-    );
-
-    const existingAddress = await registryContract.resolveViaName(name);
-    if (existingAddress && existingAddress !== ethers.ZeroAddress) {
-      return res.status(409).json({ message: "Name already taken", taken: true });
-    }
-
-    // Link name on-chain via backend wallet (privileged REGISTRAR_ROLE call)
-    const REGISTRY_LINK_ABI = ["function linkName(string memory, address) external returns (bool)"];
-    const linkContract = new ethers.Contract(
-      process.env.REGISTRY_CONTRACT_ADDRESS,
-      REGISTRY_LINK_ABI,
+      REGISTRY_ABI,
       wallet
     );
 
-    const tx = await linkContract.linkName(name, user.safeAddress);
+    const tx = await registryContract.linkNumber(BigInt(numberToLink), user.safeAddress);
     const receipt = await tx.wait();
 
     if (!receipt || receipt.status === 0) {
       return res.status(500).json({ message: "On-chain linking failed" });
     }
 
-    user.nameAlias = name;
+    user.numberAlias = numberToLink;
     await user.save();
 
-    res.json({ success: true, alias: weldedName });
+    res.json({ success: true, numberAlias: numberToLink });
   } catch (error) {
-    console.error("❌ Link name error:", error);
-    return handleError(error, res, "Failed to link name alias");
+    console.error("❌ Link number error:", error);
+    return handleError(error, res, "Failed to link number alias");
   }
 });
 

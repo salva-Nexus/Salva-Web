@@ -82,29 +82,59 @@ async function getAccountNumberFromAddress(walletAddress, registryAddress) {
   }
 }
 
+// Add this function to registryResolver.js
+async function getAddressFromName(name, registryAddress) {
+  try {
+    const RESOLVE_ABI = ["function resolveViaName(string calldata) view returns (address)"];
+    const reg = new ethers.Contract(registryAddress, RESOLVE_ABI, provider);
+    const address = await reg.resolveViaName(name);
+    if (!address || address === ethers.ZeroAddress) {
+      throw new Error(`Name '${name}' not found in registry`);
+    }
+    console.log(`✅ Resolved name '${name}' → ${address}`);
+    return address.toLowerCase();
+  } catch (error) {
+    console.error(`❌ Failed to resolve name '${name}':`, error.message);
+    throw new Error(`Name '${name}' not found`);
+  }
+}
+
 /**
  * Resolves any input to a wallet address.
  * - If input is an account number: requires registryAddress, calls Singleton
  * - If input is a 0x address: validates and returns as-is
  */
+// In registryResolver.js, update resolveToAddress:
 async function resolveToAddress(input, registryAddress) {
-  if (isAccountNumber(input)) {
+  const trimmed = input.trim();
+  
+  if (isAccountNumber(trimmed)) {
     if (!registryAddress) {
       throw new Error('Registry address is required to resolve an account number');
     }
-    return await getAddressFromAccountNumber(input, registryAddress);
+    return await getAddressFromAccountNumber(trimmed, registryAddress);
+  }
+
+  // Check if it's a name alias (has letters, doesn't start with 0x)
+  if (!trimmed.startsWith('0x') && /[a-zA-Z]/.test(trimmed)) {
+    if (!registryAddress) {
+      throw new Error('Registry address is required to resolve a name alias');
+    }
+    return await getAddressFromName(trimmed, registryAddress);
   }
 
   // It's a wallet address — validate it
-  if (!ethers.isAddress(input)) {
-    throw new Error(`Invalid address or account number: ${input}`);
+  if (!ethers.isAddress(trimmed)) {
+    throw new Error(`Invalid address or account number: ${trimmed}`);
   }
-  return input.toLowerCase();
+  return trimmed.toLowerCase();
 }
 
+// Also add to module.exports:
 module.exports = {
   isAccountNumber,
   getAddressFromAccountNumber,
   getAccountNumberFromAddress,
+  getAddressFromName,
   resolveToAddress
 };
