@@ -3,426 +3,455 @@ import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ── Countdown Timer Component ────────────────────────────────────────────────
-const Countdown = ({ endsAt, onExpired }) => {
-  const [remaining, setRemaining] = useState('');
-  const [expired, setExpired] = useState(false);
-
-  useEffect(() => {
-    const tick = () => {
-      const diff = new Date(endsAt) - new Date();
-      if (diff <= 0) {
-        setRemaining('00:00:00');
-        setExpired(true);
-        onExpired && onExpired();
-        return;
-      }
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setRemaining(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`);
-    };
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [endsAt, onExpired]);
-
-  return (
-    <span className={`font-mono text-sm font-black ${expired ? 'text-green-400' : 'text-salvaGold'}`}>
-      {expired ? '✓ READY' : `⏱ ${remaining}`}
-    </span>
-  );
-};
-
-// ── Proposal Card ────────────────────────────────────────────────────────────
-const ProposalCard = ({ proposal, userSafeAddress, onValidate, onExecute, onCancel, onDelete, loading }) => {
-  const hasValidated = proposal.validatedBy?.includes(userSafeAddress?.toLowerCase());
-  const remainingValidations = proposal.requiredValidationCount - proposal.validationCount;
-  const timelockExpired = proposal.timelockEndsAt && new Date(proposal.timelockEndsAt) < new Date();
-  const [timelockDone, setTimelockDone] = useState(timelockExpired);
-
-  const isRegistryInit = proposal.type === 'registryInit';
-  const actionColor = isRegistryInit ? 'text-blue-400' : (proposal.action ? 'text-green-400' : 'text-red-400');
-  const actionLabel = isRegistryInit ? 'REGISTRY INIT' : (proposal.action ? 'ADD VALIDATOR' : 'REMOVE VALIDATOR');
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="p-5 sm:p-6 rounded-2xl border border-white/10 bg-white/5 space-y-4"
-    >
-      {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <span className={`text-[10px] font-black uppercase tracking-widest ${actionColor}`}>{actionLabel}</span>
-          {isRegistryInit ? (
-            <div className="mt-1">
-              <p className="font-black text-base">{proposal.registryName}</p>
-              <p className="text-salvaGold font-mono text-sm">{proposal.namespace}</p>
-              <p className="font-mono text-[10px] opacity-40 break-all">{proposal.registryAddress}</p>
-            </div>
-          ) : (
-            <div className="mt-1">
-              <p className="font-mono text-xs opacity-60 break-all">{proposal.validatorAddress}</p>
-            </div>
-          )}
-        </div>
-        {/* Validation count badge */}
-        <div className="text-right flex-shrink-0">
-          {!proposal.isExecuted && !proposal.isCancelled && (
-            <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${remainingValidations <= 0 ? 'bg-green-500/20 text-green-400' : 'bg-salvaGold/10 text-salvaGold'}`}>
-              {remainingValidations <= 0 ? 'Quorum ✓' : `${remainingValidations} more needed`}
-            </div>
-          )}
-          {proposal.isCancelled && <span className="text-[10px] text-red-400 font-black uppercase">Cancelled</span>}
-          {proposal.isExecuted && (
-            <span className={`text-[10px] font-black uppercase ${proposal.executionSuccess ? 'text-green-400' : 'text-red-400'}`}>
-              {proposal.executionSuccess ? '✓ Executed' : '✗ Failed'}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Timelock countdown — shown after quorum, before execute */}
-      {proposal.isValidated && !proposal.isExecuted && !proposal.isCancelled && proposal.timelockEndsAt && (
-        <div className="p-3 rounded-xl bg-black/20 border border-salvaGold/10 flex items-center justify-between">
-          <span className="text-[10px] uppercase opacity-40 font-bold">Execute unlocks in</span>
-          <Countdown endsAt={proposal.timelockEndsAt} onExpired={() => setTimelockDone(true)} />
-        </div>
-      )}
-
-      {/* Actions */}
-      {!proposal.isCancelled && !proposal.isExecuted && (
-        <div className="flex flex-wrap gap-2">
-          {/* Validate button — hidden if quorum reached */}
-          {!proposal.isValidated && (
-            <button
-              onClick={() => onValidate(proposal)}
-              disabled={loading || hasValidated}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${hasValidated ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-salvaGold text-black hover:brightness-110 active:scale-95'}`}
-            >
-              {hasValidated ? '✓ Validated' : 'Validate'}
-            </button>
-          )}
-
-          {/* Execute button — only after timelock expired */}
-          {proposal.isValidated && (timelockDone || timelockExpired) && (
-            <button
-              onClick={() => onExecute(proposal)}
-              disabled={loading}
-              className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest bg-green-500 text-white hover:brightness-110 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {loading ? 'Executing...' : 'Execute'}
-            </button>
-          )}
-
-          {/* Cancel button — always available until executed */}
-          <button
-            onClick={() => onCancel(proposal)}
-            disabled={loading}
-            className="px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/30 text-red-400 hover:bg-red-500/10 transition-all disabled:opacity-50"
-          >
-            Cancel
-          </button>
-        </div>
-      )}
-
-      {/* Delete button — only after execute (success or fail) */}
-      {proposal.isExecuted && (
-        <button
-          onClick={() => onDelete(proposal._id)}
-          disabled={loading}
-          className="w-full py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-white/10 text-white/30 hover:border-red-500/30 hover:text-red-400 transition-all"
-        >
-          Remove from list
-        </button>
-      )}
-    </motion.div>
-  );
-};
-
-// ── Main Admin Panel ─────────────────────────────────────────────────────────
 const AdminPanel = ({ user, showMsg }) => {
-  const [proposals, setProposals] = useState([]);
+  const [proposals, setProposals] = useState({ registryProposals: [], validatorProposals: [] });
   const [loading, setLoading] = useState(false);
   const [fetchingProposals, setFetchingProposals] = useState(true);
 
-  // Propose Registry Init form
-  const [showRegistryForm, setShowRegistryForm] = useState(false);
-  const [registryForm, setRegistryForm] = useState({ name: '', namespace: '@', address: '' });
+  // Form states
+  const [showRegForm, setShowRegForm] = useState(false);
+  const [showValForm, setShowValForm] = useState(false);
+  const [regForm, setRegForm] = useState({ name: '', nspace: '@', address: '' });
+  const [valForm, setValForm] = useState({ address: '', action: true });
 
-  // Propose Validator Update form
-  const [showValidatorForm, setShowValidatorForm] = useState(false);
-  const [validatorForm, setValidatorForm] = useState({ address: '', action: true });
-
-  // PIN modal for signing
+  // PIN modal for admin actions
   const [isPinOpen, setIsPinOpen] = useState(false);
-  const [pin, setPin] = useState('');
-  const [pendingAction, setPendingAction] = useState(null); // { type, payload }
+  const [adminPin, setAdminPin] = useState('');
+  const [pendingAdminAction, setPendingAdminAction] = useState(null);
+
+  // Track which proposals this validator has already voted on (UI lock)
+  const [myVotes, setMyVotes] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`salva_votes_${user.safeAddress}`) || '{}'); }
+    catch { return {}; }
+  });
+
+  const persistVote = (key) => {
+    const updated = { ...myVotes, [key]: true };
+    setMyVotes(updated);
+    localStorage.setItem(`salva_votes_${user.safeAddress}`, JSON.stringify(updated));
+  };
 
   const fetchProposals = useCallback(async () => {
     try {
       const res = await fetch(`${SALVA_API_URL}/api/admin/proposals`);
       const data = await res.json();
-      setProposals(Array.isArray(data) ? data : []);
-    } catch (_) { } finally { setFetchingProposals(false); }
+      setProposals(data);
+    } catch (e) {
+      console.error('Failed to fetch proposals', e);
+    } finally {
+      setFetchingProposals(false);
+    }
   }, []);
 
   useEffect(() => {
     fetchProposals();
-    const interval = setInterval(fetchProposals, 15000);
+    const interval = setInterval(fetchProposals, 30000);
     return () => clearInterval(interval);
   }, [fetchProposals]);
 
-  const openPin = (actionType, payload) => {
-    setPendingAction({ type: actionType, payload });
-    setPin('');
+  // ── PIN-gated action executor ──────────────────────────────────────────
+  const requestPin = (actionFn) => {
+    setPendingAdminAction(() => actionFn);
+    setAdminPin('');
     setIsPinOpen(true);
   };
 
-  const verifyPinAndAct = async () => {
-    if (pin.length !== 4) return showMsg('PIN must be 4 digits', 'error');
+  const executePinnedAction = async () => {
+    if (adminPin.length !== 4) return showMsg('PIN must be 4 digits', 'error');
     setLoading(true);
-    setIsPinOpen(false);
     try {
-      // Verify pin + get private key
-      const identifier = user.email || user.username;
-      const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier, pin })
-      });
-      const pinData = await pinRes.json();
-      if (!pinRes.ok) { showMsg('Invalid PIN', 'error'); setLoading(false); return; }
-
-      const privateKey = pinData.privateKey;
-      const { type, payload } = pendingAction;
-
-      let endpoint, body;
-      if (type === 'proposeRegistry') {
-        endpoint = '/api/admin/propose-registry';
-        body = { ...payload, privateKey, proposerAddress: user.safeAddress };
-      } else if (type === 'proposeValidator') {
-        endpoint = '/api/admin/propose-validator';
-        body = { ...payload, privateKey, proposerAddress: user.safeAddress };
-      } else if (type === 'validate') {
-        endpoint = '/api/admin/validate';
-        body = { ...payload, privateKey, validatorAddress: user.safeAddress };
-      } else if (type === 'execute') {
-        endpoint = '/api/admin/execute';
-        body = { ...payload, privateKey, executorAddress: user.safeAddress };
-      } else if (type === 'cancel') {
-        endpoint = '/api/admin/cancel';
-        body = { ...payload, privateKey };
-      }
-
-      const res = await fetch(`${SALVA_API_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
+      // Verify PIN and get private key
+      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, pin: adminPin })
       });
       const data = await res.json();
-
-      if (res.ok) {
-        showMsg(data.message || 'Action successful!');
-        await fetchProposals();
-        setShowRegistryForm(false);
-        setShowValidatorForm(false);
-        setRegistryForm({ name: '', namespace: '@', address: '' });
-        setValidatorForm({ address: '', action: true });
-      } else {
-        showMsg(data.message || 'Action failed', 'error');
-      }
-    } catch (_) { showMsg('Network error', 'error'); }
-    finally { setLoading(false); }
+      if (!res.ok) { showMsg(data.message || 'Invalid PIN', 'error'); return; }
+      setIsPinOpen(false);
+      await pendingAdminAction(data.privateKey);
+    } catch (e) {
+      showMsg('Failed to verify PIN', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = async (proposalId) => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/admin/proposals/${proposalId}`, { method: 'DELETE' });
-      if (res.ok) { showMsg('Proposal removed'); await fetchProposals(); }
-      else showMsg('Failed to remove', 'error');
-    } catch (_) { showMsg('Network error', 'error'); }
-    finally { setLoading(false); }
+  // ── Propose registry ───────────────────────────────────────────────────
+  const handleProposeRegistry = () => {
+    if (!regForm.name || !regForm.nspace.startsWith('@') || !regForm.address) {
+      return showMsg('Fill all fields. Namespace must start with @', 'error');
+    }
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/propose-registry`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, nspace: regForm.nspace, registry: regForm.address, registryName: regForm.name, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg('Registry proposal submitted!');
+      setShowRegForm(false);
+      setRegForm({ name: '', nspace: '@', address: '' });
+      await fetchProposals();
+    });
   };
 
-  const activeProposals = proposals.filter(p => !p.isCancelled || p.isExecuted);
-  const registryProposals = activeProposals.filter(p => p.type === 'registryInit');
-  const validatorProposals = activeProposals.filter(p => p.type === 'validatorUpdate');
+  // ── Propose validator ──────────────────────────────────────────────────
+  const handleProposeValidator = () => {
+    if (!valForm.address) return showMsg('Enter target address', 'error');
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/propose-validator`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, targetAddress: valForm.address, action: valForm.action, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg('Validator update proposal submitted!');
+      setShowValForm(false);
+      setValForm({ address: '', action: true });
+      await fetchProposals();
+    });
+  };
+
+  // ── Validate registry ──────────────────────────────────────────────────
+  const handleValidateRegistry = (registry) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/validate-registry`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, registry, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      persistVote(`reg_${registry}`);
+      showMsg('Validation cast!');
+      await fetchProposals();
+    });
+  };
+
+  // ── Validate validator ─────────────────────────────────────────────────
+  const handleValidateValidator = (targetAddress) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/validate-validator`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, targetAddress, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      persistVote(`val_${targetAddress}`);
+      showMsg('Validation cast!');
+      await fetchProposals();
+    });
+  };
+
+  // ── Cancel registry ────────────────────────────────────────────────────
+  const handleCancelRegistry = (registry) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-registry`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, registry, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg('Proposal cancelled');
+      await fetchProposals();
+    });
+  };
+
+  // ── Cancel validator ───────────────────────────────────────────────────
+  const handleCancelValidator = (targetAddress) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-validator`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, targetAddress, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg('Proposal cancelled');
+      await fetchProposals();
+    });
+  };
+
+  // ── Execute registry ───────────────────────────────────────────────────
+  const handleExecuteRegistry = (proposal) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/execute-registry`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, registry: proposal.registry, registryName: proposal.nspace, nspace: proposal.nspace, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg(data.success ? 'Registry initialized!' : 'Execution failed on-chain', data.success ? 'success' : 'error');
+      await fetchProposals();
+    });
+  };
+
+  // ── Execute validator ──────────────────────────────────────────────────
+  const handleExecuteValidator = (proposal) => {
+    requestPin(async (privateKey) => {
+      const res = await fetch(`${SALVA_API_URL}/api/admin/execute-validator`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privateKey, targetAddress: proposal.addr, action: proposal.action, safeAddress: user.safeAddress })
+      });
+      const data = await res.json();
+      if (!res.ok) { showMsg(data.message || 'Failed', 'error'); return; }
+      showMsg(data.success ? 'Validator updated!' : 'Execution failed on-chain', data.success ? 'success' : 'error');
+      await fetchProposals();
+    });
+  };
+
+  // ── Timelock countdown helper ──────────────────────────────────────────
+  const TimelockCountdown = ({ timeLockTimestamp }) => {
+    const [remaining, setRemaining] = useState('');
+    useEffect(() => {
+      const calc = () => {
+        const now = Math.floor(Date.now() / 1000);
+        const diff = timeLockTimestamp - now;
+        if (diff <= 0) { setRemaining('READY'); return; }
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        setRemaining(`${h}h ${m}m ${s}s`);
+      };
+      calc();
+      const t = setInterval(calc, 1000);
+      return () => clearInterval(t);
+    }, [timeLockTimestamp]);
+
+    const isReady = remaining === 'READY';
+    return (
+      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${isReady ? 'bg-green-500/10 text-green-400' : 'bg-salvaGold/10 text-salvaGold'}`}>
+        {isReady ? '✓ READY TO EXECUTE' : `⏱ ${remaining}`}
+      </span>
+    );
+  };
+
+  const isTimelockReady = (timeLockTimestamp) => {
+    if (!timeLockTimestamp) return false;
+    return Math.floor(Date.now() / 1000) >= timeLockTimestamp;
+  };
 
   return (
-    <div className="space-y-8 pb-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+
+      {/* ── Header ── */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">MultiSig Admin</p>
-          <h3 className="text-xl sm:text-2xl font-black mt-1">Governance Panel</h3>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">Admin Panel</p>
+          <h3 className="text-2xl font-black">MultiSig Control</h3>
         </div>
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-salvaGold/10 border border-salvaGold/20">
-          <div className="w-2 h-2 rounded-full bg-salvaGold animate-pulse" />
-          <span className="text-[10px] text-salvaGold font-black uppercase">Validator</span>
+        <div className="flex gap-3">
+          <button onClick={() => { setShowRegForm(!showRegForm); setShowValForm(false); }}
+            className="px-4 py-2 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all">
+            + Registry
+          </button>
+          <button onClick={() => { setShowValForm(!showValForm); setShowRegForm(false); }}
+            className="px-4 py-2 border border-salvaGold text-salvaGold font-black text-xs uppercase tracking-widest rounded-xl hover:bg-salvaGold hover:text-black transition-all">
+            + Validator
+          </button>
         </div>
       </div>
 
-      {/* ── PROPOSE ACTIONS ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Propose Registry Init */}
-        <div className="space-y-3">
-          <button
-            onClick={() => { setShowRegistryForm(!showRegistryForm); setShowValidatorForm(false); }}
-            className="w-full p-5 rounded-2xl border border-salvaGold/20 bg-salvaGold/5 hover:border-salvaGold/40 hover:bg-salvaGold/10 transition-all text-left"
-          >
-            <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mb-1">Propose</p>
-            <p className="font-black text-base">Registry Initialization</p>
-            <p className="text-xs opacity-50 mt-1">Add a new wallet/registry to Salva protocol</p>
-          </button>
-
-          <AnimatePresence>
-            {showRegistryForm && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-3">
-                  <h4 className="text-sm font-black text-salvaGold uppercase tracking-widest">Registry Details</h4>
-                  <input
-                    placeholder="Registry Name (e.g. Coinbase)"
-                    value={registryForm.name}
-                    onChange={(e) => setRegistryForm({ ...registryForm, name: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-sm outline-none focus:border-salvaGold font-bold"
-                  />
-                  <div className="relative">
-                    <input
-                      placeholder="@namespace"
-                      value={registryForm.namespace}
-                      onChange={(e) => {
-                        let val = e.target.value;
-                        if (!val.startsWith('@')) val = '@' + val.replace('@', '');
-                        setRegistryForm({ ...registryForm, namespace: val });
-                      }}
-                      className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-sm outline-none focus:border-salvaGold font-bold font-mono"
-                    />
-                    <p className="text-[9px] opacity-40 mt-1 font-bold">Must start with @ · max 16 chars</p>
-                  </div>
-                  <input
-                    placeholder="Registry Contract Address (0x...)"
-                    value={registryForm.address}
-                    onChange={(e) => setRegistryForm({ ...registryForm, address: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-sm outline-none focus:border-salvaGold font-bold font-mono"
-                  />
-                  <button
-                    disabled={loading || !registryForm.name || !registryForm.namespace || !registryForm.address}
-                    onClick={() => openPin('proposeRegistry', { registryName: registryForm.name, namespace: registryForm.namespace, registryAddress: registryForm.address })}
-                    className="w-full py-3 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Submitting...' : 'Submit Proposal'}
-                  </button>
+      {/* ── Propose Registry Form ── */}
+      <AnimatePresence>
+        {showRegForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden">
+            <div className="p-6 rounded-3xl border border-salvaGold/30 bg-salvaGold/5 space-y-4">
+              <p className="text-xs uppercase tracking-widest font-black text-salvaGold">Propose Registry Initialization</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Name</label>
+                  <input placeholder="e.g. Coinbase" value={regForm.name}
+                    onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold" />
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                <div>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Namespace (must start with @)</label>
+                  <input placeholder="@coinbase" value={regForm.nspace}
+                    onChange={(e) => setRegForm({ ...regForm, nspace: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Contract Address</label>
+                  <input placeholder="0x..." value={regForm.address}
+                    onChange={(e) => setRegForm({ ...regForm, address: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowRegForm(false)} className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all">Cancel</button>
+                <button onClick={handleProposeRegistry} disabled={loading}
+                  className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50">
+                  Submit Proposal
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-        {/* Propose Validator Update */}
-        <div className="space-y-3">
-          <button
-            onClick={() => { setShowValidatorForm(!showValidatorForm); setShowRegistryForm(false); }}
-            className="w-full p-5 rounded-2xl border border-salvaGold/20 bg-salvaGold/5 hover:border-salvaGold/40 hover:bg-salvaGold/10 transition-all text-left"
-          >
-            <p className="text-[10px] uppercase tracking-widest opacity-50 font-bold mb-1">Propose</p>
-            <p className="font-black text-base">Validator Update</p>
-            <p className="text-xs opacity-50 mt-1">Add or remove a validator from the MultiSig</p>
-          </button>
+      {/* ── Propose Validator Form ── */}
+      <AnimatePresence>
+        {showValForm && (
+          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden">
+            <div className="p-6 rounded-3xl border border-white/10 bg-white/5 space-y-4">
+              <p className="text-xs uppercase tracking-widest font-black text-salvaGold">Propose Validator Update</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Target Wallet Address</label>
+                  <input placeholder="0x..." value={valForm.address}
+                    onChange={(e) => setValForm({ ...valForm, address: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono" />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Action</label>
+                  <div className="flex gap-3">
+                    <button onClick={() => setValForm({ ...valForm, action: true })}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? 'bg-green-500 text-white' : 'border border-white/10 opacity-40 hover:opacity-70'}`}>
+                      Add Validator
+                    </button>
+                    <button onClick={() => setValForm({ ...valForm, action: false })}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? 'bg-red-500 text-white' : 'border border-white/10 opacity-40 hover:opacity-70'}`}>
+                      Remove Validator
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowValForm(false)} className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all">Cancel</button>
+                <button onClick={handleProposeValidator} disabled={loading}
+                  className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50">
+                  Submit Proposal
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-          <AnimatePresence>
-            {showValidatorForm && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-3">
-                  <h4 className="text-sm font-black text-salvaGold uppercase tracking-widest">Validator Details</h4>
-                  <input
-                    placeholder="Validator Address (0x...)"
-                    value={validatorForm.address}
-                    onChange={(e) => setValidatorForm({ ...validatorForm, address: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 text-sm outline-none focus:border-salvaGold font-bold font-mono"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    {[{ label: 'Add Validator', value: true, color: 'border-green-500/40 text-green-400' }, { label: 'Remove Validator', value: false, color: 'border-red-500/40 text-red-400' }].map((opt) => (
-                      <button key={String(opt.value)}
-                        onClick={() => setValidatorForm({ ...validatorForm, action: opt.value })}
-                        className={`py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${validatorForm.action === opt.value ? `${opt.color} bg-white/5` : 'border-white/10 opacity-40'}`}>
-                        {opt.label}
+      {/* ── Registry Proposals ── */}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Registry Proposals</p>
+        {fetchingProposals ? (
+          <div className="flex justify-center py-8"><div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" /></div>
+        ) : proposals.registryProposals.length === 0 ? (
+          <div className="text-center py-8 opacity-20">
+            <p className="text-xs uppercase font-bold tracking-widest">No active registry proposals</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {proposals.registryProposals.map((p, i) => {
+              const hasVoted = myVotes[`reg_${p.registry}`];
+              const timelockReady = isTimelockReady(p.timeLockTimestamp);
+              return (
+                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+                  className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                    <div className="space-y-1">
+                      <p className="font-black text-base">{p.nspace}</p>
+                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs">{p.registry}</p>
+                    </div>
+                    <div className="flex flex-col items-start sm:items-end gap-2">
+                      {p.remainingValidation !== null && (
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${p.remainingValidation === 0 ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/60'}`}>
+                          {p.remainingValidation === 0 ? '✓ QUORUM REACHED' : `${p.remainingValidation} VALIDATIONS REMAINING`}
+                        </span>
+                      )}
+                      {p.isValidated && p.timeLockTimestamp && (
+                        <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {/* Validate or locked */}
+                    {!p.isValidated ? (
+                      hasVoted ? (
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">✓ Voted</span>
+                      ) : (
+                        <button onClick={() => handleValidateRegistry(p.registry)} disabled={loading}
+                          className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold hover:text-black transition-all disabled:opacity-40">
+                          Validate
+                        </button>
+                      )
+                    ) : (
+                      <button onClick={() => handleExecuteRegistry(p)} disabled={loading || !timelockReady}
+                        className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                        Execute
                       </button>
-                    ))}
+                    )}
+
+                    {/* Cancel */}
+                    <button onClick={() => handleCancelRegistry(p.registry)} disabled={loading}
+                      className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-40">
+                      Cancel
+                    </button>
                   </div>
-                  <button
-                    disabled={loading || !validatorForm.address}
-                    onClick={() => openPin('proposeValidator', { targetAddress: validatorForm.address, action: validatorForm.action })}
-                    className="w-full py-3 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    {loading ? 'Submitting...' : 'Submit Proposal'}
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* ── PROPOSALS LIST ── */}
-      <div className="space-y-6">
-        {/* Registry Proposals */}
-        {registryProposals.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">Registry Proposals</h4>
-            {registryProposals.map((p) => (
-              <ProposalCard
-                key={p._id}
-                proposal={p}
-                userSafeAddress={user.safeAddress}
-                loading={loading}
-                onValidate={(proposal) => openPin('validate', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.registryAddress })}
-                onExecute={(proposal) => openPin('execute', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.registryAddress })}
-                onCancel={(proposal) => openPin('cancel', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.registryAddress })}
-                onDelete={handleDelete}
-              />
-            ))}
+      {/* ── Validator Proposals ── */}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Validator Proposals</p>
+        {!fetchingProposals && proposals.validatorProposals.length === 0 ? (
+          <div className="text-center py-8 opacity-20">
+            <p className="text-xs uppercase font-bold tracking-widest">No active validator proposals</p>
           </div>
-        )}
+        ) : (
+          <div className="space-y-4">
+            {proposals.validatorProposals.map((p, i) => {
+              const hasVoted = myVotes[`val_${p.addr}`];
+              const timelockReady = isTimelockReady(p.timeLockTimestamp);
+              return (
+                <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
+                  className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
+                    <div className="space-y-1">
+                      <span className={`text-xs font-black uppercase px-2 py-1 rounded-lg ${p.action ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                        {p.action ? 'ADD VALIDATOR' : 'REMOVE VALIDATOR'}
+                      </span>
+                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs mt-1">{p.addr}</p>
+                    </div>
+                    <div className="flex flex-col items-start sm:items-end gap-2">
+                      {p.remainingValidation !== null && (
+                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${p.remainingValidation === 0 ? 'bg-green-500/10 text-green-400' : 'bg-white/5 text-white/60'}`}>
+                          {p.remainingValidation === 0 ? '✓ QUORUM REACHED' : `${p.remainingValidation} VALIDATIONS REMAINING`}
+                        </span>
+                      )}
+                      {p.isValidated && p.timeLockTimestamp && (
+                        <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
+                      )}
+                    </div>
+                  </div>
 
-        {/* Validator Proposals */}
-        {validatorProposals.length > 0 && (
-          <div className="space-y-3">
-            <h4 className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">Validator Proposals</h4>
-            {validatorProposals.map((p) => (
-              <ProposalCard
-                key={p._id}
-                proposal={p}
-                userSafeAddress={user.safeAddress}
-                loading={loading}
-                onValidate={(proposal) => openPin('validate', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.validatorAddress })}
-                onExecute={(proposal) => openPin('execute', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.validatorAddress })}
-                onCancel={(proposal) => openPin('cancel', { proposalId: proposal._id, proposalType: proposal.type, targetAddress: proposal.validatorAddress })}
-                onDelete={handleDelete}
-              />
-            ))}
-          </div>
-        )}
-
-        {fetchingProposals && (
-          <div className="flex items-center justify-center py-12 gap-3 opacity-30">
-            <div className="w-5 h-5 border-2 border-salvaGold border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-bold uppercase tracking-widest">Loading proposals...</span>
-          </div>
-        )}
-
-        {!fetchingProposals && proposals.length === 0 && (
-          <div className="text-center py-16 opacity-20">
-            <p className="text-4xl mb-3">🏛️</p>
-            <p className="text-xs uppercase font-bold tracking-widest">No active proposals</p>
+                  <div className="flex flex-wrap gap-2">
+                    {!p.isValidated ? (
+                      hasVoted ? (
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">✓ Voted</span>
+                      ) : (
+                        <button onClick={() => handleValidateValidator(p.addr)} disabled={loading}
+                          className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold hover:text-black transition-all disabled:opacity-40">
+                          Validate
+                        </button>
+                      )
+                    ) : (
+                      <button onClick={() => handleExecuteValidator(p)} disabled={loading || !timelockReady}
+                        className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed">
+                        Execute
+                      </button>
+                    )}
+                    <button onClick={() => handleCancelValidator(p.addr)} disabled={loading}
+                      className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-40">
+                      Cancel
+                    </button>
+                  </div>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -430,38 +459,34 @@ const AdminPanel = ({ user, showMsg }) => {
       {/* ── PIN Modal ── */}
       <AnimatePresence>
         {isPinOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <motion.div onClick={() => setIsPinOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+            <motion.div onClick={() => !loading && setIsPinOpen(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md" />
+            <motion.div onClick={(e) => e.stopPropagation()} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl">
               <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl">🔐</span>
                 </div>
-                <h3 className="text-xl font-black mb-1">Confirm Action</h3>
-                <p className="text-xs opacity-50">Enter your transaction PIN to sign this on-chain action</p>
+                <h3 className="text-xl font-black mb-1">Admin Verification</h3>
+                <p className="text-xs opacity-50">Enter your transaction PIN to sign</p>
               </div>
-              <input
-                type="password" inputMode="numeric" maxLength="4"
-                value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              <input type="password" inputMode="numeric" maxLength="4" value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••" autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
-              />
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6" />
               <div className="flex gap-3">
-                <button onClick={() => setIsPinOpen(false)} className="flex-1 py-3 rounded-xl border border-white/10 font-bold">Cancel</button>
-                <button onClick={verifyPinAndAct} disabled={pin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold disabled:opacity-50">
-                  Confirm
+                <button onClick={() => setIsPinOpen(false)} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5">Cancel</button>
+                <button onClick={executePinnedAction} disabled={loading || adminPin.length !== 4}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50">
+                  {loading ? '...' : 'Sign'}
                 </button>
               </div>
             </motion.div>
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 

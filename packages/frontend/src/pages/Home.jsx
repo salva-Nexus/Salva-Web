@@ -1,8 +1,8 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Home.jsx
 import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, useInView, animate, AnimatePresence } from 'framer-motion';
-import { Instagram, Github, Mail, X, ChevronDown, ArrowRight, Zap, Shield, Coins } from 'lucide-react';
+import { motion, useInView, animate, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+import { Instagram, Github, Mail, X, ChevronDown, ArrowRight, Zap, Shield, Coins, ArrowUpRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 
@@ -42,51 +42,34 @@ const CountUp = ({ to, decimals = 0 }) => {
   return <span>{currentValue.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}</span>;
 };
 
-// Animated section that slides in from left or right on scroll
-const ScrollSection = ({ children, direction = 'left', className = '' }) => {
+// ── Cinematic scroll section ───────────────────────────────────────────────
+const CinematicFeature = ({ icon: Icon, tag, title, description, visual, index }) => {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-100px' });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, x: direction === 'left' ? -80 : 80 }}
-      animate={isInView ? { opacity: 1, x: 0 } : {}}
-      transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-      className={className}
-    >
-      {children}
-    </motion.div>
-  );
-};
+  const isInView = useInView(ref, { once: true, margin: '-120px' });
+  const fromLeft = index % 2 === 0;
 
-// Feature block — alternates left/right
-const FeatureBlock = ({ icon: Icon, tag, title, description, direction, accent, visual }) => {
-  const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-80px' });
   return (
-    <div ref={ref} className={`flex flex-col ${direction === 'left' ? 'md:flex-row' : 'md:flex-row-reverse'} gap-10 sm:gap-16 items-center`}>
-      {/* Text side */}
+    <div ref={ref} className={`flex flex-col ${fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-12 lg:gap-20 items-center min-h-[50vh]`}>
       <motion.div
-        initial={{ opacity: 0, x: direction === 'left' ? -60 : 60 }}
+        initial={{ opacity: 0, x: fromLeft ? -80 : 80 }}
         animate={isInView ? { opacity: 1, x: 0 } : {}}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="flex-1 space-y-5"
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+        className="flex-1 space-y-6"
       >
         <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl ${accent} bg-opacity-10`}>
-            <Icon size={20} className="text-salvaGold" />
+          <div className="p-2.5 rounded-2xl bg-salvaGold/10 border border-salvaGold/20">
+            <Icon size={22} className="text-salvaGold" />
           </div>
-          <span className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">{tag}</span>
+          <span className="text-[10px] uppercase tracking-[0.4em] text-salvaGold font-black">{tag}</span>
         </div>
-        <h3 className="text-2xl sm:text-3xl md:text-4xl font-black tracking-tight leading-tight">{title}</h3>
-        <p className="text-base sm:text-lg opacity-60 leading-relaxed">{description}</p>
+        <h3 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-tight">{title}</h3>
+        <p className="text-base sm:text-lg opacity-60 leading-relaxed max-w-lg">{description}</p>
       </motion.div>
 
-      {/* Visual side */}
       <motion.div
-        initial={{ opacity: 0, x: direction === 'left' ? 60 : -60 }}
+        initial={{ opacity: 0, x: fromLeft ? 80 : -80 }}
         animate={isInView ? { opacity: 1, x: 0 } : {}}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+        transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
         className="flex-1 w-full"
       >
         {visual}
@@ -95,56 +78,73 @@ const FeatureBlock = ({ icon: Icon, tag, title, description, direction, accent, 
   );
 };
 
-// Visual cards for each feature
-const AliasVisual = () => (
-  <div className="relative h-52 sm:h-64 bg-gradient-to-br from-black to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-center gap-4">
-    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.08),transparent)]" />
-    {[
-      { alias: 'charles@salva', addr: '0xd8dA...96045', delay: 0 },
-      { alias: '1122746245@salva', addr: '0xAb5…3C9f', delay: 0.15 },
-    ].map((item, i) => (
-      <motion.div
-        key={i}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: item.delay + 0.4, duration: 0.6 }}
-        className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3"
-      >
-        <span className="text-salvaGold font-black text-sm">{item.alias}</span>
-        <ArrowRight size={14} className="opacity-30 mx-2 flex-shrink-0" />
-        <span className="font-mono text-xs opacity-50 truncate">{item.addr}</span>
-      </motion.div>
-    ))}
-    <p className="text-[10px] opacity-30 text-center uppercase tracking-widest font-bold">Human-readable • Collision-proof • Namespaced</p>
-  </div>
-);
+// ── Feature visuals ────────────────────────────────────────────────────────
+const AliasVisual = () => {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const items = [
+    { alias: 'charles@salva', addr: '0xd8dA...96045' },
+    { alias: '1122746245@salva', addr: '0xAb5...3C9f' },
+    { alias: 'amaka@coinbase', addr: '0x71C...8E2a' },
+  ];
+  useEffect(() => {
+    const t = setInterval(() => setActiveIdx(i => (i + 1) % items.length), 2000);
+    return () => clearInterval(t);
+  }, []);
 
-const StablecoinVisual = () => (
-  <div className="relative h-52 sm:h-64 bg-gradient-to-br from-black to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-center items-center gap-4">
-    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.08),transparent)]" />
-    <motion.div
-      animate={{ scale: [1, 1.04, 1], rotate: [0, 2, -2, 0] }}
-      transition={{ repeat: Infinity, duration: 4, ease: 'easeInOut' }}
-      className="w-20 h-20 rounded-full bg-salvaGold/10 border-2 border-salvaGold flex items-center justify-center"
-    >
-      <span className="text-3xl font-black text-salvaGold">₦</span>
-    </motion.div>
-    <div className="text-center">
-      <p className="text-xl font-black text-salvaGold">1 NGNs = 1 NGN</p>
-      <p className="text-xs opacity-40 uppercase tracking-widest font-bold mt-1">Pegged • Stable • Predictable</p>
-    </div>
-    <div className="flex gap-3 w-full">
-      {['No FX Risk', 'On-chain', 'Base L2'].map((tag) => (
-        <div key={tag} className="flex-1 text-center bg-white/5 border border-white/10 rounded-lg py-2 px-1">
-          <span className="text-[10px] font-black text-salvaGold uppercase">{tag}</span>
-        </div>
+  return (
+    <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-center gap-3">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.08),transparent)]" />
+      <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black mb-2 opacity-60">Live Resolution</p>
+      {items.map((item, i) => (
+        <motion.div key={i} animate={{ opacity: activeIdx === i ? 1 : 0.25, scale: activeIdx === i ? 1 : 0.97 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+          <span className="text-salvaGold font-black text-sm">{item.alias}</span>
+          <ArrowRight size={14} className="opacity-30 mx-2 flex-shrink-0" />
+          <span className="font-mono text-xs opacity-50 truncate">{item.addr}</span>
+        </motion.div>
       ))}
+      <p className="text-[9px] opacity-20 text-center uppercase tracking-widest font-bold mt-1">Human-readable · Collision-proof · Namespaced</p>
     </div>
-  </div>
-);
+  );
+};
+
+const StablecoinVisual = () => {
+  const [price, setPrice] = useState(1.0000);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setPrice(1 + (Math.random() * 0.0004 - 0.0002));
+    }, 1500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-between">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.08),transparent)]" />
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-widest text-salvaGold font-black">NGNs / NGN</span>
+        <span className="text-[10px] text-green-400 font-black bg-green-400/10 px-2 py-1 rounded-full">● LIVE</span>
+      </div>
+      <div className="text-center">
+        <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3 }}
+          className="w-20 h-20 rounded-full bg-salvaGold/10 border-2 border-salvaGold flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl font-black text-salvaGold">₦</span>
+        </motion.div>
+        <p className="text-2xl font-black text-salvaGold">₦{price.toFixed(4)}</p>
+        <p className="text-xs opacity-40 uppercase tracking-widest font-bold mt-1">Naira-Pegged Stablecoin</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {['No FX Risk', 'On-chain', 'Base L2'].map((t) => (
+          <div key={t} className="text-center bg-white/5 border border-white/10 rounded-lg py-2">
+            <span className="text-[10px] font-black text-salvaGold uppercase">{t}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const WalletVisual = () => (
-  <div className="relative h-52 sm:h-64 bg-gradient-to-br from-black to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-between">
+  <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-between">
     <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.05),transparent)]" />
     <div className="flex items-center justify-between">
       <span className="text-[10px] uppercase tracking-widest text-salvaGold font-black">Salva Smart Wallet</span>
@@ -158,11 +158,7 @@ const WalletVisual = () => (
       <p className="text-3xl font-black text-white">250,000 <span className="text-salvaGold text-lg">NGNs</span></p>
     </div>
     <div className="grid grid-cols-3 gap-2">
-      {[
-        { label: 'Gasless', icon: '⚡' },
-        { label: 'Safe AA', icon: '🛡️' },
-        { label: 'Base L2', icon: '🔵' },
-      ].map((item) => (
+      {[{ label: 'Gasless', icon: '⚡' }, { label: 'Safe AA', icon: '🛡️' }, { label: 'Base L2', icon: '🔵' }].map((item) => (
         <div key={item.label} className="bg-white/5 border border-white/10 rounded-xl py-2 text-center">
           <p className="text-base">{item.icon}</p>
           <p className="text-[9px] uppercase font-black text-salvaGold tracking-wider">{item.label}</p>
@@ -171,6 +167,26 @@ const WalletVisual = () => (
     </div>
   </div>
 );
+
+// ── Marquee ticker ─────────────────────────────────────────────────────────
+const Ticker = () => {
+  const items = ['Dual Alias Protocol', 'NGNs Stablecoin', 'Safe Smart Wallet', 'Base L2', 'Gasless Transactions', 'On-chain Identity', 'Nigerian Finance', 'Zero Seed Phrases'];
+  return (
+    <div className="overflow-hidden py-4 border-y border-salvaGold/10 my-16">
+      <motion.div
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 20, ease: 'linear', repeat: Infinity }}
+        className="flex gap-8 whitespace-nowrap"
+      >
+        {[...items, ...items].map((item, i) => (
+          <span key={i} className="text-xs font-black uppercase tracking-[0.3em] text-salvaGold/40 flex items-center gap-4">
+            {item} <span className="text-salvaGold">◆</span>
+          </span>
+        ))}
+      </motion.div>
+    </div>
+  );
+};
 
 // ── Main Component ─────────────────────────────────────────────────────────
 const Home = () => {
@@ -187,10 +203,7 @@ const Home = () => {
       const savedUser = localStorage.getItem('salva_user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        if (userData.safeAddress && userData.ownerKey) {
-          navigate('/dashboard', { replace: true });
-          return;
-        }
+        if (userData.safeAddress && userData.ownerKey) { navigate('/dashboard', { replace: true }); return; }
       }
     } catch (_) { localStorage.removeItem('salva_user'); }
     finally { setCheckingAuth(false); }
@@ -219,13 +232,11 @@ const Home = () => {
     setIsSupportOpen(false);
   };
 
-  if (checkingAuth) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-        <div className="text-salvaGold font-black text-2xl animate-pulse tracking-widest uppercase">Initializing...</div>
-      </div>
-    );
-  }
+  if (checkingAuth) return (
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
+      <div className="text-salvaGold font-black text-2xl animate-pulse tracking-widest uppercase">Initializing...</div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white transition-colors duration-500 overflow-x-hidden">
@@ -233,139 +244,86 @@ const Home = () => {
 
       {/* ── HERO ── */}
       <section ref={heroRef} className="relative min-h-screen flex flex-col justify-center pt-24 pb-12 px-4 sm:px-6 text-center">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_30%,rgba(212,175,55,0.07),transparent)] pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_30%,rgba(212,175,55,0.08),transparent)] pointer-events-none" />
 
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={heroInView ? { opacity: 1, y: 0 } : {}}
-          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10"
-        >
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1, duration: 0.6 }}
-            className="inline-flex items-center gap-2 bg-salvaGold/10 border border-salvaGold/30 rounded-full px-4 py-2 mb-8"
-          >
+        <motion.div initial={{ opacity: 0, y: 40 }} animate={heroInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }} className="relative z-10">
+          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.1, duration: 0.6 }}
+            className="inline-flex items-center gap-2 bg-salvaGold/10 border border-salvaGold/30 rounded-full px-4 py-2 mb-8">
             <div className="w-2 h-2 bg-salvaGold rounded-full animate-pulse" />
             <span className="text-[10px] text-salvaGold font-black uppercase tracking-[0.3em]">Live on Base Mainnet</span>
           </motion.div>
 
           <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black mb-6 tracking-tighter leading-[0.88] px-2">
-            <motion.span
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.8 }}
-              className="block"
-            >
-              THE FUTURE OF
-            </motion.span>
-            <motion.span
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.35, duration: 0.8 }}
-              className="block text-transparent bg-clip-text bg-gradient-to-r from-salvaGold via-yellow-400 to-salvaGold"
-            >
+            <motion.span initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2, duration: 0.8 }} className="block">THE FUTURE OF</motion.span>
+            <motion.span initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35, duration: 0.8 }} className="block text-transparent bg-clip-text bg-gradient-to-r from-salvaGold via-yellow-400 to-salvaGold">
               NIGERIAN FINANCE
             </motion.span>
           </h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.8 }}
-            className="text-base sm:text-lg md:text-xl opacity-60 max-w-2xl mx-auto leading-relaxed px-4 mb-10"
-          >
-            On-chain payments. Human-readable aliases. Naira-pegged stability.
-            Gasless smart wallets. Built on Base — built for Nigeria.
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.8 }}
+            className="text-base sm:text-lg md:text-xl opacity-60 max-w-2xl mx-auto leading-relaxed px-4 mb-10">
+            On-chain payments. Human-readable aliases. Naira-pegged stability. Gasless smart wallets. Built on Base — built for Nigeria.
           </motion.p>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.65, duration: 0.8 }}
-            className="flex flex-col sm:flex-row gap-4 justify-center items-center"
-          >
-            <button
-              onClick={() => navigate('/login')}
-              className="w-full sm:w-auto px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
-            >
-              Create Wallet
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.65, duration: 0.8 }}
+            className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <button onClick={() => navigate('/login')}
+              className="w-full sm:w-auto px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest flex items-center justify-center gap-2">
+              Create Wallet <ArrowUpRight size={16} />
             </button>
-            <button
-              onClick={() => document.getElementById('features').scrollIntoView({ behavior: 'smooth' })}
-              className="w-full sm:w-auto px-8 py-4 border border-salvaGold/30 font-bold rounded-2xl hover:border-salvaGold hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest"
-            >
-              Learn More ↓
+            <button onClick={() => document.getElementById('features').scrollIntoView({ behavior: 'smooth' })}
+              className="w-full sm:w-auto px-8 py-4 border border-salvaGold/30 font-bold rounded-2xl hover:border-salvaGold hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest">
+              Explore ↓
             </button>
+          </motion.div>
+
+          {/* Floating stats preview */}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9, duration: 0.8 }}
+            className="mt-16 flex flex-col sm:flex-row gap-4 justify-center items-center">
+            {[
+              { label: 'NGNs in Circulation', value: loading ? '—' : <CountUp to={stats.totalMinted} decimals={0} />, suffix: 'NGNs' },
+              { label: 'Citizens', value: loading ? '—' : <CountUp to={stats.userCount} /> },
+            ].map((s, i) => (
+              <div key={i} className="px-6 py-3 bg-white/5 dark:bg-white/5 border border-salvaGold/10 rounded-2xl text-center backdrop-blur-sm">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold font-black mb-1">{s.label}</p>
+                <p className="text-xl font-black">{s.value} <span className="text-salvaGold text-xs">{s.suffix}</span></p>
+              </div>
+            ))}
           </motion.div>
         </motion.div>
 
-        {/* Scroll indicator */}
-        <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 opacity-30"
-        >
+        <motion.div animate={{ y: [0, 8, 0] }} transition={{ repeat: Infinity, duration: 2 }} className="absolute bottom-8 left-1/2 -translate-x-1/2 opacity-30">
           <ChevronDown size={24} className="text-salvaGold" />
         </motion.div>
       </section>
 
-      {/* ── STATS ── */}
-      <ScrollSection direction="left" className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {[
-            { title: 'Total NGNs Circulating', value: loading ? '0' : <CountUp to={stats.totalMinted} decimals={2} />, suffix: 'NGNs' },
-            { title: 'Salva Network Citizens', value: loading ? '0' : <CountUp to={stats.userCount} /> },
-          ].map((card, i) => (
-            <div key={i} className="group relative p-8 md:p-10 rounded-3xl border border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 backdrop-blur-sm hover:border-salvaGold/50 transition-all duration-500 overflow-hidden">
-              <div className="absolute -inset-1 bg-gradient-to-r from-salvaGold/0 via-salvaGold/5 to-salvaGold/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-              <p className="relative z-10 text-[10px] sm:text-xs uppercase tracking-[0.4em] text-salvaGold mb-4 font-black">{card.title}</p>
-              <div className="relative z-10 flex items-baseline gap-2 flex-wrap">
-                <h3 className="text-3xl sm:text-4xl xl:text-5xl font-black tracking-tighter">{card.value}</h3>
-                {card.suffix && <span className="text-sm font-bold opacity-40 uppercase tracking-widest">{card.suffix}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </ScrollSection>
+      {/* ── TICKER ── */}
+      <Ticker />
 
-      {/* ── FEATURES ── */}
-      <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-28 space-y-24 sm:space-y-40">
-
-        <FeatureBlock
-          direction="left"
-          icon={Zap}
-          tag="Dual Alias Protocol"
+      {/* ── CINEMATIC FEATURES ── */}
+      <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-28 space-y-32 sm:space-y-48">
+        <CinematicFeature
+          index={0} icon={Zap} tag="Dual Alias Protocol"
           title="Send Money Like Sending a Text"
-          description="Replace wallet addresses with human-readable identifiers. Send to 'charles@salva' or '1122746245' — no hex addresses, no copy-paste errors. Names and numbers are namespaced so @salva and @coinbase identities never collide."
-          accent="bg-salvaGold"
+          description="Replace wallet addresses with human-readable identifiers. Send to 'charles@salva' or '1122746245' — no hex strings, no copy-paste errors. Names and numbers are namespaced so @salva and @coinbase identities never collide."
           visual={<AliasVisual />}
         />
-
-        <FeatureBlock
-          direction="right"
-          icon={Coins}
-          tag="NGNs Stablecoin"
+        <CinematicFeature
+          index={1} icon={Coins} tag="NGNs Stablecoin"
           title="Naira Power, Blockchain Speed"
-          description="1 NGNs = 1 Nigerian Naira. No FX exposure. No volatility. Your everyday payments stay predictable — but settle on-chain with the finality of blockchain. Spend, receive, and save in Naira without ever touching volatile crypto."
-          accent="bg-salvaGold"
+          description="1 NGNs = 1 Nigerian Naira. No FX exposure. No volatility. Your everyday payments stay predictable — but settle on-chain with the finality of blockchain. Spend, receive, and save in Naira without touching volatile crypto."
           visual={<StablecoinVisual />}
         />
-
-        <FeatureBlock
-          direction="left"
-          icon={Shield}
-          tag="Smart Wallet (AA)"
+        <CinematicFeature
+          index={2} icon={Shield} tag="Smart Wallet (AA)"
           title="No Gas Fees. Ever."
-          description="Built on Safe Protocol — your wallet is a smart contract, not just a key. Transactions are sponsored so you never pay gas. Built on Base L2 for sub-cent settlement costs. Account abstraction means approvals, batched transactions, and enterprise-grade security baked in."
-          accent="bg-salvaGold"
+          description="Built on Safe Protocol — your wallet is a smart contract, not just a key. Transactions are sponsored so you never pay gas. Built on Base L2 for sub-cent settlement. Account abstraction means batched transactions and enterprise-grade security baked in."
           visual={<WalletVisual />}
         />
       </section>
 
       {/* ── HOW IT WORKS ── */}
-      <ScrollSection direction="left" className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">HOW IT WORKS</h2>
           <p className="opacity-50 uppercase text-xs tracking-[0.3em] font-bold">Simple as 1 — 2 — 3</p>
@@ -373,38 +331,46 @@ const Home = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
           {[
             { step: '01', title: 'Create Wallet', desc: 'Register with email. A Safe smart wallet is deployed on Base — no gas, no seed phrases to manage.' },
-            { step: '02', title: 'Register Alias', desc: 'Claim your name or number. "charles@salva" or "1122746245" — your identity on-chain.' },
+            { step: '02', title: 'Register Alias', desc: 'Claim your name or account number. "charles@salva" or "1122746245" — your on-chain identity.' },
             { step: '03', title: 'Send & Receive', desc: 'Transfer NGNs to anyone by alias. Instant settlement, zero gas, email confirmation.' },
           ].map((item, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.15, duration: 0.7 }}
-              className="relative p-6 rounded-3xl border border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 hover:border-salvaGold/40 transition-all group"
-            >
+            <motion.div key={i} initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: i * 0.15, duration: 0.7 }}
+              className="relative p-6 rounded-3xl border border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 hover:border-salvaGold/40 transition-all group">
               <span className="text-5xl font-black text-salvaGold/10 group-hover:text-salvaGold/20 transition-colors block mb-4">{item.step}</span>
               <h4 className="font-black text-lg mb-2">{item.title}</h4>
               <p className="text-sm opacity-60 leading-relaxed">{item.desc}</p>
             </motion.div>
           ))}
         </div>
-      </ScrollSection>
+      </section>
 
       {/* ── FAQ ── */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
-        <ScrollSection direction="right" className="text-center mb-16">
+        <div className="text-center mb-16">
           <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4">FAQS</h2>
           <p className="opacity-50 uppercase text-xs tracking-[0.3em] font-bold">Everything you need to know</p>
-        </ScrollSection>
-        <ScrollSection direction="left" className="space-y-2">
+        </div>
+        <div className="space-y-2">
           <FAQItem question="What makes Salva a 'Smart' wallet?" answer="Traditional wallets require seed phrases and gas fees for every action. Salva uses Safe Smart Account technology on Base L2 — your account is a smart contract that supports gasless interactions and enhanced security out of the box." />
           <FAQItem question="What is a Dual Alias?" answer="A dual alias means you can be found by both a name (e.g. 'charles@salva') and a number (e.g. '1122746245'). Both resolve to your wallet address. The namespace prevents collisions — 'charles@salva' and 'charles@coinbase' are completely different identities." />
-          <FAQItem question="Is this running on Mainnet?" answer="Yes. Salva is deployed on the Base Layer 2 Mainnet. Transactions settle with Ethereum security at Base's speed and cost — fractions of a cent." />
+          <FAQItem question="Is this running on Mainnet?" answer="Yes. Salva is deployed on the Base Layer 2 Mainnet. Transactions settle with Ethereum security at Base's speed and cost." />
           <FAQItem question="How are NGNs valued?" answer="NGNs are pegged 1:1 to the Nigerian Naira. Send and receive with the confidence of local currency, at blockchain speed." />
           <FAQItem question="Who controls my funds?" answer="You do. Salva is non-custodial. While transactions are relayed gaslessly through our infrastructure, the ultimate signing permission rests with your smart account keys." />
-        </ScrollSection>
+        </div>
+      </section>
+
+      {/* ── CTA BANNER ── */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-12">
+        <motion.div initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.8 }}
+          className="relative rounded-3xl border border-salvaGold/30 bg-gradient-to-br from-salvaGold/5 to-transparent p-10 sm:p-16 text-center overflow-hidden">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.06),transparent)]" />
+          <h2 className="relative text-3xl sm:text-5xl font-black tracking-tighter mb-4">Ready to Join?</h2>
+          <p className="relative opacity-60 mb-8 max-w-lg mx-auto">Create your wallet in under 60 seconds. No crypto knowledge required.</p>
+          <button onClick={() => navigate('/login')}
+            className="relative px-10 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest inline-flex items-center gap-2">
+            Get Started <ArrowUpRight size={16} />
+          </button>
+        </motion.div>
       </section>
 
       {/* ── FOOTER ── */}
@@ -420,14 +386,12 @@ const Home = () => {
               { href: 'https://github.com/salva-Nexus/SALVA-V2', icon: <Github size={20} />, label: 'GitHub' },
             ].map((s) => (
               <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
-                className="p-3 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 opacity-60 hover:opacity-100 hover:text-salvaGold transition-all flex items-center justify-center"
-                aria-label={s.label}>
+                className="p-3 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 opacity-60 hover:opacity-100 hover:text-salvaGold transition-all flex items-center justify-center" aria-label={s.label}>
                 {s.icon}
               </a>
             ))}
             <button onClick={() => setIsSupportOpen(true)}
-              className="p-3 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 opacity-60 hover:opacity-100 hover:text-salvaGold transition-all flex items-center justify-center"
-              aria-label="Support">
+              className="p-3 rounded-full bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10 opacity-60 hover:opacity-100 hover:text-salvaGold transition-all flex items-center justify-center" aria-label="Support">
               <Mail size={20} />
             </button>
           </div>
@@ -439,8 +403,7 @@ const Home = () => {
       <AnimatePresence>
         {isSupportOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsSupportOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSupportOpen(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
             <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0, y: 30 }}
               className="relative w-full max-w-lg bg-white dark:bg-[#0D0D0E] border border-black/5 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl">
               <button onClick={() => setIsSupportOpen(false)} className="absolute top-8 right-8 opacity-40 hover:opacity-100 transition-opacity"><X size={24} /></button>
