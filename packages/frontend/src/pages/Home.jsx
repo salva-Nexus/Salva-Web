@@ -47,7 +47,7 @@ const AliasVisual = () => {
   const [activeIdx, setActiveIdx] = useState(0);
   const items = [
     { alias: 'charles@salva', addr: '0xd8dA...96045' },
-    { alias: '1122746245@salva', addr: '0xAb5...3C9f' },
+    { alias: '1122746245', addr: '0xAb5...3C9f' },
     { alias: 'amaka@coinbase', addr: '0x71C...8E2a' },
   ];
   useEffect(() => {
