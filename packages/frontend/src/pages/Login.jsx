@@ -92,12 +92,15 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        if (!data.safeAddress || !data.accountNumber || !data.ownerPrivateKey) throw new Error('Invalid server response');
+        // Login requires safeAddress + ownerPrivateKey.
+        // Registration only guarantees safeAddress (accountNumber assigned later in dashboard).
+        if (!data.safeAddress || !data.ownerPrivateKey) throw new Error('Invalid server response');
+
         const userData = {
           username: sanitizeInput(data.username),
           email: sanitizeInput(formData.email),
           safeAddress: data.safeAddress,
-          accountNumber: data.accountNumber,
+          accountNumber: data.accountNumber || null,
           ownerKey: data.ownerPrivateKey,
           isValidator: data.isValidator || false,
           nameAlias: data.nameAlias || null,
@@ -106,16 +109,22 @@ const Login = () => {
         localStorage.setItem('salva_user', JSON.stringify(userData));
         showMsg(isLogin ? "Access Granted!" : "Wallet Deployed!");
 
-        try {
-          const pinStatusRes = await fetch(`${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`);
-          const pinStatus = await pinStatusRes.json();
-          if (!pinStatus.hasPin && !isLogin) {
-            setTimeout(() => navigate('/set-transaction-pin'), 1500);
-          } else {
+        if (!isLogin) {
+          // New user — always go set PIN first
+          setTimeout(() => navigate('/set-transaction-pin'), 1500);
+        } else {
+          // Returning user — check if PIN already set
+          try {
+            const pinStatusRes = await fetch(`${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`);
+            const pinStatus = await pinStatusRes.json();
+            if (!pinStatus.hasPin) {
+              setTimeout(() => navigate('/set-transaction-pin'), 1500);
+            } else {
+              setTimeout(() => navigate('/dashboard'), 1500);
+            }
+          } catch {
             setTimeout(() => navigate('/dashboard'), 1500);
           }
-        } catch {
-          setTimeout(() => navigate('/dashboard'), 1500);
         }
       } else {
         showMsg(data.message || "Authentication failed", "error");

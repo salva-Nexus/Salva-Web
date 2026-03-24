@@ -699,7 +699,7 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
 });
 
 // ===============================================
-// REGISTER — Sequential account number + on-chain link before saving user
+// REGISTER — Deploy Safe only. Account number linking happens in dashboard.
 // ===============================================
 app.post(
   "/api/register",
@@ -720,107 +720,35 @@ app.post(
         process.env.BASE_SEPOLIA_RPC_URL,
       );
 
-      // ── STEP 2: Read next account number from DB (atomic increment) ────────
-      // findOneAndUpdate with upsert ensures the counter document is created
-      // on first run. $inc on lastAssigned is done in JS below to keep it as
-      // a String. We use findOne + save inside a retry-safe block instead.
-      let counterDoc = await AccountNumberCounter.findById('main');
-      if (!counterDoc) {
-        // First ever registration — seed the counter document
-        counterDoc = await AccountNumberCounter.create({
-          _id: 'main',
-          lastAssigned: '1122746244' // will become 1122746245 after +1
-        });
-      }
-
-      const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
-      console.log(`🔢 Assigning account number: ${nextNumber}`);
-
-      // ── STEP 3: Call linkNumber() on the Registry via the backend wallet ───
-      // This is NOT a Gelato call — the backend manager wallet pays gas here
-      // because this is a privileged registry operation, not a user action.
-      console.log("📝 Linking account number on-chain via Registry...");
-
-      const REGISTRY_ABI = [
-        "function linkNumber(uint128,address) external",
-      ];
-      const registryContract = new ethers.Contract(
-        process.env.REGISTRY_CONTRACT_ADDRESS,
-        REGISTRY_ABI,
-        wallet, // backend manager wallet
-      );
-
-      let linkTx;
-      try {
-        linkTx = await registryContract.linkNumber(
-          BigInt(nextNumber),
-          identityData.safeAddress,
-        );
-        console.log(`⏳ linkNumber TX sent: ${linkTx.hash}`);
-      } catch (linkSendError) {
-        // TX failed to even send (e.g. revert estimation)
-        console.error("❌ linkNumber send failed:", linkSendError.message);
-        return res.status(500).json({
-          message: "On-chain registration failed. Please try again.",
-        });
-      }
-
-      let linkReceipt;
-      try {
-        linkReceipt = await linkTx.wait();
-      } catch (waitError) {
-        // TX was mined but reverted
-        console.error("❌ linkNumber reverted on-chain:", waitError.message);
-        return res.status(500).json({
-          message: "On-chain registration reverted. Account number not assigned. Please try again.",
-        });
-      }
-
-      if (!linkReceipt || linkReceipt.status === 0) {
-        console.error("❌ linkNumber receipt shows failure");
-        return res.status(500).json({
-          message: "On-chain registration failed (receipt status 0). Please try again.",
-        });
-      }
-
-      console.log("✅ On-chain account number linked successfully!");
-
-      // ── STEP 4: Increment counter in DB — only AFTER on-chain success ──────
-      counterDoc.lastAssigned = nextNumber;
-      await counterDoc.save();
-      console.log(`✅ Counter updated to: ${nextNumber}`);
-
-      // ── STEP 5: Save user to MongoDB ────────────────────────────────────────
+      // ── STEP 2: Save user to MongoDB ────────────────────────────────────────
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = new User({
         username,
         email,
         password: hashedPassword,
         safeAddress: identityData.safeAddress,
-        accountNumber: nextNumber,
         ownerPrivateKey: identityData.ownerPrivateKey,
+        // accountNumber is null until user links it from dashboard
       });
 
       await newUser.save();
       console.log("✅ User saved to database");
 
-      // ── STEP 6: Send welcome email ───────────────────────────────────────────
+      // ── STEP 3: Send welcome email ───────────────────────────────────────────
       try {
         await sendWelcomeEmail(email, username);
       } catch (emailError) {
         console.error("❌ Welcome email error:", emailError.message);
       }
 
-      // In /api/register route, update the res.json to:
       res.json({
         username: newUser.username,
         safeAddress: newUser.safeAddress,
-        accountNumber: newUser.accountNumber,
+        accountNumber: null,
         ownerPrivateKey: newUser.ownerPrivateKey,
         isValidator: false,
         nameAlias: null,
         numberAlias: null,
-        registrationTx: linkTx.hash,
       });
     } catch (error) {
       console.error("❌ Registration failed:", error);
