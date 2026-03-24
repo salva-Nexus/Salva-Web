@@ -49,6 +49,20 @@ const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const validator = require("validator");
 
+const Proposal = require('./models/Proposal');
+const {
+  proposeRegistryInit,
+  proposeValidatorUpdate,
+  validateRegistry,
+  validateValidator,
+  cancelRegistryInit,
+  cancelValidatorUpdate,
+  executeRegistryInit,
+  executeValidatorUpdate,
+} = require('./services/multiSigService');
+
+const { sendProposalNotificationEmail } = require('./services/emailService');
+
 // ===============================================
 // HELPER: ENSURE ADDRESS MATCHING
 // ===============================================
@@ -129,17 +143,17 @@ app.use((req, res, next) => {
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? [
-        "https://salva-nexus.org",
-        "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com",
-      ]
+      "https://salva-nexus.org",
+      "https://www.salva-nexus.org",
+      "https://salva-web.onrender.com",
+    ]
     : [
-        "https://salva-nexus.org",
-        "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-      ];
+      "https://salva-nexus.org",
+      "https://www.salva-nexus.org",
+      "https://salva-web.onrender.com",
+      "http://localhost:3000",
+      "http://localhost:5173",
+    ];
 
 app.use(
   cors({
@@ -523,6 +537,225 @@ app.get("/api/registries", async (req, res) => {
   }
 });
 
+// ================================================================
+// NEW: /api/alias/register-number
+// User registers a number alias. Backend assigns next number,
+// calls linkNumber on-chain, then saves to DB.
+// Add this as a new route AFTER the existing /api/registries route.
+// ================================================================
+app.post('/api/alias/register-number', authLimiter, async (req, res) => {
+  try {
+    const { safeAddress, email } = req.body;
+ 
+    const identifier = sanitizeEmail(email);
+    let user = await User.findOne({ email: identifier });
+    if (!user) user = await User.findOne({ username: identifier });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+ 
+    if (user.numberAlias) return res.status(400).json({ message: 'Number alias already registered' });
+ 
+    // Get next number
+    let counterDoc = await AccountNumberCounter.findById('main');
+    if (!counterDoc) {
+      counterDoc = await AccountNumberCounter.create({ _id: 'main', lastAssigned: '1122746244' });
+    }
+    const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
+    console.log(`🔢 Assigning account number: ${nextNumber}`);
+ 
+    // Call linkNumber on-chain
+    const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
+    const registryContract = new ethers.Contract(
+      process.env.REGISTRY_CONTRACT_ADDRESS,
+      REGISTRY_ABI,
+      wallet
+    );
+ 
+    let linkTx;
+    try {
+      linkTx = await registryContract.linkNumber(BigInt(nextNumber), user.safeAddress);
+      console.log(`⏳ linkNumber TX: ${linkTx.hash}`);
+    } catch (err) {
+      console.error('❌ linkNumber send failed:', err.message);
+      return res.status(500).json({ message: 'On-chain registration failed. Please try again.' });
+    }
+ 
+    let linkReceipt;
+    try {
+      linkReceipt = await linkTx.wait();
+    } catch (err) {
+      console.error('❌ linkNumber reverted:', err.message);
+      return res.status(500).json({ message: 'On-chain registration reverted. Please try again.' });
+    }
+ 
+    if (!linkReceipt || linkReceipt.status === 0) {
+      return res.status(500).json({ message: 'On-chain registration failed. Please try again.' });
+    }
+ 
+    // Update DB — only after on-chain success
+    counterDoc.lastAssigned = nextNumber;
+    await counterDoc.save();
+ 
+    user.numberAlias = nextNumber;
+    user.accountNumber = nextNumber; // keep accountNumber in sync for backward compat
+    await user.save();
+ 
+    console.log('✅ Number alias registered:', nextNumber);
+    res.json({ success: true, numberAlias: nextNumber });
+  } catch (error) {
+    console.error('❌ Register number alias failed:', error);
+    return handleError(error, res, 'Failed to register number alias');
+  }
+});
+
+// ================================================================
+// NEW: /api/alias/check-name
+// Check if a name alias is available before registration.
+// Calls resolveViaName on the registry contract.
+// ================================================================
+app.post('/api/alias/check-name', async (req, res) => {
+  try {
+    const { name } = req.body;
+ 
+    if (!name || typeof name !== 'string') return res.status(400).json({ message: 'Name is required' });
+ 
+    // Validate characters (mirror phishingProof modifier)
+    if (name.length > 16) return res.status(400).json({ message: 'Name too long (max 16 chars)' });
+    if (!/^[a-z2-9.\-_]+$/.test(name)) return res.status(400).json({ message: 'Invalid characters in name' });
+ 
+    // Weld name with @salva namespace (backend always uses salva registry for name registration)
+    // The Singleton stores: name bytes OR-welded with namespace bytes in bytes32
+    // We check by calling resolveViaName on the Salva registry contract
+    const REGISTRY_ABI = ["function resolveViaName(string calldata) view returns (address)"];
+    const registryContract = new ethers.Contract(
+      process.env.REGISTRY_CONTRACT_ADDRESS,
+      REGISTRY_ABI,
+      provider
+    );
+ 
+    const resolved = await registryContract.resolveViaName(name);
+    const taken = resolved !== ethers.ZeroAddress;
+ 
+    res.json({ taken, name, weldedName: `${name}@salva` });
+  } catch (error) {
+    console.error('❌ Check name failed:', error);
+    return handleError(error, res, 'Failed to check name availability');
+  }
+});
+
+// ================================================================
+// NEW: /api/alias/register-name
+// Register a name alias on-chain via linkName, then save to DB.
+// ================================================================
+app.post('/api/alias/register-name', authLimiter, async (req, res) => {
+  try {
+    const { safeAddress, email, name } = req.body;
+ 
+    if (!name || !/^[a-z2-9.\-_]+$/.test(name) || name.length > 16) {
+      return res.status(400).json({ message: 'Invalid name' });
+    }
+ 
+    const identifier = sanitizeEmail(email);
+    let user = await User.findOne({ email: identifier });
+    if (!user) user = await User.findOne({ username: identifier });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+ 
+    if (user.nameAlias) return res.status(400).json({ message: 'Name alias already registered' });
+ 
+    // Call linkName on the Salva registry contract
+    const REGISTRY_ABI = ["function linkName(string memory,address) external returns (bool)"];
+    const registryContract = new ethers.Contract(
+      process.env.REGISTRY_CONTRACT_ADDRESS,
+      REGISTRY_ABI,
+      wallet // backend manager wallet has REGISTRAR_ROLE
+    );
+ 
+    let linkTx;
+    try {
+      linkTx = await registryContract.linkName(name, user.safeAddress);
+      console.log(`⏳ linkName TX: ${linkTx.hash}`);
+    } catch (err) {
+      console.error('❌ linkName send failed:', err.message);
+      return res.status(500).json({ message: 'On-chain name registration failed. Please try again.' });
+    }
+ 
+    let linkReceipt;
+    try {
+      linkReceipt = await linkTx.wait();
+    } catch (err) {
+      console.error('❌ linkName reverted:', err.message);
+      return res.status(500).json({ message: 'Name may be taken or invalid. Please try another.' });
+    }
+ 
+    if (!linkReceipt || linkReceipt.status === 0) {
+      return res.status(500).json({ message: 'On-chain registration failed. Please try again.' });
+    }
+ 
+    user.nameAlias = name;
+    await user.save();
+ 
+    console.log(`✅ Name alias registered: ${name}@salva for ${user.safeAddress}`);
+    res.json({ success: true, nameAlias: name });
+  } catch (error) {
+    console.error('❌ Register name alias failed:', error);
+    return handleError(error, res, 'Failed to register name alias');
+  }
+});
+
+// ================================================================
+// NEW: /api/resolve-for-send
+// Resolves name, number, or address for the send flow.
+// Returns: { found, address, displayIdentifier }
+// ================================================================
+app.post('/api/resolve-for-send', async (req, res) => {
+  try {
+    const { input, inputType, registryAddress, namespace } = req.body;
+ 
+    if (!input || !inputType) return res.status(400).json({ message: 'Input and inputType required' });
+ 
+    let resolvedAddress = null;
+    let displayIdentifier = input;
+ 
+    if (inputType === 'address') {
+      if (!ethers.isAddress(input)) return res.json({ found: false, message: 'Invalid wallet address' });
+      resolvedAddress = input.toLowerCase();
+      displayIdentifier = input;
+    } else if (inputType === 'number') {
+      if (!registryAddress) return res.json({ found: false, message: 'Select a wallet to resolve number' });
+      try {
+        const REGISTRY_ABI = ["function resolveViaNumber(uint128) view returns (address)"];
+        const registryContract = new ethers.Contract(registryAddress, REGISTRY_ABI, provider);
+        const addr = await registryContract.resolveViaNumber(BigInt(input));
+        if (!addr || addr === ethers.ZeroAddress) return res.json({ found: false, message: 'Number not found in selected wallet' });
+        resolvedAddress = addr.toLowerCase();
+        displayIdentifier = input; // show just the number
+      } catch (err) {
+        return res.json({ found: false, message: 'Failed to resolve number' });
+      }
+    } else if (inputType === 'name') {
+      if (!registryAddress || !namespace) return res.json({ found: false, message: 'Select a wallet to resolve name' });
+      try {
+        // Weld name with namespace from selected registry
+        const ns = namespace.replace('@', ''); // e.g. "salva"
+        const REGISTRY_ABI = ["function resolveViaName(string calldata) view returns (address)"];
+        const registryContract = new ethers.Contract(registryAddress, REGISTRY_ABI, provider);
+        const addr = await registryContract.resolveViaName(input);
+        if (!addr || addr === ethers.ZeroAddress) return res.json({ found: false, message: 'Name not found in selected wallet' });
+        resolvedAddress = addr.toLowerCase();
+        displayIdentifier = `${input}@${ns}`; // welded for display
+      } catch (err) {
+        return res.json({ found: false, message: 'Failed to resolve name' });
+      }
+    }
+ 
+    if (!resolvedAddress) return res.json({ found: false, message: 'Could not resolve recipient' });
+ 
+    res.json({ found: true, address: resolvedAddress, displayIdentifier });
+  } catch (error) {
+    console.error('❌ Resolve for send failed:', error);
+    return handleError(error, res, 'Resolution failed');
+  }
+});
+
 // ===============================================
 // GET FEE CONFIG (for frontend to preview fees)
 // ===============================================
@@ -541,6 +774,338 @@ app.get("/api/fee-config", async (req, res) => {
     });
   } catch (error) {
     return handleError(error, res, "Failed to fetch fee config");
+  }
+});
+
+// ================================================================
+// NEW: /api/admin/proposals — GET all proposals from DB
+// ================================================================
+app.get('/api/admin/proposals', async (req, res) => {
+  try {
+    const proposals = await Proposal.find({}).sort({ proposedAt: -1 });
+    res.json(proposals);
+  } catch (error) {
+    return handleError(error, res, 'Failed to fetch proposals');
+  }
+});
+ 
+ 
+// ================================================================
+// NEW: /api/admin/proposals/:id — DELETE a proposal record (after execute)
+// ================================================================
+app.delete('/api/admin/proposals/:id', async (req, res) => {
+  try {
+    await Proposal.findByIdAndDelete(req.params.id);
+    res.json({ success: true });
+  } catch (error) {
+    return handleError(error, res, 'Failed to delete proposal');
+  }
+});
+ 
+ 
+// ================================================================
+// NEW: /api/admin/propose-registry
+// ================================================================
+app.post('/api/admin/propose-registry', authLimiter, async (req, res) => {
+  try {
+    const { registryName, namespace, registryAddress, privateKey, proposerAddress } = req.body;
+ 
+    if (!registryName || !namespace || !registryAddress || !privateKey) {
+      return res.status(400).json({ message: 'All fields required' });
+    }
+ 
+    if (!namespace.startsWith('@') || namespace.length > 16) {
+      return res.status(400).json({ message: 'Namespace must start with @ and be max 16 chars' });
+    }
+ 
+    // Verify proposer is a validator
+    const proposer = await User.findOne({ safeAddress: normalizeAddress(proposerAddress) });
+    if (!proposer || !proposer.isValidator) {
+      return res.status(403).json({ message: 'Not authorized — not a validator' });
+    }
+ 
+    // Get total validator count for quorum
+    const totalValidators = await User.countDocuments({ isValidator: true });
+    const requiredValidationCount = Math.floor((totalValidators - 1) / 2) + 1;
+ 
+    // Call on-chain
+    const { txHash, eventData } = await proposeRegistryInit(privateKey, namespace, registryAddress);
+    console.log(`✅ Registry proposal TX: ${txHash}`);
+ 
+    // Save proposal to DB
+    const proposal = await Proposal.create({
+      type: 'registryInit',
+      registryName,
+      namespace,
+      registryAddress: registryAddress.toLowerCase(),
+      proposedBy: proposerAddress.toLowerCase(),
+      requiredValidationCount,
+      validationCount: 0,
+      validatedBy: [],
+    });
+ 
+    // Email all validators
+    const validators = await User.find({ isValidator: true, email: { $exists: true, $ne: null } });
+    for (const v of validators) {
+      if (v.email) {
+        try {
+          await sendProposalNotificationEmail(v.email, v.username, {
+            type: 'registryInit',
+            registryName,
+            namespace,
+            registryAddress: registryAddress.toLowerCase(),
+          });
+        } catch (e) { console.error(`Email to ${v.email} failed:`, e.message); }
+      }
+    }
+ 
+    res.json({ success: true, proposal, txHash, message: 'Registry initialization proposed successfully' });
+  } catch (error) {
+    console.error('❌ Propose registry failed:', error);
+    return handleError(error, res, error.message || 'Failed to propose registry initialization');
+  }
+});
+ 
+ 
+// ================================================================
+// NEW: /api/admin/propose-validator
+// ================================================================
+app.post('/api/admin/propose-validator', authLimiter, async (req, res) => {
+  try {
+    const { targetAddress, action, privateKey, proposerAddress } = req.body;
+ 
+    if (!targetAddress || action === undefined || !privateKey) {
+      return res.status(400).json({ message: 'All fields required' });
+    }
+ 
+    const proposer = await User.findOne({ safeAddress: normalizeAddress(proposerAddress) });
+    if (!proposer || !proposer.isValidator) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+ 
+    const totalValidators = await User.countDocuments({ isValidator: true });
+    const requiredValidationCount = Math.floor((totalValidators - 1) / 2) + 1;
+ 
+    const { txHash } = await proposeValidatorUpdate(privateKey, targetAddress, action);
+    console.log(`✅ Validator proposal TX: ${txHash}`);
+ 
+    const proposal = await Proposal.create({
+      type: 'validatorUpdate',
+      validatorAddress: targetAddress.toLowerCase(),
+      action,
+      proposedBy: proposerAddress.toLowerCase(),
+      requiredValidationCount,
+      validationCount: 0,
+      validatedBy: [],
+    });
+ 
+    // Email all validators
+    const validators = await User.find({ isValidator: true, email: { $exists: true, $ne: null } });
+    for (const v of validators) {
+      if (v.email) {
+        try {
+          await sendProposalNotificationEmail(v.email, v.username, {
+            type: 'validatorUpdate',
+            validatorAddress: targetAddress.toLowerCase(),
+            action,
+          });
+        } catch (e) { console.error(`Email to ${v.email} failed:`, e.message); }
+      }
+    }
+ 
+    res.json({ success: true, proposal, txHash, message: 'Validator update proposed successfully' });
+  } catch (error) {
+    console.error('❌ Propose validator failed:', error);
+    return handleError(error, res, error.message || 'Failed to propose validator update');
+  }
+});
+ 
+ 
+// ================================================================
+// NEW: /api/admin/validate
+// Casts a validation vote on a proposal (registry or validator)
+// ================================================================
+app.post('/api/admin/validate', authLimiter, async (req, res) => {
+  try {
+    const { proposalId, proposalType, targetAddress, privateKey, validatorAddress } = req.body;
+ 
+    const validator = await User.findOne({ safeAddress: normalizeAddress(validatorAddress) });
+    if (!validator || !validator.isValidator) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+ 
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
+ 
+    if (proposal.validatedBy.includes(validatorAddress.toLowerCase())) {
+      return res.status(400).json({ message: 'Already validated this proposal' });
+    }
+ 
+    let result;
+    if (proposalType === 'registryInit') {
+      result = await validateRegistry(privateKey, targetAddress);
+    } else {
+      result = await validateValidator(privateKey, targetAddress);
+    }
+ 
+    // Update DB
+    proposal.validatedBy.push(validatorAddress.toLowerCase());
+    proposal.validationCount += 1;
+ 
+    if (result.timelockSet) {
+      proposal.isValidated = true;
+      proposal.timelockEndsAt = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h from now
+    }
+ 
+    await proposal.save();
+ 
+    res.json({
+      success: true,
+      txHash: result.txHash,
+      remainingValidation: result.remainingValidation,
+      timelockSet: result.timelockSet,
+      message: 'Validation cast successfully'
+    });
+  } catch (error) {
+    console.error('❌ Validate failed:', error);
+    return handleError(error, res, error.message || 'Validation failed');
+  }
+});
+
+ 
+ 
+// ================================================================
+// NEW: /api/admin/execute
+// Executes a validated proposal after timelock expires
+// ================================================================
+app.post('/api/admin/execute', authLimiter, async (req, res) => {
+  try {
+    const { proposalId, proposalType, targetAddress, privateKey, executorAddress } = req.body;
+ 
+    const executor = await User.findOne({ safeAddress: normalizeAddress(executorAddress) });
+    if (!executor || !executor.isValidator) {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+ 
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
+ 
+    if (!proposal.isValidated) return res.status(400).json({ message: 'Proposal not yet validated' });
+    if (proposal.timelockEndsAt && new Date(proposal.timelockEndsAt) > new Date()) {
+      return res.status(400).json({ message: 'Timelock has not expired yet' });
+    }
+ 
+    let result;
+    if (proposalType === 'registryInit') {
+      result = await executeRegistryInit(privateKey, targetAddress);
+    } else {
+      result = await executeValidatorUpdate(privateKey, targetAddress);
+    }
+ 
+    // Mark executed
+    proposal.isValidated = false;
+    proposal.isExecuted = true;
+    proposal.executedAt = new Date();
+    proposal.executionSuccess = result.success;
+    await proposal.save();
+ 
+    // Post-execution side effects
+    if (result.success) {
+      if (proposalType === 'registryInit') {
+        // Push to WalletRegistry model so it appears in send dropdown
+        await WalletRegistry.findOneAndUpdate(
+          { registryAddress: targetAddress.toLowerCase() },
+          {
+            name: proposal.registryName,
+            registryAddress: targetAddress.toLowerCase(),
+            namespace: proposal.namespace,
+            description: `${proposal.registryName} registry — ${proposal.namespace}`,
+            active: true
+          },
+          { upsert: true, new: true }
+        );
+        console.log(`✅ Registry ${proposal.registryName} added to WalletRegistry`);
+      } else if (proposalType === 'validatorUpdate') {
+        // Update isValidator on the target user if they exist in DB
+        const targetUser = await User.findOne({
+          $or: [
+            { safeAddress: targetAddress.toLowerCase() },
+          ]
+        });
+        if (targetUser) {
+          targetUser.isValidator = proposal.action; // true = add, false = remove
+          await targetUser.save();
+          console.log(`✅ User ${targetAddress} isValidator set to ${proposal.action}`);
+        }
+      }
+    }
+ 
+    res.json({
+      success: result.success,
+      txHash: result.txHash,
+      message: result.success ? 'Executed successfully on-chain' : 'Execution failed on-chain'
+    });
+  } catch (error) {
+    console.error('❌ Execute failed:', error);
+    return handleError(error, res, error.message || 'Execution failed');
+  }
+});
+ 
+ 
+// ================================================================
+// NEW: /api/admin/cancel
+// Cancels a pending proposal
+// ================================================================
+app.post('/api/admin/cancel', authLimiter, async (req, res) => {
+  try {
+    const { proposalId, proposalType, targetAddress, privateKey } = req.body;
+ 
+    const proposal = await Proposal.findById(proposalId);
+    if (!proposal) return res.status(404).json({ message: 'Proposal not found' });
+ 
+    let result;
+    if (proposalType === 'registryInit') {
+      result = await cancelRegistryInit(privateKey, targetAddress);
+    } else {
+      result = await cancelValidatorUpdate(privateKey, targetAddress);
+    }
+ 
+    proposal.isCancelled = true;
+    await proposal.save();
+ 
+    res.json({ success: true, txHash: result.txHash, message: 'Proposal cancelled' });
+  } catch (error) {
+    console.error('❌ Cancel failed:', error);
+    return handleError(error, res, error.message || 'Cancellation failed');
+  }
+});
+
+ 
+ 
+// ================================================================
+// CHANGED: /api/registries
+// Add 'namespace' field to the select so frontend can use it
+// for name welding during send flow.
+// Replace the existing /api/registries route with this:
+// ================================================================
+app.get('/api/registries', async (req, res) => {
+  try {
+    const count = await WalletRegistry.countDocuments();
+    if (count === 0) {
+      await WalletRegistry.create({
+        name: 'Salva Wallet',
+        registryAddress: process.env.REGISTRY_CONTRACT_ADDRESS,
+        namespace: '@salva',
+        description: 'Official Salva on-chain payment registry',
+        active: true
+      });
+      console.log('✅ Salva registry seeded into WalletRegistry collection');
+    }
+    // Include namespace in the response — needed by frontend for name welding
+    const registries = await WalletRegistry.find({ active: true }).select('name registryAddress namespace description');
+    res.json(registries);
+  } catch (error) {
+    return handleError(error, res, 'Failed to fetch registries');
   }
 });
 
@@ -694,159 +1259,82 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
   }
 });
 
-// ===============================================
-// REGISTER — Sequential account number + on-chain link before saving user
-// ===============================================
-app.post(
-  "/api/register",
-  authLimiter,
-  validateRegistration,
-  async (req, res) => {
-    try {
-      const { username, email, password } = req.body;
+// ================================================================
+// CHANGED: /api/register — REMOVE the linkNumber call entirely.
+// Registration now only deploys the Safe and saves the user.
+// Replace the entire /api/register route with this:
+// ================================================================
+app.post('/api/register', authLimiter, validateRegistration, async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
 
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
-        return res.status(400).json({ message: "Email already registered" });
-      }
+    const existingUser = await User.findOne({ email });
+    if (existingUser) return res.status(400).json({ message: 'Email already registered' });
 
-      // ── STEP 1: Deploy the Safe wallet ─────────────────────────────────────
-      console.log("🚀 Generating Safe Wallet & Deploying...");
-      const identityData = await generateAndDeploySalvaIdentity(
-        process.env.BASE_SEPOLIA_RPC_URL,
-      );
+    // Deploy Safe wallet
+    console.log('🚀 Deploying Safe Wallet...');
+    const identityData = await generateAndDeploySalvaIdentity(process.env.BASE_SEPOLIA_RPC_URL);
 
-      // ── STEP 2: Read next account number from DB (atomic increment) ────────
-      // findOneAndUpdate with upsert ensures the counter document is created
-      // on first run. $inc on lastAssigned is done in JS below to keep it as
-      // a String. We use findOne + save inside a retry-safe block instead.
-      let counterDoc = await AccountNumberCounter.findById('main');
-      if (!counterDoc) {
-        // First ever registration — seed the counter document
-        counterDoc = await AccountNumberCounter.create({
-          _id: 'main',
-          lastAssigned: '1122746244' // will become 1122746245 after +1
-        });
-      }
+    // Save user — no account number, no alias yet
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      safeAddress: identityData.safeAddress,
+      ownerPrivateKey: identityData.ownerPrivateKey,
+      accountNumber: null,
+      nameAlias: null,
+      numberAlias: null,
+      isValidator: false,
+    });
+    await newUser.save();
+    console.log('✅ User saved to database');
 
-      const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
-      console.log(`🔢 Assigning account number: ${nextNumber}`);
+    try { await sendWelcomeEmail(email, username); } catch (e) { console.error('Welcome email error:', e.message); }
 
-      // ── STEP 3: Call linkNumber() on the Registry via the backend wallet ───
-      // This is NOT a Gelato call — the backend manager wallet pays gas here
-      // because this is a privileged registry operation, not a user action.
-      console.log("📝 Linking account number on-chain via Registry...");
+    res.json({
+      username: newUser.username,
+      safeAddress: newUser.safeAddress,
+      accountNumber: null,
+      nameAlias: null,
+      numberAlias: null,
+      isValidator: false,
+      ownerPrivateKey: newUser.ownerPrivateKey,
+      deploymentTx: identityData.deploymentTx,
+    });
+  } catch (error) {
+    console.error('❌ Registration failed:', error);
+    return handleError(error, res, 'Registration failed');
+  }
+});
 
-      const REGISTRY_ABI = [
-        "function linkNumber(uint128,address) external",
-      ];
-      const registryContract = new ethers.Contract(
-        process.env.REGISTRY_CONTRACT_ADDRESS,
-        REGISTRY_ABI,
-        wallet, // backend manager wallet
-      );
-
-      let linkTx;
-      try {
-        linkTx = await registryContract.linkNumber(
-          BigInt(nextNumber),
-          identityData.safeAddress,
-        );
-        console.log(`⏳ linkNumber TX sent: ${linkTx.hash}`);
-      } catch (linkSendError) {
-        // TX failed to even send (e.g. revert estimation)
-        console.error("❌ linkNumber send failed:", linkSendError.message);
-        return res.status(500).json({
-          message: "On-chain registration failed. Please try again.",
-        });
-      }
-
-      let linkReceipt;
-      try {
-        linkReceipt = await linkTx.wait();
-      } catch (waitError) {
-        // TX was mined but reverted
-        console.error("❌ linkNumber reverted on-chain:", waitError.message);
-        return res.status(500).json({
-          message: "On-chain registration reverted. Account number not assigned. Please try again.",
-        });
-      }
-
-      if (!linkReceipt || linkReceipt.status === 0) {
-        console.error("❌ linkNumber receipt shows failure");
-        return res.status(500).json({
-          message: "On-chain registration failed (receipt status 0). Please try again.",
-        });
-      }
-
-      console.log("✅ On-chain account number linked successfully!");
-
-      // ── STEP 4: Increment counter in DB — only AFTER on-chain success ──────
-      counterDoc.lastAssigned = nextNumber;
-      await counterDoc.save();
-      console.log(`✅ Counter updated to: ${nextNumber}`);
-
-      // ── STEP 5: Save user to MongoDB ────────────────────────────────────────
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const newUser = new User({
-        username,
-        email,
-        password: hashedPassword,
-        safeAddress: identityData.safeAddress,
-        accountNumber: nextNumber,
-        ownerPrivateKey: identityData.ownerPrivateKey,
-      });
-
-      await newUser.save();
-      console.log("✅ User saved to database");
-
-      // ── STEP 6: Send welcome email ───────────────────────────────────────────
-      try {
-        await sendWelcomeEmail(email, username);
-      } catch (emailError) {
-        console.error("❌ Welcome email error:", emailError.message);
-      }
-
-      res.json({
-        username: newUser.username,
-        safeAddress: newUser.safeAddress,
-        accountNumber: newUser.accountNumber,
-        ownerPrivateKey: newUser.ownerPrivateKey,
-        registrationTx: linkTx.hash,
-      });
-    } catch (error) {
-      console.error("❌ Registration failed:", error);
-      return handleError(error, res, "Registration failed");
-    }
-  },
-);
-
-// ===============================================
-// LOGIN
-// ===============================================
-app.post("/api/login", authLimiter, async (req, res) => {
+// ================================================================
+// CHANGED: /api/login — Return isValidator, nameAlias, numberAlias
+// Replace the entire /api/login route with this:
+// ================================================================
+app.post('/api/login', authLimiter, async (req, res) => {
   try {
     const email = sanitizeEmail(req.body.email);
     const { password } = req.body;
 
     const user = await User.findOne({ email });
-    if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
     const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
     res.json({
       username: user.username,
       safeAddress: user.safeAddress,
-      accountNumber: user.accountNumber,
+      accountNumber: user.accountNumber || null,
+      nameAlias: user.nameAlias || null,
+      numberAlias: user.numberAlias || null,
+      isValidator: user.isValidator || false,
       ownerPrivateKey: user.ownerPrivateKey,
     });
   } catch (error) {
-    return handleError(error, res, "Login failed");
+    return handleError(error, res, 'Login failed');
   }
 });
 
@@ -976,7 +1464,7 @@ app.get("/api/approvals/:address", async (req, res) => {
           const spenderUser = await User.findOne({
             $or: [
               { safeAddress: spenderAddress.toLowerCase() },
-              { accountNumber: app.spenderInput } 
+              { accountNumber: app.spenderInput }
             ]
           });
 
@@ -1053,25 +1541,25 @@ app.get("/api/allowances-for/:address", async (req, res) => {
             }
 
             // --- SURGICAL ADDITION: ALLOWER LOOKUP ---
-            const allowerUser = await User.findOne({ 
-              safeAddress: app.owner.toLowerCase() 
+            const allowerUser = await User.findOne({
+              safeAddress: app.owner.toLowerCase()
             });
 
             let ownerDisplay, spenderDisplay;
 
             if (app.spenderInputType === "accountNumber") {
               ownerDisplay = allowerUser?.accountNumber || app.owner;
-              spenderDisplay = app.spenderInput; 
+              spenderDisplay = app.spenderInput;
             } else {
               ownerDisplay = app.owner;
               spenderDisplay = userAddress;
             }
 
             relevantApprovals.push({
-              allower: ownerDisplay, 
-              allowerAddress: app.owner, 
+              allower: ownerDisplay,
+              allowerAddress: app.owner,
               displayName: allowerUser?.username || null, // Added Display Name
-              spenderDisplay: spenderDisplay, 
+              spenderDisplay: spenderDisplay,
               amount: liveAmount,
               date: app.date,
             });

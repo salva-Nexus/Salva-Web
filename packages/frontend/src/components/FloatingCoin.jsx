@@ -1,4 +1,4 @@
-// FloatingCoin.jsx
+// packages/frontend/src/components/FloatingCoin.jsx
 import { motion } from 'framer-motion';
 // Import the actual file so Webpack handles it
 import ngnCoin from '../assets/ngn-coin.png'; 

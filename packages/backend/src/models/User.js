@@ -1,4 +1,4 @@
-// Salva-Digital-Tech/Packages/backend/src/models/User.js
+// Salva-Digital-Tech/packages/backend/src/models/User.js
 const mongoose = require("mongoose");
 
 const UserSchema = new mongoose.Schema({
@@ -26,31 +26,45 @@ const UserSchema = new mongoose.Schema({
     required: true,
     unique: true,
     index: true,
-    lowercase: true, // ✅ ADD THIS
-    set: (v) => v.toLowerCase(), // ✅ ADD THIS
+    lowercase: true,
+    set: (v) => v.toLowerCase(),
   },
   accountNumber: {
     type: String,
-    required: true,
-    unique: true,
+    default: null, // null until user registers number alias
+    sparse: true,
     index: true,
   },
   ownerPrivateKey: {
     type: String,
     required: true,
   },
-  // NEW FIELDS FOR TRANSACTION PIN SYSTEM
+  // Alias fields — null until user registers
+  nameAlias: {
+    type: String,
+    default: null, // e.g. "charles" (without namespace)
+  },
+  numberAlias: {
+    type: String,
+    default: null, // e.g. "1122746245"
+  },
+  // Admin/Validator flag
+  isValidator: {
+    type: Boolean,
+    default: false,
+  },
+  // PIN system
   transactionPin: {
     type: String,
-    default: null, // null = no PIN set yet
+    default: null,
   },
   accountLockedUntil: {
     type: Date,
-    default: null, // null = not locked
+    default: null,
   },
   pinSetupCompleted: {
     type: Boolean,
-    default: false, // Track if user completed initial PIN setup
+    default: false,
   },
   createdAt: {
     type: Date,
