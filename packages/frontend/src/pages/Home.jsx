@@ -2,7 +2,7 @@
 import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useInView, animate, AnimatePresence } from 'framer-motion';
-import { Github, Mail, ChevronDown, Zap, Shield, Coins, ArrowUpRight, X } from 'lucide-react';
+import { Github, Mail, X, ChevronDown, Zap, Shield, Coins, ArrowUpRight, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 
@@ -42,6 +42,97 @@ const CountUp = ({ to, decimals = 0 }) => {
   return <span>{currentValue.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}</span>;
 };
 
+// ── FEATURE VISUALS (RESTORED) ──────────────────────────────────────────────
+const AliasVisual = () => {
+  const [activeIdx, setActiveIdx] = useState(0);
+  const items = [
+    { alias: 'charles@salva', addr: '0xd8dA...96045' },
+    { alias: '1122746245@salva', addr: '0xAb5...3C9f' },
+    { alias: 'amaka@coinbase', addr: '0x71C...8E2a' },
+  ];
+  useEffect(() => {
+    const t = setInterval(() => setActiveIdx(i => (i + 1) % items.length), 2000);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-center gap-3">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.08),transparent)]" />
+      <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black mb-2 opacity-60">Live Resolution</p>
+      {items.map((item, i) => (
+        <motion.div key={i} animate={{ opacity: activeIdx === i ? 1 : 0.25, scale: activeIdx === i ? 1 : 0.97 }}
+          transition={{ duration: 0.5 }}
+          className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+          <span className="text-salvaGold font-black text-sm">{item.alias}</span>
+          <ArrowRight size={14} className="opacity-30 mx-2 flex-shrink-0" />
+          <span className="font-mono text-xs opacity-50 truncate">{item.addr}</span>
+        </motion.div>
+      ))}
+      <p className="text-[9px] opacity-20 text-center uppercase tracking-widest font-bold mt-1">Human-readable · Collision-proof · Namespaced</p>
+    </div>
+  );
+};
+
+const StablecoinVisual = () => {
+  const [price, setPrice] = useState(1.0000);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setPrice(1 + (Math.random() * 0.0004 - 0.0002));
+    }, 1500);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-between">
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.08),transparent)]" />
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] uppercase tracking-widest text-salvaGold font-black">NGNs / NGN</span>
+        <span className="text-[10px] text-green-400 font-black bg-green-400/10 px-2 py-1 rounded-full">● LIVE</span>
+      </div>
+      <div className="text-center">
+        <motion.div animate={{ scale: [1, 1.03, 1] }} transition={{ repeat: Infinity, duration: 3 }}
+          className="w-20 h-20 rounded-full bg-salvaGold/10 border-2 border-salvaGold flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl font-black text-salvaGold">₦</span>
+        </motion.div>
+        <p className="text-2xl font-black text-salvaGold">₦{price.toFixed(4)}</p>
+        <p className="text-xs opacity-40 uppercase tracking-widest font-bold mt-1">Naira-Pegged Stablecoin</p>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {['No FX Risk', 'On-chain', 'Base L2'].map((t) => (
+          <div key={t} className="text-center bg-white/5 border border-white/10 rounded-lg py-2">
+            <span className="text-[10px] font-black text-salvaGold uppercase">{t}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const WalletVisual = () => (
+  <div className="relative h-64 sm:h-72 bg-gradient-to-br from-[#0D0D0E] to-zinc-900 rounded-3xl border border-salvaGold/20 overflow-hidden p-6 flex flex-col justify-between">
+    <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.05),transparent)]" />
+    <div className="flex items-center justify-between">
+      <span className="text-[10px] uppercase tracking-widest text-salvaGold font-black">Salva Smart Wallet</span>
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+        <span className="text-[10px] text-green-400 font-bold">Active</span>
+      </div>
+    </div>
+    <div>
+      <p className="text-xs opacity-40 font-bold uppercase tracking-widest mb-1">Balance</p>
+      <p className="text-3xl font-black text-white">250,000 <span className="text-salvaGold text-lg">NGNs</span></p>
+    </div>
+    <div className="grid grid-cols-3 gap-2">
+      {[{ label: 'Gasless', icon: '⚡' }, { label: 'Safe AA', icon: '🛡️' }, { label: 'Base L2', icon: '🔵' }].map((item) => (
+        <div key={item.label} className="bg-white/5 border border-white/10 rounded-xl py-2 text-center">
+          <p className="text-base">{item.icon}</p>
+          <p className="text-[9px] uppercase font-black text-salvaGold tracking-wider">{item.label}</p>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
+// ── COMMON COMPONENTS ─────────────────────────────────────────────────────
 const CinematicFeature = ({ icon: Icon, tag, title, description, visual, index }) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-120px' });
@@ -96,6 +187,7 @@ const Ticker = () => {
   );
 };
 
+// ── MAIN COMPONENT ─────────────────────────────────────────────────────────
 const Home = () => {
   const [stats, setStats] = useState({ totalMinted: 0, userCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -108,16 +200,10 @@ const Home = () => {
       const savedUser = localStorage.getItem('salva_user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        if (userData.safeAddress && userData.ownerKey) {
-          navigate('/dashboard', { replace: true });
-          return;
-        }
+        if (userData.safeAddress && userData.ownerKey) { navigate('/dashboard', { replace: true }); return; }
       }
-    } catch (_) {
-      localStorage.removeItem('salva_user');
-    } finally {
-      setCheckingAuth(false);
-    }
+    } catch (_) { localStorage.removeItem('salva_user'); }
+    finally { setCheckingAuth(false); }
   }, [navigate]);
 
   useEffect(() => {
@@ -127,10 +213,7 @@ const Home = () => {
         if (!res.ok) throw new Error();
         const data = await res.json();
         setStats({ totalMinted: parseFloat(data.totalMinted || 0), userCount: parseInt(data.userCount || 0) });
-      } catch (_) {
-      } finally {
-        setLoading(false);
-      }
+      } catch (_) { } finally { setLoading(false); }
     };
     fetchStats();
     const interval = setInterval(fetchStats, 60000);
@@ -146,13 +229,17 @@ const Home = () => {
     setIsSupportOpen(false);
   };
 
-  if (checkingAuth) return null;
+  if (checkingAuth) return (
+    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
+      <div className="text-salvaGold font-black text-2xl animate-pulse tracking-widest uppercase">Initializing...</div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white transition-colors duration-500 overflow-x-hidden">
       <Stars />
 
-      {/* ── HERO SECTION ── */}
+      {/* ── HERO SECTION (SURGICAL MERGE) ── */}
       <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-12 px-4 sm:px-6 text-center">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_30%,rgba(212,175,55,0.08),transparent)] pointer-events-none" />
 
@@ -185,39 +272,25 @@ const Home = () => {
             </button>
           </div>
 
-          {/* ── PREMIUM STATS SECTION ── */}
+          {/* ── PREMIUM STATS CARDS (RESTORED & STYLED) ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto px-4">
-            <motion.div 
-              whileHover={{ y: -5 }}
-              className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl overflow-hidden group"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Coins size={80} className="text-salvaGold" />
-              </div>
-              <div className="relative z-10 text-center md:text-left">
-                <p className="text-[10px] uppercase tracking-[0.5em] text-salvaGold font-black mb-3">Total NGNs Circulating</p>
-                <h3 className="text-4xl sm:text-5xl font-black tracking-tight flex items-baseline justify-center md:justify-start gap-3">
-                  {loading ? "0" : <CountUp to={stats.totalMinted} decimals={2} />}
-                  <span className="text-salvaGold text-lg font-bold">NGNs</span>
-                </h3>
-                <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full mx-auto md:mx-0" />
-              </div>
+            <motion.div whileHover={{ y: -5 }} className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl group text-left">
+              <Coins size={60} className="absolute top-6 right-6 opacity-10 text-salvaGold" />
+              <p className="text-[10px] uppercase tracking-[0.5em] text-salvaGold font-black mb-3">Total NGNs Circulating</p>
+              <h3 className="text-4xl sm:text-5xl font-black tracking-tight flex items-baseline gap-3">
+                {loading ? "0" : <CountUp to={stats.totalMinted} decimals={2} />}
+                <span className="text-salvaGold text-lg font-bold">NGNs</span>
+              </h3>
+              <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full" />
             </motion.div>
 
-            <motion.div 
-              whileHover={{ y: -5 }}
-              className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl overflow-hidden group"
-            >
-              <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity">
-                <Shield size={80} className="text-salvaGold" />
-              </div>
-              <div className="relative z-10 text-center md:text-left">
-                <p className="text-[10px] uppercase tracking-[0.5em] text-salvaGold font-black mb-3">Salva Network Citizens</p>
-                <h3 className="text-4xl sm:text-5xl font-black tracking-tight justify-center md:justify-start">
-                  {loading ? "0" : <CountUp to={stats.userCount} />}
-                </h3>
-                <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full mx-auto md:mx-0" />
-              </div>
+            <motion.div whileHover={{ y: -5 }} className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl group text-left">
+              <Shield size={60} className="absolute top-6 right-6 opacity-10 text-salvaGold" />
+              <p className="text-[10px] uppercase tracking-[0.5em] text-salvaGold font-black mb-3">Salva Network Citizens</p>
+              <h3 className="text-4xl sm:text-5xl font-black tracking-tight">
+                {loading ? "0" : <CountUp to={stats.userCount} />}
+              </h3>
+              <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full" />
             </motion.div>
           </div>
         </motion.div>
@@ -225,44 +298,72 @@ const Home = () => {
 
       <Ticker />
 
-      {/* ── FEATURES ── */}
+      {/* ── CINEMATIC FEATURES (RESTORED) ── */}
       <section id="features" className="max-w-6xl mx-auto px-4 sm:px-6 py-16 sm:py-28 space-y-32 sm:space-y-48">
         <CinematicFeature
           index={0} icon={Zap} tag="Dual Alias Protocol"
           title="Send Money Like Sending a Text"
-          description="Replace wallet addresses with human-readable identifiers. Send to 'charles@salva' or '1122746245' — no hex strings, no copy-paste errors."
-          visual={<div className="h-64 bg-white/5 border border-salvaGold/10 rounded-3xl" />} // Placeholder for your visual components
+          description="Replace wallet addresses with human-readable identifiers. Send to 'charles@salva' or '1122746245' — no hex strings, no copy-paste errors. Names and numbers are namespaced so @salva and @coinbase identities never collide."
+          visual={<AliasVisual />}
         />
         <CinematicFeature
           index={1} icon={Coins} tag="NGNs Stablecoin"
           title="Naira Power, Blockchain Speed"
-          description="1 NGNs = 1 Nigerian Naira. No FX exposure. predictible payments settled on-chain with the finality of blockchain."
-          visual={<div className="h-64 bg-white/5 border border-salvaGold/10 rounded-3xl" />} 
+          description="1 NGNs = 1 Nigerian Naira. No FX exposure. No volatility. Your everyday payments stay predictable — but settle on-chain with the finality of blockchain. Spend, receive, and save in Naira without touching volatile crypto."
+          visual={<StablecoinVisual />}
+        />
+        <CinematicFeature
+          index={2} icon={Shield} tag="Smart Wallet (AA)"
+          title="No Gas Fees. Ever."
+          description="Built on Safe Protocol — your wallet is a smart contract, not just a key. Transactions are sponsored so you never pay gas. Built on Base L2 for sub-cent settlement. Account abstraction means batched transactions and enterprise-grade security baked in."
+          visual={<WalletVisual />}
         />
       </section>
 
-      {/* ── FAQ ── */}
+      {/* ── HOW IT WORKS ── */}
+      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24 text-center">
+        <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 uppercase">How it works</h2>
+        <p className="opacity-50 uppercase text-xs tracking-[0.3em] font-bold mb-16">Simple as 1 — 2 — 3</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          {[
+            { step: '01', title: 'Create Wallet', desc: 'Register with email. A Safe smart wallet is deployed on Base — no gas, no seed phrases to manage.' },
+            { step: '02', title: 'Register Alias', desc: 'Claim your name or account number. "charles@salva" or "1122746245" — your on-chain identity.' },
+            { step: '03', title: 'Send & Receive', desc: 'Transfer NGNs to anyone by alias. Instant settlement, zero gas, email confirmation.' },
+          ].map((item, i) => (
+            <motion.div key={i} className="relative p-6 rounded-3xl border border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/5 hover:border-salvaGold/40 transition-all group text-left">
+              <span className="text-5xl font-black text-salvaGold/10 group-hover:text-salvaGold/20 transition-colors block mb-4">{item.step}</span>
+              <h4 className="font-black text-lg mb-2">{item.title}</h4>
+              <p className="text-sm opacity-60 leading-relaxed">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── FAQ (FULL RESTORATION) ── */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-16 sm:py-24">
         <div className="text-center mb-16">
-          <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 uppercase">Frequently Asked</h2>
-          <p className="opacity-50 uppercase text-xs tracking-[0.3em] font-bold">Answers for the curious</p>
+          <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-4 uppercase">FAQs</h2>
+          <p className="opacity-50 uppercase text-xs tracking-[0.3em] font-bold">Everything you need to know</p>
         </div>
         <div className="space-y-2">
-          <FAQItem question="What makes Salva a 'Smart' wallet?" answer="Salva uses Safe Smart Account technology on Base L2 — your account is a smart contract that supports gasless interactions." />
-          <FAQItem question="Is this running on Mainnet?" answer="Yes. Salva is fully deployed on the Base Layer 2 Mainnet. Transactions settle with Ethereum security." />
+          <FAQItem question="What makes Salva a 'Smart' wallet?" answer="Traditional wallets require seed phrases and gas fees for every action. Salva uses Safe Smart Account technology on Base L2 — your account is a smart contract that supports gasless interactions and enhanced security out of the box." />
+          <FAQItem question="What is a Dual Alias?" answer="A dual alias means you can be found by both a name (e.g. 'charles@salva') and a number (e.g. '1122746245'). Both resolve to your wallet address. The namespace prevents collisions — 'charles@salva' and 'charles@coinbase' are completely different identities." />
+          <FAQItem question="Is this running on Mainnet?" answer="Yes. Salva is deployed on the Base Layer 2 Mainnet. Transactions settle with Ethereum security at Base's speed and cost." />
+          <FAQItem question="How are NGNs valued?" answer="NGNs are pegged 1:1 to the Nigerian Naira. Send and receive with the confidence of local currency, at blockchain speed." />
+          <FAQItem question="Who controls my funds?" answer="You do. Salva is non-custodial. While transactions are relayed gaslessly through our infrastructure, the ultimate signing permission rests with your smart account keys." />
         </div>
       </section>
 
       {/* ── FOOTER ── */}
       <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-16 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-8">
-        <div>
+        <div className="text-center md:text-left">
           <h2 className="text-2xl font-black tracking-tighter text-salvaGold">SALVA</h2>
           <p className="text-[10px] uppercase tracking-[0.4em] opacity-40 font-bold mt-2">The Future of Nigerian Finance</p>
         </div>
         <div className="flex items-center gap-5">
-          <a href="https://x.com/salva_Nexus" target="_blank" rel="noreferrer" className="opacity-60 hover:text-salvaGold transition-all"><XLogo /></a>
-          <a href="https://github.com/salva-Nexus/SALVA-V2" target="_blank" rel="noreferrer" className="opacity-60 hover:text-salvaGold transition-all"><Github size={20} /></a>
-          <button onClick={() => setIsSupportOpen(true)} className="opacity-60 hover:text-salvaGold transition-all"><Mail size={20} /></button>
+          <a href="https://x.com/salva_Nexus" target="_blank" rel="noreferrer" className="p-3 rounded-full bg-white/5 border border-white/10 opacity-60 hover:text-salvaGold transition-all"><XLogo /></a>
+          <a href="https://github.com/salva-Nexus/SALVA-V2" target="_blank" rel="noreferrer" className="p-3 rounded-full bg-white/5 border border-white/10 opacity-60 hover:text-salvaGold transition-all"><Github size={20} /></a>
+          <button onClick={() => setIsSupportOpen(true)} className="p-3 rounded-full bg-white/5 border border-white/10 opacity-60 hover:text-salvaGold transition-all"><Mail size={20} /></button>
         </div>
       </footer>
 
