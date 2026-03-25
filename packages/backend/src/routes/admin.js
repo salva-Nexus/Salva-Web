@@ -18,7 +18,7 @@ const {
 } = require("../services/relayService");
 
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
-const RPC_PAGE_SIZE = 9_000;
+const RPC_PAGE_SIZE = 9;
 
 const MULTISIG_ABI = [
   "event RegistryInitializationProposed(address indexed registry, string nspace, bytes16 nspaceBytes)",
