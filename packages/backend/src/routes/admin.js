@@ -31,9 +31,10 @@ const MULTISIG_ABI = [
   "event ValidatorUpdated(address indexed addr, bool action)",
 ];
 
-// ── Proposals cache — prevents hammering Alchemy on every frontend poll ──
+// ── Proposals cache ───────────────────────────────────────────────────────
 let proposalsCache = null;
 let cacheTimestamp = 0;
+let cacheScanInProgress = false;
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 function getMultisigReader() {
@@ -143,169 +144,189 @@ router.get("/proposals", async (req, res) => {
       return res.json(proposalsCache);
     }
 
-    const contract = getMultisigReader();
-    const deployBlock = parseInt(process.env.MULTISIG_DEPLOY_BLOCK || "0");
-
-    const regProposedEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.RegistryInitializationProposed(),
-      deployBlock,
-    );
-    const valProposedEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdateProposed(),
-      deployBlock,
-    );
-    const regCancelledEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.RegistryInitializationCancelled(),
-      deployBlock,
-    );
-    const regExecutedEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.InitializationSuccess(),
-      deployBlock,
-    );
-    const valCancelledEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdateCancelled(),
-      deployBlock,
-    );
-    const valExecutedEvents = await paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdated(),
-      deployBlock,
-    );
-
-    const cancelledRegistries = new Set(
-      regCancelledEvents
-        .map((e) => e.args?.registry?.toLowerCase())
-        .filter(Boolean),
-    );
-    const executedRegistries = new Set(
-      regExecutedEvents
-        .map((e) => e.args?.registry?.toLowerCase())
-        .filter(Boolean),
-    );
-    const cancelledValidators = new Set(
-      valCancelledEvents
-        .map((e) => e.args?.addr?.toLowerCase())
-        .filter(Boolean),
-    );
-    const executedValidators = new Set(
-      valExecutedEvents.map((e) => e.args?.addr?.toLowerCase()).filter(Boolean),
-    );
-
-    const registryProposals = [];
-    for (const event of regProposedEvents) {
-      try {
-        const addr = event.args?.registry?.toLowerCase();
-        if (!addr) continue;
-        if (cancelledRegistries.has(addr) || executedRegistries.has(addr))
-          continue;
-
-        const valEvents = await paginatedQueryFilter(
-          contract,
-          contract.filters.RegistryValidated(event.args.registry),
-          deployBlock,
-        );
-        const latestValEvent = valEvents[valEvents.length - 1];
-        const remainingValidation = latestValEvent
-          ? Number(latestValEvent.args?.remainingValidation ?? null)
-          : null;
-        const isValidated =
-          latestValEvent &&
-          Number(latestValEvent.args?.remainingValidation) === 0;
-
-        let timeLockTimestamp = null;
-        if (isValidated && latestValEvent) {
-          try {
-            const block = await provider.getBlock(latestValEvent.blockNumber);
-            timeLockTimestamp = block.timestamp + 24 * 60 * 60;
-          } catch (blockErr) {
-            console.error(
-              "Failed to get block for timelock:",
-              blockErr.message,
-            );
+    // If a scan is already running, wait for it then serve cache
+    if (cacheScanInProgress) {
+      const waited = await new Promise((resolve) => {
+        const poll = setInterval(() => {
+          if (!cacheScanInProgress) {
+            clearInterval(poll);
+            resolve(true);
           }
-        }
-
-        registryProposals.push({
-          type: "registry",
-          registry: addr,
-          nspace: event.args?.nspace || "",
-          remainingValidation,
-          isValidated,
-          timeLockTimestamp,
-          blockNumber: event.blockNumber,
+        }, 500);
+        // Safety timeout after 60s
+        setTimeout(() => {
+          clearInterval(poll);
+          resolve(false);
+        }, 60000);
+      });
+      if (proposalsCache) return res.json(proposalsCache);
+      return res
+        .status(503)
+        .json({
+          message: "Scan timed out",
+          registryProposals: [],
+          validatorProposals: [],
         });
-      } catch (propErr) {
-        console.error("Error processing registry proposal:", propErr.message);
-      }
     }
 
-    const validatorProposals = [];
-    for (const event of valProposedEvents) {
-      try {
-        const addr = event.args?.addr?.toLowerCase();
-        if (!addr) continue;
-        if (cancelledValidators.has(addr) || executedValidators.has(addr))
-          continue;
+    // Lock and scan
+    cacheScanInProgress = true;
+    try {
+      const contract = getMultisigReader();
+      const deployBlock = parseInt(process.env.MULTISIG_DEPLOY_BLOCK || "0");
 
-        const valEvents = await paginatedQueryFilter(
-          contract,
-          contract.filters.ValidatorValidated(event.args.addr),
-          deployBlock,
-        );
-        const latestValEvent = valEvents[valEvents.length - 1];
-        const remainingValidation = latestValEvent
-          ? Number(latestValEvent.args?.remainingValidation ?? null)
-          : null;
-        const isValidated =
-          latestValEvent &&
-          Number(latestValEvent.args?.remainingValidation) === 0;
+      const regProposedEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.RegistryInitializationProposed(),
+        deployBlock,
+      );
+      const valProposedEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.ValidatorUpdateProposed(),
+        deployBlock,
+      );
+      const regCancelledEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.RegistryInitializationCancelled(),
+        deployBlock,
+      );
+      const regExecutedEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.InitializationSuccess(),
+        deployBlock,
+      );
+      const valCancelledEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.ValidatorUpdateCancelled(),
+        deployBlock,
+      );
+      const valExecutedEvents = await paginatedQueryFilter(
+        contract,
+        contract.filters.ValidatorUpdated(),
+        deployBlock,
+      );
 
-        let timeLockTimestamp = null;
-        if (isValidated && latestValEvent) {
-          try {
-            const block = await provider.getBlock(latestValEvent.blockNumber);
-            timeLockTimestamp = block.timestamp + 24 * 60 * 60;
-          } catch (blockErr) {
-            console.error(
-              "Failed to get block for timelock:",
-              blockErr.message,
-            );
+      const cancelledRegistries = new Set(
+        regCancelledEvents
+          .map((e) => e.args?.registry?.toLowerCase())
+          .filter(Boolean),
+      );
+      const executedRegistries = new Set(
+        regExecutedEvents
+          .map((e) => e.args?.registry?.toLowerCase())
+          .filter(Boolean),
+      );
+      const cancelledValidators = new Set(
+        valCancelledEvents
+          .map((e) => e.args?.addr?.toLowerCase())
+          .filter(Boolean),
+      );
+      const executedValidators = new Set(
+        valExecutedEvents
+          .map((e) => e.args?.addr?.toLowerCase())
+          .filter(Boolean),
+      );
+
+      const registryProposals = [];
+      for (const event of regProposedEvents) {
+        try {
+          const addr = event.args?.registry?.toLowerCase();
+          if (!addr) continue;
+          if (cancelledRegistries.has(addr) || executedRegistries.has(addr))
+            continue;
+          const valEvents = await paginatedQueryFilter(
+            contract,
+            contract.filters.RegistryValidated(event.args.registry),
+            deployBlock,
+          );
+          const latestValEvent = valEvents[valEvents.length - 1];
+          const remainingValidation = latestValEvent
+            ? Number(latestValEvent.args?.remainingValidation ?? null)
+            : null;
+          const isValidated =
+            latestValEvent &&
+            Number(latestValEvent.args?.remainingValidation) === 0;
+          let timeLockTimestamp = null;
+          if (isValidated && latestValEvent) {
+            try {
+              const block = await provider.getBlock(latestValEvent.blockNumber);
+              timeLockTimestamp = block.timestamp + 24 * 60 * 60;
+            } catch {}
           }
+          registryProposals.push({
+            type: "registry",
+            registry: addr,
+            nspace: event.args?.nspace || "",
+            remainingValidation,
+            isValidated,
+            timeLockTimestamp,
+            blockNumber: event.blockNumber,
+          });
+        } catch (propErr) {
+          console.error("Error processing registry proposal:", propErr.message);
         }
-
-        validatorProposals.push({
-          type: "validator",
-          addr,
-          action: event.args?.action ?? true,
-          remainingValidation,
-          isValidated,
-          timeLockTimestamp,
-          blockNumber: event.blockNumber,
-        });
-      } catch (propErr) {
-        console.error("Error processing validator proposal:", propErr.message);
       }
+
+      const validatorProposals = [];
+      for (const event of valProposedEvents) {
+        try {
+          const addr = event.args?.addr?.toLowerCase();
+          if (!addr) continue;
+          if (cancelledValidators.has(addr) || executedValidators.has(addr))
+            continue;
+          const valEvents = await paginatedQueryFilter(
+            contract,
+            contract.filters.ValidatorValidated(event.args.addr),
+            deployBlock,
+          );
+          const latestValEvent = valEvents[valEvents.length - 1];
+          const remainingValidation = latestValEvent
+            ? Number(latestValEvent.args?.remainingValidation ?? null)
+            : null;
+          const isValidated =
+            latestValEvent &&
+            Number(latestValEvent.args?.remainingValidation) === 0;
+          let timeLockTimestamp = null;
+          if (isValidated && latestValEvent) {
+            try {
+              const block = await provider.getBlock(latestValEvent.blockNumber);
+              timeLockTimestamp = block.timestamp + 24 * 60 * 60;
+            } catch {}
+          }
+          validatorProposals.push({
+            type: "validator",
+            addr,
+            action: event.args?.action ?? true,
+            remainingValidation,
+            isValidated,
+            timeLockTimestamp,
+            blockNumber: event.blockNumber,
+          });
+        } catch (propErr) {
+          console.error(
+            "Error processing validator proposal:",
+            propErr.message,
+          );
+        }
+      }
+
+      proposalsCache = { registryProposals, validatorProposals };
+      cacheTimestamp = Date.now();
+      res.json(proposalsCache);
+    } finally {
+      cacheScanInProgress = false;
     }
-
-    // Store in cache
-    proposalsCache = { registryProposals, validatorProposals };
-    cacheTimestamp = Date.now();
-
-    res.json(proposalsCache);
   } catch (error) {
+    cacheScanInProgress = false;
     console.error("❌ Proposals fetch error:", error);
-    // Serve stale cache on error rather than returning empty
     if (proposalsCache) return res.json(proposalsCache);
-    res.status(500).json({
-      message: "Failed to fetch proposals",
-      registryProposals: [],
-      validatorProposals: [],
-    });
+    res
+      .status(500)
+      .json({
+        message: "Failed to fetch proposals",
+        registryProposals: [],
+        validatorProposals: [],
+      });
   }
 });
 
