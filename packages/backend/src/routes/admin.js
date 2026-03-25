@@ -271,34 +271,31 @@ router.get("/proposals", async (req, res) => {
 // ── POST: propose registry initialization ─────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, nspace, registry, registryName } = req.body;
+    // Ensure we aren't getting a hex string from the frontend by mistake
+    const cleanNspace = nspace.startsWith("0x")
+      ? ethers.toUtf8String(nspace)
+      : nspace;
 
-    if (!nspace.startsWith("@")) {
+    if (!cleanNspace.startsWith("@")) {
       return res.status(400).json({ message: "Namespace must start with @" });
     }
 
-    // 1. Convert string to UTF-8 bytes
-    const nspaceBytes = ethers.toUtf8Bytes(nspace);
+    const contract = getMultisigContract(privateKey);
 
-    if (nspaceBytes.length > 32) {
-      return res
-        .status(400)
-        .json({ message: "Namespace too long for bytes32" });
-    }
+    // 1. Convert the plain text "@salva" to bytes
+    const nspaceBytes = ethers.toUtf8Bytes(cleanNspace);
 
-    // 2. RIGHT-PAD to 32 bytes (The "ZeroHash" is just 32 bytes of zeros)
-    // We concat the name with zeros, then slice exactly the first 32 bytes.
+    // 2. Right-pad manually to 32 bytes
+    // This creates 32 bytes starting with your text, not 66 bytes of text
     const formattedNspace = ethers.dataSlice(
       ethers.concat([nspaceBytes, ethers.ZeroHash]),
       0,
       32,
     );
 
-    const contract = getMultisigContract(privateKey);
-    console.log("HEX TO SEND:", formattedNspace);
-    // It should start with 0x4073... NOT 0x0000...
+    console.log("SENDING THIS HEX:", formattedNspace);
+    // This log should look like: 0x4073616c76610000... (starts with 40, not 3078)
 
-    // 3. Send the formatted bytes32
     const tx = await contract.proposeInitialization(formattedNspace, registry);
     await tx.wait();
 
