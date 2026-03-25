@@ -260,13 +260,11 @@ router.get("/proposals", async (req, res) => {
   } catch (error) {
     console.error("❌ Proposals fetch error:", error);
     // Return empty arrays rather than 500 — frontend handles gracefully
-    res
-      .status(500)
-      .json({
-        message: "Failed to fetch proposals",
-        registryProposals: [],
-        validatorProposals: [],
-      });
+    res.status(500).json({
+      message: "Failed to fetch proposals",
+      registryProposals: [],
+      validatorProposals: [],
+    });
   }
 });
 
@@ -278,7 +276,8 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       return res.status(400).json({ message: "Namespace must start with @" });
 
     const contract = getMultisigContract(privateKey);
-    const tx = await contract.proposeInitialization(nspace, registry);
+    const formattedNspace = ethers.zeroPadValue(ethers.toUtf8Bytes(nspace), 16);
+    const tx = await contract.proposeInitialization(formattedNspace, registry);
     await tx.wait();
 
     await notifyValidators(
@@ -295,11 +294,9 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: tx.hash });
   } catch (error) {
     console.error("❌ Propose registry error:", error);
-    res
-      .status(500)
-      .json({
-        message: error.reason || error.message || "Failed to propose registry",
-      });
+    res.status(500).json({
+      message: error.reason || error.message || "Failed to propose registry",
+    });
   }
 });
 
@@ -324,12 +321,10 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: tx.hash });
   } catch (error) {
     console.error("❌ Propose validator error:", error);
-    res
-      .status(500)
-      .json({
-        message:
-          error.reason || error.message || "Failed to propose validator update",
-      });
+    res.status(500).json({
+      message:
+        error.reason || error.message || "Failed to propose validator update",
+    });
   }
 });
 
@@ -343,11 +338,9 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: tx.hash });
   } catch (error) {
     console.error("❌ Validate registry error:", error);
-    res
-      .status(500)
-      .json({
-        message: error.reason || error.message || "Failed to validate registry",
-      });
+    res.status(500).json({
+      message: error.reason || error.message || "Failed to validate registry",
+    });
   }
 });
 
@@ -361,12 +354,9 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: tx.hash });
   } catch (error) {
     console.error("❌ Validate validator error:", error);
-    res
-      .status(500)
-      .json({
-        message:
-          error.reason || error.message || "Failed to validate validator",
-      });
+    res.status(500).json({
+      message: error.reason || error.message || "Failed to validate validator",
+    });
   }
 });
 
