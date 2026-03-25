@@ -272,43 +272,33 @@ router.get("/proposals", async (req, res) => {
 
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, nspace, registry } = req.body;
+    const { privateKey, nspace, registry, registryName } = req.body;
 
-    // 1. STOPS DOUBLE ENCODING
-    // If the string starts with "0x", it's ALREADY hex. Do NOT convert it again.
-    // If it's "@salva", convert it to bytes.
-    let nspaceBytes;
-    if (nspace.startsWith("0x")) {
-        // This is where the bug was. We must use getBytes, NOT toUtf8Bytes.
-        nspaceBytes = ethers.getBytes(nspace);
-    } else {
-        nspaceBytes = ethers.toUtf8Bytes(nspace);
+    // The contract takes `string memory _nspace` — just pass the string directly.
+    // Ethers.js ABI-encodes it correctly. No hex conversion needed.
+    if (!nspace || !nspace.startsWith("@")) {
+      return res.status(400).json({ message: "Namespace must start with '@'" });
     }
 
-    // 2. STOPS PADDING ERRORS
-    // Create a blank 32-byte array and fill the start with our data (Right-Padding)
-    const finalBuffer = new Uint8Array(32);
-    finalBuffer.set(nspaceBytes);
-    
-    // Convert back to hex for the contract
-    const formattedNspace = ethers.hexlify(finalBuffer);
-
-    console.log("DEBUG: Sending to contract ->", formattedNspace);
-
     const contract = getMultisigContract(privateKey);
-    
-    // 3. EXECUTION
-    // If this still fails, the error is inside the Solidity 'require' logic, 
-    // likely a check for (registry != address(0)) or (nspace[0] == '@').
-    const tx = await contract.proposeInitialization(formattedNspace, registry);
-    const receipt = await tx.wait();
+    const tx = await contract.proposeInitialization(nspace, registry);
 
-    res.json({ success: true, txHash: receipt.hash });
+    await notifyValidators(
+      req.callerUser.safeAddress,
+      "New Registry Proposal",
+      {
+        type: "registry",
+        registryName: registryName || nspace,
+        nspace,
+        registry,
+      },
+    );
+
+    res.json({ success: true, txHash: tx.hash });
   } catch (error) {
-    console.error("❌ Registry Error:", error);
-    // Extract the custom error if possible
-    res.status(500).json({ 
-      message: error.reason || "On-chain revert: check if namespace already exists or address is invalid." 
+    console.error("❌ Propose registry error:", error);
+    res.status(500).json({
+      message: error.reason || error.message || "Failed to propose registry",
     });
   }
 });
