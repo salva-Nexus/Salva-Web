@@ -809,66 +809,30 @@ app.get("/api/user/status/:email", async (req, res) => {
 });
 
 // ===============================================
-// ALIAS REGISTRATION — LINK NUMBER
-// Fixed: uses existing accountNumber, not a new counter
+// ALIAS — LINK NUMBER (replaces both duplicate routes)
+// Assigns next account number from counter, links on-chain via registry,
+// confirms receipt, THEN increments counter in DB.
 // ===============================================
 app.post("/api/alias/link-number", async (req, res) => {
   try {
     const { safeAddress } = req.body;
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.numberAlias) return res.status(400).json({ message: "Number alias already registered" });
-
-    // Use the accountNumber already assigned at registration
-    const numberToLink = user.accountNumber;
-    if (!numberToLink) return res.status(400).json({ message: "No account number assigned to this user" });
-
-    // Link on-chain via registry
-    const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
-    const registryContract = new ethers.Contract(
-      process.env.REGISTRY_CONTRACT_ADDRESS,
-      REGISTRY_ABI,
-      wallet
-    );
-
-    const tx = await registryContract.linkNumber(BigInt(numberToLink), user.safeAddress);
-    const receipt = await tx.wait();
-
-    if (!receipt || receipt.status === 0) {
-      return res.status(500).json({ message: "On-chain linking failed" });
+    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+      return res.status(400).json({ message: "Invalid wallet address" });
     }
 
-    user.numberAlias = numberToLink;
-    await user.save();
-
-    res.json({ success: true, numberAlias: numberToLink });
-  } catch (error) {
-    console.error("❌ Link number error:", error);
-    return handleError(error, res, "Failed to link number alias");
-  }
-});
-
-// ===============================================
-// ALIAS REGISTRATION — LINK NUMBER
-// ===============================================
-app.post("/api/alias/link-number", async (req, res) => {
-  try {
-    const { safeAddress } = req.body;
-
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.numberAlias) return res.status(400).json({ message: "Number alias already registered" });
 
-    // Read next number from counter
+    // ── Get next number from counter ──────────────────────────────────────
     let counterDoc = await AccountNumberCounter.findById("main");
     if (!counterDoc) {
       counterDoc = await AccountNumberCounter.create({ _id: "main", lastAssigned: "1122746244" });
     }
-
     const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
 
-    // Link on-chain
+    // ── Call linkNumber on-chain (backend wallet pays gas — privileged op) ─
     const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
     const registryContract = new ethers.Contract(
       process.env.REGISTRY_CONTRACT_ADDRESS,
@@ -876,19 +840,38 @@ app.post("/api/alias/link-number", async (req, res) => {
       wallet
     );
 
-    const tx = await registryContract.linkNumber(BigInt(nextNumber), user.safeAddress);
-    const receipt = await tx.wait();
-
-    if (!receipt || receipt.status === 0) {
-      return res.status(500).json({ message: "On-chain linking failed" });
+    let tx;
+    try {
+      tx = await registryContract.linkNumber(BigInt(nextNumber), user.safeAddress);
+      console.log(`⏳ linkNumber TX sent: ${tx.hash}`);
+    } catch (sendError) {
+      console.error("❌ linkNumber send failed:", sendError.message);
+      return res.status(500).json({ message: "On-chain linking failed. Please try again." });
     }
 
+    let receipt;
+    try {
+      receipt = await tx.wait();
+    } catch (waitError) {
+      console.error("❌ linkNumber reverted:", waitError.message);
+      return res.status(500).json({ message: "On-chain linking reverted. Please try again." });
+    }
+
+    if (!receipt || receipt.status === 0) {
+      return res.status(500).json({ message: "On-chain linking failed (receipt status 0)." });
+    }
+
+    console.log(`✅ linkNumber confirmed on-chain for ${nextNumber} → ${user.safeAddress}`);
+
+    // ── Only increment counter AFTER on-chain success ─────────────────────
     counterDoc.lastAssigned = nextNumber;
     await counterDoc.save();
 
+    // ── Save numberAlias on user ──────────────────────────────────────────
     user.numberAlias = nextNumber;
     await user.save();
 
+    console.log(`✅ Number alias ${nextNumber} registered for ${user.safeAddress}`);
     res.json({ success: true, numberAlias: nextNumber });
   } catch (error) {
     console.error("❌ Link number error:", error);
