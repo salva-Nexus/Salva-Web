@@ -31,6 +31,11 @@ const MULTISIG_ABI = [
   "event ValidatorUpdated(address indexed addr, bool action)",
 ];
 
+// ── Proposals cache — prevents hammering Alchemy on every frontend poll ──
+let proposalsCache = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
 function getMultisigReader() {
   return new ethers.Contract(MULTISIG_ADDRESS, MULTISIG_ABI, provider);
 }
@@ -131,9 +136,13 @@ async function waitForAlchemyUserOp(
   return { success: false, reason: "Timeout waiting for UserOp" };
 }
 
-// ── GET: all active proposals ─────────────────────────────────────────────
 router.get("/proposals", async (req, res) => {
   try {
+    // Serve from cache if fresh
+    if (proposalsCache && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
+      return res.json(proposalsCache);
+    }
+
     const contract = getMultisigReader();
     const deployBlock = parseInt(process.env.MULTISIG_DEPLOY_BLOCK || "0");
 
@@ -283,9 +292,15 @@ router.get("/proposals", async (req, res) => {
       }
     }
 
-    res.json({ registryProposals, validatorProposals });
+    // Store in cache
+    proposalsCache = { registryProposals, validatorProposals };
+    cacheTimestamp = Date.now();
+
+    res.json(proposalsCache);
   } catch (error) {
     console.error("❌ Proposals fetch error:", error);
+    // Serve stale cache on error rather than returning empty
+    if (proposalsCache) return res.json(proposalsCache);
     res.status(500).json({
       message: "Failed to fetch proposals",
       registryProposals: [],
@@ -311,11 +326,9 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     );
     const taskStatus = await waitForAlchemyUserOp(result.taskId);
     if (!taskStatus.success)
-      return res
-        .status(500)
-        .json({
-          message: taskStatus.reason || "proposeInitialization reverted",
-        });
+      return res.status(500).json({
+        message: taskStatus.reason || "proposeInitialization reverted",
+      });
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -327,6 +340,7 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
         registry,
       },
     );
+    proposalsCache = null; // invalidate cache after state change
 
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
@@ -352,11 +366,9 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     );
     const taskStatus = await waitForAlchemyUserOp(result.taskId);
     if (!taskStatus.success)
-      return res
-        .status(500)
-        .json({
-          message: taskStatus.reason || "proposeValidatorUpdate reverted",
-        });
+      return res.status(500).json({
+        message: taskStatus.reason || "proposeValidatorUpdate reverted",
+      });
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -368,6 +380,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       },
     );
 
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Propose validator error:", error);
@@ -395,6 +408,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
         .status(500)
         .json({ message: taskStatus.reason || "validateRegistry reverted" });
 
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Validate registry error:", error);
@@ -422,6 +436,7 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
         .status(500)
         .json({ message: taskStatus.reason || "validateValidator reverted" });
 
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Validate validator error:", error);
@@ -448,7 +463,7 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
       return res
         .status(500)
         .json({ message: taskStatus.reason || "cancelInit reverted" });
-
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel registry error:", error);
@@ -472,20 +487,16 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
     );
     const taskStatus = await waitForAlchemyUserOp(result.taskId);
     if (!taskStatus.success)
-      return res
-        .status(500)
-        .json({
-          message: taskStatus.reason || "cancelValidatorUpdate reverted",
-        });
-
+      return res.status(500).json({
+        message: taskStatus.reason || "cancelValidatorUpdate reverted",
+      });
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel validator error:", error);
-    res
-      .status(500)
-      .json({
-        message: error.message || "Failed to cancel validator proposal",
-      });
+    res.status(500).json({
+      message: error.message || "Failed to cancel validator proposal",
+    });
   }
 });
 
@@ -516,7 +527,7 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       },
       { upsert: true, new: true },
     );
-
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Execute registry error:", error);
@@ -540,17 +551,15 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
     );
     const taskStatus = await waitForAlchemyUserOp(result.taskId);
     if (!taskStatus.success)
-      return res
-        .status(500)
-        .json({
-          message: taskStatus.reason || "executeUpdateValidator reverted",
-        });
+      return res.status(500).json({
+        message: taskStatus.reason || "executeUpdateValidator reverted",
+      });
 
     await User.findOneAndUpdate(
       { safeAddress: targetAddress.toLowerCase() },
       { isValidator: action },
     );
-
+    proposalsCache = null; // invalidate cache after state change
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Execute validator error:", error);
