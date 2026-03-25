@@ -27,9 +27,14 @@ const Login = () => {
       const savedUser = localStorage.getItem("salva_user");
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        // Only safeAddress is required — ownerKey is removed after PIN is set (encrypted in DB)
         if (userData.safeAddress) {
-          navigate("/dashboard", { replace: true });
+          if (userData.ownerKey) {
+            // ownerKey present → PIN not yet set → go to set-pin
+            navigate("/set-transaction-pin", { replace: true });
+          } else {
+            // No ownerKey → PIN already set → go to dashboard
+            navigate("/dashboard", { replace: true });
+          }
           return;
         }
       }
@@ -93,7 +98,7 @@ const Login = () => {
     if (e) e.preventDefault();
     setLoading(true);
 
-    // Step 2: verify OTP before registering
+    // Step 2 for registration: verify OTP before deploying wallet
     if (!isLogin && regStep === 2) {
       if (!/^\d{6}$/.test(otp)) {
         setLoading(false);
@@ -116,6 +121,9 @@ const Login = () => {
         setLoading(false);
         return showMsg("Verification error", "error");
       }
+
+      // OTP verified — now show deploying state and register
+      showMsg("Code verified! Deploying your wallet...");
     }
 
     const endpoint = isLogin ? "/api/login" : "/api/register";
@@ -141,19 +149,20 @@ const Login = () => {
           email: sanitizeInput(formData.email),
           safeAddress: data.safeAddress,
           accountNumber: data.accountNumber || null,
-          ownerKey: data.ownerPrivateKey, // temporary — deleted after PIN is set in SetTransactionPin
+          ownerKey: data.ownerPrivateKey, // temporary — deleted after PIN is set
           isValidator: data.isValidator || false,
           nameAlias: data.nameAlias || null,
           numberAlias: data.numberAlias || null,
         };
         localStorage.setItem("salva_user", JSON.stringify(userData));
-        showMsg(isLogin ? "Access Granted!" : "Wallet Deployed!");
 
         if (!isLogin) {
-          // New user — must set PIN before entering dashboard
+          // NEW USER: Always go to set-pin first
+          showMsg("Wallet Deployed! Setting up security...");
           setTimeout(() => navigate("/set-transaction-pin"), 1500);
         } else {
-          // Returning user — check PIN status
+          // RETURNING USER: Check if PIN is already set
+          showMsg("Access Granted!");
           try {
             const pinStatusRes = await fetch(
               `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`,
@@ -163,14 +172,15 @@ const Login = () => {
               // No PIN yet — go set it (ownerKey stays in storage for the set-pin page)
               setTimeout(() => navigate("/set-transaction-pin"), 1500);
             } else {
-              // PIN already set — remove plaintext ownerKey from storage (not needed, key is encrypted in DB)
+              // PIN already set — remove plaintext ownerKey (encrypted in DB)
               const cleanUser = { ...userData };
               delete cleanUser.ownerKey;
               localStorage.setItem("salva_user", JSON.stringify(cleanUser));
               setTimeout(() => navigate("/dashboard"), 1500);
             }
           } catch {
-            setTimeout(() => navigate("/dashboard"), 1500);
+            // If PIN status check fails, assume PIN needs to be set
+            setTimeout(() => navigate("/set-transaction-pin"), 1500);
           }
         }
       } else {
@@ -178,7 +188,15 @@ const Login = () => {
       }
     } catch (err) {
       console.error("Auth error:", err);
-      showMsg("Backend offline", "error");
+      // If registration fails after OTP (wallet deployment failed), clean up
+      if (!isLogin) {
+        localStorage.removeItem("salva_user");
+        showMsg("Wallet deployment failed. Please try again.", "error");
+        setRegStep(1);
+        setOtp("");
+      } else {
+        showMsg("Backend offline", "error");
+      }
     } finally {
       setLoading(false);
     }
@@ -322,6 +340,9 @@ const Login = () => {
                 pattern="\d{6}"
                 className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 border border-salvaGold text-center text-3xl tracking-[0.5em] font-black outline-none text-black dark:text-white"
               />
+              <p className="text-[10px] opacity-40 text-center mt-3 font-bold">
+                After verification, your wallet will be deployed automatically
+              </p>
             </div>
           )}
           <button
@@ -330,7 +351,9 @@ const Login = () => {
             className="w-full py-5 rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading
-              ? "WAITING..."
+              ? !isLogin && regStep === 2
+                ? "DEPLOYING WALLET..."
+                : "WAITING..."
               : isLogin
                 ? "ACCESS WALLET"
                 : regStep === 1
