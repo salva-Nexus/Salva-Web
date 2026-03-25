@@ -62,18 +62,42 @@ async function notifyValidators(excludeAddress, subject, payload) {
   }
 }
 
+// ── Helper: sleep ─────────────────────────────────────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ── Helper: paginated queryFilter that respects Alchemy free tier limits ──
+// - Pages of 9 blocks max (free tier hard cap is 10)
+// - 150ms delay between pages to avoid CUPS rate limit
+// - Retries once on 429 with a longer backoff before giving up
 async function paginatedQueryFilter(contract, filter, deployBlock = 0) {
   const latestBlock = await provider.getBlockNumber();
   const allEvents = [];
 
   for (let from = deployBlock; from <= latestBlock; from += RPC_PAGE_SIZE) {
     const to = Math.min(from + RPC_PAGE_SIZE - 1, latestBlock);
-    try {
-      const events = await contract.queryFilter(filter, from, to);
-      allEvents.push(...events);
-    } catch (err) {
-      console.error(`queryFilter page failed [${from}-${to}]:`, err.message);
+    let attempts = 0;
+    while (attempts < 2) {
+      try {
+        const events = await contract.queryFilter(filter, from, to);
+        allEvents.push(...events);
+        break; // success — move to next page
+      } catch (err) {
+        const is429 = err?.error?.code === 429 || err?.message?.includes("429");
+        attempts++;
+        if (is429 && attempts < 2) {
+          // Back off 1 second on rate limit, then retry once
+          await sleep(1000);
+        } else {
+          console.error(
+            `queryFilter page failed [${from}-${to}] for ${filter?.fragment?.name || "unknown"}:`,
+            err.message,
+          );
+          break; // skip this page after retry exhausted
+        }
+      }
     }
+    // Throttle: 150ms between pages keeps us well under CUPS limit
+    await sleep(150);
   }
 
   return allEvents;
@@ -113,45 +137,36 @@ router.get("/proposals", async (req, res) => {
     const contract = getMultisigReader();
     const deployBlock = parseInt(process.env.MULTISIG_DEPLOY_BLOCK || "0");
 
-    const [
-      regProposedEvents,
-      valProposedEvents,
-      regCancelledEvents,
-      regExecutedEvents,
-      valCancelledEvents,
-      valExecutedEvents,
-    ] = await Promise.all([
-      paginatedQueryFilter(
-        contract,
-        contract.filters.RegistryInitializationProposed(),
-        deployBlock,
-      ),
-      paginatedQueryFilter(
-        contract,
-        contract.filters.ValidatorUpdateProposed(),
-        deployBlock,
-      ),
-      paginatedQueryFilter(
-        contract,
-        contract.filters.RegistryInitializationCancelled(),
-        deployBlock,
-      ),
-      paginatedQueryFilter(
-        contract,
-        contract.filters.InitializationSuccess(),
-        deployBlock,
-      ),
-      paginatedQueryFilter(
-        contract,
-        contract.filters.ValidatorUpdateCancelled(),
-        deployBlock,
-      ),
-      paginatedQueryFilter(
-        contract,
-        contract.filters.ValidatorUpdated(),
-        deployBlock,
-      ),
-    ]);
+    const regProposedEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.RegistryInitializationProposed(),
+      deployBlock,
+    );
+    const valProposedEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.ValidatorUpdateProposed(),
+      deployBlock,
+    );
+    const regCancelledEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.RegistryInitializationCancelled(),
+      deployBlock,
+    );
+    const regExecutedEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.InitializationSuccess(),
+      deployBlock,
+    );
+    const valCancelledEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.ValidatorUpdateCancelled(),
+      deployBlock,
+    );
+    const valExecutedEvents = await paginatedQueryFilter(
+      contract,
+      contract.filters.ValidatorUpdated(),
+      deployBlock,
+    );
 
     const cancelledRegistries = new Set(
       regCancelledEvents
