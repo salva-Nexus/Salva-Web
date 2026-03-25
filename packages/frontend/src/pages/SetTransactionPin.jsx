@@ -1,45 +1,48 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/SetTransactionPin.jsx
-import { SALVA_API_URL } from '../config';
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import Stars from '../components/Stars';
+import { SALVA_API_URL } from "../config";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import Stars from "../components/Stars";
 
 const SetTransactionPin = () => {
-  const [pin, setPin] = useState('');
-  const [confirmPin, setConfirmPin] = useState('');
+  const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem('salva_user');
+    const savedUser = localStorage.getItem("salva_user");
     if (!savedUser) {
-      navigate('/login');
+      navigate("/login");
       return;
     }
-    
     try {
       const userData = JSON.parse(savedUser);
+      // Must have safeAddress to be here
+      if (!userData.safeAddress) {
+        navigate("/login");
+        return;
+      }
       setUser(userData);
-    } catch (err) {
-      navigate('/login');
+    } catch {
+      navigate("/login");
     }
   }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    setError("");
 
-    // Validation
     if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-      setError('PIN must be exactly 4 digits');
+      setError("PIN must be exactly 4 digits");
       return;
     }
 
     if (pin !== confirmPin) {
-      setError('PINs do not match');
+      setError("PINs do not match");
       return;
     }
 
@@ -47,24 +50,30 @@ const SetTransactionPin = () => {
 
     try {
       const response = await fetch(`${SALVA_API_URL}/api/user/set-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: user.email || user.username, // Use email if available
-          pin: pin
-        })
+          email: user.email,
+          pin: pin,
+        }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // PIN set successfully, navigate to dashboard
-        navigate('/dashboard');
+        // ── CRITICAL: After PIN is set, the backend has encrypted ownerPrivateKey.
+        // The plaintext key stored in localStorage is now stale and must be removed.
+        // From this point on, the key is retrieved only via verify-pin at transaction time.
+        const updatedUser = { ...user };
+        delete updatedUser.ownerKey; // remove plaintext key — it's encrypted in DB now
+        localStorage.setItem("salva_user", JSON.stringify(updatedUser));
+
+        navigate("/dashboard");
       } else {
-        setError(data.message || 'Failed to set PIN');
+        setError(data.message || "Failed to set PIN");
       }
-    } catch (err) {
-      setError('Network error. Please try again.');
+    } catch {
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -75,8 +84,8 @@ const SetTransactionPin = () => {
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white flex items-center justify-center px-4 relative overflow-hidden">
       <Stars />
-      
-      <motion.div 
+
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="relative z-10 w-full max-w-md bg-white/90 dark:bg-black/40 backdrop-blur-2xl p-10 rounded-[2.5rem] border border-gray-200 dark:border-white/10 shadow-2xl"
@@ -86,34 +95,41 @@ const SetTransactionPin = () => {
             <span className="text-3xl">🔐</span>
           </div>
           <h2 className="text-3xl font-black mb-2">Set Transaction PIN</h2>
-          <p className="text-sm opacity-60">Secure your wallet with a 4-digit PIN</p>
+          <p className="text-sm opacity-60">
+            Secure your wallet with a 4-digit PIN
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="text-xs uppercase opacity-40 font-bold mb-2 block">Enter PIN</label>
+            <label className="text-xs uppercase opacity-40 font-bold mb-2 block tracking-widest">
+              Enter PIN
+            </label>
             <input
               type="password"
               inputMode="numeric"
               pattern="\d{4}"
               maxLength="4"
               value={pin}
-              onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
               placeholder="••••"
+              autoFocus
               required
               className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-2xl tracking-[1em] font-black"
             />
           </div>
 
           <div>
-            <label className="text-xs uppercase opacity-40 font-bold mb-2 block">Confirm PIN</label>
+            <label className="text-xs uppercase opacity-40 font-bold mb-2 block tracking-widest">
+              Confirm PIN
+            </label>
             <input
               type="password"
               inputMode="numeric"
               pattern="\d{4}"
               maxLength="4"
               value={confirmPin}
-              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
+              onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ""))}
               placeholder="••••"
               required
               className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-2xl tracking-[1em] font-black"
@@ -132,16 +148,17 @@ const SetTransactionPin = () => {
 
           <button
             type="submit"
-            disabled={loading || !pin || !confirmPin}
+            disabled={loading || pin.length !== 4 || confirmPin.length !== 4}
             className="w-full py-5 rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'SETTING PIN...' : 'CONFIRM & CONTINUE'}
+            {loading ? "SECURING WALLET..." : "CONFIRM & ENTER DASHBOARD"}
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-          <p className="text-xs text-center opacity-80">
-            <span className="font-bold">Important:</span> Your PIN encrypts your private key. Never share it with anyone.
+        <div className="mt-6 p-4 bg-salvaGold/5 border border-salvaGold/20 rounded-xl">
+          <p className="text-xs text-center opacity-70 font-bold">
+            🔑 Your PIN encrypts your private key. Never share it with anyone.
+            It cannot be recovered if lost.
           </p>
         </div>
       </motion.div>
