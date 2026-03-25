@@ -117,7 +117,7 @@ async function sponsorSafeApprove(safeAddress, ownerKey, spenderAddress, amountW
  * Sponsors a transferFrom() call.
  * fromAddress and toAddress must already be resolved wallet addresses (0x...).
  * If feeWei > 0, a second transferFrom to treasury is bundled in the same tx..
- * trigger push
+ * trigger-Push
  */
 async function sponsorSafeTransferFrom(ownerKey, safeAddress, fromAddress, toAddress, amountWei, feeWei = 0n) {
     const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
