@@ -268,45 +268,43 @@ router.get("/proposals", async (req, res) => {
   }
 });
 
-// ── POST: propose registry initialization ─────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, nspace, registry, registryName } = req.body;
 
-    // 1. Validation check
-    if (!nspace || !nspace.startsWith("@")) {
-      return res.status(400).json({ message: "Namespace must start with @" });
+    // 1. Critical Check: Ensure we aren't handling a hex string as text
+    if (!nspace || typeof nspace !== "string") {
+      return res.status(400).json({ message: "Invalid namespace input" });
     }
 
-    // 2. Format for bytes32 (Right-Padded)
-    // We convert the string "@salva" to bytes, then ensure it's exactly 32 bytes
+    // 2. Convert "@salva" to actual bytes
     const nspaceBytes = ethers.toUtf8Bytes(nspace);
 
     if (nspaceBytes.length > 32) {
-      return res
-        .status(400)
-        .json({ message: "Namespace too long (max 32 bytes)" });
+      return res.status(400).json({ message: "Namespace exceeds 32 bytes" });
     }
 
+    // 3. RIGHT-PAD to 32 bytes
+    // We want: [data][zeros...], NOT [zeros...][data]
     const formattedNspace = ethers.dataSlice(
       ethers.concat([nspaceBytes, ethers.ZeroHash]),
       0,
       32,
     );
 
-    // 3. Contract Call
     const contract = getMultisigContract(privateKey);
+
+    // 4. Send the transaction
     const tx = await contract.proposeInitialization(formattedNspace, registry);
     await tx.wait();
 
-    // 4. Notifications (Uses original 'nspace' string)
     await notifyValidators(
       req.callerUser.safeAddress,
       "New Registry Proposal",
       {
         type: "registry",
         registryName: registryName || nspace,
-        nspace,
+        nspace, // original string for the UI
         registry,
       },
     );
