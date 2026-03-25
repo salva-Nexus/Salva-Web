@@ -272,11 +272,31 @@ router.get("/proposals", async (req, res) => {
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, nspace, registry, registryName } = req.body;
-    if (!nspace.startsWith("@"))
+
+    if (!nspace.startsWith("@")) {
       return res.status(400).json({ message: "Namespace must start with @" });
+    }
+
+    // 1. Convert string to UTF-8 bytes
+    const nspaceBytes = ethers.toUtf8Bytes(nspace);
+
+    if (nspaceBytes.length > 32) {
+      return res
+        .status(400)
+        .json({ message: "Namespace too long for bytes32" });
+    }
+
+    // 2. RIGHT-PAD to 32 bytes (The "ZeroHash" is just 32 bytes of zeros)
+    // We concat the name with zeros, then slice exactly the first 32 bytes.
+    const formattedNspace = ethers.dataSlice(
+      ethers.concat([nspaceBytes, ethers.ZeroHash]),
+      0,
+      32,
+    );
 
     const contract = getMultisigContract(privateKey);
-    const formattedNspace = ethers.zeroPadValue(ethers.toUtf8Bytes(nspace), 16);
+
+    // 3. Send the formatted bytes32
     const tx = await contract.proposeInitialization(formattedNspace, registry);
     await tx.wait();
 
