@@ -295,6 +295,8 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     );
 
     const contract = getMultisigContract(privateKey);
+    console.log("HEX TO SEND:", formattedNspace);
+    // It should start with 0x4073... NOT 0x0000...
 
     // 3. Send the formatted bytes32
     const tx = await contract.proposeInitialization(formattedNspace, registry);
