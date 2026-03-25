@@ -16,6 +16,39 @@ async function initKits(safeAddress, ownerKey) {
 }
 
 /**
+ * Sponsors any arbitrary contract call through the user's Safe.
+ * This is used for all multisig admin operations (propose, validate, cancel, execute).
+ * The Safe is the msg.sender on-chain — which is the address registered as validator.
+ *
+ * @param {string} safeAddress  - The validator's Safe address (registered in multisig)
+ * @param {string} ownerKey     - The Safe owner's private key (decrypted via PIN)
+ * @param {string} toContract   - The contract address to call (MULTISIG_CONTRACT_ADDRESS)
+ * @param {string} calldata     - ABI-encoded calldata for the function call
+ * @returns {Promise<{taskId: string}>}
+ */
+async function sponsorSafeMultisigCall(safeAddress, ownerKey, toContract, calldata) {
+    const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
+
+    const transactions = [
+        { to: toContract, data: calldata, value: '0' }
+    ];
+
+    const safeTransaction = await relayKit.createTransaction({
+        transactions,
+        options: { isSponsored: true }
+    });
+    const signedSafeTransaction = await protocolKit.signTransaction(safeTransaction);
+
+    const result = await relayKit.executeTransaction({
+        executable: signedSafeTransaction,
+        options: { isSponsored: true }
+    });
+
+    console.log(`✅ Multisig call TaskId: ${result.taskId}`);
+    return result;
+}
+
+/**
  * Sponsors a transfer() call.
  * recipient must already be a resolved wallet address (0x...).
  * If feeAmount > 0, a second transfer to treasury is bundled in the same tx.
@@ -33,7 +66,6 @@ async function sponsorSafeTransfer(safeAddress, ownerKey, recipientAddress, amou
         { to: process.env.NGN_TOKEN_ADDRESS, data: mainCalldata, value: '0' }
     ];
 
-    // If there is a fee, bundle a second transfer to treasury in the same multicall
     if (feeWei > 0n) {
         const feeCalldata = iface.encodeFunctionData("transfer", [
             process.env.TREASURY_CONTRACT_ADDRESS,
@@ -99,7 +131,6 @@ async function sponsorSafeTransferFrom(ownerKey, safeAddress, fromAddress, toAdd
         { to: process.env.NGN_TOKEN_ADDRESS, data: mainCalldata, value: '0' }
     ];
 
-    // Bundle fee deduction from same allowance
     if (feeWei > 0n) {
         const feeCalldata = iface.encodeFunctionData("transferFrom", [
             fromAddress,
@@ -127,5 +158,6 @@ async function sponsorSafeTransferFrom(ownerKey, safeAddress, fromAddress, toAdd
 module.exports = {
     sponsorSafeTransfer,
     sponsorSafeApprove,
-    sponsorSafeTransferFrom
+    sponsorSafeTransferFrom,
+    sponsorSafeMultisigCall,
 };
