@@ -1,9 +1,9 @@
 // Salva-Digital-Tech/packages/backend/src/services/relayService.js
-const { GelatoRelayPack } = require("@safe-global/relay-kit");
-const SafeClient = require("@safe-global/protocol-kit").default;
+const Safe4337Pack = require("@safe-global/relay-kit").Safe4337Pack;
 const { ethers } = require("ethers");
 
-const sponsorKey = process.env.GELATO_RELAY_API_KEY;
+const RPC_URL = process.env.ALCHEMY_RPC_URL;
+const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 
 const MULTISIG_IFACE = new ethers.Interface([
@@ -17,77 +17,64 @@ const MULTISIG_IFACE = new ethers.Interface([
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
-async function initKits(safeAddress, ownerKey) {
-  const protocolKit = await SafeClient.init({
-    provider: process.env.BASE_SEPOLIA_RPC_URL,
+// ── Core: init Safe4337Pack for a given signer + safe ─────────────────────
+async function initSafe4337(safeAddress, ownerKey) {
+  const safe4337Pack = await Safe4337Pack.init({
+    provider: RPC_URL,
     signer: ownerKey,
-    safeAddress: safeAddress,
+    safeAddress,
+    bundlerUrl: `${RPC_URL}`,   // Alchemy IS the bundler on their RPC URL
+    paymasterOptions: {
+      isSponsored: true,
+      paymasterUrl: `${RPC_URL}`,
+      sponsorshipPolicyId: GAS_POLICY_ID,
+    },
   });
-  const relayKit = new GelatoRelayPack({ apiKey: sponsorKey, protocolKit });
-  return { protocolKit, relayKit };
+  return safe4337Pack;
 }
 
-// ── Internal: build, sign, relay a single multisig call through the Safe ─
+// ── Core: build, sign, send a UserOperation and return a taskId-compatible object ──
+async function _executeViaAlchemy(safeAddress, ownerKey, transactions) {
+  const safe4337Pack = await initSafe4337(safeAddress, ownerKey);
+
+  const safeOperation = await safe4337Pack.createTransaction({ transactions });
+  const signedOperation = await safe4337Pack.signSafeOperation(safeOperation);
+  const userOpHash = await safe4337Pack.executeTransaction({
+    executable: signedOperation,
+  });
+
+  console.log(`✅ Alchemy UserOp Hash: ${userOpHash}`);
+  // Return shape matches what index.js expects: { taskId }
+  return { taskId: userOpHash };
+}
+
+// ── Internal: multisig call helper ────────────────────────────────────────
 async function _sponsorMultisigCall(safeAddress, ownerKey, calldata) {
-  const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
   const transactions = [{ to: MULTISIG_ADDRESS, data: calldata, value: "0" }];
-  const safeTransaction = await relayKit.createTransaction({
-    transactions,
-    options: { isSponsored: true },
-  });
-  const signedSafeTransaction =
-    await protocolKit.signTransaction(safeTransaction);
-  const result = await relayKit.executeTransaction({
-    executable: signedSafeTransaction,
-    options: { isSponsored: true },
-  });
-  console.log(`✅ Multisig TaskId: ${result.taskId}`);
-  return result;
+  return _executeViaAlchemy(safeAddress, ownerKey, transactions);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
 // MULTISIG SPONSORED FUNCTIONS
-// Each one mirrors the pattern of sponsorSafeTransfer/Approve/TransferFrom.
-// The Safe is msg.sender on-chain, so the Safe address must be the validator.
 // ─────────────────────────────────────────────────────────────────────────
 
-async function sponsorProposeInitialization(
-  safeAddress,
-  ownerKey,
-  nspace,
-  registry,
-) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("proposeInitialization", [
-    nspace,
-    registry,
-  ]);
+async function sponsorProposeInitialization(safeAddress, ownerKey, nspace, registry) {
+  const calldata = MULTISIG_IFACE.encodeFunctionData("proposeInitialization", [nspace, registry]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
-async function sponsorProposeValidatorUpdate(
-  safeAddress,
-  ownerKey,
-  targetAddress,
-  action,
-) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("proposeValidatorUpdate", [
-    targetAddress,
-    action,
-  ]);
+async function sponsorProposeValidatorUpdate(safeAddress, ownerKey, targetAddress, action) {
+  const calldata = MULTISIG_IFACE.encodeFunctionData("proposeValidatorUpdate", [targetAddress, action]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
 async function sponsorValidateRegistry(safeAddress, ownerKey, registry) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("validateRegistry", [
-    registry,
-  ]);
+  const calldata = MULTISIG_IFACE.encodeFunctionData("validateRegistry", [registry]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
 async function sponsorValidateValidator(safeAddress, ownerKey, targetAddress) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("validateValidator", [
-    targetAddress,
-  ]);
+  const calldata = MULTISIG_IFACE.encodeFunctionData("validateValidator", [targetAddress]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -96,14 +83,8 @@ async function sponsorCancelInit(safeAddress, ownerKey, registry) {
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
-async function sponsorCancelValidatorUpdate(
-  safeAddress,
-  ownerKey,
-  targetAddress,
-) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("cancelValidatorUpdate", [
-    targetAddress,
-  ]);
+async function sponsorCancelValidatorUpdate(safeAddress, ownerKey, targetAddress) {
+  const calldata = MULTISIG_IFACE.encodeFunctionData("cancelValidatorUpdate", [targetAddress]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -112,30 +93,18 @@ async function sponsorExecuteInit(safeAddress, ownerKey, registry) {
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
-async function sponsorExecuteUpdateValidator(
-  safeAddress,
-  ownerKey,
-  targetAddress,
-) {
-  const calldata = MULTISIG_IFACE.encodeFunctionData("executeUpdateValidator", [
-    targetAddress,
-  ]);
+async function sponsorExecuteUpdateValidator(safeAddress, ownerKey, targetAddress) {
+  const calldata = MULTISIG_IFACE.encodeFunctionData("executeUpdateValidator", [targetAddress]);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// TOKEN SPONSORED FUNCTIONS (unchanged)
+// TOKEN SPONSORED FUNCTION — transfer only
 // ─────────────────────────────────────────────────────────────────────────
 
-async function sponsorSafeTransfer(
-  safeAddress,
-  ownerKey,
-  recipientAddress,
-  amountWei,
-  feeWei = 0n,
-) {
-  const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
+async function sponsorSafeTransfer(safeAddress, ownerKey, recipientAddress, amountWei, feeWei = 0n) {
   const iface = new ethers.Interface(["function transfer(address,uint256)"]);
+
   const transactions = [
     {
       to: process.env.NGN_TOKEN_ADDRESS,
@@ -143,6 +112,7 @@ async function sponsorSafeTransfer(
       value: "0",
     },
   ];
+
   if (feeWei > 0n) {
     transactions.push({
       to: process.env.NGN_TOKEN_ADDRESS,
@@ -153,103 +123,12 @@ async function sponsorSafeTransfer(
       value: "0",
     });
   }
-  const safeTransaction = await relayKit.createTransaction({
-    transactions,
-    options: { isSponsored: true },
-  });
-  const signedSafeTransaction =
-    await protocolKit.signTransaction(safeTransaction);
-  const result = await relayKit.executeTransaction({
-    executable: signedSafeTransaction,
-    options: { isSponsored: true },
-  });
-  console.log(`✅ Transfer TaskId: ${result.taskId}`);
-  return result;
-}
 
-async function sponsorSafeApprove(
-  safeAddress,
-  ownerKey,
-  spenderAddress,
-  amountWei,
-) {
-  const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
-  const iface = new ethers.Interface(["function approve(address,uint256)"]);
-  const calldata = iface.encodeFunctionData("approve", [
-    spenderAddress,
-    amountWei,
-  ]);
-  const transactions = [
-    { to: process.env.NGN_TOKEN_ADDRESS, data: calldata, value: "0" },
-  ];
-  const safeTransaction = await relayKit.createTransaction({
-    transactions,
-    options: { isSponsored: true },
-  });
-  const signedSafeTransaction =
-    await protocolKit.signTransaction(safeTransaction);
-  const result = await relayKit.executeTransaction({
-    executable: signedSafeTransaction,
-    options: { isSponsored: true },
-  });
-  console.log(`✅ Approve TaskId: ${result.taskId}`);
-  return result;
-}
-
-async function sponsorSafeTransferFrom(
-  ownerKey,
-  safeAddress,
-  fromAddress,
-  toAddress,
-  amountWei,
-  feeWei = 0n,
-) {
-  const { protocolKit, relayKit } = await initKits(safeAddress, ownerKey);
-  const iface = new ethers.Interface([
-    "function transferFrom(address,address,uint256)",
-  ]);
-  const transactions = [
-    {
-      to: process.env.NGN_TOKEN_ADDRESS,
-      data: iface.encodeFunctionData("transferFrom", [
-        fromAddress,
-        toAddress,
-        amountWei,
-      ]),
-      value: "0",
-    },
-  ];
-  if (feeWei > 0n) {
-    transactions.push({
-      to: process.env.NGN_TOKEN_ADDRESS,
-      data: iface.encodeFunctionData("transferFrom", [
-        fromAddress,
-        process.env.TREASURY_CONTRACT_ADDRESS,
-        feeWei,
-      ]),
-      value: "0",
-    });
-  }
-  const safeTransaction = await relayKit.createTransaction({
-    transactions,
-    options: { isSponsored: true },
-  });
-  const signedSafeTransaction =
-    await protocolKit.signTransaction(safeTransaction);
-  const result = await relayKit.executeTransaction({
-    executable: signedSafeTransaction,
-    options: { isSponsored: true },
-  });
-  console.log(`✅ TransferFrom TaskId: ${result.taskId}`);
-  return result;
+  return _executeViaAlchemy(safeAddress, ownerKey, transactions);
 }
 
 module.exports = {
-  // Token ops
   sponsorSafeTransfer,
-  sponsorSafeApprove,
-  sponsorSafeTransferFrom,
-  // Multisig ops — one function per contract function
   sponsorProposeInitialization,
   sponsorProposeValidatorUpdate,
   sponsorValidateRegistry,

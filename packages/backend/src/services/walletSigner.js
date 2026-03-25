@@ -2,7 +2,9 @@
 const { ethers } = require('ethers');
 const path = require('path');
 
-const provider = new ethers.JsonRpcProvider(process.env.BASE_SEPOLIA_RPC_URL);
+const provider = new ethers.JsonRpcProvider(
+  process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL,
+);
 
 // 1. Get the key and TRIM it to remove hidden spaces/newlines
 let rawKey = process.env.MANAGER_PRIVATE_KEY ? process.env.MANAGER_PRIVATE_KEY.trim() : "";

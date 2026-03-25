@@ -8,15 +8,10 @@ const bcrypt = require("bcryptjs");
 const { ethers } = require("ethers");
 const { wallet, provider } = require("./services/walletSigner");
 const { generateAndDeploySalvaIdentity } = require("./services/userService");
-const {
-  sponsorSafeTransfer,
-  sponsorSafeTransferFrom,
-  sponsorSafeApprove,
-} = require("./services/relayService");
+const { sponsorSafeTransfer } = require("./services/relayService");
 const Transaction = require("./models/Transaction");
 const mongoose = require("mongoose");
 const { Resend } = require("resend");
-const { GelatoRelay } = require("@gelatonetwork/relay-sdk");
 const Approval = require("./models/Approval");
 const {
   encryptPrivateKey,
@@ -61,7 +56,6 @@ function normalizeAddress(address) {
 
 // Initialize services
 const resend = new Resend(process.env.RESEND_API_KEY);
-const relay = new GelatoRelay();
 
 const app = express();
 
@@ -309,84 +303,37 @@ async function delayBeforeBlockchain(
   console.log(`✅ Queue clear, proceeding with transaction`);
 }
 
-async function checkGelatoTaskStatus(taskId, maxRetries = 20, delayMs = 2000) {
-  console.log(`🔍 Polling Gelato task status for: ${taskId}`);
+// Polls Alchemy bundler for UserOperation receipt
+async function checkGelatoTaskStatus(userOpHash, maxRetries = 30, delayMs = 2000) {
+  console.log(`🔍 Polling Alchemy UserOp: ${userOpHash}`);
+  const { provider: alchemyProvider } = require("./services/walletSigner");
 
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const status = await relay.getTaskStatus(taskId);
-      console.log(`📊 Task ${taskId} status:`, status.taskState);
+      const receipt = await alchemyProvider.send("eth_getUserOperationReceipt", [userOpHash]);
 
-      if (status.taskState === "ExecSuccess") {
-        console.log(`✅ Task ${taskId} SUCCEEDED on-chain`);
-        return { success: true, status: "successful" };
+      if (receipt) {
+        if (receipt.success === true) {
+          console.log(`✅ UserOp ${userOpHash} SUCCEEDED`);
+          return { success: true, status: "successful" };
+        } else {
+          console.error(`❌ UserOp ${userOpHash} FAILED on-chain`);
+          return { success: false, status: "failed", reason: receipt.reason || "UserOperation reverted" };
+        }
       }
 
-      if (status.taskState === "ExecReverted") {
-        console.error(`❌ Task ${taskId} REVERTED on-chain`);
-        return {
-          success: false,
-          status: "failed",
-          reason: "Transaction reverted on blockchain",
-        };
-      }
-
-      if (status.taskState === "Cancelled") {
-        console.error(`❌ Task ${taskId} was CANCELLED`);
-        return {
-          success: false,
-          status: "failed",
-          reason: "Transaction cancelled",
-        };
-      }
-
-      if (status.taskState === "Blacklisted") {
-        console.error(`❌ Task ${taskId} was BLACKLISTED`);
-        return {
-          success: false,
-          status: "failed",
-          reason: "Transaction blacklisted",
-        };
-      }
-
-      if (
-        ["CheckPending", "ExecPending", "WaitingForConfirmation"].includes(
-          status.taskState,
-        )
-      ) {
-        console.log(
-          `⏳ Task ${taskId} still pending... (attempt ${i + 1}/${maxRetries})`,
-        );
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-        continue;
-      }
-
-      console.warn(`⚠️ Unknown task state: ${status.taskState}`);
+      console.log(`⏳ UserOp ${userOpHash} still pending... (attempt ${i + 1}/${maxRetries})`);
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     } catch (error) {
-      console.error(
-        `❌ Error checking task status (attempt ${i + 1}):`,
-        error.message,
-      );
-
+      console.error(`❌ Error polling UserOp (attempt ${i + 1}):`, error.message);
       if (i === maxRetries - 1) {
-        return {
-          success: false,
-          status: "failed",
-          reason: "Could not verify transaction status",
-        };
+        return { success: false, status: "failed", reason: "Could not verify transaction status" };
       }
-
       await new Promise((resolve) => setTimeout(resolve, delayMs));
     }
   }
 
-  console.error(`⏰ Task ${taskId} timed out after ${maxRetries} attempts`);
-  return {
-    success: false,
-    status: "failed",
-    reason: "Transaction verification timeout",
-  };
+  return { success: false, status: "failed", reason: "Transaction verification timeout" };
 }
 
 async function retryRPCCall(fn, maxRetries = 3, delay = 1000) {
@@ -1003,171 +950,6 @@ app.get("/api/balance/:address", async (req, res) => {
 });
 
 // ===============================================
-// APPROVALS
-// ===============================================
-app.get("/api/approvals/:address", async (req, res) => {
-  try {
-    const ownerAddress = req.params.address.toLowerCase();
-
-    if (!ethers.isAddress(ownerAddress)) {
-      return res.status(400).json({ message: "Invalid address format" });
-    }
-
-    const savedApprovals = await Approval.find({ owner: ownerAddress });
-
-    const TOKEN_ABI = [
-      "function allowance(address,address) view returns (uint256)",
-    ];
-    const tokenContract = new ethers.Contract(
-      process.env.NGN_TOKEN_ADDRESS,
-      TOKEN_ABI,
-      provider,
-    );
-
-    const liveApprovals = await Promise.all(
-      savedApprovals.map(async (app) => {
-        try {
-          const spenderAddress = app.spender;
-          const liveAllowanceWei = await tokenContract.allowance(
-            ownerAddress,
-            spenderAddress,
-          );
-          const liveAmount = ethers.formatUnits(liveAllowanceWei, 6);
-
-          if (parseFloat(liveAmount) <= 0) {
-            await Approval.deleteOne({ _id: app._id });
-            return null;
-          }
-
-          if (liveAmount !== app.amount) {
-            await Approval.updateOne(
-              { _id: app._id },
-              { $set: { amount: liveAmount } },
-            );
-            app.amount = liveAmount;
-          }
-
-          // --- SURGICAL ADDITION: USER LOOKUP ---
-          const spenderUser = await User.findOne({
-            $or: [
-              { safeAddress: spenderAddress.toLowerCase() },
-              { accountNumber: app.spenderInput }
-            ]
-          });
-
-          let displaySpender;
-          if (app.spenderInputType === "accountNumber") {
-            displaySpender = app.spenderInput;
-          } else {
-            displaySpender = spenderAddress;
-          }
-
-          return {
-            _id: app._id,
-            spender: spenderAddress,
-            displaySpender: displaySpender,
-            displayName: spenderUser?.username || null, // Added Display Name
-            amount: app.amount,
-            date: app.date,
-            inputType: app.spenderInputType,
-          };
-        } catch (err) {
-          console.error(`Sync failed for ${app.spender}:`, err.message);
-          return null;
-        }
-      }),
-    );
-
-    res.json(liveApprovals.filter((app) => app !== null));
-  } catch (error) {
-    console.error("Critical Approval Route Error:", error);
-    return handleError(error, res, "Failed to fetch approvals");
-  }
-});
-
-// ===============================================
-// INCOMING ALLOWANCES - FIXED
-// ===============================================
-app.get("/api/allowances-for/:address", async (req, res) => {
-  try {
-    const userAddress = req.params.address.toLowerCase();
-
-    if (!ethers.isAddress(userAddress)) {
-      return res.status(400).json({ message: "Invalid address format" });
-    }
-
-    const TOKEN_ABI = [
-      "function allowance(address,address) view returns (uint256)",
-    ];
-    const tokenContract = new ethers.Contract(
-      process.env.NGN_TOKEN_ADDRESS,
-      TOKEN_ABI,
-      provider,
-    );
-
-    const allApprovals = await Approval.find({});
-    const relevantApprovals = [];
-
-    for (const app of allApprovals) {
-      try {
-        const spenderAddress = app.spender.toLowerCase();
-
-        if (spenderAddress === userAddress) {
-          const liveAllowanceWei = await tokenContract.allowance(
-            app.owner,
-            userAddress,
-          );
-          const liveAmount = ethers.formatUnits(liveAllowanceWei, 6);
-
-          if (parseFloat(liveAmount) > 0) {
-            if (liveAmount !== app.amount) {
-              await Approval.updateOne(
-                { _id: app._id },
-                { $set: { amount: liveAmount } },
-              );
-            }
-
-            // --- SURGICAL ADDITION: ALLOWER LOOKUP ---
-            const allowerUser = await User.findOne({
-              safeAddress: app.owner.toLowerCase()
-            });
-
-            let ownerDisplay, spenderDisplay;
-
-            if (app.spenderInputType === "accountNumber") {
-              ownerDisplay = allowerUser?.accountNumber || app.owner;
-              spenderDisplay = app.spenderInput;
-            } else {
-              ownerDisplay = app.owner;
-              spenderDisplay = userAddress;
-            }
-
-            relevantApprovals.push({
-              allower: ownerDisplay,
-              allowerAddress: app.owner,
-              displayName: allowerUser?.username || null, // Added Display Name
-              spenderDisplay: spenderDisplay,
-              amount: liveAmount,
-              date: app.date,
-            });
-          } else {
-            await Approval.deleteOne({ _id: app._id });
-          }
-        }
-      } catch (err) {
-        console.error(`Error processing approval ${app._id}:`, err.message);
-      }
-    }
-
-    res.json(relevantApprovals);
-  } catch (error) {
-    console.error("Critical Incoming Allowance Route Error:", error);
-    return handleError(error, res, "Failed to fetch allowances");
-  }
-});
-// trigger deploy
-
-// ===============================================
 // TRANSFER — with fee, registry resolution, multicall
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
@@ -1330,105 +1112,6 @@ app.post("/api/transfer", async (req, res) => {
   }
 });
 
-// ===============================================
-// APPROVE — registry resolution, no fee
-// ===============================================
-app.post("/api/approve", async (req, res) => {
-  try {
-    const { userPrivateKey, safeAddress, spenderInput, amount, registryAddress } = req.body;
-
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount < 0 || numAmount > 1000000000) {
-      return res.status(400).json({ message: "Invalid amount" });
-    }
-
-    let finalSpenderAddress;
-    try {
-      finalSpenderAddress = await resolveToAddress(spenderInput, registryAddress || null);
-    } catch (error) {
-      return res.status(404).json({ message: `Spender: ${error.message}` });
-    }
-
-    const amountWei = ethers.parseUnits(amount.toString(), 6);
-
-    await delayBeforeBlockchain(safeAddress, "Approval queued");
-
-    const queueEntry = await new TransactionQueue({
-      walletAddress: safeAddress.toLowerCase(),
-      status: "PENDING",
-      type: "approve",
-      payload: { spenderInput, amount, finalSpenderAddress },
-    }).save();
-
-    try {
-      queueEntry.status = "SENDING";
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-
-      // No fee on approvals — pass resolved address directly
-      const result = await sponsorSafeApprove(safeAddress, userPrivateKey, finalSpenderAddress, amountWei);
-
-      if (!result || !result.taskId) {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = "Failed to submit";
-        await queueEntry.save();
-        return res.status(400).json({ message: "Approval failed to submit" });
-      }
-
-      queueEntry.taskId = result.taskId;
-      await queueEntry.save();
-
-      const taskStatus = await checkGelatoTaskStatus(result.taskId);
-
-      if (!taskStatus.success) {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = taskStatus.reason;
-        queueEntry.updatedAt = new Date();
-        await queueEntry.save();
-        return res.status(400).json({ success: false, message: taskStatus.reason || "Approval reverted" });
-      }
-
-      queueEntry.status = "CONFIRMED";
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-
-      const inputType = isAccountNumber(spenderInput) ? "accountNumber" : "address";
-
-      if (numAmount === 0) {
-        await Approval.deleteOne({ owner: safeAddress.toLowerCase(), spender: finalSpenderAddress.toLowerCase() });
-      } else {
-        await Approval.findOneAndUpdate(
-          { owner: safeAddress.toLowerCase(), spender: finalSpenderAddress.toLowerCase() },
-          { amount: amount, date: new Date(), spenderInput: spenderInput, spenderInputType: inputType },
-          { upsert: true, new: true },
-        );
-      }
-
-      await applyCooldown(safeAddress, 20);
-
-      const approverUser = await User.findOne({ safeAddress: normalizeAddress(safeAddress) });
-      const spenderUser = await User.findOne({ safeAddress: normalizeAddress(finalSpenderAddress) });
-
-      if (approverUser?.email) {
-        try { await sendApprovalEmailToApprover(approverUser.email, approverUser.username, spenderInput, amount); } catch (e) { console.error("❌ Approver email:", e.message); }
-      }
-      if (spenderUser?.email) {
-        try { await sendApprovalEmailToSpender(spenderUser.email, spenderUser.username, approverUser?.username || safeAddress, amount); } catch (e) { console.error("❌ Spender email:", e.message); }
-      }
-
-      res.json({ success: true, taskId: result.taskId });
-    } catch (error) {
-      queueEntry.status = "FAILED";
-      queueEntry.errorMessage = error.message;
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-      throw error;
-    }
-  } catch (error) {
-    console.error("Approval Error:", error);
-    return handleError(error, res, error.message || "Approval failed");
-  }
-});
 
 // ===============================================
 // TRANSACTIONS.
@@ -1470,155 +1153,6 @@ app.get("/api/transactions/:address", async (req, res) => {
   } catch (error) {
     console.error("❌ History Fetch Error:", error);
     return handleError(error, res, "Failed to fetch transactions");
-  }
-});
-
-// ===============================================
-// TRANSFERFROM — fee, registry resolution, multicall
-// ===============================================
-app.post("/api/transferFrom", async (req, res) => {
-  try {
-    const { userPrivateKey, safeAddress, fromInput, toInput, amount, fromRegistry, toRegistry } = req.body;
-
-    validateAmount(amount);
-
-    let fromAddress, toAddress;
-    try {
-      fromAddress = await resolveToAddress(fromInput, fromRegistry || null);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: `Source: ${error.message}` });
-    }
-    try {
-      toAddress = await resolveToAddress(toInput, toRegistry || null);
-    } catch (error) {
-      return res.status(404).json({ success: false, message: `Destination: ${error.message}` });
-    }
-
-    // ── Fee calculation (same logic as transfer) ────────────────────────────
-    const { feeNGN, feeWei } = await getFeeForAmount(amount);
-    const amountNum = parseFloat(amount);
-
-    let actualAmountWei;
-    let actualFeeWei;
-    let recipientReceives;
-
-    if (feeNGN === 0) {
-      actualAmountWei = ethers.parseUnits(amount.toString(), 6);
-      actualFeeWei = 0n;
-      recipientReceives = amountNum;
-    } else {
-      // For transferFrom, fee comes out of the amount (allowance covers amount+fee or amount only)
-      // We deduct fee from the transfer amount to keep it simple
-      recipientReceives = amountNum - feeNGN;
-      if (recipientReceives <= 0) {
-        return res.status(400).json({ message: "Amount too small to cover fee" });
-      }
-      actualAmountWei = ethers.parseUnits(recipientReceives.toString(), 6);
-      actualFeeWei = feeWei;
-    }
-
-    const fromUser = await User.findOne({ safeAddress: normalizeAddress(fromAddress) });
-    const toUser = await User.findOne({ safeAddress: normalizeAddress(toAddress) });
-    const fromInputWasAccountNumber = isAccountNumber(fromInput);
-    const senderDisplayIdentifier = fromInputWasAccountNumber ? fromInput : fromAddress;
-
-    await delayBeforeBlockchain(safeAddress, "TransferFrom queued");
-
-    const queueEntry = await new TransactionQueue({
-      walletAddress: safeAddress.toLowerCase(),
-      status: "PENDING",
-      type: "transferFrom",
-      payload: { fromInput, toInput, amount, fromAddress, toAddress, feeNGN },
-    }).save();
-
-    try {
-      queueEntry.status = "SENDING";
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-
-      const result = await sponsorSafeTransferFrom(
-        userPrivateKey,
-        safeAddress,
-        fromAddress,
-        toAddress,
-        actualAmountWei,
-        actualFeeWei,
-      );
-
-      if (!result || !result.taskId) {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = "Failed to submit";
-        await queueEntry.save();
-
-        await new Transaction({
-          fromAddress,
-          fromAccountNumber: fromInputWasAccountNumber ? fromInput : null,
-          fromUsername: fromUser?.username || null,
-          toAddress,
-          toAccountNumber: isAccountNumber(toInput) ? toInput : null,
-          toUsername: toUser?.username || null,
-          senderDisplayIdentifier,
-          executorAddress: safeAddress.toLowerCase(),
-          amount,
-          status: "failed",
-          taskId: null,
-          type: "transferFrom",
-          date: new Date(),
-        }).save();
-
-        return res.status(400).json({ success: false, message: "Transfer failed to submit" });
-      }
-
-      queueEntry.taskId = result.taskId;
-      await queueEntry.save();
-
-      const taskStatus = await checkGelatoTaskStatus(result.taskId);
-
-      queueEntry.status = taskStatus.success ? "CONFIRMED" : "FAILED";
-      queueEntry.errorMessage = taskStatus.success ? null : taskStatus.reason;
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-
-      await new Transaction({
-        fromAddress,
-        fromAccountNumber: fromInputWasAccountNumber ? fromInput : null,
-        fromUsername: fromUser?.username || null,
-        toAddress,
-        toAccountNumber: isAccountNumber(toInput) ? toInput : null,
-        toUsername: toUser?.username || null,
-        senderDisplayIdentifier,
-        executorAddress: safeAddress.toLowerCase(),
-        amount,
-        status: taskStatus.success ? "successful" : "failed",
-        type: "transferFrom",
-        taskId: result.taskId,
-        date: new Date(),
-      }).save();
-
-      if (!taskStatus.success) {
-        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted" });
-      }
-
-      await applyCooldown(safeAddress, 20);
-
-      if (fromUser?.email) {
-        try { await sendTransactionEmailToSender(fromUser.email, fromUser.username, toInput, amount, "successful"); } catch (e) { console.error("❌ From email:", e.message); }
-      }
-      if (toUser?.email) {
-        try { await sendTransactionEmailToReceiver(toUser.email, toUser.username, fromInput, amount); } catch (e) { console.error("❌ To email:", e.message); }
-      }
-
-      res.json({ success: true, taskId: result.taskId, feeNGN, recipientReceives });
-    } catch (error) {
-      queueEntry.status = "FAILED";
-      queueEntry.errorMessage = error.message;
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-      throw error;
-    }
-  } catch (error) {
-    console.error("❌ TransferFrom failed:", error.message);
-    return handleError(error, res, error.message || "Transfer failed");
   }
 });
 

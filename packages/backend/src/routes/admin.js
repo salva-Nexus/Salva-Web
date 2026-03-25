@@ -6,7 +6,6 @@ const { provider } = require("../services/walletSigner");
 const User = require("../models/User");
 const WalletRegistry = require("../models/WalletRegistry");
 const { sendValidatorProposalEmail } = require("../services/emailService");
-const { GelatoRelay } = require("@gelatonetwork/relay-sdk");
 const {
   sponsorProposeInitialization,
   sponsorProposeValidatorUpdate,
@@ -18,11 +17,7 @@ const {
   sponsorExecuteUpdateValidator,
 } = require("../services/relayService");
 
-const relay = new GelatoRelay();
-
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
-
-// RPC hard cap is 10,000 blocks per request — paginate to get full history
 const RPC_PAGE_SIZE = 9_000;
 
 const MULTISIG_ABI = [
@@ -40,7 +35,6 @@ function getMultisigReader() {
   return new ethers.Contract(MULTISIG_ADDRESS, MULTISIG_ABI, provider);
 }
 
-// ── Middleware: verify caller is a validator ───────────────────────────────
 async function requireValidator(req, res, next) {
   const { safeAddress } = req.body;
   if (!safeAddress)
@@ -52,7 +46,6 @@ async function requireValidator(req, res, next) {
   next();
 }
 
-// ── Helper: email all OTHER validators ────────────────────────────────────
 async function notifyValidators(excludeAddress, subject, payload) {
   const validators = await User.find({
     isValidator: true,
@@ -69,7 +62,6 @@ async function notifyValidators(excludeAddress, subject, payload) {
   }
 }
 
-// ── Helper: paginated queryFilter that respects the 10k block RPC cap ─────
 async function paginatedQueryFilter(contract, filter, deployBlock = 0) {
   const latestBlock = await provider.getBlockNumber();
   const allEvents = [];
@@ -80,29 +72,31 @@ async function paginatedQueryFilter(contract, filter, deployBlock = 0) {
       const events = await contract.queryFilter(filter, from, to);
       allEvents.push(...events);
     } catch (err) {
-      console.error(
-        `queryFilter page failed [${from}-${to}] for ${filter?.fragment?.name || "unknown"}:`,
-        err.message,
-      );
-      // skip bad page, keep going
+      console.error(`queryFilter page failed [${from}-${to}]:`, err.message);
     }
   }
 
   return allEvents;
 }
 
-// ── Helper: poll Gelato task until confirmed ──────────────────────────────
-async function waitForGelatoTask(taskId, maxRetries = 30, delayMs = 2000) {
-  console.log(`🔍 Polling Gelato task: ${taskId}`);
+// ── Poll Alchemy bundler for UserOp receipt ───────────────────────────────
+async function waitForAlchemyUserOp(
+  userOpHash,
+  maxRetries = 30,
+  delayMs = 2000,
+) {
+  console.log(`🔍 Polling Alchemy UserOp: ${userOpHash}`);
   for (let i = 0; i < maxRetries; i++) {
     try {
-      const status = await relay.getTaskStatus(taskId);
-      console.log(`📊 Task ${taskId} state: ${status.taskState}`);
-      if (status.taskState === "ExecSuccess") return { success: true };
-      if (
-        ["ExecReverted", "Cancelled", "Blacklisted"].includes(status.taskState)
-      ) {
-        return { success: false, reason: `Task ${status.taskState}` };
+      const receipt = await provider.send("eth_getUserOperationReceipt", [
+        userOpHash,
+      ]);
+      if (receipt) {
+        if (receipt.success === true) return { success: true };
+        return {
+          success: false,
+          reason: receipt.reason || "UserOperation reverted",
+        };
       }
       await new Promise((r) => setTimeout(r, delayMs));
     } catch (err) {
@@ -110,12 +104,10 @@ async function waitForGelatoTask(taskId, maxRetries = 30, delayMs = 2000) {
       await new Promise((r) => setTimeout(r, delayMs));
     }
   }
-  return { success: false, reason: "Timeout waiting for Gelato task" };
+  return { success: false, reason: "Timeout waiting for UserOp" };
 }
 
 // ── GET: all active proposals ─────────────────────────────────────────────
-// deployBlock should ideally be the block your multisig was deployed at.
-// Set MULTISIG_DEPLOY_BLOCK in your .env to avoid scanning from block 0.
 router.get("/proposals", async (req, res) => {
   try {
     const contract = getMultisigReader();
@@ -287,17 +279,14 @@ router.get("/proposals", async (req, res) => {
   }
 });
 
-// ── POST: propose registry initialization ─────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, nspace, registry, registryName } = req.body;
 
-    if (!nspace || !nspace.startsWith("@")) {
+    if (!nspace || !nspace.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
-    }
-    if (!ethers.isAddress(registry)) {
+    if (!ethers.isAddress(registry))
       return res.status(400).json({ message: "Invalid registry address" });
-    }
 
     const result = await sponsorProposeInitialization(
       req.callerUser.safeAddress,
@@ -305,14 +294,13 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       nspace,
       registry,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({
           message: taskStatus.reason || "proposeInitialization reverted",
         });
-    }
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -334,14 +322,12 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: propose validator update ─────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
 
-    if (!ethers.isAddress(targetAddress)) {
+    if (!ethers.isAddress(targetAddress))
       return res.status(400).json({ message: "Invalid target address" });
-    }
 
     const result = await sponsorProposeValidatorUpdate(
       req.callerUser.safeAddress,
@@ -349,14 +335,13 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       targetAddress,
       action,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({
           message: taskStatus.reason || "proposeValidatorUpdate reverted",
         });
-    }
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -377,26 +362,23 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: validate registry proposal ──────────────────────────────────────
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
 
-    if (!ethers.isAddress(registry)) {
+    if (!ethers.isAddress(registry))
       return res.status(400).json({ message: "Invalid registry address" });
-    }
 
     const result = await sponsorValidateRegistry(
       req.callerUser.safeAddress,
       privateKey,
       registry,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({ message: taskStatus.reason || "validateRegistry reverted" });
-    }
 
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
@@ -407,26 +389,23 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: validate validator proposal ─────────────────────────────────────
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
 
-    if (!ethers.isAddress(targetAddress)) {
+    if (!ethers.isAddress(targetAddress))
       return res.status(400).json({ message: "Invalid target address" });
-    }
 
     const result = await sponsorValidateValidator(
       req.callerUser.safeAddress,
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({ message: taskStatus.reason || "validateValidator reverted" });
-    }
 
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
@@ -437,26 +416,23 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: cancel registry proposal ────────────────────────────────────────
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
 
-    if (!ethers.isAddress(registry)) {
+    if (!ethers.isAddress(registry))
       return res.status(400).json({ message: "Invalid registry address" });
-    }
 
     const result = await sponsorCancelInit(
       req.callerUser.safeAddress,
       privateKey,
       registry,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({ message: taskStatus.reason || "cancelInit reverted" });
-    }
 
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
@@ -467,28 +443,25 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: cancel validator proposal ───────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
 
-    if (!ethers.isAddress(targetAddress)) {
+    if (!ethers.isAddress(targetAddress))
       return res.status(400).json({ message: "Invalid target address" });
-    }
 
     const result = await sponsorCancelValidatorUpdate(
       req.callerUser.safeAddress,
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({
           message: taskStatus.reason || "cancelValidatorUpdate reverted",
         });
-    }
 
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
@@ -501,26 +474,23 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: execute registry init ────────────────────────────────────────────
 router.post("/execute-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, registryName, nspace } = req.body;
 
-    if (!ethers.isAddress(registry)) {
+    if (!ethers.isAddress(registry))
       return res.status(400).json({ message: "Invalid registry address" });
-    }
 
     const result = await sponsorExecuteInit(
       req.callerUser.safeAddress,
       privateKey,
       registry,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({ message: taskStatus.reason || "executeInit reverted" });
-    }
 
     await WalletRegistry.findOneAndUpdate(
       { registryAddress: registry.toLowerCase() },
@@ -541,28 +511,25 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ── POST: execute validator update ─────────────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
 
-    if (!ethers.isAddress(targetAddress)) {
+    if (!ethers.isAddress(targetAddress))
       return res.status(400).json({ message: "Invalid target address" });
-    }
 
     const result = await sponsorExecuteUpdateValidator(
       req.callerUser.safeAddress,
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForGelatoTask(result.taskId);
-    if (!taskStatus.success) {
+    const taskStatus = await waitForAlchemyUserOp(result.taskId);
+    if (!taskStatus.success)
       return res
         .status(500)
         .json({
           message: taskStatus.reason || "executeUpdateValidator reverted",
         });
-    }
 
     await User.findOneAndUpdate(
       { safeAddress: targetAddress.toLowerCase() },
