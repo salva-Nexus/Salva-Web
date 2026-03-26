@@ -41,6 +41,7 @@ const User = require("./models/User");
 const AccountNumberCounter = require("./models/AccountNumberCounter");
 
 const WalletRegistry = require("./models/WalletRegistry");
+const Proposal = require("./models/Proposal");
 const FeeConfig = require("./models/FeeConfig");
 
 // ===============================================
@@ -460,19 +461,9 @@ async function getFeeForAmount(amountNGN) {
 // ===============================================
 app.get("/api/registries", async (req, res) => {
   try {
-    // Seed Salva's own registry on first call if DB is empty
-    const count = await WalletRegistry.countDocuments();
-    if (count === 0) {
-      await WalletRegistry.create({
-        name: "Salva Wallet",
-        registryAddress: process.env.REGISTRY_CONTRACT_ADDRESS,
-        description: "Official Salva on-chain payment registry",
-        active: true
-      });
-      console.log("✅ Salva registry seeded into WalletRegistry collection");
-    }
-
-    const registries = await WalletRegistry.find({ active: true }).select('name registryAddress description');
+    const registries = await WalletRegistry.find({ active: true }).select(
+      "name registryAddress description nspace",
+    );
     res.json(registries);
   } catch (error) {
     console.error("❌ Failed to fetch registries:", error);
@@ -834,6 +825,7 @@ app.post("/api/alias/link-name", async (req, res) => {
       return res.status(400).json({ message: "Invalid wallet address" });
     }
 
+    // Match phishingProof: lowercase a-z, digits 2-9, dots/dashes/underscores, max 16
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
       return res.status(400).json({
         message:
@@ -884,14 +876,14 @@ app.post("/api/alias/link-name", async (req, res) => {
     }
 
     if (!receipt || receipt.status === 0) {
-      return res.status(500).json({
-        message: "On-chain name registration failed (receipt status 0).",
-      });
+      return res
+        .status(500)
+        .json({
+          message: "On-chain name registration failed (receipt status 0).",
+        });
     }
 
-    console.log(
-      `✅ linkName confirmed on-chain: '${name}' → ${user.safeAddress}`,
-    );
+    console.log(`✅ linkName confirmed: '${name}' → ${user.safeAddress}`);
 
     user.nameAlias = name;
     await user.save();
@@ -909,7 +901,7 @@ app.post("/api/alias/link-name", async (req, res) => {
 app.post("/api/alias/check-name", async (req, res) => {
   try {
     const { name } = req.body;
-    // Enforce phishingProof rules: lowercase, digits 2-9, dots/dashes/underscores, max 16
+    // Match phishingProof: lowercase a-z, digits 2-9, '.', '-', '_', max 16 bytes
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
       return res.status(400).json({ message: "Invalid name format" });
     }
@@ -1019,24 +1011,23 @@ app.get("/api/balance/:address", async (req, res) => {
 app.post("/api/resolve-recipient", async (req, res) => {
   try {
     const { input, registryAddress } = req.body;
- 
+
     if (!input) {
       return res.status(400).json({ message: "Input required" });
     }
- 
-    // Raw 0x addresses don't need resolution — frontend should handle them directly
+
     if (input.trim().startsWith("0x")) {
       return res
         .status(400)
-        .json({ message: "Address inputs don't need resolution" });
+        .json({ message: "Address inputs do not need resolution" });
     }
- 
+
     if (!registryAddress) {
       return res
         .status(400)
         .json({ message: "Registry address required for name/number inputs" });
     }
- 
+
     let resolvedAddress;
     try {
       resolvedAddress = await resolveToAddress(input.trim(), registryAddress);
@@ -1045,16 +1036,15 @@ app.post("/api/resolve-recipient", async (req, res) => {
         .status(404)
         .json({ message: err.message || "Recipient not found" });
     }
- 
+
     if (!resolvedAddress) {
       return res.status(404).json({ message: "Recipient not found" });
     }
- 
-    // Try to find the user in DB for display name
+
     const recipientUser = await User.findOne({
       safeAddress: resolvedAddress.toLowerCase(),
     });
- 
+
     res.json({
       resolvedAddress,
       displayName: recipientUser?.username || null,

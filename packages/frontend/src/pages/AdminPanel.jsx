@@ -3,7 +3,7 @@ import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect, useCallback, Component } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ── Error Boundary ─────────────────────────────────────────────────────────
+// ── Error Boundary ──────────────────────────────────────────────────────────
 class AdminErrorBoundary extends Component {
   constructor(props) {
     super(props);
@@ -41,7 +41,7 @@ class AdminErrorBoundary extends Component {
   }
 }
 
-// ── Timelock countdown ─────────────────────────────────────────────────────
+// ── Timelock countdown ──────────────────────────────────────────────────────
 const TimelockCountdown = ({ timeLockTimestamp }) => {
   const [remaining, setRemaining] = useState("");
 
@@ -77,12 +77,12 @@ const TimelockCountdown = ({ timeLockTimestamp }) => {
   );
 };
 
-const isTimelockReady = (timeLockTimestamp) => {
-  if (!timeLockTimestamp) return false;
-  return Math.floor(Date.now() / 1000) >= timeLockTimestamp;
+const isTimelockReady = (ts) => {
+  if (!ts) return false;
+  return Math.floor(Date.now() / 1000) >= ts;
 };
 
-// ── Inner panel ────────────────────────────────────────────────────────────
+// ── Inner panel ─────────────────────────────────────────────────────────────
 const AdminPanelInner = ({ user, showMsg }) => {
   const [proposals, setProposals] = useState({
     registryProposals: [],
@@ -105,24 +105,44 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const [adminPin, setAdminPin] = useState("");
   const [pendingAdminAction, setPendingAdminAction] = useState(null);
 
-  // Per-validator vote tracking stored in localStorage
+  // ── Vote tracking keyed by MongoDB _id ──────────────────────────────────
+  // This ensures a vote on proposal A never bleeds into a new proposal B
+  // even if they share the same registry address.
+  const VOTE_KEY = `salva_votes_v2_${user.safeAddress}`;
   const [myVotes, setMyVotes] = useState(() => {
     try {
-      return JSON.parse(
-        localStorage.getItem(`salva_votes_${user.safeAddress}`) || "{}",
-      );
+      return JSON.parse(localStorage.getItem(VOTE_KEY) || "{}");
     } catch {
       return {};
     }
   });
 
-  const persistVote = (key) => {
-    const updated = { ...myVotes, [key]: true };
+  const persistVote = (proposalId) => {
+    const updated = { ...myVotes, [proposalId]: true };
     setMyVotes(updated);
-    localStorage.setItem(
-      `salva_votes_${user.safeAddress}`,
-      JSON.stringify(updated),
-    );
+    localStorage.setItem(VOTE_KEY, JSON.stringify(updated));
+  };
+
+  // ── Update a single proposal in local state (after validate returns) ────
+  const updateProposalInState = (updatedProposal) => {
+    if (!updatedProposal) return;
+    setProposals((prev) => {
+      if (updatedProposal.type === "registry") {
+        return {
+          ...prev,
+          registryProposals: prev.registryProposals.map((p) =>
+            p._id === updatedProposal._id ? updatedProposal : p,
+          ),
+        };
+      } else {
+        return {
+          ...prev,
+          validatorProposals: prev.validatorProposals.map((p) =>
+            p._id === updatedProposal._id ? updatedProposal : p,
+          ),
+        };
+      }
+    });
   };
 
   const fetchProposals = useCallback(async () => {
@@ -156,7 +176,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     return () => clearInterval(interval);
   }, [fetchProposals]);
 
-  // ── PIN gate ───────────────────────────────────────────────────────────
+  // ── PIN gate ────────────────────────────────────────────────────────────
   const requestPin = (actionFn) => {
     setPendingAdminAction(() => actionFn);
     setAdminPin("");
@@ -188,7 +208,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     }
   };
 
-  // ── Propose registry ───────────────────────────────────────────────────
+  // ── Propose registry ────────────────────────────────────────────────────
   const handleProposeRegistry = () => {
     if (!regForm.name || !regForm.nspace.startsWith("@") || !regForm.address) {
       return showMsg("Fill all fields. Namespace must start with @", "error");
@@ -215,7 +235,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  // ── Propose validator ──────────────────────────────────────────────────
+  // ── Propose validator ───────────────────────────────────────────────────
   const handleProposeValidator = () => {
     if (!valForm.address) return showMsg("Enter target address", "error");
     requestPin(async (privateKey) => {
@@ -239,57 +259,62 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  // ── Validate registry ──────────────────────────────────────────────────
-  const handleValidateRegistry = (registry) => {
+  // ── Validate registry ───────────────────────────────────────────────────
+  const handleValidateRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-registry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           privateKey,
-          registry,
+          registry: proposal.registry,
           safeAddress: user.safeAddress,
         }),
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.message || "Failed to validate registry");
-      persistVote(`reg_${registry}`);
+      // Mark this specific proposal as voted using its DB _id
+      persistVote(proposal._id);
       showMsg("Validation cast!");
-      await fetchProposals();
+      // Update this proposal in local state immediately with server data
+      if (data.proposal) updateProposalInState(data.proposal);
+      else await fetchProposals();
     });
   };
 
-  // ── Validate validator ─────────────────────────────────────────────────
-  const handleValidateValidator = (targetAddress) => {
+  // ── Validate validator ──────────────────────────────────────────────────
+  const handleValidateValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-validator`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           privateKey,
-          targetAddress,
+          targetAddress: proposal.addr,
           safeAddress: user.safeAddress,
         }),
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.message || "Failed to validate validator");
-      persistVote(`val_${targetAddress}`);
+      // Mark this specific proposal as voted using its DB _id
+      persistVote(proposal._id);
       showMsg("Validation cast!");
-      await fetchProposals();
+      if (data.proposal) updateProposalInState(data.proposal);
+      else await fetchProposals();
     });
   };
 
-  // ── Cancel registry ────────────────────────────────────────────────────
-  const handleCancelRegistry = (registry) => {
+  // ── Cancel registry ─────────────────────────────────────────────────────
+  const handleCancelRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-registry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           privateKey,
-          registry,
+          registry: proposal.registry,
           safeAddress: user.safeAddress,
         }),
       });
@@ -300,15 +325,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  // ── Cancel validator ───────────────────────────────────────────────────
-  const handleCancelValidator = (targetAddress) => {
+  // ── Cancel validator ────────────────────────────────────────────────────
+  const handleCancelValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-validator`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           privateKey,
-          targetAddress,
+          targetAddress: proposal.addr,
           safeAddress: user.safeAddress,
         }),
       });
@@ -319,7 +344,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  // ── Execute registry ───────────────────────────────────────────────────
+  // ── Execute registry ────────────────────────────────────────────────────
   const handleExecuteRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/execute-registry`, {
@@ -336,12 +361,12 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.message || "Failed to execute registry");
-      showMsg("Registry initialized and added to Salva!");
+      showMsg("Registry initialized and live on Salva!");
       await fetchProposals();
     });
   };
 
-  // ── Execute validator ──────────────────────────────────────────────────
+  // ── Execute validator ───────────────────────────────────────────────────
   const handleExecuteValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/execute-validator`, {
@@ -410,7 +435,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
         </div>
       )}
 
-      {/* ── Fetch Error Banner ── */}
+      {/* ── Fetch Error ── */}
       {fetchError && (
         <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
           <p className="text-xs text-red-400 font-bold">⚠️ {fetchError}</p>
@@ -532,21 +557,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setValForm({ ...valForm, action: true })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
-                        valForm.action
-                          ? "bg-green-500 text-white"
-                          : "border border-white/10 opacity-40 hover:opacity-70"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
                     >
                       Add Validator
                     </button>
                     <button
                       onClick={() => setValForm({ ...valForm, action: false })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
-                        !valForm.action
-                          ? "bg-red-500 text-white"
-                          : "border border-white/10 opacity-40 hover:opacity-70"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
                     >
                       Remove Validator
                     </button>
@@ -593,37 +610,31 @@ const AdminPanelInner = ({ user, showMsg }) => {
           <div className="space-y-4">
             {proposals.registryProposals.map((p, i) => {
               if (!p || !p.registry) return null;
-              const hasVoted = myVotes[`reg_${p.registry}`];
+              // Vote tracked by MongoDB _id — new proposal = new _id = fresh vote state
+              const hasVoted = myVotes[p._id];
               const timelockReady = isTimelockReady(p.timeLockTimestamp);
-              // Execute is unlocked ONLY when: quorum reached (isValidated) AND timelock expired
               const canExecute = p.isValidated && timelockReady;
 
               return (
                 <motion.div
-                  key={p.registry || i}
+                  key={p._id || i}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.08 }}
                   className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4"
                 >
-                  {/* Header row */}
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                     <div className="space-y-1">
-                      {/* Registry name — large and prominent */}
                       <p className="font-black text-lg text-white">
                         {p.registryName || p.nspace}
                       </p>
-                      {/* Namespace tag */}
                       <p className="text-salvaGold font-black text-sm">
                         {p.nspace}
                       </p>
-                      {/* Contract address */}
-                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs">
+                      <p className="font-mono text-[10px] opacity-40 break-all">
                         {p.registry}
                       </p>
                     </div>
-
-                    {/* Status badges */}
                     <div className="flex flex-col items-start sm:items-end gap-2">
                       {p.remainingValidation !== null &&
                         p.remainingValidation !== undefined && (
@@ -639,7 +650,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
                               : `${p.remainingValidation} VOTE${p.remainingValidation !== 1 ? "S" : ""} REMAINING`}
                           </span>
                         )}
-                      {/* Timelock countdown — only shows after quorum */}
                       {p.isValidated && p.timeLockTimestamp && (
                         <TimelockCountdown
                           timeLockTimestamp={p.timeLockTimestamp}
@@ -648,39 +658,46 @@ const AdminPanelInner = ({ user, showMsg }) => {
                     </div>
                   </div>
 
-                  {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
-                    {/* Validate — locked if already voted OR quorum reached */}
-                    {!p.isValidated ? (
-                      hasVoted ? (
+                    {/* Validate — hidden once quorum reached */}
+                    {!p.isValidated &&
+                      (hasVoted ? (
                         <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
                           ✓ Voted
                         </span>
                       ) : (
                         <button
-                          onClick={() => handleValidateRegistry(p.registry)}
+                          onClick={() => handleValidateRegistry(p)}
                           disabled={loading}
                           className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold hover:text-black transition-all disabled:opacity-40"
                         >
                           Validate
                         </button>
-                      )
-                    ) : null}
+                      ))}
 
-                    {/* Execute — only visible after quorum, locked until timelock expires */}
+                    {/* Execute — always visible after quorum, locked until timelock expires */}
                     {p.isValidated && (
                       <button
-                        onClick={() => handleExecuteRegistry(p)}
+                        onClick={() => canExecute && handleExecuteRegistry(p)}
                         disabled={loading || !canExecute}
-                        className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={
+                          !canExecute
+                            ? "Waiting for 48-hour timelock to expire"
+                            : ""
+                        }
+                        className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all ${
+                          canExecute
+                            ? "bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white"
+                            : "bg-white/5 border border-white/10 text-white/20 cursor-not-allowed"
+                        } disabled:opacity-40`}
                       >
-                        {canExecute ? "Execute" : "Locked"}
+                        {canExecute ? "Execute" : "⏳ Locked"}
                       </button>
                     )}
 
-                    {/* Cancel — always available to any validator */}
+                    {/* Cancel — always available */}
                     <button
-                      onClick={() => handleCancelRegistry(p.registry)}
+                      onClick={() => handleCancelRegistry(p)}
                       disabled={loading}
                       className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-40"
                     >
@@ -713,13 +730,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
           <div className="space-y-4">
             {proposals.validatorProposals.map((p, i) => {
               if (!p || !p.addr) return null;
-              const hasVoted = myVotes[`val_${p.addr}`];
+              const hasVoted = myVotes[p._id];
               const timelockReady = isTimelockReady(p.timeLockTimestamp);
               const canExecute = p.isValidated && timelockReady;
 
               return (
                 <motion.div
-                  key={p.addr || i}
+                  key={p._id || i}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: i * 0.08 }}
@@ -736,11 +753,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
                       >
                         {p.action ? "ADD VALIDATOR" : "REMOVE VALIDATOR"}
                       </span>
-                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs mt-1">
+                      <p className="font-mono text-[10px] opacity-40 break-all mt-1">
                         {p.addr}
                       </p>
                     </div>
-
                     <div className="flex flex-col items-start sm:items-end gap-2">
                       {p.remainingValidation !== null &&
                         p.remainingValidation !== undefined && (
@@ -765,34 +781,42 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   </div>
 
                   <div className="flex flex-wrap gap-2">
-                    {!p.isValidated ? (
-                      hasVoted ? (
+                    {!p.isValidated &&
+                      (hasVoted ? (
                         <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
                           ✓ Voted
                         </span>
                       ) : (
                         <button
-                          onClick={() => handleValidateValidator(p.addr)}
+                          onClick={() => handleValidateValidator(p)}
                           disabled={loading}
                           className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold hover:text-black transition-all disabled:opacity-40"
                         >
                           Validate
                         </button>
-                      )
-                    ) : null}
+                      ))}
 
                     {p.isValidated && (
                       <button
-                        onClick={() => handleExecuteValidator(p)}
+                        onClick={() => canExecute && handleExecuteValidator(p)}
                         disabled={loading || !canExecute}
-                        className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+                        title={
+                          !canExecute
+                            ? "Waiting for 48-hour timelock to expire"
+                            : ""
+                        }
+                        className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all ${
+                          canExecute
+                            ? "bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white"
+                            : "bg-white/5 border border-white/10 text-white/20 cursor-not-allowed"
+                        } disabled:opacity-40`}
                       >
-                        {canExecute ? "Execute" : "Locked"}
+                        {canExecute ? "Execute" : "⏳ Locked"}
                       </button>
                     )}
 
                     <button
-                      onClick={() => handleCancelValidator(p.addr)}
+                      onClick={() => handleCancelValidator(p)}
                       disabled={loading}
                       className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-40"
                     >

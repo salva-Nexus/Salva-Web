@@ -5,6 +5,7 @@ const { ethers } = require("ethers");
 const { provider } = require("../services/walletSigner");
 const User = require("../models/User");
 const WalletRegistry = require("../models/WalletRegistry");
+const Proposal = require("../models/Proposal");
 const { sendValidatorProposalEmail } = require("../services/emailService");
 const {
   sponsorProposeInitialization,
@@ -17,7 +18,7 @@ const {
   sponsorExecuteUpdateValidator,
 } = require("../services/relayService");
 
-// ─── Multisig read ABI (view functions only) ──────────────────────────────────
+// ─── Multisig read ABI ─────────────────────────────────────────────────────────
 const MULTISIG_READ_ABI = [
   "function _registry(address) view returns (address registryAddress, bytes16 nspace, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
   "function _updateValidator(address) view returns (address addr, bool action, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
@@ -25,25 +26,6 @@ const MULTISIG_READ_ABI = [
   "function _validatorValidationCountRemains(address) view returns (uint256)",
 ];
 
-const MULTISIG_IFACE = new ethers.Interface([
-  "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
-  "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
-  "function validateRegistry(address) external returns (address,bytes16,uint32)",
-  "function validateValidator(address) external returns (address,bool,uint32)",
-  "function cancelInit(address) external returns (bool)",
-  "function cancelValidatorUpdate(address) external returns (bool)",
-  "function executeInit(address) external returns (bool)",
-  "function executeUpdateValidator(address) external returns (bool)",
-]);
-
-// In-memory proposals cache — shared across all validators in the same server process.
-// Registry restarts wipe it; validators will just see empty lists and can re-propose.
-let proposalsCache = {
-  registryProposals: [],
-  validatorProposals: [],
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function getMultisig() {
   return new ethers.Contract(
     process.env.MULTISIG_CONTRACT_ADDRESS,
@@ -52,7 +34,7 @@ function getMultisig() {
   );
 }
 
-// ─── Middleware ───────────────────────────────────────────────────────────────
+// ─── Middleware ────────────────────────────────────────────────────────────────
 async function requireValidator(req, res, next) {
   const { safeAddress } = req.body;
   if (!safeAddress)
@@ -64,12 +46,9 @@ async function requireValidator(req, res, next) {
   next();
 }
 
-// ─── Notify all other validators by email ────────────────────────────────────
-async function notifyValidators(excludeAddress, subject, payload) {
-  const validators = await User.find({
-    isValidator: true,
-    safeAddress: { $ne: excludeAddress.toLowerCase() },
-  });
+// ─── Email ALL validators (proposer included) ──────────────────────────────────
+async function notifyAllValidators(subject, payload) {
+  const validators = await User.find({ isValidator: true });
   for (const v of validators) {
     if (v.email) {
       try {
@@ -81,7 +60,7 @@ async function notifyValidators(excludeAddress, subject, payload) {
   }
 }
 
-// ─── Wait for a regular tx receipt ───────────────────────────────────────────
+// ─── Wait for tx receipt ───────────────────────────────────────────────────────
 async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   console.log(`🔍 Waiting for tx: ${txHash}`);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -105,46 +84,57 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   return { success: false, reason: "Timeout waiting for transaction" };
 }
 
-// ─── Cache helpers ────────────────────────────────────────────────────────────
-function upsertRegProposal(patch) {
-  const idx = proposalsCache.registryProposals.findIndex(
-    (p) => p.registry === patch.registry,
-  );
-  if (idx === -1) proposalsCache.registryProposals.push(patch);
-  else
-    proposalsCache.registryProposals[idx] = {
-      ...proposalsCache.registryProposals[idx],
-      ...patch,
+// ─── Read registry on-chain state ─────────────────────────────────────────────
+async function readRegistryOnChain(registryAddress) {
+  try {
+    const multisig = getMultisig();
+    const remaining =
+      await multisig._registryValidationCountRemains(registryAddress);
+    const reg = await multisig._registry(registryAddress);
+    return {
+      remainingValidation: Number(remaining),
+      isValidated: reg.isValidated,
+      timeLockTimestamp: reg.isValidated ? Number(reg.timeLock) : null,
     };
+  } catch (e) {
+    console.error("Could not read registry on-chain state:", e.message);
+    return null;
+  }
 }
 
-function upsertValProposal(patch) {
-  const idx = proposalsCache.validatorProposals.findIndex(
-    (p) => p.addr === patch.addr,
-  );
-  if (idx === -1) proposalsCache.validatorProposals.push(patch);
-  else
-    proposalsCache.validatorProposals[idx] = {
-      ...proposalsCache.validatorProposals[idx],
-      ...patch,
+// ─── Read validator on-chain state ────────────────────────────────────────────
+async function readValidatorOnChain(targetAddress) {
+  try {
+    const multisig = getMultisig();
+    const remaining =
+      await multisig._validatorValidationCountRemains(targetAddress);
+    const update = await multisig._updateValidator(targetAddress);
+    return {
+      remainingValidation: Number(remaining),
+      action: update.action,
+      isValidated: update.isValidated,
+      timeLockTimestamp: update.isValidated ? Number(update.timeLock) : null,
     };
+  } catch (e) {
+    console.error("Could not read validator on-chain state:", e.message);
+    return null;
+  }
 }
 
-const removeRegProposal = (reg) => {
-  proposalsCache.registryProposals = proposalsCache.registryProposals.filter(
-    (p) => p.registry !== reg.toLowerCase(),
-  );
-};
-const removeValProposal = (addr) => {
-  proposalsCache.validatorProposals = proposalsCache.validatorProposals.filter(
-    (p) => p.addr !== addr.toLowerCase(),
-  );
-};
+// ─── GET /proposals — serve from DB ───────────────────────────────────────────
+router.get("/proposals", async (req, res) => {
+  try {
+    const all = await Proposal.find().sort({ createdAt: -1 }).lean();
+    const registryProposals = all.filter((p) => p.type === "registry");
+    const validatorProposals = all.filter((p) => p.type === "validator");
+    res.json({ registryProposals, validatorProposals });
+  } catch (e) {
+    console.error("❌ Fetch proposals error:", e);
+    res.status(500).json({ message: "Failed to fetch proposals" });
+  }
+});
 
-// ─── Routes ───────────────────────────────────────────────────────────────────
-router.get("/proposals", (req, res) => res.json(proposalsCache));
-
-// ─── PROPOSE REGISTRY ─────────────────────────────────────────────────────────
+// ─── PROPOSE REGISTRY ──────────────────────────────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, nspace, registry, registryName } = req.body;
@@ -153,6 +143,15 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       return res.status(400).json({ message: "Namespace must start with '@'" });
     if (!ethers.isAddress(registry))
       return res.status(400).json({ message: "Invalid registry address" });
+
+    const existing = await Proposal.findOne({
+      type: "registry",
+      registry: registry.toLowerCase(),
+    });
+    if (existing)
+      return res
+        .status(409)
+        .json({ message: "A proposal for this registry already exists" });
 
     const result = await sponsorProposeInitialization(
       req.callerUser.safeAddress,
@@ -165,55 +164,50 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read on-chain remaining count using the dedicated view helper
-    let remainingValidation = null;
-    try {
-      const multisig = getMultisig();
-      const remaining = await multisig._registryValidationCountRemains(
-        registry.toLowerCase(),
-      );
-      remainingValidation = Number(remaining);
-    } catch (e) {
-      console.error("Could not read registry remaining count:", e.message);
-    }
+    const onChain = await readRegistryOnChain(registry);
 
-    const registryKey = registry.toLowerCase();
-    upsertRegProposal({
+    const proposal = await Proposal.create({
       type: "registry",
-      registry: registryKey,
+      registry: registry.toLowerCase(),
       nspace,
       registryName: registryName || nspace,
-      remainingValidation,
+      remainingValidation: onChain?.remainingValidation ?? null,
       isValidated: false,
       timeLockTimestamp: null,
     });
 
-    // Email all other validators
-    await notifyValidators(
-      req.callerUser.safeAddress,
-      "New Registry Proposal",
-      {
-        type: "registry",
-        registryName: registryName || nspace,
-        nspace,
-        registry,
-      },
-    );
+    console.log(`✅ Registry proposal saved to DB: ${proposal._id}`);
 
-    res.json({ success: true, taskId: result.taskId });
+    await notifyAllValidators("New Registry Proposal", {
+      type: "registry",
+      registryName: registryName || nspace,
+      nspace,
+      registry,
+    });
+
+    res.json({ success: true, taskId: result.taskId, proposal });
   } catch (error) {
     console.error("❌ Propose registry error:", error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ─── PROPOSE VALIDATOR ────────────────────────────────────────────────────────
+// ─── PROPOSE VALIDATOR ─────────────────────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
 
     if (!ethers.isAddress(targetAddress))
       return res.status(400).json({ message: "Invalid target address" });
+
+    const existing = await Proposal.findOne({
+      type: "validator",
+      addr: targetAddress.toLowerCase(),
+    });
+    if (existing)
+      return res
+        .status(409)
+        .json({ message: "A proposal for this address already exists" });
 
     const result = await sponsorProposeValidatorUpdate(
       req.callerUser.safeAddress,
@@ -226,43 +220,33 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    let remainingValidation = null;
-    let resolvedAction = action;
-    try {
-      const multisig = getMultisig();
-      const remaining =
-        await multisig._validatorValidationCountRemains(targetAddress);
-      remainingValidation = Number(remaining);
-      // Also read action from on-chain to be safe
-      const update = await multisig._updateValidator(targetAddress);
-      resolvedAction = update.action;
-    } catch (e) {
-      console.error("Could not read validator remaining count:", e.message);
-    }
+    const onChain = await readValidatorOnChain(targetAddress);
 
-    upsertValProposal({
+    const proposal = await Proposal.create({
       type: "validator",
       addr: targetAddress.toLowerCase(),
-      action: resolvedAction,
-      remainingValidation,
+      action: onChain?.action ?? action,
+      remainingValidation: onChain?.remainingValidation ?? null,
       isValidated: false,
       timeLockTimestamp: null,
     });
 
-    await notifyValidators(req.callerUser.safeAddress, "New Validator Update", {
+    console.log(`✅ Validator proposal saved to DB: ${proposal._id}`);
+
+    await notifyAllValidators("New Validator Update Proposal", {
       type: "validator",
       targetAddress,
       action,
     });
 
-    res.json({ success: true, taskId: result.taskId });
+    res.json({ success: true, taskId: result.taskId, proposal });
   } catch (error) {
     console.error("❌ Propose validator error:", error);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ─── VALIDATE REGISTRY ────────────────────────────────────────────────────────
+// ─── VALIDATE REGISTRY ─────────────────────────────────────────────────────────
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
@@ -277,30 +261,27 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read updated remaining count + timelock state from chain
-    try {
-      const multisig = getMultisig();
+    const onChain = await readRegistryOnChain(registry);
 
-      const remaining =
-        await multisig._registryValidationCountRemains(registry);
-      const remainingValidation = Number(remaining);
-
-      // Read full struct for isValidated + timeLock
-      const reg = await multisig._registry(registry);
-      const isValidated = reg.isValidated;
-      const timeLockTimestamp = isValidated ? Number(reg.timeLock) : null;
-
-      upsertRegProposal({
-        registry: registry.toLowerCase(),
-        remainingValidation,
-        isValidated,
-        timeLockTimestamp,
-      });
-    } catch (e) {
-      console.error(
-        "Could not read registry state after validation:",
-        e.message,
+    if (onChain) {
+      const updated = await Proposal.findOneAndUpdate(
+        { type: "registry", registry: registry.toLowerCase() },
+        {
+          remainingValidation: onChain.remainingValidation,
+          isValidated: onChain.isValidated,
+          timeLockTimestamp: onChain.timeLockTimestamp,
+          updatedAt: new Date(),
+        },
+        { new: true },
       );
+      console.log(
+        `✅ Registry proposal updated in DB: remaining=${onChain.remainingValidation}, validated=${onChain.isValidated}`,
+      );
+      return res.json({
+        success: true,
+        taskId: result.taskId,
+        proposal: updated,
+      });
     }
 
     res.json({ success: true, taskId: result.taskId });
@@ -310,7 +291,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ─── VALIDATE VALIDATOR ───────────────────────────────────────────────────────
+// ─── VALIDATE VALIDATOR ────────────────────────────────────────────────────────
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
@@ -325,28 +306,27 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    try {
-      const multisig = getMultisig();
+    const onChain = await readValidatorOnChain(targetAddress);
 
-      const remaining =
-        await multisig._validatorValidationCountRemains(targetAddress);
-      const remainingValidation = Number(remaining);
-
-      const update = await multisig._updateValidator(targetAddress);
-      const isValidated = update.isValidated;
-      const timeLockTimestamp = isValidated ? Number(update.timeLock) : null;
-
-      upsertValProposal({
-        addr: targetAddress.toLowerCase(),
-        remainingValidation,
-        isValidated,
-        timeLockTimestamp,
-      });
-    } catch (e) {
-      console.error(
-        "Could not read validator state after validation:",
-        e.message,
+    if (onChain) {
+      const updated = await Proposal.findOneAndUpdate(
+        { type: "validator", addr: targetAddress.toLowerCase() },
+        {
+          remainingValidation: onChain.remainingValidation,
+          isValidated: onChain.isValidated,
+          timeLockTimestamp: onChain.timeLockTimestamp,
+          updatedAt: new Date(),
+        },
+        { new: true },
       );
+      console.log(
+        `✅ Validator proposal updated in DB: remaining=${onChain.remainingValidation}, validated=${onChain.isValidated}`,
+      );
+      return res.json({
+        success: true,
+        taskId: result.taskId,
+        proposal: updated,
+      });
     }
 
     res.json({ success: true, taskId: result.taskId });
@@ -356,20 +336,26 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ─── CANCEL REGISTRY ──────────────────────────────────────────────────────────
+// ─── CANCEL REGISTRY ───────────────────────────────────────────────────────────
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
+
     const result = await sponsorCancelInit(
       req.callerUser.safeAddress,
       privateKey,
       registry,
     );
     const txStatus = await waitForTx(result.taskId);
+
     if (txStatus.success) {
-      removeRegProposal(registry);
-      console.log(`✅ Registry proposal cancelled: ${registry}`);
+      await Proposal.deleteOne({
+        type: "registry",
+        registry: registry.toLowerCase(),
+      });
+      console.log(`✅ Registry proposal deleted from DB: ${registry}`);
     }
+
     res.json({ success: txStatus.success, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel registry error:", error);
@@ -377,20 +363,26 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ─── CANCEL VALIDATOR ─────────────────────────────────────────────────────────
+// ─── CANCEL VALIDATOR ──────────────────────────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
+
     const result = await sponsorCancelValidatorUpdate(
       req.callerUser.safeAddress,
       privateKey,
       targetAddress,
     );
     const txStatus = await waitForTx(result.taskId);
+
     if (txStatus.success) {
-      removeValProposal(targetAddress);
-      console.log(`✅ Validator proposal cancelled: ${targetAddress}`);
+      await Proposal.deleteOne({
+        type: "validator",
+        addr: targetAddress.toLowerCase(),
+      });
+      console.log(`✅ Validator proposal deleted from DB: ${targetAddress}`);
     }
+
     res.json({ success: txStatus.success, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel validator error:", error);
@@ -398,7 +390,7 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ─── EXECUTE REGISTRY ─────────────────────────────────────────────────────────
+// ─── EXECUTE REGISTRY ──────────────────────────────────────────────────────────
 router.post("/execute-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, registryName, nspace } = req.body;
@@ -411,9 +403,14 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
-      removeRegProposal(registry);
+      await Proposal.deleteOne({
+        type: "registry",
+        registry: registry.toLowerCase(),
+      });
+      console.log(
+        `✅ Registry proposal executed and deleted from DB: ${registry}`,
+      );
 
-      // Add to WalletRegistry so transfer dropdowns show it
       await WalletRegistry.findOneAndUpdate(
         { registryAddress: registry.toLowerCase() },
         {
@@ -437,7 +434,7 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ─── EXECUTE VALIDATOR UPDATE ─────────────────────────────────────────────────
+// ─── EXECUTE VALIDATOR UPDATE ──────────────────────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
@@ -450,9 +447,14 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
-      removeValProposal(targetAddress);
+      await Proposal.deleteOne({
+        type: "validator",
+        addr: targetAddress.toLowerCase(),
+      });
+      console.log(
+        `✅ Validator proposal executed and deleted from DB: ${targetAddress}`,
+      );
 
-      // Update isValidator flag in DB for the target user
       const updated = await User.findOneAndUpdate(
         { safeAddress: targetAddress.toLowerCase() },
         { isValidator: action },
