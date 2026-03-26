@@ -3,6 +3,9 @@ const { ethers } = require("ethers");
 const Safe = require("@safe-global/protocol-kit").default;
 const { wallet, provider } = require("./walletSigner");
 
+// The official Safe 4337 Module address for Base Sepolia
+const SAFE_4337_MODULE_ADDRESS = "0xa581c4A4DB7175302464fF3C06380BC3270b4037";
+
 async function generateAndDeploySalvaIdentity(providerUrl) {
   console.log("🏗️  Starting Safe Wallet Generation & Deployment (v1.4.1)...");
 
@@ -11,12 +14,12 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
   console.log("✅ Owner Address Generated:", owner.address);
 
   // 2. Define the BLUEPRINT (Predicted Safe)
-  // CRITICAL: Version must be 1.4.1 for ERC-4337 compatibility
   const predictedSafe = {
     safeAccountConfig: {
       owners: [owner.address],
       threshold: 1,
-      modules: [SAFE_4337_MODULE_ADDRESS]
+      // Enable the module during deployment so Relay Kit can work immediately
+      modules: [SAFE_4337_MODULE_ADDRESS],
     },
     safeDeploymentConfig: {
       safeVersion: "1.4.1",
@@ -24,7 +27,6 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
   };
 
   // 3. Initialize Protocol Kit
-  // Using the same signer (your backend manager wallet) to pay for deployment
   const protocolKit = await Safe.init({
     provider: providerUrl,
     signer: wallet.privateKey,
@@ -35,13 +37,11 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
   console.log("📍 Safe Address (pre-deployment):", safeAddress);
 
   // 4. DEPLOY THE SAFE ON-CHAIN
-  console.log("🚀 Deploying Safe v1.4.1 on-chain (backend pays gas)...");
+  console.log("🚀 Deploying Safe v1.4.1 (4337 enabled) on-chain...");
 
-  // Get the deployment transaction data
   const deploymentTransaction =
     await protocolKit.createSafeDeploymentTransaction();
 
-  // Send the transaction using your backend manager wallet
   const txResponse = await wallet.sendTransaction({
     to: deploymentTransaction.to,
     data: deploymentTransaction.data,
