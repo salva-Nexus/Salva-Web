@@ -12,4 +12,4 @@ const FeeConfigSchema = new mongoose.Schema({
   tier2Fee: { type: Number, default: 20 },      // 20 NGNs flat fee
 });
 
-module.exports = mongoose.model('FeeConfig', FeeConfigSchema);
+module.exports = mAongoose.model('FeeConfig', FeeConfigSchema);

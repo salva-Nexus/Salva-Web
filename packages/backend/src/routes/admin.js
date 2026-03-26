@@ -19,54 +19,23 @@ const {
 
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 
-// ── Alchemy free tier: max 2000 blocks per eth_getLogs, stay under with 1800 ──
-const RPC_PAGE_SIZE = 1800;
+const MULTISIG_IFACE = new ethers.Interface([
+  "function proposeInitialization(string,address) external returns (address,string,bytes16,bool)",
+  "function proposeValidatorUpdate(address,bool) external returns (address,bool,bool)",
+  "function validateRegistry(address) external returns (address,bytes16,uint128,bool)",
+  "function validateValidator(address) external returns (address,bool,uint128,bool)",
+  "function cancelInit(address) external returns (bool)",
+  "function cancelValidatorUpdate(address) external returns (bool)",
+  "function executeInit(address) external returns (bool)",
+  "function executeUpdateValidator(address) external returns (bool)",
+]);
 
-// ── How long before we re-scan the chain for new events ──
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-// ── Throttle between pages: Alchemy free tier allows ~10 CUPS, 1800-block
-//    pages mean far fewer calls, so 100ms is plenty ──
-const PAGE_DELAY_MS = 100;
-
-// ── Retry backoff on 429 ──
-const RATE_LIMIT_BACKOFF_MS = 3000;
-
-const MULTISIG_ABI = [
-  "event RegistryInitializationProposed(address indexed registry, string nspace, bytes16 nspaceBytes)",
-  "event ValidatorUpdateProposed(address indexed addr, bool action)",
-  "event RegistryValidated(address indexed registry, bytes16 nspace, uint128 remainingValidation)",
-  "event ValidatorValidated(address indexed addr, bool action, uint128 remainingValidation)",
-  "event RegistryInitializationCancelled(address indexed registry)",
-  "event ValidatorUpdateCancelled(address indexed addr)",
-  "event InitializationSuccess(address indexed registry, bytes16 nspace)",
-  "event ValidatorUpdated(address indexed addr, bool action)",
-];
-
-// ── In-memory state ────────────────────────────────────────────────────────
-// Accumulated raw events — grown incrementally, never rescanned from genesis
-const eventStore = {
-  regProposed: [],
-  valProposed: [],
-  regCancelled: [],
-  regExecuted: [],
-  valCancelled: [],
-  valExecuted: [],
-  regValidated: [], // keyed by registry address for quick lookup
-  valValidated: [], // keyed by validator address for quick lookup
+// ── In-memory proposals store ──────────────────────────────────────────────
+// Keyed by address for O(1) lookup and update
+let proposalsCache = {
+  registryProposals: [], // array of proposal objects
+  validatorProposals: [], // array of proposal objects
 };
-
-// The highest block we have already scanned (exclusive lower bound for next scan)
-let lastScannedBlock = null;
-
-// The built proposals list (derived from eventStore, cached)
-let proposalsCache = null;
-let cacheTimestamp = 0;
-let cacheScanInProgress = false;
-
-function getMultisigReader() {
-  return new ethers.Contract(MULTISIG_ADDRESS, MULTISIG_ABI, provider);
-}
 
 // ── Auth middleware ────────────────────────────────────────────────────────
 async function requireValidator(req, res, next) {
@@ -98,282 +67,10 @@ async function notifyValidators(excludeAddress, subject, payload) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// ── Paginated queryFilter with large pages and retry on 429 ───────────────
-// With 1800-block pages instead of 9-block pages, a 7000-block range
-// needs only ~4 calls instead of ~780. Night and day difference.
-async function paginatedQueryFilter(contract, filter, fromBlock, toBlock) {
-  const allEvents = [];
-
-  for (let from = fromBlock; from <= toBlock; from += RPC_PAGE_SIZE) {
-    const to = Math.min(from + RPC_PAGE_SIZE - 1, toBlock);
-    let attempts = 0;
-
-    while (attempts < 3) {
-      try {
-        const events = await contract.queryFilter(filter, from, to);
-        allEvents.push(...events);
-        break;
-      } catch (err) {
-        const is429 = err?.error?.code === 429 || err?.message?.includes("429");
-        attempts++;
-        if (is429 && attempts < 3) {
-          console.warn(
-            `⚠️  Rate limited on [${from}-${to}], backing off ${RATE_LIMIT_BACKOFF_MS * attempts}ms...`,
-          );
-          await sleep(RATE_LIMIT_BACKOFF_MS * attempts);
-        } else {
-          console.error(
-            `queryFilter failed [${from}-${to}] for ${
-              filter?.fragment?.name || "unknown"
-            }:`,
-            err.message,
-          );
-          break;
-        }
-      }
-    }
-
-    await sleep(PAGE_DELAY_MS);
-  }
-
-  return allEvents;
-}
-
-// ── Incremental scan: only fetch blocks we haven't seen yet ───────────────
-async function scanNewBlocks(contract) {
-  const deployBlock = parseInt(process.env.MULTISIG_DEPLOY_BLOCK || "0");
-  const latestBlock = await provider.getBlockNumber();
-
-  const fromBlock =
-    lastScannedBlock === null ? deployBlock : lastScannedBlock + 1;
-
-  if (fromBlock > latestBlock) {
-    console.log("📋 No new blocks to scan.");
-    return false; // nothing new
-  }
-
-  console.log(
-    `🔍 Scanning blocks ${fromBlock} → ${latestBlock} for MultiSig events...`,
-  );
-
-  // All 8 event types in parallel — but each only covers the NEW block range,
-  // so the total call count is tiny compared to a full rescan.
-  const [
-    newRegProposed,
-    newValProposed,
-    newRegCancelled,
-    newRegExecuted,
-    newValCancelled,
-    newValExecuted,
-    newRegValidated,
-    newValValidated,
-  ] = await Promise.all([
-    paginatedQueryFilter(
-      contract,
-      contract.filters.RegistryInitializationProposed(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdateProposed(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.RegistryInitializationCancelled(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.InitializationSuccess(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdateCancelled(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorUpdated(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.RegistryValidated(),
-      fromBlock,
-      latestBlock,
-    ),
-    paginatedQueryFilter(
-      contract,
-      contract.filters.ValidatorValidated(),
-      fromBlock,
-      latestBlock,
-    ),
-  ]);
-
-  // Append new events into the in-memory store
-  eventStore.regProposed.push(...newRegProposed);
-  eventStore.valProposed.push(...newValProposed);
-  eventStore.regCancelled.push(...newRegCancelled);
-  eventStore.regExecuted.push(...newRegExecuted);
-  eventStore.valCancelled.push(...newValCancelled);
-  eventStore.valExecuted.push(...newValExecuted);
-  eventStore.regValidated.push(...newRegValidated);
-  eventStore.valValidated.push(...newValValidated);
-
-  lastScannedBlock = latestBlock;
-
-  const newEventCount =
-    newRegProposed.length +
-    newValProposed.length +
-    newRegCancelled.length +
-    newRegExecuted.length +
-    newValCancelled.length +
-    newValExecuted.length +
-    newRegValidated.length +
-    newValValidated.length;
-
-  console.log(`✅ Scan complete. ${newEventCount} new events found.`);
-  return newEventCount > 0;
-}
-
-// ── Derive proposals from the accumulated eventStore ─────────────────────
-async function buildProposalsFromStore() {
-  const cancelledRegistries = new Set(
-    eventStore.regCancelled
-      .map((e) => e.args?.registry?.toLowerCase())
-      .filter(Boolean),
-  );
-  const executedRegistries = new Set(
-    eventStore.regExecuted
-      .map((e) => e.args?.registry?.toLowerCase())
-      .filter(Boolean),
-  );
-  const cancelledValidators = new Set(
-    eventStore.valCancelled
-      .map((e) => e.args?.addr?.toLowerCase())
-      .filter(Boolean),
-  );
-  const executedValidators = new Set(
-    eventStore.valExecuted
-      .map((e) => e.args?.addr?.toLowerCase())
-      .filter(Boolean),
-  );
-
-  // Group validation events by registry address for O(1) lookup
-  const regValidatedMap = {};
-  for (const e of eventStore.regValidated) {
-    const addr = e.args?.registry?.toLowerCase();
-    if (!addr) continue;
-    if (!regValidatedMap[addr]) regValidatedMap[addr] = [];
-    regValidatedMap[addr].push(e);
-  }
-
-  // Group validation events by validator address
-  const valValidatedMap = {};
-  for (const e of eventStore.valValidated) {
-    const addr = e.args?.addr?.toLowerCase();
-    if (!addr) continue;
-    if (!valValidatedMap[addr]) valValidatedMap[addr] = [];
-    valValidatedMap[addr].push(e);
-  }
-
-  // Build registry proposals
-  const registryProposals = [];
-  for (const event of eventStore.regProposed) {
-    try {
-      const addr = event.args?.registry?.toLowerCase();
-      if (!addr) continue;
-      if (cancelledRegistries.has(addr) || executedRegistries.has(addr))
-        continue;
-
-      const valEvents = regValidatedMap[addr] || [];
-      const latestValEvent = valEvents[valEvents.length - 1];
-      const remainingValidation = latestValEvent
-        ? Number(latestValEvent.args?.remainingValidation ?? null)
-        : null;
-      const isValidated =
-        latestValEvent &&
-        Number(latestValEvent.args?.remainingValidation) === 0;
-
-      let timeLockTimestamp = null;
-      if (isValidated && latestValEvent) {
-        try {
-          const block = await provider.getBlock(latestValEvent.blockNumber);
-          timeLockTimestamp = block.timestamp + 24 * 60 * 60;
-        } catch (_) {}
-      }
-
-      registryProposals.push({
-        type: "registry",
-        registry: addr,
-        nspace: event.args?.nspace || "",
-        remainingValidation,
-        isValidated,
-        timeLockTimestamp,
-        blockNumber: event.blockNumber,
-      });
-    } catch (propErr) {
-      console.error("Error processing registry proposal:", propErr.message);
-    }
-  }
-
-  // Build validator proposals
-  const validatorProposals = [];
-  for (const event of eventStore.valProposed) {
-    try {
-      const addr = event.args?.addr?.toLowerCase();
-      if (!addr) continue;
-      if (cancelledValidators.has(addr) || executedValidators.has(addr))
-        continue;
-
-      const valEvents = valValidatedMap[addr] || [];
-      const latestValEvent = valEvents[valEvents.length - 1];
-      const remainingValidation = latestValEvent
-        ? Number(latestValEvent.args?.remainingValidation ?? null)
-        : null;
-      const isValidated =
-        latestValEvent &&
-        Number(latestValEvent.args?.remainingValidation) === 0;
-
-      let timeLockTimestamp = null;
-      if (isValidated && latestValEvent) {
-        try {
-          const block = await provider.getBlock(latestValEvent.blockNumber);
-          timeLockTimestamp = block.timestamp + 24 * 60 * 60;
-        } catch (_) {}
-      }
-
-      validatorProposals.push({
-        type: "validator",
-        addr,
-        action: event.args?.action ?? true,
-        remainingValidation,
-        isValidated,
-        timeLockTimestamp,
-        blockNumber: event.blockNumber,
-      });
-    } catch (propErr) {
-      console.error("Error processing validator proposal:", propErr.message);
-    }
-  }
-
-  return { registryProposals, validatorProposals };
-}
-
-// ── Poll Alchemy bundler for UserOp receipt ───────────────────────────────
-async function waitForAlchemyUserOp(
-  userOpHash,
-  maxRetries = 30,
-  delayMs = 2000,
-) {
+// ── Poll Alchemy bundler for UserOp receipt and decode return value ────────
+// Returns { success, returnData } where returnData is the raw bytes from the
+// inner call's return value, decoded by the caller using MULTISIG_IFACE.
+async function waitForUserOp(userOpHash, maxRetries = 30, delayMs = 2000) {
   console.log(`🔍 Polling Alchemy UserOp: ${userOpHash}`);
   for (let i = 0; i < maxRetries; i++) {
     try {
@@ -381,79 +78,115 @@ async function waitForAlchemyUserOp(
         userOpHash,
       ]);
       if (receipt) {
-        if (receipt.success === true) return { success: true };
+        if (receipt.success === true) {
+          // Extract the return data from the inner call log
+          // Alchemy UserOp receipt: receipt.logs contains the execution log
+          // The actual call return data is in receipt.receipt.logs or via
+          // eth_getTransactionReceipt on the bundler tx hash
+          const txHash = receipt.receipt?.transactionHash;
+          let returnData = null;
+          if (txHash) {
+            try {
+              const tx = await provider.getTransaction(txHash);
+              const txReceipt = await provider.getTransactionReceipt(txHash);
+              // The return data lives in the execution result within the UserOp receipt
+              // Alchemy exposes it as receipt.returnData (ERC-4337 spec field)
+              returnData = receipt.returnData || null;
+            } catch (_) {}
+          }
+          return { success: true, returnData };
+        }
+        // On-chain revert — the UserOp itself failed
+        console.error(`❌ UserOp ${userOpHash} reverted on-chain`);
         return {
           success: false,
-          reason: receipt.reason || "UserOperation reverted",
+          reason: receipt.reason || "UserOperation reverted on-chain",
+          returnData: null,
         };
       }
       await sleep(delayMs);
     } catch (err) {
-      if (i === maxRetries - 1) return { success: false, reason: err.message };
+      if (i === maxRetries - 1)
+        return { success: false, reason: err.message, returnData: null };
       await sleep(delayMs);
     }
   }
-  return { success: false, reason: "Timeout waiting for UserOp" };
+  return {
+    success: false,
+    reason: "Timeout waiting for UserOp",
+    returnData: null,
+  };
+}
+
+// ── Decode return data helper ──────────────────────────────────────────────
+function decodeReturn(fnName, returnData) {
+  if (!returnData || returnData === "0x") return null;
+  try {
+    const fragment = MULTISIG_IFACE.getFunction(fnName);
+    return MULTISIG_IFACE.decodeFunctionResult(fragment, returnData);
+  } catch (e) {
+    console.error(`❌ Failed to decode return for ${fnName}:`, e.message);
+    return null;
+  }
+}
+
+// ── Proposal cache helpers ─────────────────────────────────────────────────
+function getRegProposal(registry) {
+  return proposalsCache.registryProposals.find(
+    (p) => p.registry === registry.toLowerCase(),
+  );
+}
+
+function getValProposal(addr) {
+  return proposalsCache.validatorProposals.find(
+    (p) => p.addr === addr.toLowerCase(),
+  );
+}
+
+function upsertRegProposal(patch) {
+  const idx = proposalsCache.registryProposals.findIndex(
+    (p) => p.registry === patch.registry,
+  );
+  if (idx === -1) {
+    proposalsCache.registryProposals.push(patch);
+  } else {
+    proposalsCache.registryProposals[idx] = {
+      ...proposalsCache.registryProposals[idx],
+      ...patch,
+    };
+  }
+}
+
+function upsertValProposal(patch) {
+  const idx = proposalsCache.validatorProposals.findIndex(
+    (p) => p.addr === patch.addr,
+  );
+  if (idx === -1) {
+    proposalsCache.validatorProposals.push(patch);
+  } else {
+    proposalsCache.validatorProposals[idx] = {
+      ...proposalsCache.validatorProposals[idx],
+      ...patch,
+    };
+  }
+}
+
+function removeRegProposal(registry) {
+  proposalsCache.registryProposals = proposalsCache.registryProposals.filter(
+    (p) => p.registry !== registry.toLowerCase(),
+  );
+}
+
+function removeValProposal(addr) {
+  proposalsCache.validatorProposals = proposalsCache.validatorProposals.filter(
+    (p) => p.addr !== addr.toLowerCase(),
+  );
 }
 
 // ── GET /proposals ─────────────────────────────────────────────────────────
-router.get("/proposals", async (req, res) => {
-  try {
-    // Serve stale cache immediately if a scan is already running
-    if (cacheScanInProgress) {
-      if (proposalsCache) return res.json(proposalsCache);
-      // Wait up to 60s for the in-flight scan to finish
-      const ok = await new Promise((resolve) => {
-        const poll = setInterval(() => {
-          if (!cacheScanInProgress) {
-            clearInterval(poll);
-            resolve(true);
-          }
-        }, 500);
-        setTimeout(() => {
-          clearInterval(poll);
-          resolve(false);
-        }, 60000);
-      });
-      if (proposalsCache) return res.json(proposalsCache);
-      return res.status(503).json({
-        message: "Scan timed out",
-        registryProposals: [],
-        validatorProposals: [],
-      });
-    }
-
-    // Serve from cache if fresh and no state-changing action invalidated it
-    if (proposalsCache && Date.now() - cacheTimestamp < CACHE_TTL_MS) {
-      return res.json(proposalsCache);
-    }
-
-    // Lock and scan only NEW blocks
-    cacheScanInProgress = true;
-    try {
-      const contract = getMultisigReader();
-      const hadNewEvents = await scanNewBlocks(contract);
-
-      // Rebuild proposals only if something changed (or first load)
-      if (hadNewEvents || !proposalsCache) {
-        proposalsCache = await buildProposalsFromStore();
-      }
-
-      cacheTimestamp = Date.now();
-      res.json(proposalsCache);
-    } finally {
-      cacheScanInProgress = false;
-    }
-  } catch (error) {
-    cacheScanInProgress = false;
-    console.error("❌ Proposals fetch error:", error);
-    if (proposalsCache) return res.json(proposalsCache);
-    res.status(500).json({
-      message: "Failed to fetch proposals",
-      registryProposals: [],
-      validatorProposals: [],
-    });
-  }
+// Pure in-memory read — no chain calls, no event scanning
+router.get("/proposals", (req, res) => {
+  res.json(proposalsCache);
 });
 
 // ── POST /propose-registry ─────────────────────────────────────────────────
@@ -472,11 +205,35 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       nspace,
       registry,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
+
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
       return res.status(500).json({
-        message: taskStatus.reason || "proposeInitialization reverted",
+        message: taskStatus.reason || "proposeInitialization reverted on-chain",
       });
+    }
+
+    // Decode: returns (address registry, string nspace, bytes16 nspaceBytes, bool)
+    const decoded = decodeReturn(
+      "proposeInitialization",
+      taskStatus.returnData,
+    );
+
+    // decoded[0] = registry address, decoded[1] = nspace string, decoded[3] = true
+    // If decode fails we still have the inputs — fall back gracefully
+    const resolvedRegistry = (decoded?.[0] || registry).toLowerCase();
+    const resolvedNspace = decoded?.[1] || nspace;
+
+    upsertRegProposal({
+      type: "registry",
+      registry: resolvedRegistry,
+      nspace: resolvedNspace,
+      registryName: registryName || resolvedNspace,
+      remainingValidation: null, // not known yet — no one has validated
+      isValidated: false,
+      timeLockTimestamp: null,
+    });
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -489,8 +246,6 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       },
     );
 
-    // Invalidate cache so next GET triggers a fresh incremental scan
-    proposalsCache = null;
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Propose registry error:", error);
@@ -514,11 +269,33 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       targetAddress,
       action,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
+
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
       return res.status(500).json({
-        message: taskStatus.reason || "proposeValidatorUpdate reverted",
+        message:
+          taskStatus.reason || "proposeValidatorUpdate reverted on-chain",
       });
+    }
+
+    // Decode: returns (address addr, bool action, bool)
+    const decoded = decodeReturn(
+      "proposeValidatorUpdate",
+      taskStatus.returnData,
+    );
+
+    const resolvedAddr = (decoded?.[0] || targetAddress).toLowerCase();
+    const resolvedAction = decoded?.[1] ?? action;
+
+    upsertValProposal({
+      type: "validator",
+      addr: resolvedAddr,
+      action: resolvedAction,
+      remainingValidation: null,
+      isValidated: false,
+      timeLockTimestamp: null,
+    });
 
     await notifyValidators(
       req.callerUser.safeAddress,
@@ -526,7 +303,6 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       { type: "validator", targetAddress, action },
     );
 
-    proposalsCache = null;
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Propose validator error:", error);
@@ -549,13 +325,35 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
       privateKey,
       registry,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
-      return res.status(500).json({
-        message: taskStatus.reason || "validateRegistry reverted",
-      });
 
-    proposalsCache = null;
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
+      return res.status(500).json({
+        message: taskStatus.reason || "validateRegistry reverted on-chain",
+      });
+    }
+
+    // Decode: returns (address registry, bytes16 nspace, uint128 remainingValidation, bool)
+    const decoded = decodeReturn("validateRegistry", taskStatus.returnData);
+
+    if (decoded) {
+      const remainingValidation = Number(decoded[2]);
+      const isValidated = remainingValidation === 0;
+
+      const patch = {
+        registry: registry.toLowerCase(),
+        remainingValidation,
+        isValidated,
+        // If quorum just reached, set timelock = now + 24h
+        timeLockTimestamp: isValidated
+          ? Math.floor(Date.now() / 1000) + 24 * 60 * 60
+          : getRegProposal(registry)?.timeLockTimestamp || null,
+      };
+
+      upsertRegProposal(patch);
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Validate registry error:", error);
@@ -578,13 +376,34 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
-      return res.status(500).json({
-        message: taskStatus.reason || "validateValidator reverted",
-      });
 
-    proposalsCache = null;
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
+      return res.status(500).json({
+        message: taskStatus.reason || "validateValidator reverted on-chain",
+      });
+    }
+
+    // Decode: returns (address addr, bool action, uint128 remainingValidation, bool)
+    const decoded = decodeReturn("validateValidator", taskStatus.returnData);
+
+    if (decoded) {
+      const remainingValidation = Number(decoded[2]);
+      const isValidated = remainingValidation === 0;
+
+      const patch = {
+        addr: targetAddress.toLowerCase(),
+        remainingValidation,
+        isValidated,
+        timeLockTimestamp: isValidated
+          ? Math.floor(Date.now() / 1000) + 24 * 60 * 60
+          : getValProposal(targetAddress)?.timeLockTimestamp || null,
+      };
+
+      upsertValProposal(patch);
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Validate validator error:", error);
@@ -607,13 +426,23 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
       privateKey,
       registry,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
-      return res.status(500).json({
-        message: taskStatus.reason || "cancelInit reverted",
-      });
 
-    proposalsCache = null;
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
+      return res.status(500).json({
+        message: taskStatus.reason || "cancelInit reverted on-chain",
+      });
+    }
+
+    // Decode: returns (bool) — if true, proposal was cancelled on-chain
+    const decoded = decodeReturn("cancelInit", taskStatus.returnData);
+    const cancelled = decoded?.[0] ?? true; // true = success
+
+    if (cancelled) {
+      removeRegProposal(registry);
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel registry error:", error);
@@ -636,13 +465,25 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
-      return res.status(500).json({
-        message: taskStatus.reason || "cancelValidatorUpdate reverted",
-      });
 
-    proposalsCache = null;
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
+      return res.status(500).json({
+        message: taskStatus.reason || "cancelValidatorUpdate reverted on-chain",
+      });
+    }
+
+    const decoded = decodeReturn(
+      "cancelValidatorUpdate",
+      taskStatus.returnData,
+    );
+    const cancelled = decoded?.[0] ?? true;
+
+    if (cancelled) {
+      removeValProposal(targetAddress);
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel validator error:", error);
@@ -667,23 +508,35 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       privateKey,
       registry,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
+
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
       return res.status(500).json({
-        message: taskStatus.reason || "executeInit reverted",
+        message: taskStatus.reason || "executeInit reverted on-chain",
       });
+    }
 
-    await WalletRegistry.findOneAndUpdate(
-      { registryAddress: registry.toLowerCase() },
-      {
-        name: registryName || nspace,
-        registryAddress: registry.toLowerCase(),
-        active: true,
-      },
-      { upsert: true, new: true },
-    );
+    // Decode: returns (bool) — true = execution succeeded on-chain
+    const decoded = decodeReturn("executeInit", taskStatus.returnData);
+    const executed = decoded?.[0] ?? true;
 
-    proposalsCache = null;
+    if (executed) {
+      // Remove from active proposals — it's finalized
+      removeRegProposal(registry);
+
+      // Persist to WalletRegistry so it shows up in the registry dropdown
+      await WalletRegistry.findOneAndUpdate(
+        { registryAddress: registry.toLowerCase() },
+        {
+          name: registryName || nspace,
+          registryAddress: registry.toLowerCase(),
+          active: true,
+        },
+        { upsert: true, new: true },
+      );
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Execute registry error:", error);
@@ -706,18 +559,33 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
       privateKey,
       targetAddress,
     );
-    const taskStatus = await waitForAlchemyUserOp(result.taskId);
-    if (!taskStatus.success)
+
+    const taskStatus = await waitForUserOp(result.taskId);
+
+    if (!taskStatus.success) {
       return res.status(500).json({
-        message: taskStatus.reason || "executeUpdateValidator reverted",
+        message:
+          taskStatus.reason || "executeUpdateValidator reverted on-chain",
       });
+    }
 
-    await User.findOneAndUpdate(
-      { safeAddress: targetAddress.toLowerCase() },
-      { isValidator: action },
+    const decoded = decodeReturn(
+      "executeUpdateValidator",
+      taskStatus.returnData,
     );
+    const executed = decoded?.[0] ?? true;
 
-    proposalsCache = null;
+    if (executed) {
+      // Remove from active proposals — it's finalized
+      removeValProposal(targetAddress);
+
+      // Sync validator status in DB
+      await User.findOneAndUpdate(
+        { safeAddress: targetAddress.toLowerCase() },
+        { isValidator: action },
+      );
+    }
+
     res.json({ success: true, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Execute validator error:", error);
