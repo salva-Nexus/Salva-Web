@@ -18,11 +18,13 @@ const MULTISIG_IFACE = new ethers.Interface([
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
+// ✅ Corrected initSafe4337 in relayService.js
 async function initSafe4337(safeAddress, ownerKey) {
   const checksumAddress = ethers.getAddress(safeAddress);
 
-  // FIXED: Single argument object for .init()
-  return await Safe4337Pack.init({
+  // The kit needs ONE object (initOptions)
+  // Inside that object, it looks for a property called 'options'
+  const safe4337Pack = await Safe4337Pack.init({
     provider: RPC_URL,
     signer: ownerKey,
     bundlerUrl: RPC_URL,
@@ -31,8 +33,12 @@ async function initSafe4337(safeAddress, ownerKey) {
       paymasterUrl: RPC_URL,
       sponsorshipPolicyId: GAS_POLICY_ID,
     },
-    safeAddress: checksumAddress,
+    options: {               // <--- This is the 'options' from your source snippet
+      safeAddress: checksumAddress, 
+    }
   });
+
+  return safe4337Pack;
 }
 
 async function _executeViaAlchemy(safeAddress, ownerKey, transactions) {
