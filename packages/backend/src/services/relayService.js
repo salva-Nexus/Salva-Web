@@ -1,6 +1,8 @@
 // Salva-Digital-Tech/packages/backend/src/services/relayService.js
 const Safe4337Pack = require("@safe-global/relay-kit").Safe4337Pack;
 const { ethers } = require("ethers");
+// Add this temporarily at the top of relayService.js, right after the require
+console.log("🔍 Safe4337Pack.init source:", Safe4337Pack.init.toString().slice(0, 500));
 
 const RPC_URL = process.env.ALCHEMY_RPC_URL;
 const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
