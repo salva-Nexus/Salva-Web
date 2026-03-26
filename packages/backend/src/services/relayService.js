@@ -50,6 +50,18 @@ async function buildSafeSignature(safeAddress, ownerKey, to, data) {
   console.log(`🔍 Safe address: ${safeAddress}`);
   console.log(`🔍 txHash to sign: ${txHash}`);
 
+  // Verify this address is actually an owner of the Safe
+  const OWNERS_ABI = ["function getOwners() view returns (address[])"];
+  const safeCheck = new ethers.Contract(safeAddress, OWNERS_ABI, provider);
+  const owners = await safeCheck.getOwners();
+  console.log(`🔍 Safe owners on-chain:`, owners);
+  console.log(
+    `🔍 Is signer an owner?`,
+    owners
+      .map((o) => o.toLowerCase())
+      .includes(ownerWallet.address.toLowerCase()),
+  );
+
   const sig = ownerWallet.signingKey.sign(txHash);
 
   // v is 27 or 28 — Safe expects it as a single hex byte
