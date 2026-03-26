@@ -646,7 +646,7 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
 });
 
 // ===============================================
-// REGISTER — Deploy Safe only. Account number linking happens in dashboard.
+// REGISTER — Deploy Safe only.
 // ===============================================
 app.post(
   "/api/register",
