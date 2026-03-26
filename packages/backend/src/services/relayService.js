@@ -48,7 +48,9 @@ async function buildSafeSignature(safeAddress, ownerKey, to, data) {
   // Adjust v for Safe's EthSign format (v + 4)
   const sig = ethers.Signature.from(sigBytes);
   const v = sig.v + 4;
-  const signature = sig.r + sig.s.slice(2) + v.toString(16).padStart(2, "0");
+  // Strip 0x from r and s before concatenating to avoid double 0x prefix
+  const signature =
+    sig.r.slice(2) + sig.s.slice(2) + v.toString(16).padStart(2, "0");
 
   return { safeContract, nonce, signature };
 }
