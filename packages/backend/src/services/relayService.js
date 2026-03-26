@@ -18,11 +18,19 @@ const MULTISIG_IFACE = new ethers.Interface([
 ]);
 
 // ── Core: init Safe4337Pack for a given signer + safe ─────────────────────
+// services/relayService.js
 async function initSafe4337(safeAddress, ownerKey) {
-  // Safe4337Pack requires EIP-55 checksum address — lowercase will crash it
   const checksumAddress = ethers.getAddress(safeAddress);
+  
+  console.log("🔍 Safe4337Pack.init args:", {
+    provider: RPC_URL ? "set" : "MISSING",
+    signer: ownerKey ? `${ownerKey.slice(0,6)}...` : "MISSING",
+    safeAddress: checksumAddress,
+    bundlerUrl: RPC_URL ? "set" : "MISSING",
+    GAS_POLICY_ID: GAS_POLICY_ID ? "set" : "MISSING",
+  });
 
-  const safe4337Pack = await Safe4337Pack.init({
+  const config = {
     provider: RPC_URL,
     signer: ownerKey,
     safeAddress: checksumAddress,
@@ -32,7 +40,9 @@ async function initSafe4337(safeAddress, ownerKey) {
       paymasterUrl: RPC_URL,
       sponsorshipPolicyId: GAS_POLICY_ID,
     },
-  });
+  };
+
+  const safe4337Pack = await Safe4337Pack.init(config);
   return safe4337Pack;
 }
 
