@@ -87,6 +87,28 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data) {
   // Use the backend wallet to submit (it pays gas, Alchemy reimburses via policy)
   const safeWithSigner = safeContract.connect(wallet);
 
+  // Add this temporary block inside _executeViaSafe before the execTransaction call
+  try {
+    await provider.estimateGas({
+      from: wallet.address,
+      to: safeAddress,
+      data: safeContract.interface.encodeFunctionData("execTransaction", [
+        to,
+        0,
+        data,
+        0,
+        0,
+        0,
+        0,
+        ethers.ZeroAddress,
+        ethers.ZeroAddress,
+        "0x" + signature,
+      ]),
+    });
+  } catch (error) {
+    console.log("❌ DETAILED REVERT REASON:", error.reason || error.message);
+  }
+
   const tx = await safeWithSigner.execTransaction(
     to,
     0,
