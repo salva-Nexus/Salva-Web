@@ -42,14 +42,23 @@ async function buildSafeSignature(safeAddress, ownerKey, to, data) {
     nonce,
   );
 
-  // Sign the raw hash directly (no Ethereum prefix) — Safe uses EIP-712 domain
-  // signing, so we use signingKey.sign() on the raw digest bytes
+  // getTransactionHash already returns the EIP-712 digest — sign it directly
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
+
+  // Debug: verify the owner matches what's on-chain
+  console.log(`🔍 Signing as owner: ${ownerWallet.address}`);
+  console.log(`🔍 Safe address: ${safeAddress}`);
+  console.log(`🔍 txHash to sign: ${txHash}`);
+
   const sig = ownerWallet.signingKey.sign(txHash);
 
-  // v is 27 or 28 for direct EC signing — no adjustment needed
-  const signature =
-    sig.r.slice(2) + sig.s.slice(2) + sig.v.toString(16).padStart(2, "0");
+  // v is 27 or 28 — Safe expects it as a single hex byte
+  const vHex = sig.v.toString(16).padStart(2, "0");
+  const signature = sig.r.slice(2) + sig.s.slice(2) + vHex;
+
+  console.log(
+    `🔍 Signature built (v=${sig.v}): 0x${signature.slice(0, 20)}...`,
+  );
 
   return { safeContract, nonce, signature };
 }
