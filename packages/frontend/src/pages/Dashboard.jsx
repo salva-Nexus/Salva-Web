@@ -3,7 +3,6 @@ import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
-import { jsPDF } from "jspdf";
 import Stars from "../components/Stars";
 import AdminPanel from "./AdminPanel";
 
@@ -20,6 +19,15 @@ const formatAmountInput = (raw) => {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
 };
+
+// Detect what kind of input the user typed
+function detectInputType(val) {
+  const t = val.trim();
+  if (!t) return "empty";
+  if (t.startsWith("0x")) return "address";
+  if (/^\d+$/.test(t)) return "number";
+  return "name";
+}
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 const Dashboard = () => {
@@ -68,11 +76,13 @@ const Dashboard = () => {
   const [isAccountLocked, setIsAccountLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState("");
 
-  // Send form
-  const [transferData, setTransferData] = useState({ to: "", amount: "" });
+  // Send form state
+  const [recipientInput, setRecipientInput] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
   const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
   const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [showRegistryDropdown, setShowRegistryDropdown] = useState(false);
+  // "address" | "number" | "name" | "empty"
+  const [inputType, setInputType] = useState("empty");
 
   const navigate = useNavigate();
 
@@ -136,14 +146,14 @@ const Dashboard = () => {
   }, [notification]);
 
   useEffect(() => {
-    if (transferData.amount && balance) {
-      const amt = parseFloat(transferData.amount);
+    if (transferAmount && balance) {
+      const amt = parseFloat(transferAmount);
       const bal = parseFloat(balance);
       setAmountError(!isNaN(amt) && amt > bal);
     } else {
       setAmountError(false);
     }
-  }, [transferData.amount, balance]);
+  }, [transferAmount, balance]);
 
   const showMsg = (msg, type = "success") =>
     setNotification({ show: true, message: msg, type });
@@ -180,7 +190,7 @@ const Dashboard = () => {
       const regsArray = Array.isArray(regData) ? regData : [];
       setRegistries(regsArray);
       setFeeConfig(feeData);
-      // Auto-select if only one registry
+      // Auto-select Salva registry if it's the only one
       if (regsArray.length === 1) {
         setSelectedRegistry(regsArray[0]);
       }
@@ -218,6 +228,17 @@ const Dashboard = () => {
     setFeePreview({ feeNGN: fee });
   };
 
+  // ── Recipient input handler ──────────────────────────────────────────────
+  const handleRecipientChange = (val) => {
+    setRecipientInput(val);
+    const type = detectInputType(val);
+    setInputType(type);
+    // Reset registry selection when input type changes to address
+    if (type === "address") {
+      setSelectedRegistry(null);
+    }
+  };
+
   // ── Send flow ────────────────────────────────────────────────────────────
   const handleTransferClick = () => {
     if (isAccountLocked) return showMsg(lockMessage, "error");
@@ -225,50 +246,83 @@ const Dashboard = () => {
     setIsSendOpen(true);
   };
 
+  const resetSendForm = () => {
+    setRecipientInput("");
+    setTransferAmount("");
+    setTransferAmountDisplay("");
+    setSelectedRegistry(registries.length === 1 ? registries[0] : null);
+    setInputType("empty");
+    setFeePreview({ feeNGN: 0 });
+  };
+
+  /**
+   * Step 1 of send: resolve recipient and show confirmation card.
+   *
+   * - address → skip on-chain lookup, show address directly
+   * - name    → POST /api/resolve-recipient with name + registryAddress
+   * - number  → POST /api/resolve-recipient with number + registryAddress
+   */
   const resolveAndConfirm = async () => {
-    const { to, amount } = transferData;
-    if (!to || !amount) return showMsg("Fill all fields", "error");
+    if (!recipientInput || !transferAmount)
+      return showMsg("Fill all fields", "error");
 
-    const isNumberInput = /^\d+$/.test(to.trim());
+    const type = detectInputType(recipientInput);
 
-    // If input is a number or name (not a 0x address), require registry selection
-    if (!to.trim().startsWith("0x") && !selectedRegistry) {
-      return showMsg("Select a wallet from the dropdown", "error");
+    // Name or number inputs require a registry selection
+    if ((type === "name" || type === "number") && !selectedRegistry) {
+      return showMsg("Select a wallet to send to", "error");
     }
 
     setLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/resolve-account-info`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ accountNumberOrAddress: to }),
-      });
-      const data = await res.json();
-      if (!data.found) {
-        showMsg("Account not found", "error");
-        return;
-      }
+      let resolvedAddress = null;
+      let displayIdentifier = recipientInput.trim();
 
-      // Build display string for confirmation modal
-      let resolvedDisplay;
-      if (to.startsWith("0x")) {
-        resolvedDisplay = to;
+      if (type === "address") {
+        // Raw address — no on-chain lookup needed
+        resolvedAddress = recipientInput.trim().toLowerCase();
+        displayIdentifier = recipientInput.trim();
       } else {
-        const nsDisplay =
-          selectedRegistry?.name?.replace(/\s+/g, "").toLowerCase() || "salva";
-        resolvedDisplay = `${to}@${nsDisplay}`;
+        // Name or number — resolve via backend
+        const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            input: recipientInput.trim(),
+            registryAddress: selectedRegistry.registryAddress,
+            inputType: type,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.resolvedAddress) {
+          showMsg(data.message || "Recipient not found", "error");
+          return;
+        }
+        resolvedAddress = data.resolvedAddress.toLowerCase();
+
+        // Build display: name@walletname or number (walletname)
+        if (type === "name") {
+          displayIdentifier = `${recipientInput.trim()}@${selectedRegistry.name
+            .replace(/\s+/g, "")
+            .toLowerCase()}`;
+        } else {
+          displayIdentifier = `${recipientInput.trim()} (${selectedRegistry.name})`;
+        }
       }
 
       setConfirmationData({
-        resolvedDisplay,
-        resolvedAddress: data.safeAddress,
-        amount,
+        resolvedAddress,
+        displayIdentifier,
+        amount: transferAmount,
         registryAddress: selectedRegistry?.registryAddress || null,
+        walletName: selectedRegistry?.name || null,
+        inputType: type,
+        rawInput: recipientInput.trim(),
         feeNGN: feePreview.feeNGN,
       });
       setIsConfirmModalOpen(true);
     } catch {
-      showMsg("Failed to resolve account", "error");
+      showMsg("Failed to resolve recipient", "error");
     } finally {
       setLoading(false);
     }
@@ -284,18 +338,17 @@ const Dashboard = () => {
         body: JSON.stringify({
           userPrivateKey: privateKey,
           safeAddress: user.safeAddress,
-          toInput: transferData.to,
-          amount: transferData.amount,
-          registryAddress: confirmationData?.registryAddress || null,
+          toInput: confirmationData.rawInput,
+          amount: confirmationData.amount,
+          registryAddress: confirmationData.registryAddress || null,
+          inputType: confirmationData.inputType,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         showMsg("Transfer Successful!");
         setIsSendOpen(false);
-        setTransferData({ to: "", amount: "" });
-        setTransferAmountDisplay("");
-        setSelectedRegistry(null);
+        resetSendForm();
         setTimeout(() => fetchBalance(user.safeAddress), 3500);
       } else {
         showMsg(data.message || "Transfer failed", "error");
@@ -328,7 +381,7 @@ const Dashboard = () => {
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
           showMsg(
-            `Invalid PIN. ${2 - pinAttempts} attempts remaining`,
+            `Invalid PIN. ${2 - pinAttempts} attempt${2 - pinAttempts !== 1 ? "s" : ""} remaining`,
             "error",
           );
         }
@@ -340,7 +393,7 @@ const Dashboard = () => {
     }
   };
 
-  // ── Alias Registration ───────────────────────────────────────────────────
+  // ── Alias Registration Modal ─────────────────────────────────────────────
   const AliasModal = () => {
     const [step, setStep] = useState("choose");
     const [nameInput, setNameInput] = useState("");
@@ -351,9 +404,10 @@ const Dashboard = () => {
 
     const handleChooseName = async () => {
       const name = nameInput.toLowerCase().trim();
-      if (!/^[a-z0-9._-]{1,16}$/.test(name)) {
+      // Enforce phishingProof rules: lowercase letters, digits 2–9, '.', '-', '_', max 16
+      if (!/^[a-z2-9._-]{1,16}$/.test(name)) {
         setNameError(
-          "Lowercase letters, digits, dots, dashes, underscores. Max 16 chars.",
+          "Use lowercase letters, digits 2–9, dots, dashes, underscores. Max 16 chars.",
         );
         return;
       }
@@ -540,7 +594,7 @@ const Dashboard = () => {
                 </p>
               )}
               <p className="text-[10px] opacity-40 mb-6">
-                Lowercase letters, digits, dots, dashes, underscores. Max 16
+                Lowercase letters, digits 2–9, dots, dashes, underscores. Max 16
                 chars.
               </p>
               <button
@@ -640,6 +694,9 @@ const Dashboard = () => {
     : [{ id: "buy", label: "Buy NGNs" }];
 
   const bothAliasLinked = aliasStatus.hasName && aliasStatus.hasNumber;
+
+  // Show wallet dropdown when input is name or number
+  const showRegistryDropdown = inputType === "name" || inputType === "number";
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
@@ -754,7 +811,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* ── Smart wallet address ── */}
+        {/* ── Wallet address ── */}
         <div
           onClick={() => {
             navigator.clipboard.writeText(user.safeAddress);
@@ -772,7 +829,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* ── View Transactions button ── */}
+        {/* ── View Transactions ── */}
         <Link
           to="/transactions"
           className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
@@ -788,7 +845,11 @@ const Dashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab.id ? "border-b-2 border-salvaGold text-salvaGold" : "opacity-40 hover:opacity-100"}`}
+              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "border-b-2 border-salvaGold text-salvaGold"
+                  : "opacity-40 hover:opacity-100"
+              }`}
             >
               {tab.label}
             </button>
@@ -896,7 +957,7 @@ const Dashboard = () => {
                 }}
                 className="space-y-5"
               >
-                {/* Recipient */}
+                {/* Recipient input */}
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase opacity-40 font-bold block">
                     Recipient
@@ -905,57 +966,53 @@ const Dashboard = () => {
                     required
                     type="text"
                     placeholder="Name, account number, or 0x address"
-                    value={transferData.to}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setTransferData({ ...transferData, to: val });
-                      if (
-                        val.trim().length > 0 &&
-                        !val.trim().startsWith("0x")
-                      ) {
-                        setShowRegistryDropdown(true);
-                      } else {
-                        setShowRegistryDropdown(false);
-                        setSelectedRegistry(null);
-                      }
-                    }}
+                    value={recipientInput}
+                    onChange={(e) => handleRecipientChange(e.target.value)}
                     className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
                   />
 
-                  {/* Registry dropdown */}
-                  {(showRegistryDropdown ||
-                    (registries.length > 1 &&
-                      transferData.to &&
-                      !transferData.to.startsWith("0x"))) &&
-                    registries.length > 0 && (
-                      <div>
-                        <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
-                          Select Wallet
-                        </label>
-                        <select
-                          required
-                          value={selectedRegistry?.registryAddress || ""}
-                          onChange={(e) =>
-                            setSelectedRegistry(
-                              registries.find(
-                                (r) => r.registryAddress === e.target.value,
-                              ) || null,
-                            )
-                          }
-                          className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
-                        >
-                          <option value="">-- Select Wallet --</option>
-                          {registries.map((reg) => (
-                            <option
-                              key={reg.registryAddress}
-                              value={reg.registryAddress}
-                            >
-                              {reg.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                  {/* Input type hint */}
+                  {inputType !== "empty" && (
+                    <p className="text-[10px] opacity-40 font-bold ml-1">
+                      {inputType === "address" &&
+                        "✓ Wallet address — sending directly"}
+                      {inputType === "name" &&
+                        "Name alias — select a wallet below"}
+                      {inputType === "number" &&
+                        "Account number — select a wallet below"}
+                    </p>
+                  )}
+
+                  {/* Wallet dropdown — shown for name or number inputs */}
+                  {showRegistryDropdown && registries.length > 0 && (
+                    <div>
+                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                        Select Wallet
+                      </label>
+                      <select
+                        required
+                        value={selectedRegistry?.registryAddress || ""}
+                        onChange={(e) =>
+                          setSelectedRegistry(
+                            registries.find(
+                              (r) => r.registryAddress === e.target.value,
+                            ) || null,
+                          )
+                        }
+                        className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
+                      >
+                        <option value="">-- Select Wallet --</option>
+                        {registries.map((reg) => (
+                          <option
+                            key={reg.registryAddress}
+                            value={reg.registryAddress}
+                          >
+                            {reg.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Amount */}
@@ -973,10 +1030,14 @@ const Dashboard = () => {
                         const fmt = formatAmountInput(e.target.value);
                         setTransferAmountDisplay(fmt);
                         const raw = fmt.replace(/,/g, "");
-                        setTransferData({ ...transferData, amount: raw });
+                        setTransferAmount(raw);
                         computeFeePreview(raw);
                       }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${
+                        amountError
+                          ? "border border-red-500 text-red-500"
+                          : "border border-transparent"
+                      }`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       NGNs
@@ -987,26 +1048,28 @@ const Dashboard = () => {
                       ⚠️ Insufficient balance
                     </p>
                   )}
-                  {feePreview.feeNGN > 0 &&
-                    transferData.amount &&
-                    !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="opacity-50 uppercase font-bold">
-                            Network Fee
-                          </span>
-                          <span className="text-red-400 font-black">
-                            -{formatNumber(feePreview.feeNGN)} NGNs
-                          </span>
-                        </div>
+                  {feePreview.feeNGN > 0 && transferAmount && !amountError && (
+                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                      <div className="flex justify-between">
+                        <span className="opacity-50 uppercase font-bold">
+                          Network Fee
+                        </span>
+                        <span className="text-red-400 font-black">
+                          -{formatNumber(feePreview.feeNGN)} NGNs
+                        </span>
                       </div>
-                    )}
+                    </div>
+                  )}
                 </div>
 
                 <button
-                  disabled={loading || amountError}
+                  disabled={loading || amountError || !recipientInput}
                   type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${
+                    loading || amountError || !recipientInput
+                      ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                      : "bg-salvaGold text-black hover:brightness-110 active:scale-95"
+                  }`}
                 >
                   {loading ? "PROCESSING…" : "REVIEW & SEND"}
                 </button>
@@ -1045,18 +1108,26 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="space-y-3 mb-6">
+                {/* Recipient display */}
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
                   <p className="font-black text-lg text-salvaGold">
-                    {confirmationData.resolvedDisplay}
+                    {confirmationData.displayIdentifier}
                   </p>
                   <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
                     {confirmationData.resolvedAddress}
                   </p>
+                  {confirmationData.walletName && (
+                    <p className="text-[10px] opacity-50 mt-1 font-bold">
+                      via {confirmationData.walletName}
+                    </p>
+                  )}
                   <p className="text-[10px] text-yellow-400 font-bold mt-2">
                     ⚠️ Make sure this is the correct recipient
                   </p>
                 </div>
+
+                {/* Amount */}
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
                   <p className="font-black text-xl">
@@ -1064,6 +1135,8 @@ const Dashboard = () => {
                     <span className="text-salvaGold">NGNs</span>
                   </p>
                 </div>
+
+                {/* Fee */}
                 {confirmationData.feeNGN > 0 && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
@@ -1139,7 +1212,8 @@ const Dashboard = () => {
               />
               {pinAttempts > 0 && (
                 <p className="text-xs text-red-500 text-center mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempts remaining
+                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
+                  remaining
                 </p>
               )}
               <div className="flex gap-3">
@@ -1170,7 +1244,11 @@ const Dashboard = () => {
             initial={{ y: 100, x: "-50%", opacity: 0 }}
             animate={{ y: 0, x: "-50%", opacity: 1 }}
             exit={{ y: 100, x: "-50%", opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${notification.type === "error" ? "bg-red-600 text-white" : "bg-salvaGold text-black"}`}
+            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${
+              notification.type === "error"
+                ? "bg-red-600 text-white"
+                : "bg-salvaGold text-black"
+            }`}
           >
             {notification.message}
           </motion.div>

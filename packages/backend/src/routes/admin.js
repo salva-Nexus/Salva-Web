@@ -17,21 +17,40 @@ const {
   sponsorExecuteUpdateValidator,
 } = require("../services/relayService");
 
+// ─── Multisig read ABI (view functions only) ──────────────────────────────────
+const MULTISIG_READ_ABI = [
+  "function _registry(address) view returns (address registryAddress, bytes16 nspace, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
+  "function _updateValidator(address) view returns (address addr, bool action, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
+  "function _registryValidationCountRemains(address) view returns (uint256)",
+  "function _validatorValidationCountRemains(address) view returns (uint256)",
+];
+
 const MULTISIG_IFACE = new ethers.Interface([
-  "function proposeInitialization(string,address) external returns (address,string,bytes16,bool)",
-  "function proposeValidatorUpdate(address,bool) external returns (address,bool,bool)",
-  "function validateRegistry(address) external returns (address,bytes16,uint128,bool)",
-  "function validateValidator(address) external returns (address,bool,uint128,bool)",
+  "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
+  "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
+  "function validateRegistry(address) external returns (address,bytes16,uint32)",
+  "function validateValidator(address) external returns (address,bool,uint32)",
   "function cancelInit(address) external returns (bool)",
   "function cancelValidatorUpdate(address) external returns (bool)",
   "function executeInit(address) external returns (bool)",
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
+// In-memory proposals cache — shared across all validators in the same server process.
+// Registry restarts wipe it; validators will just see empty lists and can re-propose.
 let proposalsCache = {
   registryProposals: [],
   validatorProposals: [],
 };
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function getMultisig() {
+  return new ethers.Contract(
+    process.env.MULTISIG_CONTRACT_ADDRESS,
+    MULTISIG_READ_ABI,
+    provider,
+  );
+}
 
 // ─── Middleware ───────────────────────────────────────────────────────────────
 async function requireValidator(req, res, next) {
@@ -62,7 +81,7 @@ async function notifyValidators(excludeAddress, subject, payload) {
   }
 }
 
-// ─── Wait for a regular tx receipt (NOT a UserOp) ────────────────────────────
+// ─── Wait for a regular tx receipt ───────────────────────────────────────────
 async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   console.log(`🔍 Waiting for tx: ${txHash}`);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -86,33 +105,7 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   return { success: false, reason: "Timeout waiting for transaction" };
 }
 
-// ─── Decode return value from tx receipt logs ─────────────────────────────────
-// Safe execTransaction emits ExecutionSuccess — the inner call's return data
-// is NOT in the receipt. We call the function statically to get the return value.
-async function callAndDecode(fnName, args) {
-  const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
-  const multisig = new ethers.Contract(
-    MULTISIG_ADDRESS,
-    MULTISIG_IFACE,
-    provider,
-  );
-  try {
-    const result = await multisig[fnName].staticCall(...args);
-    return result;
-  } catch (e) {
-    console.error(`❌ staticCall ${fnName} failed:`, e.message);
-    return null;
-  }
-}
-
 // ─── Cache helpers ────────────────────────────────────────────────────────────
-const getRegProposal = (reg) =>
-  proposalsCache.registryProposals.find(
-    (p) => p.registry === reg.toLowerCase(),
-  );
-const getValProposal = (addr) =>
-  proposalsCache.validatorProposals.find((p) => p.addr === addr.toLowerCase());
-
 function upsertRegProposal(patch) {
   const idx = proposalsCache.registryProposals.findIndex(
     (p) => p.registry === patch.registry,
@@ -151,10 +144,11 @@ const removeValProposal = (addr) => {
 // ─── Routes ───────────────────────────────────────────────────────────────────
 router.get("/proposals", (req, res) => res.json(proposalsCache));
 
-// PROPOSE REGISTRY
+// ─── PROPOSE REGISTRY ─────────────────────────────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, nspace, registry, registryName } = req.body;
+
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
     if (!ethers.isAddress(registry))
@@ -171,44 +165,30 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read current on-chain state to get accurate remaining validation count
-    const onChain = await callAndDecode("proposeInitialization", [
-      nspace,
-      registry,
-    ]).catch(() => null);
-
-    // proposeInitialization returns (address, string, bytes16, bool)
-    const resolvedRegistry = (onChain?.[0] || registry).toLowerCase();
-    const resolvedNspace = onChain?.[1] || nspace;
-
-    // Get remaining validation count from the contract storage
-    const MULTISIG_READ_ABI = [
-      "function _registry(address) view returns (address registryAddress, bytes16 nspace, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
-    ];
+    // Read on-chain remaining count using the dedicated view helper
     let remainingValidation = null;
     try {
-      const multisig = new ethers.Contract(
-        process.env.MULTISIG_CONTRACT_ADDRESS,
-        MULTISIG_READ_ABI,
-        provider,
+      const multisig = getMultisig();
+      const remaining = await multisig._registryValidationCountRemains(
+        registry.toLowerCase(),
       );
-      const reg = await multisig._registry(resolvedRegistry);
-      remainingValidation =
-        Number(reg.requiredValidationCount) - Number(reg.validationCount);
+      remainingValidation = Number(remaining);
     } catch (e) {
-      console.error("Could not read registry state:", e.message);
+      console.error("Could not read registry remaining count:", e.message);
     }
 
+    const registryKey = registry.toLowerCase();
     upsertRegProposal({
       type: "registry",
-      registry: resolvedRegistry,
-      nspace: resolvedNspace,
-      registryName: registryName || resolvedNspace,
+      registry: registryKey,
+      nspace,
+      registryName: registryName || nspace,
       remainingValidation,
       isValidated: false,
       timeLockTimestamp: null,
     });
 
+    // Email all other validators
     await notifyValidators(
       req.callerUser.safeAddress,
       "New Registry Proposal",
@@ -227,10 +207,13 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
   }
 });
 
-// PROPOSE VALIDATOR
+// ─── PROPOSE VALIDATOR ────────────────────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
+
+    if (!ethers.isAddress(targetAddress))
+      return res.status(400).json({ message: "Invalid target address" });
 
     const result = await sponsorProposeValidatorUpdate(
       req.callerUser.safeAddress,
@@ -243,24 +226,18 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read remaining validation count from on-chain state
-    const MULTISIG_READ_ABI = [
-      "function _updateValidator(address) view returns (address addr, bool action, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
-    ];
     let remainingValidation = null;
     let resolvedAction = action;
     try {
-      const multisig = new ethers.Contract(
-        process.env.MULTISIG_CONTRACT_ADDRESS,
-        MULTISIG_READ_ABI,
-        provider,
-      );
+      const multisig = getMultisig();
+      const remaining =
+        await multisig._validatorValidationCountRemains(targetAddress);
+      remainingValidation = Number(remaining);
+      // Also read action from on-chain to be safe
       const update = await multisig._updateValidator(targetAddress);
-      remainingValidation =
-        Number(update.requiredValidationCount) - Number(update.validationCount);
       resolvedAction = update.action;
     } catch (e) {
-      console.error("Could not read validator state:", e.message);
+      console.error("Could not read validator remaining count:", e.message);
     }
 
     upsertValProposal({
@@ -285,7 +262,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
   }
 });
 
-// VALIDATE REGISTRY
+// ─── VALIDATE REGISTRY ────────────────────────────────────────────────────────
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
@@ -300,21 +277,16 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read updated state from chain
-    const MULTISIG_READ_ABI = [
-      "function _registry(address) view returns (address registryAddress, bytes16 nspace, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
-    ];
+    // Read updated remaining count + timelock state from chain
     try {
-      const multisig = new ethers.Contract(
-        process.env.MULTISIG_CONTRACT_ADDRESS,
-        MULTISIG_READ_ABI,
-        provider,
-      );
+      const multisig = getMultisig();
+
+      const remaining =
+        await multisig._registryValidationCountRemains(registry);
+      const remainingValidation = Number(remaining);
+
+      // Read full struct for isValidated + timeLock
       const reg = await multisig._registry(registry);
-      const remainingValidation = Math.max(
-        0,
-        Number(reg.requiredValidationCount) - Number(reg.validationCount),
-      );
       const isValidated = reg.isValidated;
       const timeLockTimestamp = isValidated ? Number(reg.timeLock) : null;
 
@@ -338,7 +310,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
   }
 });
 
-// VALIDATE VALIDATOR
+// ─── VALIDATE VALIDATOR ───────────────────────────────────────────────────────
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
@@ -353,21 +325,14 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    // Read updated state from chain
-    const MULTISIG_READ_ABI = [
-      "function _updateValidator(address) view returns (address addr, bool action, uint128 requiredValidationCount, uint128 validationCount, uint256 timeLock, bool isProposed, bool isValidated, bool isExecuted)",
-    ];
     try {
-      const multisig = new ethers.Contract(
-        process.env.MULTISIG_CONTRACT_ADDRESS,
-        MULTISIG_READ_ABI,
-        provider,
-      );
+      const multisig = getMultisig();
+
+      const remaining =
+        await multisig._validatorValidationCountRemains(targetAddress);
+      const remainingValidation = Number(remaining);
+
       const update = await multisig._updateValidator(targetAddress);
-      const remainingValidation = Math.max(
-        0,
-        Number(update.requiredValidationCount) - Number(update.validationCount),
-      );
       const isValidated = update.isValidated;
       const timeLockTimestamp = isValidated ? Number(update.timeLock) : null;
 
@@ -391,7 +356,7 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
   }
 });
 
-// CANCEL REGISTRY
+// ─── CANCEL REGISTRY ──────────────────────────────────────────────────────────
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry } = req.body;
@@ -401,7 +366,10 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
       registry,
     );
     const txStatus = await waitForTx(result.taskId);
-    if (txStatus.success) removeRegProposal(registry);
+    if (txStatus.success) {
+      removeRegProposal(registry);
+      console.log(`✅ Registry proposal cancelled: ${registry}`);
+    }
     res.json({ success: txStatus.success, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel registry error:", error);
@@ -409,7 +377,7 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
   }
 });
 
-// CANCEL VALIDATOR
+// ─── CANCEL VALIDATOR ─────────────────────────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress } = req.body;
@@ -419,7 +387,10 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
       targetAddress,
     );
     const txStatus = await waitForTx(result.taskId);
-    if (txStatus.success) removeValProposal(targetAddress);
+    if (txStatus.success) {
+      removeValProposal(targetAddress);
+      console.log(`✅ Validator proposal cancelled: ${targetAddress}`);
+    }
     res.json({ success: txStatus.success, taskId: result.taskId });
   } catch (error) {
     console.error("❌ Cancel validator error:", error);
@@ -427,10 +398,11 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
   }
 });
 
-// EXECUTE REGISTRY
+// ─── EXECUTE REGISTRY ─────────────────────────────────────────────────────────
 router.post("/execute-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, registryName, nspace } = req.body;
+
     const result = await sponsorExecuteInit(
       req.callerUser.safeAddress,
       privateKey,
@@ -441,7 +413,7 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
     if (txStatus.success) {
       removeRegProposal(registry);
 
-      // Save to WalletRegistry with namespace so the transfer dropdown shows it
+      // Add to WalletRegistry so transfer dropdowns show it
       await WalletRegistry.findOneAndUpdate(
         { registryAddress: registry.toLowerCase() },
         {
@@ -465,10 +437,11 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
   }
 });
 
-// EXECUTE VALIDATOR UPDATE
+// ─── EXECUTE VALIDATOR UPDATE ─────────────────────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action } = req.body;
+
     const result = await sponsorExecuteUpdateValidator(
       req.callerUser.safeAddress,
       privateKey,
@@ -479,7 +452,7 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
     if (txStatus.success) {
       removeValProposal(targetAddress);
 
-      // Update isValidator flag on the user whose Safe address matches targetAddress
+      // Update isValidator flag in DB for the target user
       const updated = await User.findOneAndUpdate(
         { safeAddress: targetAddress.toLowerCase() },
         { isValidator: action },

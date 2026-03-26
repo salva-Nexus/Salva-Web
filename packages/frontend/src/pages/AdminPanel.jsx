@@ -19,9 +19,15 @@ class AdminErrorBoundary extends Component {
     if (this.state.hasError) {
       return (
         <div className="p-8 rounded-3xl border border-red-500/30 bg-red-500/5 text-center">
-          <p className="text-red-400 font-black text-lg mb-2">⚠️ Admin Panel Error</p>
-          <p className="text-sm opacity-60 mb-4">Something went wrong loading the admin panel.</p>
-          <p className="text-xs text-red-400/60 font-mono mb-4">{this.state.error?.message}</p>
+          <p className="text-red-400 font-black text-lg mb-2">
+            ⚠️ Admin Panel Error
+          </p>
+          <p className="text-sm opacity-60 mb-4">
+            Something went wrong loading the admin panel.
+          </p>
+          <p className="text-xs text-red-400/60 font-mono mb-4">
+            {this.state.error?.message}
+          </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
             className="px-6 py-2 bg-salvaGold text-black font-black rounded-xl text-xs uppercase"
@@ -35,25 +41,76 @@ class AdminErrorBoundary extends Component {
   }
 }
 
+// ── Timelock countdown ─────────────────────────────────────────────────────
+const TimelockCountdown = ({ timeLockTimestamp }) => {
+  const [remaining, setRemaining] = useState("");
+
+  useEffect(() => {
+    const calc = () => {
+      const now = Math.floor(Date.now() / 1000);
+      const diff = timeLockTimestamp - now;
+      if (diff <= 0) {
+        setRemaining("READY");
+        return;
+      }
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+      setRemaining(`${h}h ${m}m ${s}s`);
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [timeLockTimestamp]);
+
+  const isReady = remaining === "READY";
+  return (
+    <span
+      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+        isReady
+          ? "bg-green-500/10 text-green-400"
+          : "bg-salvaGold/10 text-salvaGold"
+      }`}
+    >
+      {isReady ? "✓ READY TO EXECUTE" : `⏱ ${remaining}`}
+    </span>
+  );
+};
+
+const isTimelockReady = (timeLockTimestamp) => {
+  if (!timeLockTimestamp) return false;
+  return Math.floor(Date.now() / 1000) >= timeLockTimestamp;
+};
+
 // ── Inner panel ────────────────────────────────────────────────────────────
 const AdminPanelInner = ({ user, showMsg }) => {
-  const [proposals, setProposals] = useState({ registryProposals: [], validatorProposals: [] });
+  const [proposals, setProposals] = useState({
+    registryProposals: [],
+    validatorProposals: [],
+  });
   const [loading, setLoading] = useState(false);
   const [fetchingProposals, setFetchingProposals] = useState(true);
   const [fetchError, setFetchError] = useState(null);
 
   const [showRegForm, setShowRegForm] = useState(false);
   const [showValForm, setShowValForm] = useState(false);
-  const [regForm, setRegForm] = useState({ name: "", nspace: "@", address: "" });
+  const [regForm, setRegForm] = useState({
+    name: "",
+    nspace: "@",
+    address: "",
+  });
   const [valForm, setValForm] = useState({ address: "", action: true });
 
   const [isPinOpen, setIsPinOpen] = useState(false);
   const [adminPin, setAdminPin] = useState("");
   const [pendingAdminAction, setPendingAdminAction] = useState(null);
 
+  // Per-validator vote tracking stored in localStorage
   const [myVotes, setMyVotes] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem(`salva_votes_${user.safeAddress}`) || "{}");
+      return JSON.parse(
+        localStorage.getItem(`salva_votes_${user.safeAddress}`) || "{}",
+      );
     } catch {
       return {};
     }
@@ -62,7 +119,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const persistVote = (key) => {
     const updated = { ...myVotes, [key]: true };
     setMyVotes(updated);
-    localStorage.setItem(`salva_votes_${user.safeAddress}`, JSON.stringify(updated));
+    localStorage.setItem(
+      `salva_votes_${user.safeAddress}`,
+      JSON.stringify(updated),
+    );
   };
 
   const fetchProposals = useCallback(async () => {
@@ -75,8 +135,12 @@ const AdminPanelInner = ({ user, showMsg }) => {
       }
       const data = await res.json();
       setProposals({
-        registryProposals: Array.isArray(data.registryProposals) ? data.registryProposals : [],
-        validatorProposals: Array.isArray(data.validatorProposals) ? data.validatorProposals : [],
+        registryProposals: Array.isArray(data.registryProposals)
+          ? data.registryProposals
+          : [],
+        validatorProposals: Array.isArray(data.validatorProposals)
+          ? data.validatorProposals
+          : [],
       });
     } catch (e) {
       console.error("Failed to fetch proposals:", e);
@@ -93,9 +157,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
   }, [fetchProposals]);
 
   // ── PIN gate ───────────────────────────────────────────────────────────
-  // requestPin stores the action, executePinnedAction verifies PIN then runs it.
-  // FIX: setLoading(true) is here and setLoading(false) is guaranteed in the
-  // finally block AFTER the full pendingAdminAction await completes.
   const requestPin = (actionFn) => {
     setPendingAdminAction(() => actionFn);
     setAdminPin("");
@@ -118,13 +179,11 @@ const AdminPanelInner = ({ user, showMsg }) => {
         return;
       }
       setAdminPin("");
-      // Await the full action — loading stays true until it resolves or throws
       await pendingAdminAction(data.privateKey);
     } catch (e) {
       console.error("Action error:", e);
       showMsg(e.message || "Action failed", "error");
     } finally {
-      // Always reset loading — no matter what happened above
       setLoading(false);
     }
   };
@@ -147,7 +206,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to propose registry");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to propose registry");
       showMsg("Registry proposal submitted!");
       setShowRegForm(false);
       setRegForm({ name: "", nspace: "@", address: "" });
@@ -170,7 +230,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to propose validator");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to propose validator");
       showMsg("Validator update proposal submitted!");
       setShowValForm(false);
       setValForm({ address: "", action: true });
@@ -184,10 +245,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-registry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, registry, safeAddress: user.safeAddress }),
+        body: JSON.stringify({
+          privateKey,
+          registry,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to validate registry");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to validate registry");
       persistVote(`reg_${registry}`);
       showMsg("Validation cast!");
       await fetchProposals();
@@ -200,10 +266,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-validator`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, targetAddress, safeAddress: user.safeAddress }),
+        body: JSON.stringify({
+          privateKey,
+          targetAddress,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to validate validator");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to validate validator");
       persistVote(`val_${targetAddress}`);
       showMsg("Validation cast!");
       await fetchProposals();
@@ -216,11 +287,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-registry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, registry, safeAddress: user.safeAddress }),
+        body: JSON.stringify({
+          privateKey,
+          registry,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to cancel");
-      showMsg("Proposal cancelled");
+      showMsg("Proposal cancelled and removed");
       await fetchProposals();
     });
   };
@@ -231,11 +306,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-validator`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, targetAddress, safeAddress: user.safeAddress }),
+        body: JSON.stringify({
+          privateKey,
+          targetAddress,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to cancel");
-      showMsg("Proposal cancelled");
+      showMsg("Proposal cancelled and removed");
       await fetchProposals();
     });
   };
@@ -249,14 +328,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
         body: JSON.stringify({
           privateKey,
           registry: proposal.registry,
-          registryName: proposal.nspace,
+          registryName: proposal.registryName || proposal.nspace,
           nspace: proposal.nspace,
           safeAddress: user.safeAddress,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to execute registry");
-      showMsg("Registry initialized!");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to execute registry");
+      showMsg("Registry initialized and added to Salva!");
       await fetchProposals();
     });
   };
@@ -275,62 +355,43 @@ const AdminPanelInner = ({ user, showMsg }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to execute validator update");
+      if (!res.ok)
+        throw new Error(data.message || "Failed to execute validator update");
       showMsg("Validator updated!");
       await fetchProposals();
     });
   };
 
-  // ── Timelock countdown ─────────────────────────────────────────────────
-  const TimelockCountdown = ({ timeLockTimestamp }) => {
-    const [remaining, setRemaining] = useState("");
-    useEffect(() => {
-      const calc = () => {
-        const now = Math.floor(Date.now() / 1000);
-        const diff = timeLockTimestamp - now;
-        if (diff <= 0) { setRemaining("READY"); return; }
-        const h = Math.floor(diff / 3600);
-        const m = Math.floor((diff % 3600) / 60);
-        const s = diff % 60;
-        setRemaining(`${h}h ${m}m ${s}s`);
-      };
-      calc();
-      const t = setInterval(calc, 1000);
-      return () => clearInterval(t);
-    }, [timeLockTimestamp]);
-
-    const isReady = remaining === "READY";
-    return (
-      <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${isReady ? "bg-green-500/10 text-green-400" : "bg-salvaGold/10 text-salvaGold"}`}>
-        {isReady ? "✓ READY TO EXECUTE" : `⏱ ${remaining}`}
-      </span>
-    );
-  };
-
-  const isTimelockReady = (timeLockTimestamp) => {
-    if (!timeLockTimestamp) return false;
-    return Math.floor(Date.now() / 1000) >= timeLockTimestamp;
-  };
-
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
-
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-8"
+    >
       {/* ── Header ── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">Admin Panel</p>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">
+            Admin Panel
+          </p>
           <h3 className="text-2xl font-black">MultiSig Control</h3>
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => { setShowRegForm(!showRegForm); setShowValForm(false); }}
+            onClick={() => {
+              setShowRegForm(!showRegForm);
+              setShowValForm(false);
+            }}
             disabled={loading}
             className="px-4 py-2 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
           >
             + Registry
           </button>
           <button
-            onClick={() => { setShowValForm(!showValForm); setShowRegForm(false); }}
+            onClick={() => {
+              setShowValForm(!showValForm);
+              setShowRegForm(false);
+            }}
             disabled={loading}
             className="px-4 py-2 border border-salvaGold text-salvaGold font-black text-xs uppercase tracking-widest rounded-xl hover:bg-salvaGold hover:text-black transition-all disabled:opacity-50"
           >
@@ -343,7 +404,9 @@ const AdminPanelInner = ({ user, showMsg }) => {
       {loading && (
         <div className="p-4 rounded-2xl bg-salvaGold/10 border border-salvaGold/30 flex items-center gap-3">
           <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-          <p className="text-xs text-salvaGold font-bold">Submitting transaction via Gelato… this may take 30–60 seconds.</p>
+          <p className="text-xs text-salvaGold font-bold">
+            Submitting transaction on-chain… this may take 30–60 seconds.
+          </p>
         </div>
       )}
 
@@ -375,29 +438,41 @@ const AdminPanelInner = ({ user, showMsg }) => {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Name</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                    Registry Name
+                  </label>
                   <input
-                    placeholder="e.g. Coinbase"
+                    placeholder="e.g. Trust Wallet"
                     value={regForm.name}
-                    onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                    onChange={(e) =>
+                      setRegForm({ ...regForm, name: e.target.value })
+                    }
                     className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Namespace (must start with @)</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                    Namespace (must start with @)
+                  </label>
                   <input
-                    placeholder="@coinbase"
+                    placeholder="@trustwallet"
                     value={regForm.nspace}
-                    onChange={(e) => setRegForm({ ...regForm, nspace: e.target.value })}
+                    onChange={(e) =>
+                      setRegForm({ ...regForm, nspace: e.target.value })
+                    }
                     className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Contract Address</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                    Registry Contract Address
+                  </label>
                   <input
                     placeholder="0x..."
                     value={regForm.address}
-                    onChange={(e) => setRegForm({ ...regForm, address: e.target.value })}
+                    onChange={(e) =>
+                      setRegForm({ ...regForm, address: e.target.value })
+                    }
                     className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono"
                   />
                 </div>
@@ -438,26 +513,40 @@ const AdminPanelInner = ({ user, showMsg }) => {
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Target Wallet Address</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                    Target Wallet Address
+                  </label>
                   <input
                     placeholder="0x..."
                     value={valForm.address}
-                    onChange={(e) => setValForm({ ...valForm, address: e.target.value })}
+                    onChange={(e) =>
+                      setValForm({ ...valForm, address: e.target.value })
+                    }
                     className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono"
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Action</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                    Action
+                  </label>
                   <div className="flex gap-3">
                     <button
                       onClick={() => setValForm({ ...valForm, action: true })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
+                        valForm.action
+                          ? "bg-green-500 text-white"
+                          : "border border-white/10 opacity-40 hover:opacity-70"
+                      }`}
                     >
                       Add Validator
                     </button>
                     <button
                       onClick={() => setValForm({ ...valForm, action: false })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
+                        !valForm.action
+                          ? "bg-red-500 text-white"
+                          : "border border-white/10 opacity-40 hover:opacity-70"
+                      }`}
                     >
                       Remove Validator
                     </button>
@@ -487,14 +576,18 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
       {/* ── Registry Proposals ── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Registry Proposals</p>
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
+          Registry Proposals
+        </p>
         {fetchingProposals ? (
           <div className="flex justify-center py-8">
             <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
           </div>
         ) : proposals.registryProposals.length === 0 ? (
           <div className="text-center py-8 opacity-20">
-            <p className="text-xs uppercase font-bold tracking-widest">No active registry proposals</p>
+            <p className="text-xs uppercase font-bold tracking-widest">
+              No active registry proposals
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -502,6 +595,9 @@ const AdminPanelInner = ({ user, showMsg }) => {
               if (!p || !p.registry) return null;
               const hasVoted = myVotes[`reg_${p.registry}`];
               const timelockReady = isTimelockReady(p.timeLockTimestamp);
+              // Execute is unlocked ONLY when: quorum reached (isValidated) AND timelock expired
+              const canExecute = p.isValidated && timelockReady;
+
               return (
                 <motion.div
                   key={p.registry || i}
@@ -510,26 +606,56 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   transition={{ delay: i * 0.08 }}
                   className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4"
                 >
+                  {/* Header row */}
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                     <div className="space-y-1">
-                      <p className="font-black text-base">{p.nspace}</p>
-                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs">{p.registry}</p>
+                      {/* Registry name — large and prominent */}
+                      <p className="font-black text-lg text-white">
+                        {p.registryName || p.nspace}
+                      </p>
+                      {/* Namespace tag */}
+                      <p className="text-salvaGold font-black text-sm">
+                        {p.nspace}
+                      </p>
+                      {/* Contract address */}
+                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs">
+                        {p.registry}
+                      </p>
                     </div>
+
+                    {/* Status badges */}
                     <div className="flex flex-col items-start sm:items-end gap-2">
-                      {p.remainingValidation !== null && p.remainingValidation !== undefined && (
-                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${p.remainingValidation === 0 ? "bg-green-500/10 text-green-400" : "bg-white/5 text-white/60"}`}>
-                          {p.remainingValidation === 0 ? "✓ QUORUM REACHED" : `${p.remainingValidation} VALIDATIONS REMAINING`}
-                        </span>
-                      )}
+                      {p.remainingValidation !== null &&
+                        p.remainingValidation !== undefined && (
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                              p.remainingValidation === 0
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-white/5 text-white/60"
+                            }`}
+                          >
+                            {p.remainingValidation === 0
+                              ? "✓ QUORUM REACHED"
+                              : `${p.remainingValidation} VOTE${p.remainingValidation !== 1 ? "S" : ""} REMAINING`}
+                          </span>
+                        )}
+                      {/* Timelock countdown — only shows after quorum */}
                       {p.isValidated && p.timeLockTimestamp && (
-                        <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
+                        <TimelockCountdown
+                          timeLockTimestamp={p.timeLockTimestamp}
+                        />
                       )}
                     </div>
                   </div>
+
+                  {/* Action buttons */}
                   <div className="flex flex-wrap gap-2">
+                    {/* Validate — locked if already voted OR quorum reached */}
                     {!p.isValidated ? (
                       hasVoted ? (
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">✓ Voted</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
+                          ✓ Voted
+                        </span>
                       ) : (
                         <button
                           onClick={() => handleValidateRegistry(p.registry)}
@@ -539,15 +665,20 @@ const AdminPanelInner = ({ user, showMsg }) => {
                           Validate
                         </button>
                       )
-                    ) : (
+                    ) : null}
+
+                    {/* Execute — only visible after quorum, locked until timelock expires */}
+                    {p.isValidated && (
                       <button
                         onClick={() => handleExecuteRegistry(p)}
-                        disabled={loading || !timelockReady}
+                        disabled={loading || !canExecute}
                         className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        Execute
+                        {canExecute ? "Execute" : "Locked"}
                       </button>
                     )}
+
+                    {/* Cancel — always available to any validator */}
                     <button
                       onClick={() => handleCancelRegistry(p.registry)}
                       disabled={loading}
@@ -565,14 +696,18 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
       {/* ── Validator Proposals ── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Validator Proposals</p>
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
+          Validator Proposals
+        </p>
         {fetchingProposals ? (
           <div className="flex justify-center py-8">
             <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
           </div>
         ) : proposals.validatorProposals.length === 0 ? (
           <div className="text-center py-8 opacity-20">
-            <p className="text-xs uppercase font-bold tracking-widest">No active validator proposals</p>
+            <p className="text-xs uppercase font-bold tracking-widest">
+              No active validator proposals
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -580,6 +715,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
               if (!p || !p.addr) return null;
               const hasVoted = myVotes[`val_${p.addr}`];
               const timelockReady = isTimelockReady(p.timeLockTimestamp);
+              const canExecute = p.isValidated && timelockReady;
+
               return (
                 <motion.div
                   key={p.addr || i}
@@ -589,27 +726,50 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4"
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-                    <div className="space-y-1">
-                      <span className={`text-xs font-black uppercase px-2 py-1 rounded-lg ${p.action ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}>
+                    <div className="space-y-2">
+                      <span
+                        className={`text-xs font-black uppercase px-2 py-1 rounded-lg ${
+                          p.action
+                            ? "bg-green-500/10 text-green-400"
+                            : "bg-red-500/10 text-red-400"
+                        }`}
+                      >
                         {p.action ? "ADD VALIDATOR" : "REMOVE VALIDATOR"}
                       </span>
-                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs mt-1">{p.addr}</p>
+                      <p className="font-mono text-[10px] opacity-40 truncate max-w-xs mt-1">
+                        {p.addr}
+                      </p>
                     </div>
+
                     <div className="flex flex-col items-start sm:items-end gap-2">
-                      {p.remainingValidation !== null && p.remainingValidation !== undefined && (
-                        <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${p.remainingValidation === 0 ? "bg-green-500/10 text-green-400" : "bg-white/5 text-white/60"}`}>
-                          {p.remainingValidation === 0 ? "✓ QUORUM REACHED" : `${p.remainingValidation} VALIDATIONS REMAINING`}
-                        </span>
-                      )}
+                      {p.remainingValidation !== null &&
+                        p.remainingValidation !== undefined && (
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
+                              p.remainingValidation === 0
+                                ? "bg-green-500/10 text-green-400"
+                                : "bg-white/5 text-white/60"
+                            }`}
+                          >
+                            {p.remainingValidation === 0
+                              ? "✓ QUORUM REACHED"
+                              : `${p.remainingValidation} VOTE${p.remainingValidation !== 1 ? "S" : ""} REMAINING`}
+                          </span>
+                        )}
                       {p.isValidated && p.timeLockTimestamp && (
-                        <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
+                        <TimelockCountdown
+                          timeLockTimestamp={p.timeLockTimestamp}
+                        />
                       )}
                     </div>
                   </div>
+
                   <div className="flex flex-wrap gap-2">
                     {!p.isValidated ? (
                       hasVoted ? (
-                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">✓ Voted</span>
+                        <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
+                          ✓ Voted
+                        </span>
                       ) : (
                         <button
                           onClick={() => handleValidateValidator(p.addr)}
@@ -619,15 +779,18 @@ const AdminPanelInner = ({ user, showMsg }) => {
                           Validate
                         </button>
                       )
-                    ) : (
+                    ) : null}
+
+                    {p.isValidated && (
                       <button
                         onClick={() => handleExecuteValidator(p)}
-                        disabled={loading || !timelockReady}
+                        disabled={loading || !canExecute}
                         className="px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/30 text-green-400 font-black text-[10px] uppercase hover:bg-green-500 hover:text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
                       >
-                        Execute
+                        {canExecute ? "Execute" : "Locked"}
                       </button>
                     )}
+
                     <button
                       onClick={() => handleCancelValidator(p.addr)}
                       disabled={loading}
@@ -648,8 +811,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
         {isPinOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
             <motion.div
-              onClick={() => { setIsPinOpen(false); setAdminPin(""); }}
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsPinOpen(false);
+                setAdminPin("");
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
             />
             <motion.div
@@ -664,7 +832,9 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   <span className="text-2xl">🔐</span>
                 </div>
                 <h3 className="text-xl font-black mb-1">Admin Verification</h3>
-                <p className="text-xs opacity-50">Enter your transaction PIN to sign</p>
+                <p className="text-xs opacity-50">
+                  Enter your transaction PIN to sign
+                </p>
               </div>
               <input
                 type="password"
@@ -672,14 +842,21 @@ const AdminPanelInner = ({ user, showMsg }) => {
                 maxLength="4"
                 value={adminPin}
                 onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ""))}
-                onKeyDown={(e) => e.key === "Enter" && adminPin.length === 4 && executePinnedAction()}
+                onKeyDown={(e) =>
+                  e.key === "Enter" &&
+                  adminPin.length === 4 &&
+                  executePinnedAction()
+                }
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
               />
               <div className="flex gap-3">
                 <button
-                  onClick={() => { setIsPinOpen(false); setAdminPin(""); }}
+                  onClick={() => {
+                    setIsPinOpen(false);
+                    setAdminPin("");
+                  }}
                   className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5"
                 >
                   Cancel

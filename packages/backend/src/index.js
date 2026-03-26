@@ -12,7 +12,6 @@ const { sponsorSafeTransfer } = require("./services/relayService");
 const Transaction = require("./models/Transaction");
 const mongoose = require("mongoose");
 const { Resend } = require("resend");
-const Approval = require("./models/Approval");
 const {
   encryptPrivateKey,
   decryptPrivateKey,
@@ -30,6 +29,13 @@ const {
   sendSecurityChangeEmail,
   sendEmailChangeConfirmation,
 } = require("./services/emailService");
+
+const {
+  isAccountNumber,
+  getAccountNumberFromAddress,
+  resolveToAddress,
+  isNameAvailable,
+} = require("./services/registryResolver");
 
 const User = require("./models/User");
 const AccountNumberCounter = require("./models/AccountNumberCounter");
@@ -826,28 +832,95 @@ app.post("/api/alias/link-number", async (req, res) => {
   }
 });
 
+app.post("/api/alias/link-name", async (req, res) => {
+  try {
+    const { safeAddress, name } = req.body;
+
+    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+      return res.status(400).json({ message: "Invalid wallet address" });
+    }
+
+    if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
+      return res.status(400).json({
+        message:
+          "Invalid name. Use lowercase letters, digits 2–9, dots, dashes, underscores. Max 16 chars.",
+      });
+    }
+
+    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (user.nameAlias)
+      return res.status(400).json({ message: "Name alias already registered" });
+
+    // Double-check availability before sending tx
+    const available = await isNameAvailable(name);
+    if (!available) {
+      return res.status(409).json({ message: "Name is already taken" });
+    }
+
+    // Call linkName on SalvaRegistry — backend wallet is the REGISTRAR
+    const LINK_ABI = [
+      "function linkName(string memory, address) external returns (bool)",
+    ];
+    const registryContract = new ethers.Contract(
+      process.env.REGISTRY_CONTRACT_ADDRESS,
+      LINK_ABI,
+      wallet,
+    );
+
+    let tx;
+    try {
+      tx = await registryContract.linkName(name, user.safeAddress);
+      console.log(`⏳ linkName TX sent: ${tx.hash}`);
+    } catch (sendError) {
+      console.error("❌ linkName send failed:", sendError.message);
+      return res.status(500).json({
+        message: "On-chain name registration failed. Please try again.",
+      });
+    }
+
+    let receipt;
+    try {
+      receipt = await tx.wait();
+    } catch (waitError) {
+      console.error("❌ linkName reverted:", waitError.message);
+      return res.status(500).json({
+        message: "On-chain name registration reverted. Please try again.",
+      });
+    }
+
+    if (!receipt || receipt.status === 0) {
+      return res.status(500).json({
+        message: "On-chain name registration failed (receipt status 0).",
+      });
+    }
+
+    console.log(
+      `✅ linkName confirmed on-chain: '${name}' → ${user.safeAddress}`,
+    );
+
+    user.nameAlias = name;
+    await user.save();
+
+    res.json({ success: true, nameAlias: name });
+  } catch (error) {
+    console.error("❌ Link name error:", error);
+    return handleError(error, res, "Failed to link name alias");
+  }
+});
+
 // ===============================================
 // CHECK NAME AVAILABILITY
 // ===============================================
 app.post("/api/alias/check-name", async (req, res) => {
   try {
     const { name } = req.body;
-
-    if (!name || !/^[a-z0-9._-]{1,16}$/.test(name)) {
+    // Enforce phishingProof rules: lowercase, digits 2-9, dots/dashes/underscores, max 16
+    if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
       return res.status(400).json({ message: "Invalid name format" });
     }
-
-    const REGISTRY_ABI = ["function resolveViaName(string calldata) view returns (address)"];
-    const registryContract = new ethers.Contract(
-      process.env.REGISTRY_CONTRACT_ADDRESS,
-      REGISTRY_ABI,
-      provider
-    );
-
-    const address = await registryContract.resolveViaName(name);
-    const taken = address && address !== ethers.ZeroAddress;
-
-    res.json({ taken, available: !taken });
+    const available = await isNameAvailable(name);
+    res.json({ taken: !available, available });
   } catch (error) {
     return handleError(error, res, "Failed to check name");
   }
@@ -949,12 +1022,68 @@ app.get("/api/balance/:address", async (req, res) => {
   }
 });
 
+app.post("/api/resolve-recipient", async (req, res) => {
+  try {
+    const { input, registryAddress } = req.body;
+ 
+    if (!input) {
+      return res.status(400).json({ message: "Input required" });
+    }
+ 
+    // Raw 0x addresses don't need resolution — frontend should handle them directly
+    if (input.trim().startsWith("0x")) {
+      return res
+        .status(400)
+        .json({ message: "Address inputs don't need resolution" });
+    }
+ 
+    if (!registryAddress) {
+      return res
+        .status(400)
+        .json({ message: "Registry address required for name/number inputs" });
+    }
+ 
+    let resolvedAddress;
+    try {
+      resolvedAddress = await resolveToAddress(input.trim(), registryAddress);
+    } catch (err) {
+      return res
+        .status(404)
+        .json({ message: err.message || "Recipient not found" });
+    }
+ 
+    if (!resolvedAddress) {
+      return res.status(404).json({ message: "Recipient not found" });
+    }
+ 
+    // Try to find the user in DB for display name
+    const recipientUser = await User.findOne({
+      safeAddress: resolvedAddress.toLowerCase(),
+    });
+ 
+    res.json({
+      resolvedAddress,
+      displayName: recipientUser?.username || null,
+    });
+  } catch (error) {
+    console.error("❌ Resolve recipient error:", error);
+    return handleError(error, res, "Failed to resolve recipient");
+  }
+});
+
 // ===============================================
 // TRANSFER — with fee, registry resolution, multicall
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
-    const { userPrivateKey, safeAddress, toInput, amount, registryAddress } = req.body;
+const {
+  userPrivateKey,
+  safeAddress,
+  toInput,
+  amount,
+  registryAddress,
+  inputType,
+} = req.body;
 
     validateAmount(amount);
 

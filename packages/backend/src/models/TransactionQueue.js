@@ -1,56 +1,55 @@
-// Salva-Digital-Tech/Packages/backend/src/models/TransactionQueue.js
-const mongoose = require('mongoose');
+// Salva-Digital-Tech/packages/backend/src/models/TransactionQueue.js
+const mongoose = require("mongoose");
 
 const TransactionQueueSchema = new mongoose.Schema({
-  walletAddress: { 
-    type: String, 
-    required: true, 
+  walletAddress: {
+    type: String,
+    required: true,
     index: true,
-    lowercase: true
+    lowercase: true,
   },
-  status: { 
-    type: String, 
-    enum: ['PENDING', 'SENDING', 'CONFIRMED', 'FAILED'],
-    default: 'PENDING',
-    index: true
+  status: {
+    type: String,
+    enum: ["PENDING", "SENDING", "CONFIRMED", "FAILED"],
+    default: "PENDING",
+    index: true,
   },
   type: {
     type: String,
-    enum: ['transfer', 'approve', 'transferFrom'],
-    required: true
+    enum: ["transfer"],
+    required: true,
   },
   payload: {
     type: mongoose.Schema.Types.Mixed,
-    required: true
+    required: true,
   },
-  txHash: { 
+  txHash: {
     type: String,
-    default: null 
+    default: null,
   },
   taskId: {
     type: String,
-    default: null
+    default: null,
   },
   errorMessage: {
     type: String,
-    default: null
+    default: null,
   },
   cooldownUntil: {
     type: Date,
-    default: null
+    default: null,
   },
-  createdAt: { 
-    type: Date, 
+  createdAt: {
+    type: Date,
     default: Date.now,
-    index: true
+    index: true,
   },
   updatedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: Date.now,
+  },
 });
 
-// Index for finding active transactions
 TransactionQueueSchema.index({ walletAddress: 1, status: 1 });
 
-module.exports = mongoose.model('TransactionQueue', TransactionQueueSchema);
+module.exports = mongoose.model("TransactionQueue", TransactionQueueSchema);
