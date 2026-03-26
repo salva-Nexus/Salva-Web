@@ -1,12 +1,11 @@
 // Salva-Digital-Tech/packages/backend/src/services/relayService.js
-const Safe4337Pack = require("@safe-global/relay-kit").Safe4337Pack;
 const { ethers } = require("ethers");
+const { wallet, provider } = require("./walletSigner");
 
 const RPC_URL = process.env.ALCHEMY_RPC_URL;
 const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 
-// Synced with MultiSig.sol return values for accurate decoding
 const MULTISIG_IFACE = new ethers.Interface([
   "function proposeInitialization(string,address) external returns (address,string,bytes16,bool)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,bool)",
@@ -18,48 +17,78 @@ const MULTISIG_IFACE = new ethers.Interface([
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
-// ✅ Corrected initSafe4337 in relayService.js
-async function initSafe4337(safeAddress, ownerKey) {
-  const checksumAddress = ethers.getAddress(safeAddress);
+// ─── Safe ABI (just what we need) ────────────────────────────────────────────
+const SAFE_ABI = [
+  "function execTransaction(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, bytes memory signatures) public payable returns (bool success)",
+  "function getTransactionHash(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 nonce) public view returns (bytes32)",
+  "function nonce() public view returns (uint256)",
+];
 
-  // The kit needs ONE object (initOptions)
-  // Inside that object, it looks for a property called 'options'
-  const safe4337Pack = await Safe4337Pack.init({
-    provider: RPC_URL,
-    signer: ownerKey,
-    bundlerUrl: RPC_URL,
-    paymasterOptions: {
-      isSponsored: true,
-      paymasterUrl: RPC_URL,
-      sponsorshipPolicyId: GAS_POLICY_ID,
-    },
-    options: {               // <--- This is the 'options' from your source snippet
-      safeAddress: checksumAddress, 
-    }
-  });
+// ─── Build a Safe signature from the owner private key ───────────────────────
+async function buildSafeSignature(safeAddress, ownerKey, to, data) {
+  const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, provider);
+  const nonce = await safeContract.nonce();
 
-  return safe4337Pack;
+  const txHash = await safeContract.getTransactionHash(
+    to,
+    0, // value
+    data,
+    0, // operation (CALL)
+    0, // safeTxGas
+    0, // baseGas
+    0, // gasPrice
+    ethers.ZeroAddress, // gasToken
+    ethers.ZeroAddress, // refundReceiver
+    nonce,
+  );
+
+  const ownerWallet = new ethers.Wallet(ownerKey, provider);
+  const sigBytes = await ownerWallet.signMessage(ethers.getBytes(txHash));
+
+  // Adjust v for Safe's EthSign format (v + 4)
+  const sig = ethers.Signature.from(sigBytes);
+  const v = sig.v + 4;
+  const signature = sig.r + sig.s.slice(2) + v.toString(16).padStart(2, "0");
+
+  return { safeContract, nonce, signature };
 }
 
-async function _executeViaAlchemy(safeAddress, ownerKey, transactions) {
-  const safe4337Pack = await initSafe4337(safeAddress, ownerKey);
+// ─── Execute a tx through the Safe, sponsored via Alchemy ────────────────────
+async function _executeViaSafe(safeAddress, ownerKey, to, data) {
+  const { safeContract, signature } = await buildSafeSignature(
+    safeAddress,
+    ownerKey,
+    to,
+    data,
+  );
 
-  const safeOperation = await safe4337Pack.createTransaction({ transactions });
-  const signedOperation = await safe4337Pack.signSafeOperation(safeOperation);
-  const userOpHash = await safe4337Pack.executeTransaction({
-    executable: signedOperation,
-  });
+  // Use the backend wallet to submit (it pays gas, Alchemy reimburses via policy)
+  const safeWithSigner = safeContract.connect(wallet);
 
-  console.log(`✅ Alchemy UserOp Hash: ${userOpHash}`);
-  return { taskId: userOpHash };
+  const tx = await safeWithSigner.execTransaction(
+    to,
+    0,
+    data,
+    0, // operation CALL
+    0, // safeTxGas
+    0, // baseGas
+    0, // gasPrice
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    "0x" + signature,
+  );
+
+  console.log(`✅ Safe TX submitted: ${tx.hash}`);
+  const receipt = await tx.wait();
+
+  return { taskId: tx.hash, receipt };
 }
 
 async function _sponsorMultisigCall(safeAddress, ownerKey, calldata) {
-  const transactions = [{ to: MULTISIG_ADDRESS, data: calldata, value: "0" }];
-  return _executeViaAlchemy(safeAddress, ownerKey, transactions);
+  return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, calldata);
 }
 
-// --- Sponsored Multisig Exports ---
+// ─── Sponsored Multisig Exports ───────────────────────────────────────────────
 async function sponsorProposeInitialization(
   safeAddress,
   ownerKey,
@@ -132,6 +161,7 @@ async function sponsorExecuteUpdateValidator(
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
+// ─── Token Transfer (also via Safe execTransaction) ──────────────────────────
 async function sponsorSafeTransfer(
   safeAddress,
   ownerKey,
@@ -140,26 +170,81 @@ async function sponsorSafeTransfer(
   feeWei = 0n,
 ) {
   const iface = new ethers.Interface(["function transfer(address,uint256)"]);
-  const checksumAddress = ethers.getAddress(safeAddress);
-  const transactions = [
-    {
-      to: process.env.NGN_TOKEN_ADDRESS,
-      data: iface.encodeFunctionData("transfer", [recipientAddress, amountWei]),
-      value: "0",
-    },
-  ];
+  const NGN_TOKEN = process.env.NGN_TOKEN_ADDRESS;
+  const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
 
   if (feeWei > 0n) {
-    transactions.push({
-      to: process.env.NGN_TOKEN_ADDRESS,
-      data: iface.encodeFunctionData("transfer", [
-        process.env.TREASURY_CONTRACT_ADDRESS,
-        feeWei,
-      ]),
-      value: "0",
-    });
+    // Two transfers: recipient + treasury fee
+    // Encode as a MultiSend batch
+    const MULTISEND_ABI = [
+      "function multiSend(bytes memory transactions) external payable",
+    ];
+    const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"; // Safe MultiSend on Base Sepolia
+
+    const encodePackedTx = (to, data) => {
+      const toBytes = ethers.getBytes(to);
+      const dataBytes = ethers.getBytes(data);
+      const dataLength = ethers.zeroPadValue(
+        ethers.toBeHex(dataBytes.length),
+        32,
+      );
+      return ethers.concat([
+        "0x00", // operation: CALL
+        toBytes, // to (20 bytes)
+        ethers.zeroPadValue("0x00", 32), // value (32 bytes, 0)
+        dataLength, // data length (32 bytes)
+        dataBytes, // data
+      ]);
+    };
+
+    const tx1Data = iface.encodeFunctionData("transfer", [
+      recipientAddress,
+      amountWei,
+    ]);
+    const tx2Data = iface.encodeFunctionData("transfer", [TREASURY, feeWei]);
+
+    const packed = ethers.concat([
+      encodePackedTx(NGN_TOKEN, tx1Data),
+      encodePackedTx(NGN_TOKEN, tx2Data),
+    ]);
+
+    const multisendCalldata = new ethers.Interface(
+      MULTISEND_ABI,
+    ).encodeFunctionData("multiSend", [packed]);
+
+    // DelegateCall (operation=1) to MultiSend
+    const { safeContract, signature } = await buildSafeSignature(
+      safeAddress,
+      ownerKey,
+      MULTISEND_ADDRESS,
+      multisendCalldata,
+    );
+
+    const safeWithSigner = safeContract.connect(wallet);
+    const tx = await safeWithSigner.execTransaction(
+      MULTISEND_ADDRESS,
+      0,
+      multisendCalldata,
+      1, // operation: DELEGATECALL
+      0,
+      0,
+      0,
+      ethers.ZeroAddress,
+      ethers.ZeroAddress,
+      "0x" + signature,
+    );
+
+    console.log(`✅ MultiSend TX submitted: ${tx.hash}`);
+    await tx.wait();
+    return { taskId: tx.hash };
+  } else {
+    // Single transfer
+    const data = iface.encodeFunctionData("transfer", [
+      recipientAddress,
+      amountWei,
+    ]);
+    return _executeViaSafe(safeAddress, ownerKey, NGN_TOKEN, data);
   }
-  return _executeViaAlchemy(checksumAddress, ownerKey, transactions);
 }
 
 module.exports = {
