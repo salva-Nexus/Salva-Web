@@ -16,6 +16,7 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     safeAccountConfig: {
       owners: [owner.address],
       threshold: 1,
+      modules: [SAFE_4337_MODULE_ADDRESS]
     },
     safeDeploymentConfig: {
       safeVersion: "1.4.1",
