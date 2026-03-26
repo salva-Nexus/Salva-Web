@@ -501,12 +501,6 @@ app.get("/api/fee-config", async (req, res) => {
   }
 });
 
-const {
-  isAccountNumber,
-  getAccountNumberFromAddress,
-  resolveToAddress,
-} = require("./services/registryResolver");
-
 // ===============================================
 // AUTH ROUTES
 // ===============================================
