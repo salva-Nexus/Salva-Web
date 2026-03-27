@@ -33,14 +33,27 @@ function getMultisig() {
   );
 }
 
+// ─── Helper: Normalize Address ────────────────────────────────────────────────
+// This prevents "bad address checksum" errors by forcing lowercase then re-checksumming
+function normalizeAddr(addr) {
+  if (!addr) return null;
+  try {
+    return ethers.getAddress(addr.toLowerCase());
+  } catch (e) {
+    return null;
+  }
+}
+
 // ─── Middleware ────────────────────────────────────────────────────────────────
 async function requireValidator(req, res, next) {
   const { safeAddress } = req.body;
   if (!safeAddress)
     return res.status(400).json({ message: "safeAddress required" });
+
   const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
   if (!user || !user.isValidator)
     return res.status(403).json({ message: "Not authorized" });
+
   req.callerUser = user;
   next();
 }
@@ -86,8 +99,9 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
 async function getRegistryRemaining(registryAddress) {
   try {
     const multisig = getMultisig();
-    const remaining =
-      await multisig._registryValidationCountRemains(registryAddress);
+    const remaining = await multisig._registryValidationCountRemains(
+      normalizeAddr(registryAddress),
+    );
     return Number(remaining);
   } catch (e) {
     console.error("Registry read failed:", e);
@@ -98,7 +112,9 @@ async function getRegistryRemaining(registryAddress) {
 async function getValidatorRemaining(addr) {
   try {
     const multisig = getMultisig();
-    const remaining = await multisig._validatorValidationCountRemains(addr);
+    const remaining = await multisig._validatorValidationCountRemains(
+      normalizeAddr(addr),
+    );
     return Number(remaining);
   } catch (e) {
     console.error("Validator read failed:", e);
@@ -152,17 +168,20 @@ router.get("/proposals", async (req, res) => {
 // ─── PROPOSE REGISTRY ──────────────────────────────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, nspace, registry, registryName } = req.body;
+    let { privateKey, nspace, registry, registryName } = req.body;
 
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
-    if (!ethers.isAddress(registry))
+
+    // NORMALIZE FIX
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
 
     // Prevent duplicate proposals
     const existing = await Proposal.findOne({
       type: "registry",
-      registry: registry.toLowerCase(),
+      registry: cleanRegistry.toLowerCase(),
     });
     if (existing)
       return res
@@ -174,7 +193,7 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       req.callerUser.safeAddress,
       privateKey,
       nspace,
-      registry,
+      cleanRegistry,
     );
 
     const txStatus = await waitForTx(result.taskId);
@@ -182,12 +201,11 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       return res.status(500).json({ message: txStatus.reason });
 
     // Read on-chain state AFTER the tx is confirmed
-    // After propose: proposer has NOT voted yet, remaining = requiredValidationCount
-    const remaining = await getRegistryRemaining(registry);
+    const remaining = await getRegistryRemaining(cleanRegistry);
 
     const proposal = await Proposal.create({
       type: "registry",
-      registry: registry.toLowerCase(),
+      registry: cleanRegistry.toLowerCase(),
       nspace,
       registryName: registryName || nspace,
       remainingValidation: remaining,
@@ -200,7 +218,7 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       type: "registry",
       registryName: registryName || nspace,
       nspace,
-      registry,
+      registry: cleanRegistry,
     });
 
     res.json({ success: true, taskId: result.taskId, proposal });
@@ -213,14 +231,16 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
 // ─── PROPOSE VALIDATOR ─────────────────────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, action } = req.body;
+    let { privateKey, targetAddress, action } = req.body;
 
-    if (!ethers.isAddress(targetAddress))
+    // NORMALIZE FIX
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
 
     const existing = await Proposal.findOne({
       type: "validator",
-      addr: targetAddress.toLowerCase(),
+      addr: cleanTarget.toLowerCase(),
     });
     if (existing)
       return res
@@ -230,7 +250,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     const result = await sponsorProposeValidatorUpdate(
       req.callerUser.safeAddress,
       privateKey,
-      targetAddress,
+      cleanTarget,
       action,
     );
 
@@ -238,11 +258,11 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    const remaining = await getValidatorRemaining(targetAddress);
+    const remaining = await getValidatorRemaining(cleanTarget);
 
     const proposal = await Proposal.create({
       type: "validator",
-      addr: targetAddress.toLowerCase(),
+      addr: cleanTarget.toLowerCase(),
       action,
       remainingValidation: remaining,
       isValidated: false,
@@ -255,7 +275,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
 
     await notifyAllValidators("New Validator Update Proposal", {
       type: "validator",
-      targetAddress,
+      targetAddress: cleanTarget,
       action,
     });
 
@@ -267,17 +287,19 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
 });
 
 // ─── VALIDATE REGISTRY ─────────────────────────────────────────────────────────
-// Called by each validator to cast their vote.
-// After this tx confirms: re-read on-chain state and update DB.
-// If remainingValidation becomes 0: isValidated=true and timeLock is set by contract.
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, registry } = req.body;
+    let { privateKey, registry } = req.body;
+
+    // NORMALIZE FIX
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
 
     const result = await sponsorValidateRegistry(
       req.callerUser.safeAddress,
       privateKey,
-      registry,
+      cleanRegistry,
     );
 
     const txStatus = await waitForTx(result.taskId);
@@ -285,7 +307,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
       return res.status(500).json({ message: txStatus.reason });
 
     // CRITICAL: Read updated state from chain after the vote lands
-    const remaining = await getRegistryRemaining(registry);
+    const remaining = await getRegistryRemaining(cleanRegistry);
 
     const isValidated = remaining === 0;
     const timeLockTimestamp = isValidated
@@ -293,7 +315,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
       : null;
 
     const updated = await Proposal.findOneAndUpdate(
-      { type: "registry", registry: registry.toLowerCase() },
+      { type: "registry", registry: cleanRegistry.toLowerCase() },
       {
         remainingValidation: remaining,
         isValidated,
@@ -313,19 +335,24 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
 // ─── VALIDATE VALIDATOR ────────────────────────────────────────────────────────
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress } = req.body;
+    let { privateKey, targetAddress } = req.body;
+
+    // NORMALIZE FIX
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
 
     const result = await sponsorValidateValidator(
       req.callerUser.safeAddress,
       privateKey,
-      targetAddress,
+      cleanTarget,
     );
 
     const txStatus = await waitForTx(result.taskId);
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    const remaining = await getValidatorRemaining(targetAddress);
+    const remaining = await getValidatorRemaining(cleanTarget);
 
     const isValidated = remaining === 0;
     const timeLockTimestamp = isValidated
@@ -333,7 +360,7 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
       : null;
 
     const updated = await Proposal.findOneAndUpdate(
-      { type: "validator", addr: targetAddress.toLowerCase() },
+      { type: "validator", addr: cleanTarget.toLowerCase() },
       {
         remainingValidation: remaining,
         isValidated,
@@ -353,21 +380,26 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
 // ─── CANCEL REGISTRY ───────────────────────────────────────────────────────────
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, registry } = req.body;
+    let { privateKey, registry } = req.body;
+
+    // NORMALIZE FIX
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
 
     const result = await sponsorCancelInit(
       req.callerUser.safeAddress,
       privateKey,
-      registry,
+      cleanRegistry,
     );
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
       await Proposal.deleteOne({
         type: "registry",
-        registry: registry.toLowerCase(),
+        registry: cleanRegistry.toLowerCase(),
       });
-      console.log(`✅ Registry proposal deleted from DB: ${registry}`);
+      console.log(`✅ Registry proposal deleted from DB: ${cleanRegistry}`);
     }
 
     res.json({ success: txStatus.success, taskId: result.taskId });
@@ -380,21 +412,26 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
 // ─── CANCEL VALIDATOR ──────────────────────────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress } = req.body;
+    let { privateKey, targetAddress } = req.body;
+
+    // NORMALIZE FIX
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
 
     const result = await sponsorCancelValidatorUpdate(
       req.callerUser.safeAddress,
       privateKey,
-      targetAddress,
+      cleanTarget,
     );
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
       await Proposal.deleteOne({
         type: "validator",
-        addr: targetAddress.toLowerCase(),
+        addr: cleanTarget.toLowerCase(),
       });
-      console.log(`✅ Validator proposal deleted from DB: ${targetAddress}`);
+      console.log(`✅ Validator proposal deleted from DB: ${cleanTarget}`);
     }
 
     res.json({ success: txStatus.success, taskId: result.taskId });
@@ -405,33 +442,38 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
 });
 
 // ─── EXECUTE REGISTRY ──────────────────────────────────────────────────────────
-// Only callable after isValidated=true AND timeLock has expired.
-// The contract enforces this — it will revert if called too early.
 router.post("/execute-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, registry, registryName, nspace } = req.body;
+    let { privateKey, registry, registryName, nspace } = req.body;
+
+    // NORMALIZE FIX
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
 
     const result = await sponsorExecuteInit(
       req.callerUser.safeAddress,
       privateKey,
-      registry,
+      cleanRegistry,
     );
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
       await Proposal.deleteOne({
         type: "registry",
-        registry: registry.toLowerCase(),
+        registry: cleanRegistry.toLowerCase(),
       });
-      console.log(`✅ Registry proposal executed and deleted: ${registry}`);
+      console.log(
+        `✅ Registry proposal executed and deleted: ${cleanRegistry}`,
+      );
 
       // Add to WalletRegistry so it appears in transfer dropdowns
       await WalletRegistry.findOneAndUpdate(
-        { registryAddress: registry.toLowerCase() },
+        { registryAddress: cleanRegistry.toLowerCase() },
         {
           name: registryName || nspace,
           nspace: nspace || "",
-          registryAddress: registry.toLowerCase(),
+          registryAddress: cleanRegistry.toLowerCase(),
           active: true,
         },
         { upsert: true, new: true },
@@ -450,26 +492,29 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
 // ─── EXECUTE VALIDATOR UPDATE ──────────────────────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, action } = req.body;
+    let { privateKey, targetAddress, action } = req.body;
+
+    // NORMALIZE FIX
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
 
     const result = await sponsorExecuteUpdateValidator(
       req.callerUser.safeAddress,
       privateKey,
-      targetAddress,
+      cleanTarget,
     );
     const txStatus = await waitForTx(result.taskId);
 
     if (txStatus.success) {
       await Proposal.deleteOne({
         type: "validator",
-        addr: targetAddress.toLowerCase(),
+        addr: cleanTarget.toLowerCase(),
       });
-      console.log(
-        `✅ Validator proposal executed and deleted: ${targetAddress}`,
-      );
+      console.log(`✅ Validator proposal executed and deleted: ${cleanTarget}`);
 
       const updated = await User.findOneAndUpdate(
-        { safeAddress: targetAddress.toLowerCase() },
+        { safeAddress: cleanTarget.toLowerCase() },
         { isValidator: action },
         { new: true },
       );
@@ -477,7 +522,7 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
       if (updated) {
         console.log(`✅ User ${updated.username} isValidator set to ${action}`);
       } else {
-        console.warn(`⚠️ No user found with safeAddress ${targetAddress}`);
+        console.warn(`⚠️ No user found with safeAddress ${cleanTarget}`);
       }
     }
 
