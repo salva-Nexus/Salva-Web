@@ -32,6 +32,7 @@ const {
 
 const {
   isAccountNumber,
+  isNameAlias,
   getAccountNumberFromAddress,
   resolveToAddress,
   isNameAvailable,
@@ -1070,6 +1071,9 @@ app.post("/api/resolve-recipient", async (req, res) => {
 // ===============================================
 // TRANSFER — with fee, registry resolution, multicall
 // ===============================================
+// ===============================================
+// TRANSFER — with fee, registry resolution, multicall
+// ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
     const {
@@ -1094,6 +1098,8 @@ app.post("/api/transfer", async (req, res) => {
           return res.status(400).json({ message: "Registry selection required for name resolution" });
         }
 
+        // Fetch registry from DB to get the namespace (e.g., @salva)
+        const WalletRegistry = mongoose.model("WalletRegistry");
         const registryDoc = await WalletRegistry.findOne({ 
           registryAddress: registryAddress.toLowerCase() 
         });
@@ -1102,12 +1108,12 @@ app.post("/api/transfer", async (req, res) => {
           return res.status(404).json({ message: "Selected Registry not found in database" });
         }
 
-        // Weld the name with the namespace: "charles" -> "charles@salva"
+        // Weld the name: "charles" -> "charles@salva"
         finalToInput = `${finalToInput}${registryDoc.nspace}`;
         console.log(`🔗 Welded Recipient: ${finalToInput}`);
       }
 
-      // Resolve the (potentially welded) input to a 0x address
+      // Resolve the (now welded) input to a 0x address
       recipientAddress = await resolveToAddress(finalToInput, registryAddress || null);
     } catch (error) {
       return res.status(404).json({ message: error.message });
@@ -1146,13 +1152,14 @@ app.post("/api/transfer", async (req, res) => {
     }
 
     // ── 3. Metadata & Queueing ───────────────────────────────────────────────
-    const senderUser = await User.findOne({ safeAddress: normalizeAddress(safeAddress) });
-    const recipientUser = await User.findOne({ safeAddress: normalizeAddress(recipientAddress) });
+    const User = mongoose.model("User");
+    const senderUser = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    const recipientUser = await User.findOne({ safeAddress: recipientAddress.toLowerCase() });
     const senderAccountNumber = senderUser?.accountNumber || null;
 
     await delayBeforeBlockchain(safeAddress, "Transfer queued");
 
-    // We store the WELDED name in the payload for better history tracking
+    // Store the WELDED name in the payload
     const queueEntry = await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
@@ -1225,7 +1232,6 @@ app.post("/api/transfer", async (req, res) => {
         await queueEntry.save();
         await applyCooldown(safeAddress, 20);
 
-        // Notify users
         if (senderUser?.email) {
           try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, finalToInput, amount, "successful"); } catch (e) { console.error("❌ Email Error:", e.message); }
         }
@@ -1248,7 +1254,7 @@ app.post("/api/transfer", async (req, res) => {
     }
   } catch (error) {
     console.error("❌ Transfer failed:", error.message);
-    return handleError(error, res, error.message || "Transfer failed");
+    return res.status(500).json({ message: error.message || "Transfer failed" });
   }
 });
 
