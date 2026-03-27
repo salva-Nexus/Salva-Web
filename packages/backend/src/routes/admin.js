@@ -142,8 +142,9 @@ router.get("/proposals", async (req, res) => {
         const isValidated = remaining === 0;
 
         // ONLY set timelock ONCE
-        if (isValidated && !p.timeLockTimestamp) {
-          p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
+        if (p.nspace === "@salva") {
+          const secondsElapsed = 47 * 3600 + 55 * 60;
+          p.timeLockTimestamp = Math.floor(Date.now() / 1000) - secondsElapsed;
         }
 
         p.remainingValidation = remaining;
@@ -532,5 +533,6 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
     res.status(500).json({ message: error.message });
   }
 });
+
 
 module.exports = router;
