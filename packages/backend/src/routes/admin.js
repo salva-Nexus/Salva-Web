@@ -1,5 +1,4 @@
 // Salva-Digital-Tech/packages/backend/src/routes/admin.js
-
 const express = require("express");
 const router = express.Router();
 const { ethers } = require("ethers");
@@ -9,31 +8,36 @@ const WalletRegistry = require("../models/WalletRegistry");
 const Proposal = require("../models/Proposal");
 const { sendValidatorProposalEmail } = require("../services/emailService");
 const {
-  sponsorProposeInitialization,
-  sponsorProposeValidatorUpdate,
-  sponsorValidateRegistry,
-  sponsorValidateValidator,
-  sponsorCancelInit,
-  sponsorCancelValidatorUpdate,
-  sponsorExecuteInit,
-  sponsorExecuteUpdateValidator,
-  sponsorSafeTransferETH,
-  sponsorSafeTransferBase,
+  sponsorProposeInitializationEth,
+  sponsorProposeInitializationBase,
+  sponsorProposeValidatorUpdateEth,
+  sponsorProposeValidatorUpdateBase,
+  sponsorValidateRegistryEth,
+  sponsorValidateRegistryBase,
+  sponsorValidateValidatorEth,
+  sponsorValidateValidatorBase,
+  sponsorCancelInitEth,
+  sponsorCancelInitBase,
+  sponsorCancelValidatorUpdateEth,
+  sponsorCancelValidatorUpdateBase,
+  sponsorExecuteInitEth,
+  sponsorExecuteInitBase,
+  sponsorExecuteUpdateValidatorEth,
+  sponsorExecuteUpdateValidatorBase,
 } = require("../services/relayService");
 
-// ─── Multisig read ABI (VIEW only) ───────────────────────────────────────────
+// ─── Multisig read ABI ──────────────────────────────────────────────
 const MULTISIG_READ_ABI = [
   "function _registryValidationCountRemains(address) view returns (uint256)",
   "function _validatorValidationCountRemains(address) view returns (uint256)",
 ];
 
-// ─── Startup logs ────────────────────────────────────────────────────────────
-console.log("🚀 ADMIN ROUTES INITIALIZED:");
+// ─── Startup Logging ───────────────────────────────────────────────
+console.log("🚀 BACKEND STARTING WITH ADDRESSES:");
 console.log("Registry:", process.env.REGISTRY_CONTRACT_ADDRESS);
 console.log("MultiSig:", process.env.MULTISIG_CONTRACT_ADDRESS);
 console.log("NGN Token:", process.env.NGN_TOKEN_ADDRESS);
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 function getMultisig() {
   return new ethers.Contract(
     process.env.MULTISIG_CONTRACT_ADDRESS,
@@ -42,15 +46,17 @@ function getMultisig() {
   );
 }
 
+// ─── Helper: Normalize Address ────────────────────────────────────
 function normalizeAddr(addr) {
   if (!addr) return null;
   try {
     return ethers.getAddress(addr.toLowerCase());
-  } catch {
+  } catch (e) {
     return null;
   }
 }
 
+// ─── Middleware ──────────────────────────────────────────────────
 async function requireValidator(req, res, next) {
   const { safeAddress } = req.body;
   if (!safeAddress)
@@ -64,6 +70,7 @@ async function requireValidator(req, res, next) {
   next();
 }
 
+// ─── Email Validators ─────────────────────────────────────────────
 async function notifyAllValidators(subject, payload) {
   const validators = await User.find({ isValidator: true });
   for (const v of validators) {
@@ -77,6 +84,7 @@ async function notifyAllValidators(subject, payload) {
   }
 }
 
+// ─── Wait for Tx Receipt ──────────────────────────────────────────
 async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   console.log(`🔍 Waiting for tx: ${txHash}`);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -100,6 +108,7 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   return { success: false, reason: "Timeout waiting for transaction" };
 }
 
+// ─── Multisig Read Helpers ───────────────────────────────────────
 async function getRegistryRemaining(registryAddress) {
   try {
     const multisig = getMultisig();
@@ -126,7 +135,7 @@ async function getValidatorRemaining(addr) {
   }
 }
 
-// ─── GET /proposals ───────────────────────────────────────────────────────────
+// ─── GET /proposals ─────────────────────────────────────────────
 router.get("/proposals", async (req, res) => {
   try {
     const all = await Proposal.find().sort({ createdAt: -1 });
@@ -135,19 +144,15 @@ router.get("/proposals", async (req, res) => {
       try {
         let remaining = null;
 
-        if (p.type === "registry") {
+        if (p.type === "registry")
           remaining = await getRegistryRemaining(p.registry);
-        } else {
-          remaining = await getValidatorRemaining(p.addr);
-        }
+        else remaining = await getValidatorRemaining(p.addr);
 
         if (remaining === null) continue;
 
         const isValidated = remaining === 0;
-
-        if (isValidated && !p.timeLockTimestamp) {
+        if (isValidated && !p.timeLockTimestamp)
           p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
-        }
 
         p.remainingValidation = remaining;
         p.isValidated = isValidated;
@@ -168,10 +173,16 @@ router.get("/proposals", async (req, res) => {
   }
 });
 
-// ─── PROPOSE REGISTRY ─────────────────────────────────────────────────────────
+// ─── PROPOSE REGISTRY ───────────────────────────────────────────
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
-    let { privateKey, nspace, registry, registryName, chain } = req.body;
+    const {
+      privateKey,
+      nspace,
+      registry,
+      registryName,
+      chain = "eth",
+    } = req.body;
 
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
@@ -189,11 +200,11 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
         .status(409)
         .json({ message: "A proposal for this registry already exists" });
 
+    // Choose correct relay function
     const sponsorFn =
       chain === "base"
-        ? sponsorProposeInitialization((safeAddress) => safeAddress).base
-        : sponsorProposeInitialization((safeAddress) => safeAddress).eth;
-
+        ? sponsorProposeInitializationBase
+        : sponsorProposeInitializationEth;
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -231,11 +242,10 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
   }
 });
 
-// ─── PROPOSE VALIDATOR ───────────────────────────────────────────────────────
+// ─── PROPOSE VALIDATOR ─────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
-    let { privateKey, targetAddress, action, chain } = req.body;
-
+    const { privateKey, targetAddress, action, chain = "eth" } = req.body;
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -251,9 +261,8 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
 
     const sponsorFn =
       chain === "base"
-        ? sponsorProposeValidatorUpdate().base
-        : sponsorProposeValidatorUpdate().eth;
-
+        ? sponsorProposeValidatorUpdateBase
+        : sponsorProposeValidatorUpdateEth;
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -276,6 +285,9 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       timeLockTimestamp: null,
     });
 
+    console.log(
+      `✅ Validator proposal saved: ${proposal._id}, remaining=${proposal.remainingValidation}`,
+    );
     await notifyAllValidators("New Validator Update Proposal", {
       type: "validator",
       targetAddress: cleanTarget,
@@ -289,134 +301,258 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
   }
 });
 
-// ─── VALIDATE / CANCEL / EXECUTE ─────────────────────────────────────────────
-
-// Helper: execute multisig call & update DB
-async function handleSimpleMultisig(
-  req,
-  res,
-  sponsorFnBuilder,
-  recordSelector,
-  recordRemoval = false,
-) {
+// ─── VALIDATE REGISTRY ─────────────────────────────────────────
+router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
-    let { privateKey, chain } = req.body;
-    const normalized = normalizeAddr(req.body[recordSelector.key]);
-    if (!normalized)
-      return res.status(400).json({ message: `Invalid ${recordSelector.key}` });
+    const { privateKey, registry, chain = "eth" } = req.body;
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
 
     const sponsorFn =
-      chain === "base" ? sponsorFnBuilder().base : sponsorFnBuilder().eth;
-
+      chain === "base"
+        ? sponsorValidateRegistryBase
+        : sponsorValidateRegistryEth;
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
-      normalized,
-      ...(recordSelector.extraArgs || []),
+      cleanRegistry,
     );
+
     const txStatus = await waitForTx(result.taskId);
     if (!txStatus.success)
       return res.status(500).json({ message: txStatus.reason });
 
-    if (recordRemoval) {
-      await Proposal.deleteOne(recordSelector.query(normalized));
+    const remaining = await getRegistryRemaining(cleanRegistry);
+    const isValidated = remaining === 0;
+    const timeLockTimestamp = isValidated
+      ? Math.floor(Date.now() / 1000) + 48 * 60 * 60
+      : null;
+
+    const updated = await Proposal.findOneAndUpdate(
+      { type: "registry", registry: cleanRegistry.toLowerCase() },
+      {
+        remainingValidation: remaining,
+        isValidated,
+        timeLockTimestamp,
+        updatedAt: new Date(),
+      },
+      { new: true },
+    );
+
+    res.json({ success: true, taskId: result.taskId, proposal: updated });
+  } catch (error) {
+    console.error("❌ Validate registry error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── VALIDATE VALIDATOR ─────────────────────────────────────────
+router.post("/validate-validator", requireValidator, async (req, res) => {
+  try {
+    const { privateKey, targetAddress, chain = "eth" } = req.body;
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
+
+    const sponsorFn =
+      chain === "base"
+        ? sponsorValidateValidatorBase
+        : sponsorValidateValidatorEth;
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanTarget,
+    );
+
+    const txStatus = await waitForTx(result.taskId);
+    if (!txStatus.success)
+      return res.status(500).json({ message: txStatus.reason });
+
+    const remaining = await getValidatorRemaining(cleanTarget);
+    const isValidated = remaining === 0;
+    const timeLockTimestamp = isValidated
+      ? Math.floor(Date.now() / 1000) + 48 * 60 * 60
+      : null;
+
+    const updated = await Proposal.findOneAndUpdate(
+      { type: "validator", addr: cleanTarget.toLowerCase() },
+      {
+        remainingValidation: remaining,
+        isValidated,
+        timeLockTimestamp,
+        updatedAt: new Date(),
+      },
+      { new: true },
+    );
+
+    res.json({ success: true, taskId: result.taskId, proposal: updated });
+  } catch (error) {
+    console.error("❌ Validate validator error:", error);
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// ─── CANCEL REGISTRY ─────────────────────────────────────────────
+router.post("/cancel-registry", requireValidator, async (req, res) => {
+  try {
+    const { privateKey, registry, chain = "eth" } = req.body;
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
+
+    const sponsorFn =
+      chain === "base" ? sponsorCancelInitBase : sponsorCancelInitEth;
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanRegistry,
+    );
+
+    const txStatus = await waitForTx(result.taskId);
+    if (txStatus.success) {
+      await Proposal.deleteOne({
+        type: "registry",
+        registry: cleanRegistry.toLowerCase(),
+      });
+      console.log(`✅ Registry proposal deleted from DB: ${cleanRegistry}`);
     }
 
     res.json({ success: txStatus.success, taskId: result.taskId });
   } catch (error) {
-    console.error("❌ Multisig execution error:", error);
+    console.error("❌ Cancel registry error:", error);
     res.status(500).json({ message: error.message });
   }
-}
-
-// VALIDATE REGISTRY
-router.post("/validate-registry", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(req, res, sponsorValidateRegistry, {
-    key: "registry",
-    query: (normalized) => ({
-      type: "registry",
-      registry: normalized.toLowerCase(),
-    }),
-  });
 });
 
-// VALIDATE VALIDATOR
-router.post("/validate-validator", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(req, res, sponsorValidateValidator, {
-    key: "targetAddress",
-    query: (normalized) => ({
-      type: "validator",
-      addr: normalized.toLowerCase(),
-    }),
-  });
-});
-
-// CANCEL REGISTRY
-router.post("/cancel-registry", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(
-    req,
-    res,
-    sponsorCancelInit,
-    {
-      key: "registry",
-      query: (normalized) => ({
-        type: "registry",
-        registry: normalized.toLowerCase(),
-      }),
-    },
-    true,
-  );
-});
-
-// CANCEL VALIDATOR
+// ─── CANCEL VALIDATOR ───────────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(
-    req,
-    res,
-    sponsorCancelValidatorUpdate,
-    {
-      key: "targetAddress",
-      query: (normalized) => ({
+  try {
+    const { privateKey, targetAddress, chain = "eth" } = req.body;
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
+
+    const sponsorFn =
+      chain === "base"
+        ? sponsorCancelValidatorUpdateBase
+        : sponsorCancelValidatorUpdateEth;
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanTarget,
+    );
+
+    const txStatus = await waitForTx(result.taskId);
+    if (txStatus.success) {
+      await Proposal.deleteOne({
         type: "validator",
-        addr: normalized.toLowerCase(),
-      }),
-    },
-    true,
-  );
+        addr: cleanTarget.toLowerCase(),
+      });
+      console.log(`✅ Validator proposal deleted from DB: ${cleanTarget}`);
+    }
+
+    res.json({ success: txStatus.success, taskId: result.taskId });
+  } catch (error) {
+    console.error("❌ Cancel validator error:", error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// EXECUTE REGISTRY
+// ─── EXECUTE REGISTRY ───────────────────────────────────────────
 router.post("/execute-registry", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(
-    req,
-    res,
-    sponsorExecuteInit,
-    {
-      key: "registry",
-      query: (normalized) => ({
+  try {
+    const {
+      privateKey,
+      registry,
+      registryName,
+      nspace,
+      chain = "eth",
+    } = req.body;
+    const cleanRegistry = normalizeAddr(registry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
+
+    const sponsorFn =
+      chain === "base" ? sponsorExecuteInitBase : sponsorExecuteInitEth;
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanRegistry,
+    );
+
+    const txStatus = await waitForTx(result.taskId);
+    if (txStatus.success) {
+      await Proposal.deleteOne({
         type: "registry",
-        registry: normalized.toLowerCase(),
-      }),
-    },
-    true,
-  );
+        registry: cleanRegistry.toLowerCase(),
+      });
+      console.log(
+        `✅ Registry proposal executed and deleted: ${cleanRegistry}`,
+      );
+
+      await WalletRegistry.findOneAndUpdate(
+        { registryAddress: cleanRegistry.toLowerCase() },
+        {
+          name: registryName || nspace,
+          nspace: nspace || "",
+          registryAddress: cleanRegistry.toLowerCase(),
+          active: true,
+        },
+        { upsert: true, new: true },
+      );
+
+      console.log(`✅ Registry ${nspace} added to WalletRegistry`);
+    }
+
+    res.json({ success: txStatus.success, taskId: result.taskId });
+  } catch (error) {
+    console.error("❌ Execute registry error:", error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
-// EXECUTE VALIDATOR UPDATE
+// ─── EXECUTE VALIDATOR UPDATE ───────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
-  return handleSimpleMultisig(
-    req,
-    res,
-    sponsorExecuteUpdateValidator,
-    {
-      key: "targetAddress",
-      query: (normalized) => ({
+  try {
+    const { privateKey, targetAddress, action, chain = "eth" } = req.body;
+    const cleanTarget = normalizeAddr(targetAddress);
+    if (!cleanTarget)
+      return res.status(400).json({ message: "Invalid target address" });
+
+    const sponsorFn =
+      chain === "base"
+        ? sponsorExecuteUpdateValidatorBase
+        : sponsorExecuteUpdateValidatorEth;
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanTarget,
+    );
+
+    const txStatus = await waitForTx(result.taskId);
+    if (txStatus.success) {
+      await Proposal.deleteOne({
         type: "validator",
-        addr: normalized.toLowerCase(),
-      }),
-    },
-    true,
-  );
+        addr: cleanTarget.toLowerCase(),
+      });
+      console.log(`✅ Validator proposal executed and deleted: ${cleanTarget}`);
+
+      const updated = await User.findOneAndUpdate(
+        { safeAddress: cleanTarget.toLowerCase() },
+        { isValidator: action },
+        { new: true },
+      );
+      if (updated)
+        console.log(`✅ User ${updated.username} isValidator set to ${action}`);
+      else console.warn(`⚠️ No user found with safeAddress ${cleanTarget}`);
+    }
+
+    res.json({ success: txStatus.success, taskId: result.taskId });
+  } catch (error) {
+    console.error("❌ Execute validator error:", error);
+    res.status(500).json({ message: error.message });
+  }
 });
 
 module.exports = router;
