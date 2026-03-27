@@ -47,96 +47,103 @@ const SAFE_ABI = [
 //     → v + 4 → Safe adds prefix once during ecrecover → correct owner recovered ✅
 //
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
-  if (!safeAddress || !ownerKey || !to || !data) {
-    throw new Error(
-      `_executeViaSafe called with missing params: safeAddress=${safeAddress}, to=${to}, hasData=${!!data}`,
-    );
-  }
-
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
-
-  console.log(
-    `🔍 _executeViaSafe → Safe: ${normalizedSafe}, to: ${normalizedTo}`,
-  );
-  console.log(`🔍 Calldata selector: ${data.slice(0, 10)}`);
 
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
-  // Verify the owner key actually controls this Safe before wasting gas
-  const owners = await safeContract.getOwners();
-  const ownerLower = ownerWallet.address.toLowerCase();
-  if (!owners.map((o) => o.toLowerCase()).includes(ownerLower)) {
-    throw new Error(
-      `Owner ${ownerWallet.address} is NOT an owner of Safe ${normalizedSafe}. Safe owners: ${owners.join(", ")}`,
-    );
-  }
-
   const currentNonce = await safeContract.nonce();
-  console.log(`🔍 Safe nonce: ${currentNonce.toString()}`);
-  console.log(`🔍 Owner (signer): ${ownerWallet.address}`);
-  console.log(`🔍 Submitter (gas payer): ${wallet.address}`);
-
-  // Get the Safe EIP-712 transaction hash
+  
+  // 1. Get the Safe EIP-712 transaction hash
   const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
-    0, // ETH value
+    0, 
     data,
-    operation, // 0 = CALL
-    0, // safeTxGas
-    0, // baseGas
-    0, // gasPrice
+    operation, 
+    0, 
+    0, 
+    0, 
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     currentNonce,
   );
 
-  console.log(`🔍 Safe EIP-712 txHash: ${safeTxHash}`);
+  // 2. SIGNING FIX: Use signTypedData instead of raw signing.
+  // This is the most reliable way to get a valid Safe signature in ethers v6.
+  const domain = {
+    verifyingContract: normalizedSafe,
+    chainId: (await provider.getNetwork()).chainId
+  };
 
-  // Raw secp256k1 sign — no Ethereum prefix added here.
-  // Safe will add "\x19Ethereum Signed Message:\n32" itself during ecrecover
-  // because v = 31 or 32 (eth_sign type). This correctly recovers the owner. ✅
-  const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
+  const types = {
+    SafeTx: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "operation", type: "uint8" },
+      { name: "safeTxGas", type: "uint256" },
+      { name: "baseGas", type: "uint256" },
+      { name: "gasPrice", type: "uint256" },
+      { name: "gasToken", type: "address" },
+      { name: "refundReceiver", type: "address" },
+      { name: "nonce", type: "uint256" },
+    ],
+  };
 
-  // rawSig.v is 27 or 28 from a secp256k1 sign. +4 → 31 or 32 = Safe eth_sign type.
-  const v = rawSig.v + 4;
-  const signature =
-    "0x" +
-    rawSig.r.slice(2) +
-    rawSig.s.slice(2) +
-    v.toString(16).padStart(2, "0");
+  const message = {
+    to: normalizedTo,
+    value: 0,
+    data: data,
+    operation: operation,
+    safeTxGas: 0,
+    baseGas: 0,
+    gasPrice: 0,
+    gasToken: ethers.ZeroAddress,
+    refundReceiver: ethers.ZeroAddress,
+    nonce: Number(currentNonce),
+  };
 
-  console.log(
-    `🔍 Signature v=${v} (Safe eth_sign type): ${signature.slice(0, 22)}...`,
-  );
+  // This creates a standard v=27/28 signature
+  const signature = await ownerWallet.signTypedData(domain, types, message);
 
-  // Backend wallet submits and pays gas
+  console.log(`🔍 Generated Signature: ${signature.slice(0, 20)}...`);
+
+  // 3. GAS & SUBMISSION FIX
   const safeWithSigner = safeContract.connect(wallet);
 
-  const tx = await safeWithSigner.execTransaction(
-    normalizedTo,
-    0,
-    data,
-    operation,
-    0,
-    0,
-    0,
-    ethers.ZeroAddress,
-    ethers.ZeroAddress,
-    signature,
-    { gasLimit: 1_000_000 },
-  );
+  try {
+    // We increase the gas limit because MultiSig operations can be heavy
+    const tx = await safeWithSigner.execTransaction(
+      normalizedTo,
+      0,
+      data,
+      operation,
+      0,
+      0,
+      0,
+      ethers.ZeroAddress,
+      ethers.ZeroAddress,
+      signature,
+      { 
+        gasLimit: 1200000 
+      }
+    );
 
-  console.log(`✅ Safe TX submitted: ${tx.hash}`);
-  const receipt = await tx.wait();
+    console.log(`✅ Safe TX submitted: ${tx.hash}`);
+    const receipt = await tx.wait();
 
-  if (!receipt || receipt.status === 0) {
-    throw new Error(`Safe inner call reverted. Safe TX hash: ${tx.hash}`);
+    if (!receipt || receipt.status === 0) {
+      throw new Error("Safe execution reverted");
+    }
+
+    return { taskId: tx.hash, txHash: tx.hash, receipt };
+  } catch (err) {
+    // If the error contains "GS026", it's a signature error.
+    // If it's "GS013", it's a revert inside your MultiSig contract logic.
+    console.error("❌ Safe Exec Error:", err.message);
+    throw err;
   }
-
-  console.log(`✅ Safe TX confirmed: ${tx.hash}`);
-  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
 // ─── Multisig relay helper ────────────────────────────────────────────────────
