@@ -46,6 +46,14 @@ const SAFE_ABI = [
 //   CORRECT: signingKey.sign(safeTxHashBytes) — raw secp256k1, no prefix added.
 //     → v + 4 → Safe adds prefix once during ecrecover → correct owner recovered ✅
 //
+
+console.log("🚨 SAFE EXEC DEBUG:");
+console.log("→ safeAddress:", normalizedSafe);
+console.log("→ to:", normalizedTo);
+console.log("→ data:", data);
+console.log("→ nonce:", currentNonce.toString());
+console.log("→ signer:", ownerWallet.address);
+
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
@@ -115,7 +123,7 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   console.log(`🔍 Generated Signature: ${signature.slice(0, 20)}...`);
 
   // 3. GAS & SUBMISSION FIX
-  const safeWithSigner = safeContract.connect(wallet);
+const safeWithSigner = safeContract.connect(ownerWallet);
 
   try {
     // We increase the gas limit because MultiSig operations can be heavy
