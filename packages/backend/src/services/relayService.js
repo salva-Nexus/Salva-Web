@@ -161,7 +161,9 @@ async function sponsorCancelValidatorUpdate(
 }
 
 async function sponsorExecuteInit(safeAddress, ownerKey, registry) {
+  console.log("🚀 ATTEMPTING EXECUTE FOR REGISTRY:", registry);
   const calldata = MULTISIG_IFACE.encodeFunctionData("executeInit", [registry]);
+  console.log("🚀 ENCODED CALLDATA:", calldata);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
