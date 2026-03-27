@@ -176,6 +176,11 @@ async function _executeViaSafeBase(
     v.toString(16).padStart(2, "0");
   console.log(`🔍 [BASE] Signature v=${v}: ${signature.slice(0, 22)}...`);
 
+  // Inside _executeViaSafeBase
+  const recovered = ethers.recoverAddress(ethers.getBytes(safeTxHash), rawSig);
+  console.log("DEBUG: Derived Signer is:", recovered);
+  console.log("DEBUG: Is this in the owners list?", owners.includes(recovered));
+
   const safeWithSigner = safeContract.connect(wallet);
   const tx = await safeWithSigner.execTransaction(
     normalizedTo,
