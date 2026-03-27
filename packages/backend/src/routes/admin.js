@@ -181,7 +181,7 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       nspace,
       registry,
       registryName,
-      chain = "eth",
+      chain = "base",
     } = req.body;
 
     if (!nspace?.startsWith("@"))
@@ -200,11 +200,12 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
         .status(409)
         .json({ message: "A proposal for this registry already exists" });
 
-    // Choose correct relay function
     const sponsorFn =
       chain === "base"
         ? sponsorProposeInitializationBase
         : sponsorProposeInitializationEth;
+
+    console.log(`📡 propose-registry on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -245,7 +246,8 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
 // ─── PROPOSE VALIDATOR ─────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, action, chain = "eth" } = req.body;
+    const { privateKey, targetAddress, action, chain = "base" } = req.body;
+
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -263,6 +265,8 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? sponsorProposeValidatorUpdateBase
         : sponsorProposeValidatorUpdateEth;
+
+    console.log(`📡 propose-validator on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -304,7 +308,8 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
 // ─── VALIDATE REGISTRY ─────────────────────────────────────────
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, registry, chain = "eth" } = req.body;
+    const { privateKey, registry, chain = "base" } = req.body;
+
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
@@ -313,6 +318,8 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
       chain === "base"
         ? sponsorValidateRegistryBase
         : sponsorValidateRegistryEth;
+
+    console.log(`📡 validate-registry on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -350,7 +357,8 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
 // ─── VALIDATE VALIDATOR ─────────────────────────────────────────
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, chain = "eth" } = req.body;
+    const { privateKey, targetAddress, chain = "base" } = req.body;
+
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -359,6 +367,8 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? sponsorValidateValidatorBase
         : sponsorValidateValidatorEth;
+
+    console.log(`📡 validate-validator on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -396,13 +406,16 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
 // ─── CANCEL REGISTRY ─────────────────────────────────────────────
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
-    const { privateKey, registry, chain = "eth" } = req.body;
+    const { privateKey, registry, chain = "base" } = req.body;
+
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
 
     const sponsorFn =
       chain === "base" ? sponsorCancelInitBase : sponsorCancelInitEth;
+
+    console.log(`📡 cancel-registry on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -428,7 +441,8 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
 // ─── CANCEL VALIDATOR ───────────────────────────────────────────
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, chain = "eth" } = req.body;
+    const { privateKey, targetAddress, chain = "base" } = req.body;
+
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -437,6 +451,8 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? sponsorCancelValidatorUpdateBase
         : sponsorCancelValidatorUpdateEth;
+
+    console.log(`📡 cancel-validator on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -467,14 +483,17 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       registry,
       registryName,
       nspace,
-      chain = "eth",
+      chain = "base",
     } = req.body;
+
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
 
     const sponsorFn =
       chain === "base" ? sponsorExecuteInitBase : sponsorExecuteInitEth;
+
+    console.log(`📡 execute-registry on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -515,7 +534,8 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
 // ─── EXECUTE VALIDATOR UPDATE ───────────────────────────────────
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
-    const { privateKey, targetAddress, action, chain = "eth" } = req.body;
+    const { privateKey, targetAddress, action, chain = "base" } = req.body;
+
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -524,6 +544,8 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? sponsorExecuteUpdateValidatorBase
         : sponsorExecuteUpdateValidatorEth;
+
+    console.log(`📡 execute-validator on chain=${chain}`);
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
