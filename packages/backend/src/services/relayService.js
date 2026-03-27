@@ -126,6 +126,7 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
+  console.log("DEBUG: Final Data being sent:", data);
   if (!safeAddress || !ownerKey || !to || !data) {
     throw new Error(
       `_executeViaSafeBase: missing params safeAddress=${safeAddress}, to=${to}`,
