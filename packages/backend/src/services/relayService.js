@@ -23,6 +23,15 @@ const MULTISIG_IFACE = new ethers.Interface([
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   console.log(`🔍 _executeViaSafe → Safe: ${safeAddress}, to: ${to}`);
 
+  // Force fresh nonce — bypass any cached state
+const nonce = await provider.call({
+  to: safeAddress,
+  data: safeContract.interface.encodeFunctionData("nonce"),
+});
+const currentNonce = BigInt(nonce);
+console.log(`🔍 Safe nonce (fresh): ${currentNonce.toString()}`);
+console.log(`🔍 Raw nonce from RPC: ${nonceRaw.toString()}`);
+
   // Init Safe SDK with the owner key as signer
   const safe = await Safe.init({
     provider: process.env.BASE_SEPOLIA_RPC_URL,
