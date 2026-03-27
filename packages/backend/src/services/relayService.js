@@ -1,9 +1,8 @@
 // Salva-Digital-Tech/packages/backend/src/services/relayService.js
 const { ethers } = require("ethers");
+const Safe = require("@safe-global/protocol-kit").default;
 const { wallet, provider } = require("./walletSigner");
 
-const RPC_URL = process.env.ALCHEMY_RPC_URL;
-const GAS_POLICY_ID = process.env.ALCHEMY_GAS_POLICY_ID;
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 
 const MULTISIG_IFACE = new ethers.Interface([
@@ -17,122 +16,60 @@ const MULTISIG_IFACE = new ethers.Interface([
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
-// ─── Safe ABI (just what we need) ────────────────────────────────────────────
-const SAFE_ABI = [
-  "function execTransaction(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, bytes memory signatures) public payable returns (bool success)",
-  "function getTransactionHash(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 nonce) public view returns (bytes32)",
-  "function nonce() public view returns (uint256)",
-];
+// ─── Core: execute any calldata through a user's Safe ────────────────────────
+// ownerKey   = the Safe owner's private key (decrypted from DB via PIN)
+// wallet     = backend hot wallet that pays gas
+// Safe SDK handles all signing + EIP-712 digest correctly
+async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
+  console.log(`🔍 _executeViaSafe → Safe: ${safeAddress}, to: ${to}`);
 
-// ─── Build a Safe signature from the owner private key ───────────────────────
-async function buildSafeSignature(safeAddress, ownerKey, to, data) {
-  const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, provider);
-  const nonce = await safeContract.nonce();
-
-  const txHash = await safeContract.getTransactionHash(
-    to,
-    0, // value
-    data,
-    0, // operation (CALL)
-    0, // safeTxGas
-    0, // baseGas
-    0, // gasPrice
-    ethers.ZeroAddress, // gasToken
-    ethers.ZeroAddress, // refundReceiver
-    nonce,
-  );
-
-  // getTransactionHash already returns the EIP-712 digest — sign it directly
-  const ownerWallet = new ethers.Wallet(ownerKey, provider);
-
-  // Debug: verify the owner matches what's on-chain
-  console.log(`🔍 Signing as owner: ${ownerWallet.address}`);
-  console.log(`🔍 Safe address: ${safeAddress}`);
-  console.log(`🔍 txHash to sign: ${txHash}`);
-
-  // Verify this address is actually an owner of the Safe
-  const OWNERS_ABI = ["function getOwners() view returns (address[])"];
-  const safeCheck = new ethers.Contract(safeAddress, OWNERS_ABI, provider);
-  const owners = await safeCheck.getOwners();
-  console.log(`🔍 Safe owners on-chain:`, owners);
-  console.log(
-    `🔍 Is signer an owner?`,
-    owners
-      .map((o) => o.toLowerCase())
-      .includes(ownerWallet.address.toLowerCase()),
-  );
-
-  // Raw sign — no Ethereum prefix. Safe 1.3.0 requires this.
-  const signingKey = new ethers.SigningKey(ownerWallet.privateKey);
-  const sig = signingKey.sign(ethers.getBytes(txHash));
-
-  // v must be 27 or 28
-  const v = sig.v < 27 ? sig.v + 27 : sig.v;
-  const signature =
-    sig.r.slice(2) + sig.s.slice(2) + v.toString(16).padStart(2, "0");
-
-  console.log(
-    `🔍 Signature built (v=${sig.v}): 0x${signature.slice(0, 20)}...`,
-  );
-
-  return { safeContract, nonce, signature };
-}
-
-// ─── Execute a tx through the Safe, sponsored via Alchemy ────────────────────
-async function _executeViaSafe(safeAddress, ownerKey, to, data) {
-  const { safeContract, signature } = await buildSafeSignature(
+  // Init Safe SDK with the owner key as signer
+  const safe = await Safe.init({
+    provider: process.env.BASE_SEPOLIA_RPC_URL,
+    signer: ownerKey,
     safeAddress,
-    ownerKey,
-    to,
-    data,
-  );
+  });
 
-  // Use the backend wallet to submit (it pays gas, Alchemy reimburses via policy)
-  const safeWithSigner = safeContract.connect(wallet);
-
-  // Add this temporary block inside _executeViaSafe before the execTransaction call
-  try {
-    await provider.estimateGas({
-      from: wallet.address,
-      to: safeAddress,
-      data: safeContract.interface.encodeFunctionData("execTransaction", [
+  // Build the transaction
+  const safeTx = await safe.createTransaction({
+    transactions: [
+      {
         to,
-        0,
+        value: "0",
         data,
-        0,
-        0,
-        0,
-        0,
-        ethers.ZeroAddress,
-        ethers.ZeroAddress,
-        "0x" + signature.toLowerCase(),
-      ]),
-    });
-  } catch (error) {
-    console.log("❌ DETAILED REVERT REASON:", error.reason || error.message);
+        operation, // 0 = CALL, 1 = DELEGATECALL
+      },
+    ],
+  });
+
+  // Sign with the owner key (SDK handles EIP-712 correctly)
+  const signedTx = await safe.signTransaction(safeTx);
+
+  console.log(`🔍 Safe TX signed, submitting...`);
+
+  // Execute — SDK submits via the signer (ownerKey wallet)
+  // But we want the backend wallet to pay gas, so we relay manually:
+  const encodedTx = await safe.getEncodedTransaction(signedTx);
+
+  const txResponse = await wallet.sendTransaction({
+    to: safeAddress,
+    data: encodedTx,
+  });
+
+  console.log(`✅ Safe TX submitted: ${txResponse.hash}`);
+  const receipt = await txResponse.wait();
+
+  if (!receipt || receipt.status === 0) {
+    throw new Error("Safe transaction reverted on-chain");
   }
 
-  const tx = await safeWithSigner.execTransaction(
-    to,
-    0,
-    data,
-    0, // operation CALL
-    0, // safeTxGas
-    0, // baseGas
-    0, // gasPrice
-    ethers.ZeroAddress,
-    ethers.ZeroAddress,
-    "0x" + signature,
-  );
-
-  console.log(`✅ Safe TX submitted: ${tx.hash}`);
-  const receipt = await tx.wait();
-
-  return { taskId: tx.hash, receipt };
+  console.log(`✅ Safe TX confirmed: ${txResponse.hash}`);
+  return { taskId: txResponse.hash, receipt };
 }
 
+// ─── Multisig relay helper ────────────────────────────────────────────────────
 async function _sponsorMultisigCall(safeAddress, ownerKey, calldata) {
-  return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, calldata);
+  return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, calldata, 0);
 }
 
 // ─── Sponsored Multisig Exports ───────────────────────────────────────────────
@@ -208,7 +145,7 @@ async function sponsorExecuteUpdateValidator(
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
-// ─── Token Transfer (also via Safe execTransaction) ──────────────────────────
+// ─── Token Transfer ───────────────────────────────────────────────────────────
 async function sponsorSafeTransfer(
   safeAddress,
   ownerKey,
@@ -221,12 +158,11 @@ async function sponsorSafeTransfer(
   const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
 
   if (feeWei > 0n) {
-    // Two transfers: recipient + treasury fee
-    // Encode as a MultiSend batch
+    // Two transfers via MultiSend (DELEGATECALL)
     const MULTISEND_ABI = [
       "function multiSend(bytes memory transactions) external payable",
     ];
-    const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526"; // Safe MultiSend on Base Sepolia
+    const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
 
     const encodePackedTx = (to, data) => {
       const toBytes = ethers.getBytes(to);
@@ -249,48 +185,29 @@ async function sponsorSafeTransfer(
       amountWei,
     ]);
     const tx2Data = iface.encodeFunctionData("transfer", [TREASURY, feeWei]);
-
     const packed = ethers.concat([
       encodePackedTx(NGN_TOKEN, tx1Data),
       encodePackedTx(NGN_TOKEN, tx2Data),
     ]);
-
     const multisendCalldata = new ethers.Interface(
       MULTISEND_ABI,
     ).encodeFunctionData("multiSend", [packed]);
 
-    // DelegateCall (operation=1) to MultiSend
-    const { safeContract, signature } = await buildSafeSignature(
+    // operation = 1 (DELEGATECALL) for MultiSend
+    return _executeViaSafe(
       safeAddress,
       ownerKey,
       MULTISEND_ADDRESS,
       multisendCalldata,
+      1,
     );
-
-    const safeWithSigner = safeContract.connect(wallet);
-    const tx = await safeWithSigner.execTransaction(
-      MULTISEND_ADDRESS,
-      0,
-      multisendCalldata,
-      1, // operation: DELEGATECALL
-      0,
-      0,
-      0,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      "0x" + signature,
-    );
-
-    console.log(`✅ MultiSend TX submitted: ${tx.hash}`);
-    await tx.wait();
-    return { taskId: tx.hash };
   } else {
     // Single transfer
     const data = iface.encodeFunctionData("transfer", [
       recipientAddress,
       amountWei,
     ]);
-    return _executeViaSafe(safeAddress, ownerKey, NGN_TOKEN, data);
+    return _executeViaSafe(safeAddress, ownerKey, NGN_TOKEN, data, 0);
   }
 }
 
