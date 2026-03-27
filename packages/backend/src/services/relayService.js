@@ -123,7 +123,7 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   console.log(`🔍 Generated Signature: ${signature.slice(0, 20)}...`);
 
   // 3. GAS & SUBMISSION FIX
-const safeWithSigner = safeContract.connect(ownerWallet);
+  const safeWithSigner = safeContract.connect(wallet);
 
   try {
     // We increase the gas limit because MultiSig operations can be heavy
