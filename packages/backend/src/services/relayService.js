@@ -202,6 +202,25 @@ async function _executeViaSafeBase(
 
   // 3. Execute the transaction using the Backend Admin Wallet (the gas payer)
   const safeWithSigner = safeContract.connect(wallet);
+  try {
+    await safeContract.execTransaction.staticCall(
+      normalizedTo,
+      0,
+      data,
+      operation,
+      0,
+      0,
+      0,
+      ethers.ZeroAddress,
+      ethers.ZeroAddress,
+      signature,
+    );
+    console.log("✅ Simulation Succeeded!");
+  } catch (simError) {
+    console.error("❌ Simulation Failed! Reason:", simError.reason);
+    console.error("❌ Error Data:", simError.data);
+    // This will show us the REAL reason (e.g., "GS026", "GS013", etc.)
+  }
   const tx = await safeWithSigner.execTransaction(
     normalizedTo,
     0,
