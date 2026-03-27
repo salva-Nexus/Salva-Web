@@ -1010,12 +1010,11 @@ app.get("/api/balance/:address", async (req, res) => {
 
 app.post("/api/resolve-recipient", async (req, res) => {
   try {
-    const { input, registryAddress } = req.body;
+    const { input, registryAddress } = req.body; // Input is just "charles"
 
-    if (!input) {
-      return res.status(400).json({ message: "Input required" });
-    }
+    if (!input) return res.status(400).json({ message: "Input required" });
 
+    // 1. Skip if it's already a raw address
     if (input.trim().startsWith("0x")) {
       return res
         .status(400)
@@ -1023,22 +1022,35 @@ app.post("/api/resolve-recipient", async (req, res) => {
     }
 
     if (!registryAddress) {
-      return res
-        .status(400)
-        .json({ message: "Registry address required for name/number inputs" });
+      return res.status(400).json({ message: "Registry selection required" });
     }
+
+    // ─── THE WELDING LOGIC ──────────────────────────────────────────────────
+    // 2. Fetch the Registry from the DB to get its namespace
+    const registryDoc = await WalletRegistry.findOne({
+      registryAddress: registryAddress.toLowerCase(),
+    });
+
+    if (!registryDoc) {
+      return res
+        .status(404)
+        .json({ message: "Selected Registry not found in database" });
+    }
+
+    // 3. Weld the input name with the registry's namespace
+    // If input is "charles" and nspace is "@salva", result is "charles@salva"
+    const weldedInput = `${input.trim()}${registryDoc.nspace}`;
+    console.log(`🔗 Welded Name: ${weldedInput}`);
+    // ────────────────────────────────────────────────────────────────────────
 
     let resolvedAddress;
     try {
-      resolvedAddress = await resolveToAddress(input.trim(), registryAddress);
+      // 4. Pass the WELDED string to your resolver
+      resolvedAddress = await resolveToAddress(weldedInput, registryAddress);
     } catch (err) {
       return res
         .status(404)
         .json({ message: err.message || "Recipient not found" });
-    }
-
-    if (!resolvedAddress) {
-      return res.status(404).json({ message: "Recipient not found" });
     }
 
     const recipientUser = await User.findOne({
@@ -1051,7 +1063,7 @@ app.post("/api/resolve-recipient", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Resolve recipient error:", error);
-    return handleError(error, res, "Failed to resolve recipient");
+    return res.status(500).json({ message: "Failed to resolve recipient" });
   }
 });
 
