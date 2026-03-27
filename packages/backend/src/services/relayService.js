@@ -62,11 +62,17 @@ async function buildSafeSignature(safeAddress, ownerKey, to, data) {
       .includes(ownerWallet.address.toLowerCase()),
   );
 
-  const sig = ownerWallet.signingKey.sign(txHash);
+  const flatSig = await ownerWallet.signMessage(ethers.getBytes(txHash));
 
-  // v is 27 or 28 — Safe expects it as a single hex byte
-  const vHex = sig.v.toString(16).padStart(2, "0");
-  const signature = sig.r.slice(2) + sig.s.slice(2) + vHex;
+  // Split signature
+  const sig = ethers.Signature.from(flatSig);
+
+  // Safe expects v = 27/28 (NOT 0/1)
+  const v = sig.v < 27 ? sig.v + 27 : sig.v;
+
+  // Rebuild properly
+  const signature =
+    sig.r.slice(2) + sig.s.slice(2) + v.toString(16).padStart(2, "0");
 
   console.log(
     `🔍 Signature built (v=${sig.v}): 0x${signature.slice(0, 20)}...`,
@@ -102,7 +108,7 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data) {
         0,
         ethers.ZeroAddress,
         ethers.ZeroAddress,
-        "0x" + signature,
+        "0x" + signature.toLowerCase(),
       ]),
     });
   } catch (error) {
