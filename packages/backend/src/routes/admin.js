@@ -25,6 +25,12 @@ const MULTISIG_READ_ABI = [
   "function _validatorValidationCountRemains(address) view returns (uint256)",
 ];
 
+// Add this near the top of admin.js
+console.log("🚀 BACKEND STARTING WITH ADDRESSES:");
+console.log("Registry:", process.env.REGISTRY_CONTRACT_ADDRESS);
+console.log("MultiSig:", process.env.MULTISIG_CONTRACT_ADDRESS);
+console.log("NGN Token:", process.env.NGN_TOKEN_ADDRESS);
+
 function getMultisig() {
   return new ethers.Contract(
     process.env.MULTISIG_CONTRACT_ADDRESS,
