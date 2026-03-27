@@ -84,6 +84,7 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     signature,
+    { gasLimit: 1000000 },
   );
 
   console.log(`✅ Safe TX submitted: ${tx.hash}`);
