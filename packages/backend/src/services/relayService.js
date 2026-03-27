@@ -77,42 +77,6 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     currentNonce,
   );
 
-  // 2. SIGNING FIX: Use signTypedData instead of raw signing.
-  // This is the most reliable way to get a valid Safe signature in ethers v6.
-  // 2. SIGNING FIX: Use hardcoded chainId for Base Sepolia (84532)
-  const domain = {
-    verifyingContract: normalizedSafe,
-    chainId: 84532, // FORCE BASE SEPOLIA ID
-  };
-
-  const types = {
-    SafeTx: [
-      { name: "to", type: "address" },
-      { name: "value", type: "uint256" },
-      { name: "data", type: "bytes" },
-      { name: "operation", type: "uint8" },
-      { name: "safeTxGas", type: "uint256" },
-      { name: "baseGas", type: "uint256" },
-      { name: "gasPrice", type: "uint256" },
-      { name: "gasToken", type: "address" },
-      { name: "refundReceiver", type: "address" },
-      { name: "nonce", type: "uint256" },
-    ],
-  };
-
-  const message = {
-    to: normalizedTo,
-    value: 0n, // Use BigInt for Ethers v6 consistency
-    data: data,
-    operation: operation,
-    safeTxGas: 0n,
-    baseGas: 0n,
-    gasPrice: 0n,
-    gasToken: ethers.ZeroAddress,
-    refundReceiver: ethers.ZeroAddress,
-    nonce: BigInt(currentNonce), // Use BigInt
-  };
-
   const sig = ownerWallet.signingKey.sign(safeTxHash);
   const signature = ethers.concat([
     sig.r,
