@@ -126,11 +126,8 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
-  console.log("DEBUG: Final Data being sent:", data);
   if (!safeAddress || !ownerKey || !to || !data) {
-    throw new Error(
-      `_executeViaSafeBase: missing params safeAddress=${safeAddress}, to=${to}`,
-    );
+    throw new Error(`_executeViaSafeBase: missing params`);
   }
 
   const normalizedSafe = ethers.getAddress(safeAddress);
@@ -138,50 +135,72 @@ async function _executeViaSafeBase(
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
-  const owners = await safeContract.getOwners();
+  // 1. Verify Ownership & Network
+  const [owners, currentNonce, network] = await Promise.all([
+    safeContract.getOwners(),
+    safeContract.nonce(),
+    provider.getNetwork(),
+  ]);
+
   if (
     !owners
       .map((o) => o.toLowerCase())
       .includes(ownerWallet.address.toLowerCase())
   ) {
     throw new Error(
-      `BASE: ${ownerWallet.address} is not an owner of Safe ${normalizedSafe}. Owners: ${owners.join(", ")}`,
+      `${ownerWallet.address} is not an owner of Safe ${normalizedSafe}`,
     );
   }
 
-  const currentNonce = await safeContract.nonce();
   console.log(
-    `🔍 [BASE] Safe: ${normalizedSafe} nonce: ${currentNonce} to: ${normalizedTo}`,
+    `🔍 [BASE] Safe: ${normalizedSafe} | Nonce: ${currentNonce} | Chain: ${network.chainId}`,
   );
 
-  const safeTxHash = await safeContract.getTransactionHash(
-    normalizedTo,
-    0,
-    data,
-    operation,
-    0,
-    0,
-    0,
-    ethers.ZeroAddress,
-    ethers.ZeroAddress,
-    currentNonce,
+  // 2. Build the EIP-712 Signature
+  // This replaces the manual hashing and the weird v+4 logic
+  const signature = await ownerWallet.signTypedData(
+    // Domain: Tells the wallet exactly which contract and chain this signature is for
+    {
+      name: "Gnosis Safe", // Standard for Safe v1.3.0+
+      version: "1.3.0",
+      chainId: network.chainId,
+      verifyingContract: normalizedSafe,
+    },
+    // Types: The schema for a Safe transaction
+    {
+      SafeTx: [
+        { name: "to", type: "address" },
+        { name: "value", type: "uint256" },
+        { name: "data", type: "bytes" },
+        { name: "operation", type: "uint8" },
+        { name: "safeTxGas", type: "uint256" },
+        { name: "baseGas", type: "uint256" },
+        { name: "gasPrice", type: "uint256" },
+        { name: "gasToken", type: "address" },
+        { name: "refundReceiver", type: "address" },
+        { name: "nonce", type: "uint256" },
+      ],
+    },
+    // Message: The actual transaction data
+    {
+      to: normalizedTo,
+      value: 0,
+      data: data,
+      operation: operation,
+      safeTxGas: 0,
+      baseGas: 0,
+      gasPrice: 0,
+      gasToken: ethers.ZeroAddress,
+      refundReceiver: ethers.ZeroAddress,
+      nonce: currentNonce,
+    },
   );
 
-  // Raw sign (no Ethereum prefix) + v+4 → Safe prefixes once during ecrecover ✅
-  const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
-  const v = rawSig.v + 4;
-  const signature =
-    "0x" +
-    rawSig.r.slice(2) +
-    rawSig.s.slice(2) +
-    v.toString(16).padStart(2, "0");
-  console.log(`🔍 [BASE] Signature v=${v}: ${signature.slice(0, 22)}...`);
+  console.log(
+    `🔍 [BASE] EIP-712 Signature generated: ${signature.slice(0, 20)}...`,
+  );
 
-  // Inside _executeViaSafeBase
-  const recovered = ethers.recoverAddress(ethers.getBytes(safeTxHash), rawSig);
-  console.log("DEBUG: Derived Signer is:", recovered);
-  console.log("DEBUG: Is this in the owners list?", owners.includes(recovered));
-
+  // 3. Execute the transaction using the Backend Admin Wallet (the gas payer)
   const safeWithSigner = safeContract.connect(wallet);
   const tx = await safeWithSigner.execTransaction(
     normalizedTo,
@@ -199,9 +218,11 @@ async function _executeViaSafeBase(
 
   console.log(`✅ [BASE] Safe TX submitted: ${tx.hash}`);
   const receipt = await tx.wait();
+
   if (!receipt || receipt.status === 0) {
     throw new Error(`[BASE] Safe inner call reverted. TX: ${tx.hash}`);
   }
+
   console.log(`✅ [BASE] Safe TX confirmed: ${tx.hash}`);
   return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
