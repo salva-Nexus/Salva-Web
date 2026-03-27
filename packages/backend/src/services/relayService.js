@@ -47,13 +47,6 @@ const SAFE_ABI = [
 //     → v + 4 → Safe adds prefix once during ecrecover → correct owner recovered ✅
 //
 
-console.log("🚨 SAFE EXEC DEBUG:");
-console.log("→ safeAddress:", normalizedSafe);
-console.log("→ to:", normalizedTo);
-console.log("→ data:", data);
-console.log("→ nonce:", currentNonce.toString());
-console.log("→ signer:", ownerWallet.address);
-
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
@@ -62,6 +55,13 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
   const currentNonce = await safeContract.nonce();
+
+  console.log("🚨 SAFE EXEC DEBUG:");
+  console.log("→ safeAddress:", normalizedSafe);
+  console.log("→ to:", normalizedTo);
+  console.log("→ data:", data);
+  console.log("→ nonce:", currentNonce.toString());
+  console.log("→ signer:", ownerWallet.address);
 
   // 1. Get the Safe EIP-712 transaction hash
   const safeTxHash = await safeContract.getTransactionHash(
