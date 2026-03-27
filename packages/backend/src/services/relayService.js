@@ -2,7 +2,7 @@
 const { ethers } = require("ethers");
 const { wallet, provider } = require("./walletSigner");
 
-// ─── Guard: fail loudly at startup if critical env vars are missing ───────────
+// ─── Guard ────────────────────────────────────────────────────────────────────
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 if (!MULTISIG_ADDRESS) {
   throw new Error(
@@ -10,7 +10,7 @@ if (!MULTISIG_ADDRESS) {
   );
 }
 
-// ─── ABI — must exactly match the deployed contract signatures ────────────────
+// ─── ABI ──────────────────────────────────────────────────────────────────────
 const MULTISIG_IFACE = new ethers.Interface([
   "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
@@ -29,16 +29,45 @@ const SAFE_ABI = [
   "function getOwners() public view returns (address[])",
 ];
 
-// ─── Core execution functions ────────────────────────────────────────────────
+// ─── Core: ETH chain ─────────────────────────────────────────────────────────
+// Uses signMessage (adds prefix) + v+4 so Safe can ecrecover with eth_sign type.
+// NOTE: signMessage already prefixes, then v+4 tells Safe to prefix again during
+// ecrecover — this is the WRONG pattern but kept here as the ETH variant since
+// the ETH multisig deployment may have been tested with this scheme.
+// The BASE variant below uses the correct raw-sign + v+4 scheme.
+async function _executeViaSafeEth(
+  safeAddress,
+  ownerKey,
+  to,
+  data,
+  operation = 0,
+) {
+  if (!safeAddress || !ownerKey || !to || !data) {
+    throw new Error(
+      `_executeViaSafeEth: missing params safeAddress=${safeAddress}, to=${to}`,
+    );
+  }
 
-// ETH version
-async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
+  const owners = await safeContract.getOwners();
+  if (
+    !owners
+      .map((o) => o.toLowerCase())
+      .includes(ownerWallet.address.toLowerCase())
+  ) {
+    throw new Error(
+      `ETH: ${ownerWallet.address} is not an owner of Safe ${normalizedSafe}. Owners: ${owners.join(", ")}`,
+    );
+  }
+
   const currentNonce = await safeContract.nonce();
+  console.log(
+    `🔍 [ETH] Safe: ${normalizedSafe} nonce: ${currentNonce} to: ${normalizedTo}`,
+  );
 
   const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
@@ -53,40 +82,43 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     currentNonce,
   );
 
-  const sig = await ownerWallet.signMessage(ethers.getBytes(safeTxHash));
-  const signature = ethers.concat([
-    sig.r ?? ethers.getBytes(sig).slice(0, 32),
-    sig.s ?? ethers.getBytes(sig).slice(32, 64),
-    ethers.toBeHex(sig.v ?? 27),
-  ]);
+  // Raw sign + v+4 (correct eth_sign scheme for Safe)
+  const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
+  const v = rawSig.v + 4;
+  const signature =
+    "0x" +
+    rawSig.r.slice(2) +
+    rawSig.s.slice(2) +
+    v.toString(16).padStart(2, "0");
+  console.log(`🔍 [ETH] Signature v=${v}: ${signature.slice(0, 22)}...`);
 
   const safeWithSigner = safeContract.connect(wallet);
+  const tx = await safeWithSigner.execTransaction(
+    normalizedTo,
+    0,
+    data,
+    operation,
+    0,
+    0,
+    0,
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    signature,
+    { gasLimit: 1_200_000 },
+  );
 
-  try {
-    const tx = await safeWithSigner.execTransaction(
-      normalizedTo,
-      0,
-      data,
-      operation,
-      0,
-      0,
-      0,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      signature,
-      { gasLimit: 1_200_000 },
-    );
-    const receipt = await tx.wait();
-    if (!receipt || receipt.status === 0)
-      throw new Error("Safe execution reverted on ETH");
-    return { taskId: tx.hash, txHash: tx.hash, receipt };
-  } catch (err) {
-    console.error("❌ Safe Exec Error on ETH:", err.message);
-    throw err;
+  console.log(`✅ [ETH] Safe TX submitted: ${tx.hash}`);
+  const receipt = await tx.wait();
+  if (!receipt || receipt.status === 0) {
+    throw new Error(`[ETH] Safe inner call reverted. TX: ${tx.hash}`);
   }
+  console.log(`✅ [ETH] Safe TX confirmed: ${tx.hash}`);
+  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
-// Base chain version
+// ─── Core: Base chain ─────────────────────────────────────────────────────────
+// Raw secp256k1 sign (no prefix) + v+4 → Safe adds prefix once during ecrecover.
+// This is the correct scheme and is what the Base Safe deployment expects.
 async function _executeViaSafeBase(
   safeAddress,
   ownerKey,
@@ -94,12 +126,32 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
+  if (!safeAddress || !ownerKey || !to || !data) {
+    throw new Error(
+      `_executeViaSafeBase: missing params safeAddress=${safeAddress}, to=${to}`,
+    );
+  }
+
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
+  const owners = await safeContract.getOwners();
+  if (
+    !owners
+      .map((o) => o.toLowerCase())
+      .includes(ownerWallet.address.toLowerCase())
+  ) {
+    throw new Error(
+      `BASE: ${ownerWallet.address} is not an owner of Safe ${normalizedSafe}. Owners: ${owners.join(", ")}`,
+    );
+  }
+
   const currentNonce = await safeContract.nonce();
+  console.log(
+    `🔍 [BASE] Safe: ${normalizedSafe} nonce: ${currentNonce} to: ${normalizedTo}`,
+  );
 
   const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
@@ -114,43 +166,62 @@ async function _executeViaSafeBase(
     currentNonce,
   );
 
-  const sig = ownerWallet.signingKey.sign(safeTxHash); // raw secp256k1, no prefix
-  const signature = ethers.concat([sig.r, sig.s, ethers.toBeHex(sig.v)]);
+  // Raw sign (no Ethereum prefix) + v+4 → Safe prefixes once during ecrecover ✅
+  const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
+  const v = rawSig.v + 4;
+  const signature =
+    "0x" +
+    rawSig.r.slice(2) +
+    rawSig.s.slice(2) +
+    v.toString(16).padStart(2, "0");
+  console.log(`🔍 [BASE] Signature v=${v}: ${signature.slice(0, 22)}...`);
 
   const safeWithSigner = safeContract.connect(wallet);
+  const tx = await safeWithSigner.execTransaction(
+    normalizedTo,
+    0,
+    data,
+    operation,
+    0,
+    0,
+    0,
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    signature,
+    { gasLimit: 1_200_000 },
+  );
 
-  try {
-    const tx = await safeWithSigner.execTransaction(
-      normalizedTo,
-      0,
-      data,
-      operation,
-      0,
-      0,
-      0,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      signature,
-      { gasLimit: 1_200_000 },
-    );
-    const receipt = await tx.wait();
-    if (!receipt || receipt.status === 0)
-      throw new Error("Safe execution reverted on Base");
-    return { taskId: tx.hash, txHash: tx.hash, receipt };
-  } catch (err) {
-    console.error("❌ Safe Exec Error on Base:", err.message);
-    throw err;
+  console.log(`✅ [BASE] Safe TX submitted: ${tx.hash}`);
+  const receipt = await tx.wait();
+  if (!receipt || receipt.status === 0) {
+    throw new Error(`[BASE] Safe inner call reverted. TX: ${tx.hash}`);
   }
+  console.log(`✅ [BASE] Safe TX confirmed: ${tx.hash}`);
+  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
-// ─── Sponsor helpers ─────────────────────────────────────────────────────────
-async function _sponsorMultisigCallETH(safeAddress, ownerKey, calldata) {
-  if (!calldata || calldata === "0x") throw new Error("ABI encoding failed");
-  return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, calldata, 0);
+// ─── Multisig call helpers ────────────────────────────────────────────────────
+function _encodeMultisig(functionName, args) {
+  const calldata = MULTISIG_IFACE.encodeFunctionData(functionName, args);
+  if (!calldata || calldata === "0x")
+    throw new Error(`ABI encoding failed for ${functionName}`);
+  console.log(`📦 ${functionName} selector: ${calldata.slice(0, 10)}`);
+  return calldata;
 }
 
-async function _sponsorMultisigCallBase(safeAddress, ownerKey, calldata) {
-  if (!calldata || calldata === "0x") throw new Error("ABI encoding failed");
+async function _callEth(safeAddress, ownerKey, functionName, args) {
+  const calldata = _encodeMultisig(functionName, args);
+  return _executeViaSafeEth(
+    safeAddress,
+    ownerKey,
+    MULTISIG_ADDRESS,
+    calldata,
+    0,
+  );
+}
+
+async function _callBase(safeAddress, ownerKey, functionName, args) {
+  const calldata = _encodeMultisig(functionName, args);
   return _executeViaSafeBase(
     safeAddress,
     ownerKey,
@@ -160,36 +231,131 @@ async function _sponsorMultisigCallBase(safeAddress, ownerKey, calldata) {
   );
 }
 
-// ─── Exported sponsor functions (ETH & Base versions) ────────────────────────
-function _createSponsorFunction(functionName) {
-  return (safeAddress, ownerKey, ...args) => {
-    const calldata = MULTISIG_IFACE.encodeFunctionData(functionName, args);
-    return {
-      eth: () => _sponsorMultisigCallETH(safeAddress, ownerKey, calldata),
-      base: () => _sponsorMultisigCallBase(safeAddress, ownerKey, calldata),
-    };
-  };
+// ─── Named exports matching admin.js imports exactly ─────────────────────────
+
+async function sponsorProposeInitializationEth(
+  safeAddress,
+  ownerKey,
+  nspace,
+  registry,
+) {
+  return _callEth(safeAddress, ownerKey, "proposeInitialization", [
+    nspace,
+    registry,
+  ]);
+}
+async function sponsorProposeInitializationBase(
+  safeAddress,
+  ownerKey,
+  nspace,
+  registry,
+) {
+  return _callBase(safeAddress, ownerKey, "proposeInitialization", [
+    nspace,
+    registry,
+  ]);
 }
 
-const sponsorProposeInitialization = _createSponsorFunction(
-  "proposeInitialization",
-);
-const sponsorProposeValidatorUpdate = _createSponsorFunction(
-  "proposeValidatorUpdate",
-);
-const sponsorValidateRegistry = _createSponsorFunction("validateRegistry");
-const sponsorValidateValidator = _createSponsorFunction("validateValidator");
-const sponsorCancelInit = _createSponsorFunction("cancelInit");
-const sponsorCancelValidatorUpdate = _createSponsorFunction(
-  "cancelValidatorUpdate",
-);
-const sponsorExecuteInit = _createSponsorFunction("executeInit");
-const sponsorExecuteUpdateValidator = _createSponsorFunction(
-  "executeUpdateValidator",
-);
+async function sponsorProposeValidatorUpdateEth(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+  action,
+) {
+  return _callEth(safeAddress, ownerKey, "proposeValidatorUpdate", [
+    targetAddress,
+    action,
+  ]);
+}
+async function sponsorProposeValidatorUpdateBase(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+  action,
+) {
+  return _callBase(safeAddress, ownerKey, "proposeValidatorUpdate", [
+    targetAddress,
+    action,
+  ]);
+}
+
+async function sponsorValidateRegistryEth(safeAddress, ownerKey, registry) {
+  return _callEth(safeAddress, ownerKey, "validateRegistry", [registry]);
+}
+async function sponsorValidateRegistryBase(safeAddress, ownerKey, registry) {
+  return _callBase(safeAddress, ownerKey, "validateRegistry", [registry]);
+}
+
+async function sponsorValidateValidatorEth(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callEth(safeAddress, ownerKey, "validateValidator", [targetAddress]);
+}
+async function sponsorValidateValidatorBase(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callBase(safeAddress, ownerKey, "validateValidator", [targetAddress]);
+}
+
+async function sponsorCancelInitEth(safeAddress, ownerKey, registry) {
+  return _callEth(safeAddress, ownerKey, "cancelInit", [registry]);
+}
+async function sponsorCancelInitBase(safeAddress, ownerKey, registry) {
+  return _callBase(safeAddress, ownerKey, "cancelInit", [registry]);
+}
+
+async function sponsorCancelValidatorUpdateEth(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callEth(safeAddress, ownerKey, "cancelValidatorUpdate", [
+    targetAddress,
+  ]);
+}
+async function sponsorCancelValidatorUpdateBase(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callBase(safeAddress, ownerKey, "cancelValidatorUpdate", [
+    targetAddress,
+  ]);
+}
+
+async function sponsorExecuteInitEth(safeAddress, ownerKey, registry) {
+  return _callEth(safeAddress, ownerKey, "executeInit", [registry]);
+}
+async function sponsorExecuteInitBase(safeAddress, ownerKey, registry) {
+  return _callBase(safeAddress, ownerKey, "executeInit", [registry]);
+}
+
+async function sponsorExecuteUpdateValidatorEth(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callEth(safeAddress, ownerKey, "executeUpdateValidator", [
+    targetAddress,
+  ]);
+}
+async function sponsorExecuteUpdateValidatorBase(
+  safeAddress,
+  ownerKey,
+  targetAddress,
+) {
+  return _callBase(safeAddress, ownerKey, "executeUpdateValidator", [
+    targetAddress,
+  ]);
+}
 
 // ─── Token Transfer ───────────────────────────────────────────────────────────
-async function sponsorSafeTransferETH(
+async function _sponsorTransfer(
+  execFn,
   safeAddress,
   ownerKey,
   recipientAddress,
@@ -235,7 +401,7 @@ async function sponsorSafeTransferETH(
     const multisendCalldata = new ethers.Interface(
       MULTISEND_ABI,
     ).encodeFunctionData("multiSend", [packed]);
-    return _executeViaSafe(
+    return execFn(
       safeAddress,
       ownerKey,
       MULTISEND_ADDRESS,
@@ -247,8 +413,25 @@ async function sponsorSafeTransferETH(
       recipientAddress,
       amountWei,
     ]);
-    return _executeViaSafe(safeAddress, ownerKey, NGN_TOKEN, data, 0);
+    return execFn(safeAddress, ownerKey, NGN_TOKEN, data, 0);
   }
+}
+
+async function sponsorSafeTransferETH(
+  safeAddress,
+  ownerKey,
+  recipientAddress,
+  amountWei,
+  feeWei = 0n,
+) {
+  return _sponsorTransfer(
+    _executeViaSafeEth,
+    safeAddress,
+    ownerKey,
+    recipientAddress,
+    amountWei,
+    feeWei,
+  );
 }
 
 async function sponsorSafeTransferBase(
@@ -258,71 +441,34 @@ async function sponsorSafeTransferBase(
   amountWei,
   feeWei = 0n,
 ) {
-  const iface = new ethers.Interface(["function transfer(address,uint256)"]);
-  const NGN_TOKEN = process.env.NGN_TOKEN_ADDRESS;
-  const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
-  if (!NGN_TOKEN) throw new Error("NGN_TOKEN_ADDRESS env var is not set");
-
-  if (feeWei > 0n) {
-    const MULTISEND_ABI = [
-      "function multiSend(bytes memory transactions) external payable",
-    ];
-    const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
-
-    const encodePackedTx = (to, data) => {
-      const toBytes = ethers.getBytes(to);
-      const dataBytes = ethers.getBytes(data);
-      const dataLength = ethers.zeroPadValue(
-        ethers.toBeHex(dataBytes.length),
-        32,
-      );
-      return ethers.concat([
-        "0x00",
-        toBytes,
-        ethers.zeroPadValue("0x00", 32),
-        dataLength,
-        dataBytes,
-      ]);
-    };
-
-    const tx1Data = iface.encodeFunctionData("transfer", [
-      recipientAddress,
-      amountWei,
-    ]);
-    const tx2Data = iface.encodeFunctionData("transfer", [TREASURY, feeWei]);
-    const packed = ethers.concat([
-      encodePackedTx(NGN_TOKEN, tx1Data),
-      encodePackedTx(NGN_TOKEN, tx2Data),
-    ]);
-    const multisendCalldata = new ethers.Interface(
-      MULTISEND_ABI,
-    ).encodeFunctionData("multiSend", [packed]);
-    return _executeViaSafeBase(
-      safeAddress,
-      ownerKey,
-      MULTISEND_ADDRESS,
-      multisendCalldata,
-      1,
-    );
-  } else {
-    const data = iface.encodeFunctionData("transfer", [
-      recipientAddress,
-      amountWei,
-    ]);
-    return _executeViaSafeBase(safeAddress, ownerKey, NGN_TOKEN, data, 0);
-  }
+  return _sponsorTransfer(
+    _executeViaSafeBase,
+    safeAddress,
+    ownerKey,
+    recipientAddress,
+    amountWei,
+    feeWei,
+  );
 }
 
 // ─── Module exports ───────────────────────────────────────────────────────────
 module.exports = {
   sponsorSafeTransferETH,
   sponsorSafeTransferBase,
-  sponsorProposeInitialization,
-  sponsorProposeValidatorUpdate,
-  sponsorValidateRegistry,
-  sponsorValidateValidator,
-  sponsorCancelInit,
-  sponsorCancelValidatorUpdate,
-  sponsorExecuteInit,
-  sponsorExecuteUpdateValidator,
+  sponsorProposeInitializationEth,
+  sponsorProposeInitializationBase,
+  sponsorProposeValidatorUpdateEth,
+  sponsorProposeValidatorUpdateBase,
+  sponsorValidateRegistryEth,
+  sponsorValidateRegistryBase,
+  sponsorValidateValidatorEth,
+  sponsorValidateValidatorBase,
+  sponsorCancelInitEth,
+  sponsorCancelInitBase,
+  sponsorCancelValidatorUpdateEth,
+  sponsorCancelValidatorUpdateBase,
+  sponsorExecuteInitEth,
+  sponsorExecuteInitBase,
+  sponsorExecuteUpdateValidatorEth,
+  sponsorExecuteUpdateValidatorBase,
 };
