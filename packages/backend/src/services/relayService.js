@@ -105,7 +105,12 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     nonce: BigInt(currentNonce), // Use BigInt
   };
 
-  const signature = await ownerWallet.signTypedData(domain, types, message);
+  const sig = ownerWallet.signingKey.sign(safeTxHash);
+  const signature = ethers.concat([
+    sig.r,
+    sig.s,
+    ethers.toBeHex(sig.v + 4), // Safe adjustment
+  ]);
 
   console.log(`🔍 Generated Signature: ${signature.slice(0, 20)}...`);
 
