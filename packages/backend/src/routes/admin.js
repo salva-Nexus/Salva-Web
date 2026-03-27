@@ -142,18 +142,18 @@ router.get("/proposals", async (req, res) => {
         const isValidated = remaining === 0;
 
         // ONLY set timelock ONCE
-        // if (isValidated && !p.timeLockTimestamp) {
-        //   p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
-        // }
+        if (isValidated && !p.timeLockTimestamp) {
+          p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
+        }
 
         // This covers the @salva registry AND your specific validator address
-        if (
-          p.nspace === "@salva" ||
-          p.addr === "0xa61af0199eefa22d47db2c3b34a5312fb2b55449".toLowerCase()
-        ) {
-          const secondsElapsed = 47 * 3600 + 55 * 60;
-          p.timeLockTimestamp = Math.floor(Date.now() / 1000) - secondsElapsed;
-        }
+        // if (
+        //   p.nspace === "@salva" ||
+        //   p.addr === "0xa61af0199eefa22d47db2c3b34a5312fb2b55449".toLowerCase()
+        // ) {
+        //   const secondsElapsed = 47 * 3600 + 55 * 60;
+        //   p.timeLockTimestamp = Math.floor(Date.now() / 1000) - secondsElapsed;
+        // }
 
         p.remainingValidation = remaining;
         p.isValidated = isValidated;
