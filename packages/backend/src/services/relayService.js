@@ -54,16 +54,16 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
   const currentNonce = await safeContract.nonce();
-  
+
   // 1. Get the Safe EIP-712 transaction hash
   const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
-    0, 
+    0,
     data,
-    operation, 
-    0, 
-    0, 
-    0, 
+    operation,
+    0,
+    0,
+    0,
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     currentNonce,
@@ -71,9 +71,10 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
 
   // 2. SIGNING FIX: Use signTypedData instead of raw signing.
   // This is the most reliable way to get a valid Safe signature in ethers v6.
+  // 2. SIGNING FIX: Use hardcoded chainId for Base Sepolia (84532)
   const domain = {
     verifyingContract: normalizedSafe,
-    chainId: (await provider.getNetwork()).chainId
+    chainId: 84532, // FORCE BASE SEPOLIA ID
   };
 
   const types = {
@@ -93,18 +94,17 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
 
   const message = {
     to: normalizedTo,
-    value: 0,
+    value: 0n, // Use BigInt for Ethers v6 consistency
     data: data,
     operation: operation,
-    safeTxGas: 0,
-    baseGas: 0,
-    gasPrice: 0,
+    safeTxGas: 0n,
+    baseGas: 0n,
+    gasPrice: 0n,
     gasToken: ethers.ZeroAddress,
     refundReceiver: ethers.ZeroAddress,
-    nonce: Number(currentNonce),
+    nonce: BigInt(currentNonce), // Use BigInt
   };
 
-  // This creates a standard v=27/28 signature
   const signature = await ownerWallet.signTypedData(domain, types, message);
 
   console.log(`🔍 Generated Signature: ${signature.slice(0, 20)}...`);
@@ -125,9 +125,9 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
       ethers.ZeroAddress,
       ethers.ZeroAddress,
       signature,
-      { 
-        gasLimit: 1200000 
-      }
+      {
+        gasLimit: 1200000,
+      },
     );
 
     console.log(`✅ Safe TX submitted: ${tx.hash}`);
