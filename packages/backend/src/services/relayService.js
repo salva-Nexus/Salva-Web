@@ -62,10 +62,11 @@ async function buildSafeSignature(safeAddress, ownerKey, to, data) {
       .includes(ownerWallet.address.toLowerCase()),
   );
 
-  const flatSig = await ownerWallet.signingKey.sign(ethers.getBytes(txHash));
-  const flatSigHex = flatSig.serialized;
+  // Raw sign — no Ethereum prefix. Safe 1.3.0 requires this.
+  const signingKey = new ethers.SigningKey(ownerWallet.privateKey);
+  const sig = signingKey.sign(ethers.getBytes(txHash));
 
-  const sig = ethers.Signature.from(flatSigHex);
+  // v must be 27 or 28
   const v = sig.v < 27 ? sig.v + 27 : sig.v;
   const signature =
     sig.r.slice(2) + sig.s.slice(2) + v.toString(16).padStart(2, "0");
