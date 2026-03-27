@@ -11,9 +11,6 @@ if (!MULTISIG_ADDRESS) {
 }
 
 // ─── ABI — must exactly match the deployed contract signatures ────────────────
-// Return types must match the Solidity source for correct ABI encoding.
-// Wrong return types don't affect calldata encoding but are kept correct
-// to avoid silent decode bugs if return values are ever read.
 const MULTISIG_IFACE = new ethers.Interface([
   "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
@@ -29,48 +26,64 @@ const SAFE_ABI = [
   "function execTransaction(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, bytes memory signatures) public payable returns (bool success)",
   "function getTransactionHash(address to, uint256 value, bytes calldata data, uint8 operation, uint256 safeTxGas, uint256 baseGas, uint256 gasPrice, address gasToken, address payable refundReceiver, uint256 nonce) public view returns (bytes32)",
   "function nonce() public view returns (uint256)",
+  "function getOwners() public view returns (address[])",
 ];
 
 // ─── Core execution ───────────────────────────────────────────────────────────
-// Safe 1.3.0 signature type rules:
-//   v = 27/28 → raw secp256k1, submitter MUST be the owner
-//   v = 31/32 → prefixed eth_sign, anyone can submit (relayer pattern)
 //
-// Our setup: ownerKey signs, backend wallet submits (pays gas).
-// So we use signMessage() [adds prefix, v=27/28] then +4 → v=31/32.
-// Safe sees 31/32, adds the prefix itself during ecrecover, recovers owner. ✅
+// SIGNATURE SCHEME — Safe 1.3.0 eth_sign type (v = 31 or 32):
+//
+//   Safe's ecrecover for v=31/32 internally does:
+//     recovered = ecrecover(keccak256("\x19Ethereum Signed Message:\n32" + safeTxHash), v-4, r, s)
+//
+//   So we sign the raw safeTxHash bytes with NO prefix, then set v = rawV + 4.
+//   Safe adds the prefix during ecrecover, which recovers the correct owner address.
+//
+//   WRONG (previous code): signMessage(safeTxHash) adds prefix BEFORE signing.
+//     → Safe adds prefix AGAIN during ecrecover → double-prefixed → wrong address recovered
+//     → execTransaction reverts with GS026 (invalid signature)
+//
+//   CORRECT: signingKey.sign(safeTxHashBytes) — raw secp256k1, no prefix added.
+//     → v + 4 → Safe adds prefix once during ecrecover → correct owner recovered ✅
+//
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
-  // Sanity check all required params before touching the chain
   if (!safeAddress || !ownerKey || !to || !data) {
     throw new Error(
-      `_executeViaSafe called with missing params: safeAddress=${safeAddress}, to=${to}, data=${!!data}`,
+      `_executeViaSafe called with missing params: safeAddress=${safeAddress}, to=${to}, hasData=${!!data}`,
     );
   }
 
-  // Normalize addresses to avoid checksum issues
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
 
   console.log(
     `🔍 _executeViaSafe → Safe: ${normalizedSafe}, to: ${normalizedTo}`,
   );
-  console.log(`🔍 Calldata (first 10 bytes): ${data.slice(0, 22)}`);
+  console.log(`🔍 Calldata selector: ${data.slice(0, 10)}`);
 
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
-  // Fresh nonce read
+  // Verify the owner key actually controls this Safe before wasting gas
+  const owners = await safeContract.getOwners();
+  const ownerLower = ownerWallet.address.toLowerCase();
+  if (!owners.map((o) => o.toLowerCase()).includes(ownerLower)) {
+    throw new Error(
+      `Owner ${ownerWallet.address} is NOT an owner of Safe ${normalizedSafe}. Safe owners: ${owners.join(", ")}`,
+    );
+  }
+
   const currentNonce = await safeContract.nonce();
   console.log(`🔍 Safe nonce: ${currentNonce.toString()}`);
-  console.log(`🔍 Owner: ${ownerWallet.address}`);
-  console.log(`🔍 Submitter: ${wallet.address}`);
+  console.log(`🔍 Owner (signer): ${ownerWallet.address}`);
+  console.log(`🔍 Submitter (gas payer): ${wallet.address}`);
 
-  // Get EIP-712 Safe tx hash
-  const txHash = await safeContract.getTransactionHash(
+  // Get the Safe EIP-712 transaction hash
+  const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
-    0, // value
+    0, // ETH value
     data,
-    operation, // 0=CALL, 1=DELEGATECALL
+    operation, // 0 = CALL
     0, // safeTxGas
     0, // baseGas
     0, // gasPrice
@@ -79,18 +92,23 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     currentNonce,
   );
 
-  console.log(`🔍 Safe txHash to sign: ${txHash}`);
+  console.log(`🔍 Safe EIP-712 txHash: ${safeTxHash}`);
 
-  // signMessage adds "\x19Ethereum Signed Message:\n32" prefix → v = 27 or 28
-  // +4 → v = 31 or 32 = eth_sign type recognized by Safe
-  const flatSig = await ownerWallet.signMessage(ethers.getBytes(txHash));
-  const sig = ethers.Signature.from(flatSig);
-  const v = (sig.v < 27 ? sig.v + 27 : sig.v) + 4;
+  // Raw secp256k1 sign — no Ethereum prefix added here.
+  // Safe will add "\x19Ethereum Signed Message:\n32" itself during ecrecover
+  // because v = 31 or 32 (eth_sign type). This correctly recovers the owner. ✅
+  const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
+
+  // rawSig.v is 27 or 28 from a secp256k1 sign. +4 → 31 or 32 = Safe eth_sign type.
+  const v = rawSig.v + 4;
   const signature =
-    "0x" + sig.r.slice(2) + sig.s.slice(2) + v.toString(16).padStart(2, "0");
+    "0x" +
+    rawSig.r.slice(2) +
+    rawSig.s.slice(2) +
+    v.toString(16).padStart(2, "0");
 
   console.log(
-    `🔍 Signature v=${v} (eth_sign relayer type): ${signature.slice(0, 22)}...`,
+    `🔍 Signature v=${v} (Safe eth_sign type): ${signature.slice(0, 22)}...`,
   );
 
   // Backend wallet submits and pays gas
@@ -107,19 +125,17 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     signature,
-    { gasLimit: 1000000 },
+    { gasLimit: 1_000_000 },
   );
 
   console.log(`✅ Safe TX submitted: ${tx.hash}`);
   const receipt = await tx.wait();
 
   if (!receipt || receipt.status === 0) {
-    throw new Error(`Safe transaction reverted on-chain. Hash: ${tx.hash}`);
+    throw new Error(`Safe inner call reverted. Safe TX hash: ${tx.hash}`);
   }
 
   console.log(`✅ Safe TX confirmed: ${tx.hash}`);
-
-  // Return taskId as the real tx hash so admin.js waitForTx works correctly
   return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
@@ -147,7 +163,7 @@ async function sponsorProposeInitialization(
     nspace,
     registry,
   ]);
-  console.log(`📦 proposeInitialization calldata: ${calldata.slice(0, 30)}...`);
+  console.log(`📦 proposeInitialization selector: ${calldata.slice(0, 10)}`);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -164,9 +180,6 @@ async function sponsorProposeValidatorUpdate(
     targetAddress,
     action,
   ]);
-  console.log(
-    `📦 proposeValidatorUpdate calldata: ${calldata.slice(0, 30)}...`,
-  );
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -175,7 +188,6 @@ async function sponsorValidateRegistry(safeAddress, ownerKey, registry) {
   const calldata = MULTISIG_IFACE.encodeFunctionData("validateRegistry", [
     registry,
   ]);
-  console.log(`📦 validateRegistry calldata: ${calldata.slice(0, 30)}...`);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -184,7 +196,6 @@ async function sponsorValidateValidator(safeAddress, ownerKey, targetAddress) {
   const calldata = MULTISIG_IFACE.encodeFunctionData("validateValidator", [
     targetAddress,
   ]);
-  console.log(`📦 validateValidator calldata: ${calldata.slice(0, 30)}...`);
   return _sponsorMultisigCall(safeAddress, ownerKey, calldata);
 }
 
@@ -273,7 +284,6 @@ async function sponsorSafeTransfer(
     const multisendCalldata = new ethers.Interface(
       MULTISEND_ABI,
     ).encodeFunctionData("multiSend", [packed]);
-
     return _executeViaSafe(
       safeAddress,
       ownerKey,
