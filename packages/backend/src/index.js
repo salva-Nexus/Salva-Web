@@ -1072,55 +1072,69 @@ app.post("/api/resolve-recipient", async (req, res) => {
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
-const {
-  userPrivateKey,
-  safeAddress,
-  toInput,
-  amount,
-  registryAddress,
-  inputType,
-} = req.body;
+    const {
+      userPrivateKey,
+      safeAddress,
+      toInput,
+      amount,
+      registryAddress,
+      inputType,
+    } = req.body;
 
     validateAmount(amount);
 
-    // ── Resolve recipient ───────────────────────────────────────────────────
+    // ── 1. Resolve & Weld Recipient ──────────────────────────────────────────
     let recipientAddress;
+    let finalToInput = toInput.trim();
+
     try {
-      // If toInput is an account number, registryAddress must be provided
-      recipientAddress = await resolveToAddress(toInput, registryAddress || null);
+      // Check if we need to weld a name (contains letters, not a raw 0x address)
+      if (isNameAlias(finalToInput) && !finalToInput.startsWith("0x")) {
+        if (!registryAddress) {
+          return res.status(400).json({ message: "Registry selection required for name resolution" });
+        }
+
+        const registryDoc = await WalletRegistry.findOne({ 
+          registryAddress: registryAddress.toLowerCase() 
+        });
+
+        if (!registryDoc) {
+          return res.status(404).json({ message: "Selected Registry not found in database" });
+        }
+
+        // Weld the name with the namespace: "charles" -> "charles@salva"
+        finalToInput = `${finalToInput}${registryDoc.nspace}`;
+        console.log(`🔗 Welded Recipient: ${finalToInput}`);
+      }
+
+      // Resolve the (potentially welded) input to a 0x address
+      recipientAddress = await resolveToAddress(finalToInput, registryAddress || null);
     } catch (error) {
       return res.status(404).json({ message: error.message });
     }
 
-    // ── Fee calculation ─────────────────────────────────────────────────────
+    // ── 2. Fee Calculation ───────────────────────────────────────────────────
     const { feeNGN, feeWei } = await getFeeForAmount(amount);
     const amountNum = parseFloat(amount);
 
-    // Determine how much recipient actually receives
-    // If sender has enough balance to cover amount + fee: recipient gets full amount
-    // If sender only has enough for amount: fee is deducted from amount
-    // (balance check happens on-chain; we decide the split here for UX display)
     const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)"];
     const tokenContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
     const balanceWei = await tokenContract.balanceOf(safeAddress);
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, 6));
 
-    let actualAmountWei;    // what recipient gets
-    let actualFeeWei;       // what treasury gets
-    let recipientReceives;  // human-readable for display
+    let actualAmountWei;
+    let actualFeeWei;
+    let recipientReceives;
 
     if (feeNGN === 0) {
-      // Free tier
       actualAmountWei = ethers.parseUnits(amount.toString(), 6);
       actualFeeWei = 0n;
       recipientReceives = amountNum;
     } else if (balanceNum >= amountNum + feeNGN) {
-      // Sender covers full amount + fee from their balance
       actualAmountWei = ethers.parseUnits(amount.toString(), 6);
       actualFeeWei = feeWei;
       recipientReceives = amountNum;
     } else if (balanceNum >= amountNum) {
-      // Fee comes out of the sent amount (recipient gets less)
       recipientReceives = amountNum - feeNGN;
       if (recipientReceives <= 0) {
         return res.status(400).json({ message: "Amount too small to cover fee" });
@@ -1131,20 +1145,22 @@ const {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    // ── Sender / recipient metadata ─────────────────────────────────────────
+    // ── 3. Metadata & Queueing ───────────────────────────────────────────────
     const senderUser = await User.findOne({ safeAddress: normalizeAddress(safeAddress) });
     const recipientUser = await User.findOne({ safeAddress: normalizeAddress(recipientAddress) });
     const senderAccountNumber = senderUser?.accountNumber || null;
 
     await delayBeforeBlockchain(safeAddress, "Transfer queued");
 
+    // We store the WELDED name in the payload for better history tracking
     const queueEntry = await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
       type: "transfer",
-      payload: { toInput, amount, recipientAddress, feeNGN },
+      payload: { toInput: finalToInput, amount, recipientAddress, feeNGN },
     }).save();
 
+    // ── 4. Blockchain Execution ──────────────────────────────────────────────
     try {
       queueEntry.status = "SENDING";
       queueEntry.updatedAt = new Date();
@@ -1168,7 +1184,7 @@ const {
           fromAccountNumber: senderAccountNumber,
           fromUsername: senderUser?.username || null,
           toAddress: recipientAddress,
-          toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+          toAccountNumber: isAccountNumber(finalToInput) ? finalToInput : null,
           toUsername: recipientUser?.username || null,
           senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
           amount: amount,
@@ -1191,7 +1207,7 @@ const {
         fromAccountNumber: senderAccountNumber,
         fromUsername: senderUser?.username || null,
         toAddress: recipientAddress,
-        toAccountNumber: isAccountNumber(toInput) ? toInput : null,
+        toAccountNumber: isAccountNumber(finalToInput) ? finalToInput : null,
         toUsername: recipientUser?.username || null,
         senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
         amount: amount,
@@ -1209,25 +1225,24 @@ const {
         await queueEntry.save();
         await applyCooldown(safeAddress, 20);
 
+        // Notify users
         if (senderUser?.email) {
-          try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, toInput, amount, "successful"); } catch (e) { console.error("❌ Sender email:", e.message); }
+          try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, finalToInput, amount, "successful"); } catch (e) { console.error("❌ Email Error:", e.message); }
         }
         if (recipientUser?.email) {
-          try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, senderAccountNumber || safeAddress, amount); } catch (e) { console.error("❌ Receiver email:", e.message); }
+          try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, senderAccountNumber || safeAddress, amount); } catch (e) { console.error("❌ Email Error:", e.message); }
         }
 
         return res.json({ success: true, taskId: result.taskId, feeNGN, recipientReceives });
       } else {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = taskStatus.reason;
-        queueEntry.updatedAt = new Date();
         await queueEntry.save();
-        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted on blockchain" });
+        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted" });
       }
     } catch (error) {
       queueEntry.status = "FAILED";
       queueEntry.errorMessage = error.message;
-      queueEntry.updatedAt = new Date();
       await queueEntry.save();
       throw error;
     }
