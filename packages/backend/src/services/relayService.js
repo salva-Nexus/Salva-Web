@@ -88,8 +88,14 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
+  // Ensure we pass the raw URL string, NOT the ethers provider object
+  const rpcUrl = process.env.ALCHEMY_RPC_URL;
+
+  if (!rpcUrl) {
+    throw new Error("RPC_URL is not defined in environment variables");
+  }
   const protocolKit = await Safe.init({
-    provider: process.env.RPC_URL,
+    provider: rpcUrl,
     signer: ownerKey,
     safeAddress: safeAddress,
   });
