@@ -292,7 +292,9 @@ const Transactions = () => {
     doc.line(30, 265, 180, 265);
     doc.setFontSize(7);
     doc.setTextColor(100, 100, 100);
-    doc.text(`Receipt ID: ${tx._id || "SALVA-" + Date.now()}`, 105, 272, { align: "center" });
+    doc.text(`Receipt ID: ${tx._id || "SALVA-" + Date.now()}`, 105, 272, {
+      align: "center",
+    });
     doc.text("salva-nexus.org", 105, 278, { align: "center" });
 
     doc.save(`Salva_Receipt_${Date.now()}.pdf`);
@@ -453,25 +455,35 @@ const Transactions = () => {
                                                           ? "From:"
                                                           : "To:"}
                                                       </span>
-                                                      {tx.displayPartner || "Unknown"}
+                                                      {tx.displayPartner ||
+                                                        "Unknown"}
                                                     </p>
                                                     {/* Status badge */}
-                                                    <p className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${
-                                                      isFailed ? "text-red-400" : "opacity-40"
-                                                    }`}>
+                                                    <p
+                                                      className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${
+                                                        isFailed
+                                                          ? "text-red-400"
+                                                          : "opacity-40"
+                                                      }`}
+                                                    >
                                                       {isFailed
                                                         ? "Failed"
                                                         : isReceived
                                                           ? "Received"
                                                           : "Sent"}{" "}
-                                                      · {new Date(tx.date).toLocaleTimeString()}
+                                                      ·{" "}
+                                                      {new Date(
+                                                        tx.date,
+                                                      ).toLocaleTimeString()}
                                                     </p>
                                                   </div>
                                                 </div>
 
                                                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
                                                   {/* Amount */}
-                                                  <p className={`font-black text-lg ${amountColor}`}>
+                                                  <p
+                                                    className={`font-black text-lg ${amountColor}`}
+                                                  >
                                                     {amountSign}
                                                     {formatNumber(tx.amount)}
                                                     <span className="text-[10px] font-bold opacity-50 ml-1">
