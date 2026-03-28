@@ -85,6 +85,7 @@ const AliasVisual = () => {
     { alias: "charles@coinbase", addr: "0xd8dA...96045" },
     { alias: "1122746245", addr: "0xAb5...3C9f" },
     { alias: "aggregatorv3@chainlink", addr: "0x71C...8E2a" },
+    { alias: "khabib@opay", addr: "1234...789" },
   ];
   useEffect(() => {
     const t = setInterval(
