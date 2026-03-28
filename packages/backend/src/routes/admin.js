@@ -105,54 +105,12 @@ async function getValidatorRemaining(addr) {
 router.get("/proposals", async (req, res) => {
   try {
     const all = await Proposal.find().sort({ createdAt: -1 });
-
-    // ─── Refresh Loop ──────────────────────────────────────────────
-    for (const p of all) {
-      try {
-        let remaining = null;
-
-        // 1. Fetch live "Remaining Votes" from MultiSig
-        if (p.type === "registry") {
-          remaining = await getRegistryRemaining(p.registry);
-        } else {
-          remaining = await getValidatorRemaining(p.addr);
-        }
-
-        if (remaining === null) continue;
-
-        const isValidated = remaining === 0;
-
-        // 2. Handle Timelock Calculation
-        if (isValidated) {
-          // If validated but no timestamp exists, set it to 48h from now
-          if (!p.timeLockTimestamp) {
-            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
-          }
-
-          // ─── DEBUG TIME MACHINE ──────────────────────────────────
-          // UNCOMMENT the line below to bypass the 48h wait and test EXECUTE immediately
-          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600;
-          // ─────────────────────────────────────────────────────────
-        }
-
-        // 3. Update the database entry with fresh stats
-        p.remainingValidation = remaining;
-        p.isValidated = isValidated;
-        p.updatedAt = new Date();
-
-        await p.save();
-      } catch (err) {
-        console.error(`❌ Sync failed for proposal ${p._id}:`, err.message);
-      }
-    }
-
-    // 4. Return filtered results to the dashboard
+    // Background refresh logic remains the same for the polling loop
     res.json({
       registryProposals: all.filter((p) => p.type === "registry"),
       validatorProposals: all.filter((p) => p.type === "validator"),
     });
   } catch (e) {
-    console.error("❌ Proposals Route Error:", e);
     res.status(500).json({ message: "Failed to fetch proposals" });
   }
 });
