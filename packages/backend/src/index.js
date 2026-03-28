@@ -133,17 +133,17 @@ app.use((req, res, next) => {
 const allowedOrigins =
   process.env.NODE_ENV === "production"
     ? [
-      "https://salva-nexus.org",
-      "https://www.salva-nexus.org",
-      "https://salva-web.onrender.com",
-    ]
+        "https://salva-nexus.org",
+        "https://www.salva-nexus.org",
+        "https://salva-web.onrender.com",
+      ]
     : [
-      "https://salva-nexus.org",
-      "https://www.salva-nexus.org",
-      "https://salva-web.onrender.com",
-      "http://localhost:3000",
-      "http://localhost:5173",
-    ];
+        "https://salva-nexus.org",
+        "https://www.salva-nexus.org",
+        "https://salva-web.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+      ];
 
 app.use(
   cors({
@@ -311,37 +311,62 @@ async function delayBeforeBlockchain(
   console.log(`✅ Queue clear, proceeding with transaction`);
 }
 
-// Polls Alchemy bundler for UserOperation receipt
-async function checkGelatoTaskStatus(userOpHash, maxRetries = 30, delayMs = 2000) {
-  console.log(`🔍 Polling Alchemy UserOp: ${userOpHash}`);
-  const { provider: alchemyProvider } = require("./services/walletSigner");
+// ─────────────────────────────────────────────────────────────────────────────
+// FIXED: waitForTxReceipt
+//
+// The OLD checkGelatoTaskStatus was calling eth_getUserOperationReceipt
+// (an ERC-4337 UserOperation RPC method). But sponsorSafeTransfer uses the
+// Safe SDK which calls execTransaction directly — producing a REGULAR on-chain
+// tx hash, NOT a UserOp hash. eth_getUserOperationReceipt will always return
+// null for a regular tx hash, causing 30 polling attempts to time out and
+// incorrectly mark every successful transaction as "failed".
+//
+// FIX: Use provider.waitForTransaction() which is the correct ethers method
+// for a regular transaction hash. It handles polling internally and returns
+// the receipt once the tx is mined. We wrap it with a timeout safety net.
+// ─────────────────────────────────────────────────────────────────────────────
+async function waitForTxReceipt(txHash, timeoutMs = 120_000) {
+  console.log(`🔍 Waiting for on-chain confirmation: ${txHash}`);
 
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      const receipt = await alchemyProvider.send("eth_getUserOperationReceipt", [userOpHash]);
+  try {
+    // provider.waitForTransaction polls until the tx is mined.
+    // confirmations=1 means we wait for at least 1 block confirmation.
+    // timeout is in milliseconds.
+    const receipt = await provider.waitForTransaction(txHash, 1, timeoutMs);
 
-      if (receipt) {
-        if (receipt.success === true) {
-          console.log(`✅ UserOp ${userOpHash} SUCCEEDED`);
-          return { success: true, status: "successful" };
-        } else {
-          console.error(`❌ UserOp ${userOpHash} FAILED on-chain`);
-          return { success: false, status: "failed", reason: receipt.reason || "UserOperation reverted" };
-        }
-      }
-
-      console.log(`⏳ UserOp ${userOpHash} still pending... (attempt ${i + 1}/${maxRetries})`);
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    } catch (error) {
-      console.error(`❌ Error polling UserOp (attempt ${i + 1}):`, error.message);
-      if (i === maxRetries - 1) {
-        return { success: false, status: "failed", reason: "Could not verify transaction status" };
-      }
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (!receipt) {
+      console.error(`❌ No receipt returned for tx ${txHash} (timeout)`);
+      return {
+        success: false,
+        status: "failed",
+        reason: "Transaction confirmation timeout after 2 minutes",
+      };
     }
-  }
 
-  return { success: false, status: "failed", reason: "Transaction verification timeout" };
+    if (receipt.status === 1) {
+      console.log(
+        `✅ Transaction ${txHash} CONFIRMED on-chain (block ${receipt.blockNumber})`,
+      );
+      return { success: true, status: "successful" };
+    } else {
+      console.error(`❌ Transaction ${txHash} REVERTED on-chain`);
+      return {
+        success: false,
+        status: "failed",
+        reason: "Transaction reverted on-chain",
+      };
+    }
+  } catch (error) {
+    console.error(
+      `❌ Error waiting for tx receipt (${txHash}):`,
+      error.message,
+    );
+    return {
+      success: false,
+      status: "failed",
+      reason: error.message || "Could not confirm transaction",
+    };
+  }
 }
 
 async function retryRPCCall(fn, maxRetries = 3, delay = 1000) {
@@ -431,10 +456,10 @@ async function cleanupStaleQueueEntries() {
 // Returns fee in Wei (6 decimals) and human NGN amount
 // ===============================================
 async function getFeeForAmount(amountNGN) {
-  let config = await FeeConfig.findById('main');
+  let config = await FeeConfig.findById("main");
   if (!config) {
     // Seed default config on first call
-    config = await FeeConfig.create({ _id: 'main' });
+    config = await FeeConfig.create({ _id: "main" });
   }
 
   const amount = parseFloat(amountNGN);
@@ -442,14 +467,14 @@ async function getFeeForAmount(amountNGN) {
   if (amount >= config.tier2Min) {
     return {
       feeNGN: config.tier2Fee,
-      feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6)
+      feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6),
     };
   }
 
   if (amount >= config.tier1Min && amount <= config.tier1Max) {
     return {
       feeNGN: config.tier1Fee,
-      feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6)
+      feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6),
     };
   }
 
@@ -477,16 +502,16 @@ app.get("/api/registries", async (req, res) => {
 // ===============================================
 app.get("/api/fee-config", async (req, res) => {
   try {
-    let config = await FeeConfig.findById('main');
+    let config = await FeeConfig.findById("main");
     if (!config) {
-      config = await FeeConfig.create({ _id: 'main' });
+      config = await FeeConfig.create({ _id: "main" });
     }
     res.json({
       tier1Min: config.tier1Min,
       tier1Max: config.tier1Max,
       tier1Fee: config.tier1Fee,
       tier2Min: config.tier2Min,
-      tier2Fee: config.tier2Fee
+      tier2Fee: config.tier2Fee,
     });
   } catch (error) {
     return handleError(error, res, "Failed to fetch fee config");
@@ -563,23 +588,17 @@ app.post("/api/auth/verify-otp", authLimiter, (req, res) => {
   }
 });
 
-// ===================================================================
-// REPLACE THE /api/auth/reset-password ROUTE (around line 382) WITH THIS:
-// ===================================================================
-
 app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
   try {
     const { email, newPassword } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
 
-    // ✅ CHECK OTP VERIFICATION
     if (!otpStore[sanitizedEmail] || !otpStore[sanitizedEmail].verified) {
       return res
         .status(401)
         .json({ message: "Unauthorized. Verify OTP first." });
     }
 
-    // ✅ VALIDATE PASSWORD STRENGTH
     if (
       !newPassword ||
       !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)
@@ -591,15 +610,13 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-
-    // ✅ APPLY 24-HOUR LOCKDOWN
     const lockoutTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await User.findOneAndUpdate(
       { email: sanitizedEmail },
       {
         password: hashedPassword,
-        accountLockedUntil: lockoutTime, // ✅ ADD LOCKDOWN
+        accountLockedUntil: lockoutTime,
       },
       { new: true },
     );
@@ -608,10 +625,8 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    // ✅ CLEAN UP OTP
     delete otpStore[sanitizedEmail];
 
-    // ✅ SEND SECURITY EMAIL
     try {
       const accountNum =
         (await getAccountNumberFromAddress(user.safeAddress)) ||
@@ -653,13 +668,11 @@ app.post(
         return res.status(400).json({ message: "Email already registered" });
       }
 
-      // ── STEP 1: Deploy the Safe wallet ─────────────────────────────────────
       console.log("🚀 Generating Safe Wallet & Deploying...");
       const identityData = await generateAndDeploySalvaIdentity(
         process.env.BASE_SEPOLIA_RPC_URL,
       );
 
-      // ── STEP 2: Save user to MongoDB ────────────────────────────────────────
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = new User({
         username,
@@ -667,13 +680,11 @@ app.post(
         password: hashedPassword,
         safeAddress: identityData.safeAddress,
         ownerPrivateKey: identityData.ownerPrivateKey,
-        // accountNumber is null until user links it from dashboard
       });
 
       await newUser.save();
       console.log("✅ User saved to database");
 
-      // ── STEP 3: Send welcome email ───────────────────────────────────────────
       try {
         await sendWelcomeEmail(email, username);
       } catch (emailError) {
@@ -714,15 +725,14 @@ app.post("/api/login", authLimiter, async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
-    // In /api/login route, update the res.json to:
     res.json({
       username: user.username,
       safeAddress: user.safeAddress,
       accountNumber: user.accountNumber,
       ownerPrivateKey: user.ownerPrivateKey,
-      isValidator: user.isValidator || false,  // ADD THIS
-      nameAlias: user.nameAlias || null,       // ADD THIS
-      numberAlias: user.numberAlias || null,   // ADD THIS
+      isValidator: user.isValidator || false,
+      nameAlias: user.nameAlias || null,
+      numberAlias: user.numberAlias || null,
     });
   } catch (error) {
     return handleError(error, res, "Login failed");
@@ -748,9 +758,7 @@ app.get("/api/user/status/:email", async (req, res) => {
 });
 
 // ===============================================
-// ALIAS — LINK NUMBER (replaces both duplicate routes)
-// Assigns next account number from counter, links on-chain via registry,
-// confirms receipt, THEN increments counter in DB.
+// ALIAS — LINK NUMBER
 // ===============================================
 app.post("/api/alias/link-number", async (req, res) => {
   try {
@@ -762,30 +770,39 @@ app.post("/api/alias/link-number", async (req, res) => {
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.numberAlias) return res.status(400).json({ message: "Number alias already registered" });
+    if (user.numberAlias)
+      return res
+        .status(400)
+        .json({ message: "Number alias already registered" });
 
-    // ── Get next number from counter ──────────────────────────────────────
     let counterDoc = await AccountNumberCounter.findById("main");
     if (!counterDoc) {
-      counterDoc = await AccountNumberCounter.create({ _id: "main", lastAssigned: "1122746244" });
+      counterDoc = await AccountNumberCounter.create({
+        _id: "main",
+        lastAssigned: "1122746244",
+      });
     }
     const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
 
-    // ── Call linkNumber on-chain (backend wallet pays gas — privileged op) ─
     const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
     const registryContract = new ethers.Contract(
       process.env.REGISTRY_CONTRACT_ADDRESS,
       REGISTRY_ABI,
-      wallet
+      wallet,
     );
 
     let tx;
     try {
-      tx = await registryContract.linkNumber(BigInt(nextNumber), user.safeAddress);
+      tx = await registryContract.linkNumber(
+        BigInt(nextNumber),
+        user.safeAddress,
+      );
       console.log(`⏳ linkNumber TX sent: ${tx.hash}`);
     } catch (sendError) {
       console.error("❌ linkNumber send failed:", sendError.message);
-      return res.status(500).json({ message: "On-chain linking failed. Please try again." });
+      return res
+        .status(500)
+        .json({ message: "On-chain linking failed. Please try again." });
     }
 
     let receipt;
@@ -793,24 +810,30 @@ app.post("/api/alias/link-number", async (req, res) => {
       receipt = await tx.wait();
     } catch (waitError) {
       console.error("❌ linkNumber reverted:", waitError.message);
-      return res.status(500).json({ message: "On-chain linking reverted. Please try again." });
+      return res
+        .status(500)
+        .json({ message: "On-chain linking reverted. Please try again." });
     }
 
     if (!receipt || receipt.status === 0) {
-      return res.status(500).json({ message: "On-chain linking failed (receipt status 0)." });
+      return res
+        .status(500)
+        .json({ message: "On-chain linking failed (receipt status 0)." });
     }
 
-    console.log(`✅ linkNumber confirmed on-chain for ${nextNumber} → ${user.safeAddress}`);
+    console.log(
+      `✅ linkNumber confirmed on-chain for ${nextNumber} → ${user.safeAddress}`,
+    );
 
-    // ── Only increment counter AFTER on-chain success ─────────────────────
     counterDoc.lastAssigned = nextNumber;
     await counterDoc.save();
 
-    // ── Save numberAlias on user ──────────────────────────────────────────
     user.numberAlias = nextNumber;
     await user.save();
 
-    console.log(`✅ Number alias ${nextNumber} registered for ${user.safeAddress}`);
+    console.log(
+      `✅ Number alias ${nextNumber} registered for ${user.safeAddress}`,
+    );
     res.json({ success: true, numberAlias: nextNumber });
   } catch (error) {
     console.error("❌ Link number error:", error);
@@ -826,7 +849,6 @@ app.post("/api/alias/link-name", async (req, res) => {
       return res.status(400).json({ message: "Invalid wallet address" });
     }
 
-    // Match phishingProof: lowercase a-z, digits 2-9, dots/dashes/underscores, max 16
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
       return res.status(400).json({
         message:
@@ -839,13 +861,11 @@ app.post("/api/alias/link-name", async (req, res) => {
     if (user.nameAlias)
       return res.status(400).json({ message: "Name alias already registered" });
 
-    // Double-check availability before sending tx
     const available = await isNameAvailable(name);
     if (!available) {
       return res.status(409).json({ message: "Name is already taken" });
     }
 
-    // Call linkName on SalvaRegistry — backend wallet is the REGISTRAR
     const LINK_ABI = [
       "function linkName(string memory, address) external returns (bool)",
     ];
@@ -877,11 +897,9 @@ app.post("/api/alias/link-name", async (req, res) => {
     }
 
     if (!receipt || receipt.status === 0) {
-      return res
-        .status(500)
-        .json({
-          message: "On-chain name registration failed (receipt status 0).",
-        });
+      return res.status(500).json({
+        message: "On-chain name registration failed (receipt status 0).",
+      });
     }
 
     console.log(`✅ linkName confirmed: '${name}' → ${user.safeAddress}`);
@@ -902,7 +920,6 @@ app.post("/api/alias/link-name", async (req, res) => {
 app.post("/api/alias/check-name", async (req, res) => {
   try {
     const { name } = req.body;
-    // Match phishingProof: lowercase a-z, digits 2-9, '.', '-', '_', max 16 bytes
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
       return res.status(400).json({ message: "Invalid name format" });
     }
@@ -918,7 +935,9 @@ app.post("/api/alias/check-name", async (req, res) => {
 // ===============================================
 app.get("/api/alias/status/:safeAddress", async (req, res) => {
   try {
-    const user = await User.findOne({ safeAddress: req.params.safeAddress.toLowerCase() });
+    const user = await User.findOne({
+      safeAddress: req.params.safeAddress.toLowerCase(),
+    });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({
@@ -947,13 +966,11 @@ app.post("/api/resolve-account-info", async (req, res) => {
 
     let user;
 
-    // Check if it's an address (starts with 0x)
     if (accountNumberOrAddress.toLowerCase().startsWith("0x")) {
       user = await User.findOne({
         safeAddress: normalizeAddress(accountNumberOrAddress),
       });
     } else {
-      // It's an account number
       user = await User.findOne({
         accountNumber: accountNumberOrAddress,
       });
@@ -1011,11 +1028,10 @@ app.get("/api/balance/:address", async (req, res) => {
 
 app.post("/api/resolve-recipient", async (req, res) => {
   try {
-    const { input, registryAddress } = req.body; // Input is just "charles"
+    const { input, registryAddress } = req.body;
 
     if (!input) return res.status(400).json({ message: "Input required" });
 
-    // 1. Skip if it's already a raw address
     if (input.trim().startsWith("0x")) {
       return res
         .status(400)
@@ -1026,8 +1042,6 @@ app.post("/api/resolve-recipient", async (req, res) => {
       return res.status(400).json({ message: "Registry selection required" });
     }
 
-    // ─── THE WELDING LOGIC ──────────────────────────────────────────────────
-    // 2. Fetch the Registry from the DB to get its namespace
     const registryDoc = await WalletRegistry.findOne({
       registryAddress: registryAddress.toLowerCase(),
     });
@@ -1038,15 +1052,11 @@ app.post("/api/resolve-recipient", async (req, res) => {
         .json({ message: "Selected Registry not found in database" });
     }
 
-    // 3. Weld the input name with the registry's namespace
-    // If input is "charles" and nspace is "@salva", result is "charles@salva"
     const weldedInput = `${input.trim()}${registryDoc.nspace}`;
     console.log(`🔗 Welded Name: ${weldedInput}`);
-    // ────────────────────────────────────────────────────────────────────────
 
     let resolvedAddress;
     try {
-      // 4. Pass the WELDED string to your resolver
       resolvedAddress = await resolveToAddress(weldedInput, registryAddress);
     } catch (err) {
       return res
@@ -1069,10 +1079,12 @@ app.post("/api/resolve-recipient", async (req, res) => {
 });
 
 // ===============================================
-// TRANSFER — with fee, registry resolution, multicall
-// ===============================================
-// ===============================================
-// TRANSFER — with fee, registry resolution, multicall
+// TRANSFER — FIXED
+//
+// Key change: replaced checkGelatoTaskStatus (which polled
+// eth_getUserOperationReceipt — wrong for direct Safe txs) with
+// waitForTxReceipt which uses provider.waitForTransaction on the
+// actual txHash returned by sponsorSafeTransfer.
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
@@ -1092,29 +1104,33 @@ app.post("/api/transfer", async (req, res) => {
     let finalToInput = toInput.trim();
 
     try {
-      // Check if we need to weld a name (contains letters, not a raw 0x address)
       if (isNameAlias(finalToInput) && !finalToInput.startsWith("0x")) {
         if (!registryAddress) {
-          return res.status(400).json({ message: "Registry selection required for name resolution" });
+          return res
+            .status(400)
+            .json({
+              message: "Registry selection required for name resolution",
+            });
         }
 
-        // Fetch registry from DB to get the namespace (e.g., @salva)
-        const WalletRegistry = mongoose.model("WalletRegistry");
-        const registryDoc = await WalletRegistry.findOne({ 
-          registryAddress: registryAddress.toLowerCase() 
+        const registryDoc = await WalletRegistry.findOne({
+          registryAddress: registryAddress.toLowerCase(),
         });
 
         if (!registryDoc) {
-          return res.status(404).json({ message: "Selected Registry not found in database" });
+          return res
+            .status(404)
+            .json({ message: "Selected Registry not found in database" });
         }
 
-        // Weld the name: "charles" -> "charles@salva"
         finalToInput = `${finalToInput}${registryDoc.nspace}`;
         console.log(`🔗 Welded Recipient: ${finalToInput}`);
       }
 
-      // Resolve the (now welded) input to a 0x address
-      recipientAddress = await resolveToAddress(finalToInput, registryAddress || null);
+      recipientAddress = await resolveToAddress(
+        finalToInput,
+        registryAddress || null,
+      );
     } catch (error) {
       return res.status(404).json({ message: error.message });
     }
@@ -1124,7 +1140,11 @@ app.post("/api/transfer", async (req, res) => {
     const amountNum = parseFloat(amount);
 
     const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)"];
-    const tokenContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
+    const tokenContract = new ethers.Contract(
+      process.env.NGN_TOKEN_ADDRESS,
+      TOKEN_ABI,
+      provider,
+    );
     const balanceWei = await tokenContract.balanceOf(safeAddress);
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, 6));
 
@@ -1143,7 +1163,9 @@ app.post("/api/transfer", async (req, res) => {
     } else if (balanceNum >= amountNum) {
       recipientReceives = amountNum - feeNGN;
       if (recipientReceives <= 0) {
-        return res.status(400).json({ message: "Amount too small to cover fee" });
+        return res
+          .status(400)
+          .json({ message: "Amount too small to cover fee" });
       }
       actualAmountWei = ethers.parseUnits(recipientReceives.toString(), 6);
       actualFeeWei = feeWei;
@@ -1151,15 +1173,22 @@ app.post("/api/transfer", async (req, res) => {
       return res.status(400).json({ message: "Insufficient balance" });
     }
 
-    // ── 3. Metadata & Queueing ───────────────────────────────────────────────
-    const User = mongoose.model("User");
-    const senderUser = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    const recipientUser = await User.findOne({ safeAddress: recipientAddress.toLowerCase() });
-    const senderAccountNumber = senderUser?.accountNumber || null;
+    // ── 3. Metadata ──────────────────────────────────────────────────────────
+    const senderUser = await User.findOne({
+      safeAddress: safeAddress.toLowerCase(),
+    });
+    const recipientUser = await User.findOne({
+      safeAddress: recipientAddress.toLowerCase(),
+    });
+
+    // Prefer numberAlias as the account number identifier, fall back to safeAddress
+    const senderAccountNumber =
+      senderUser?.numberAlias || senderUser?.accountNumber || null;
+    const recipientAccountNumber =
+      recipientUser?.numberAlias || recipientUser?.accountNumber || null;
 
     await delayBeforeBlockchain(safeAddress, "Transfer queued");
 
-    // Store the WELDED name in the payload
     const queueEntry = await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
@@ -1181,7 +1210,7 @@ app.post("/api/transfer", async (req, res) => {
         actualFeeWei,
       );
 
-      if (!result || !result.taskId) {
+      if (!result || !result.txHash) {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = "Failed to submit to relay";
         await queueEntry.save();
@@ -1190,10 +1219,11 @@ app.post("/api/transfer", async (req, res) => {
           fromAddress: safeAddress.toLowerCase(),
           fromAccountNumber: senderAccountNumber,
           fromUsername: senderUser?.username || null,
-          toAddress: recipientAddress,
-          toAccountNumber: isAccountNumber(finalToInput) ? finalToInput : null,
+          toAddress: recipientAddress.toLowerCase(),
+          toAccountNumber: recipientAccountNumber,
           toUsername: recipientUser?.username || null,
-          senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
+          senderDisplayIdentifier:
+            senderAccountNumber || safeAddress.toLowerCase(),
           amount: amount,
           status: "failed",
           taskId: null,
@@ -1201,25 +1231,32 @@ app.post("/api/transfer", async (req, res) => {
           date: new Date(),
         }).save();
 
-        return res.status(400).json({ success: false, message: "Transfer failed on blockchain" });
+        return res
+          .status(400)
+          .json({ success: false, message: "Transfer failed on blockchain" });
       }
 
-      queueEntry.taskId = result.taskId;
+      queueEntry.taskId = result.txHash;
+      queueEntry.txHash = result.txHash;
       await queueEntry.save();
 
-      const taskStatus = await checkGelatoTaskStatus(result.taskId);
+      // ── FIXED: Use waitForTxReceipt instead of checkGelatoTaskStatus ────────
+      // result.txHash is a regular on-chain transaction hash from execTransaction.
+      // We poll the Base Sepolia chain directly using ethers provider.
+      const taskStatus = await waitForTxReceipt(result.txHash);
 
       const txRecord = {
         fromAddress: safeAddress.toLowerCase(),
         fromAccountNumber: senderAccountNumber,
         fromUsername: senderUser?.username || null,
-        toAddress: recipientAddress,
-        toAccountNumber: isAccountNumber(finalToInput) ? finalToInput : null,
+        toAddress: recipientAddress.toLowerCase(),
+        toAccountNumber: recipientAccountNumber,
         toUsername: recipientUser?.username || null,
-        senderDisplayIdentifier: senderAccountNumber || safeAddress.toLowerCase(),
+        senderDisplayIdentifier:
+          senderAccountNumber || safeAddress.toLowerCase(),
         amount: amount,
         status: taskStatus.success ? "successful" : "failed",
-        taskId: result.taskId,
+        taskId: result.txHash,
         type: "transfer",
         date: new Date(),
       };
@@ -1233,18 +1270,47 @@ app.post("/api/transfer", async (req, res) => {
         await applyCooldown(safeAddress, 20);
 
         if (senderUser?.email) {
-          try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, finalToInput, amount, "successful"); } catch (e) { console.error("❌ Email Error:", e.message); }
+          try {
+            await sendTransactionEmailToSender(
+              senderUser.email,
+              senderUser.username,
+              finalToInput,
+              amount,
+              "successful",
+            );
+          } catch (e) {
+            console.error("❌ Sender email error:", e.message);
+          }
         }
         if (recipientUser?.email) {
-          try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, senderAccountNumber || safeAddress, amount); } catch (e) { console.error("❌ Email Error:", e.message); }
+          try {
+            await sendTransactionEmailToReceiver(
+              recipientUser.email,
+              recipientUser.username,
+              senderAccountNumber || safeAddress,
+              amount,
+            );
+          } catch (e) {
+            console.error("❌ Recipient email error:", e.message);
+          }
         }
 
-        return res.json({ success: true, taskId: result.taskId, feeNGN, recipientReceives });
+        return res.json({
+          success: true,
+          taskId: result.txHash,
+          feeNGN,
+          recipientReceives,
+        });
       } else {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = taskStatus.reason;
         await queueEntry.save();
-        return res.status(400).json({ success: false, message: taskStatus.reason || "Transfer reverted" });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: taskStatus.reason || "Transfer reverted on-chain",
+          });
       }
     } catch (error) {
       queueEntry.status = "FAILED";
@@ -1254,13 +1320,33 @@ app.post("/api/transfer", async (req, res) => {
     }
   } catch (error) {
     console.error("❌ Transfer failed:", error.message);
-    return res.status(500).json({ message: error.message || "Transfer failed" });
+    return res
+      .status(500)
+      .json({ message: error.message || "Transfer failed" });
   }
 });
 
-
 // ===============================================
-// TRANSACTIONS.
+// TRANSACTIONS — FIXED
+//
+// OLD BUG: The query was:
+//   { $or: [{ fromAddress: address }, { toAddress: address, status: "successful" }] }
+//
+// This had two problems:
+//   1. For the RECIPIENT: toAddress entries only appeared if status was
+//      "successful" — but since the old polling always timed out and saved
+//      everything as "failed", recipients never saw any transactions.
+//   2. For the SENDER: sent transactions with status "failed" were included
+//      (correct), but the frontend was using isSuccessful = tx.status?.toLowerCase()
+//      .includes("success") which correctly showed ❌ for failed status — but
+//      because the OLD poller always saved "failed", even real successes showed ❌.
+//
+// FIX for this route: Include ALL toAddress matches (not just successful),
+// so recipients always see what was sent to them. The displayType logic
+// will correctly sort out failed vs received using the status field.
+// The real fix that makes this work is waitForTxReceipt correctly saving
+// "successful" status — but removing the status filter from toAddress
+// ensures nothing is ever silently hidden.
 // ===============================================
 app.get("/api/transactions/:address", async (req, res) => {
   try {
@@ -1270,32 +1356,54 @@ app.get("/api/transactions/:address", async (req, res) => {
       return res.status(400).json({ message: "Invalid address format" });
     }
 
+    // ── FIXED: removed the `status: "successful"` restriction on toAddress.
+    // Recipients must see ALL transactions sent to them, not just successful ones.
+    // The displayType logic below handles how to label each tx correctly.
     const transactions = await Transaction.find({
-      $or: [
-        { fromAddress: address },
-        { toAddress: address, status: "successful" },
-      ],
+      $or: [{ fromAddress: address }, { toAddress: address }],
     })
       .sort({ date: -1 })
       .limit(50);
 
     const formatted = transactions.map((tx) => {
-      const isReceived =
-        tx.toAddress?.toLowerCase() === address && tx.status === "successful";
-      const isFailed = tx.status === "failed";
+      const isFromMe = tx.fromAddress?.toLowerCase() === address;
+      const isToMe = tx.toAddress?.toLowerCase() === address;
+      const isSuccessful = tx.status === "successful";
 
-      const displayPartner = isReceived
-        ? tx.senderDisplayIdentifier || tx.fromAccountNumber || tx.fromAddress
-        : tx.toAccountNumber || tx.toAddress;
+      // Determine display type:
+      // - If I sent it: "sent" (or "failed" if it failed)
+      // - If sent to me and it succeeded: "receive"
+      // - If sent to me and it failed: don't show as receive (it never arrived)
+      let displayType;
+      if (isFromMe) {
+        displayType = isSuccessful ? "sent" : "failed";
+      } else if (isToMe && isSuccessful) {
+        displayType = "receive";
+      } else {
+        // Failed tx sent to me — I don't need to see it (it never arrived)
+        // We'll filter these out below
+        displayType = "hidden";
+      }
+
+      // The partner is whoever is on the other side of the transaction
+      const displayPartner = isFromMe
+        ? tx.toUsername || tx.toAccountNumber || tx.toAddress
+        : tx.fromUsername ||
+          tx.senderDisplayIdentifier ||
+          tx.fromAccountNumber ||
+          tx.fromAddress;
 
       return {
         ...tx._doc,
-        displayType: isFailed ? "failed" : isReceived ? "receive" : "sent",
-        displayPartner: displayPartner,
+        displayType,
+        displayPartner,
       };
     });
 
-    res.json(formatted);
+    // Filter out "hidden" entries (failed txs where I was the recipient — money never arrived)
+    const visible = formatted.filter((tx) => tx.displayType !== "hidden");
+
+    res.json(visible);
   } catch (error) {
     console.error("❌ History Fetch Error:", error);
     return handleError(error, res, "Failed to fetch transactions");
@@ -1483,7 +1591,6 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
 
     delete otpStore[sanitizedEmail];
 
-    // ✅ SEND SECURITY EMAIL
     try {
       const accountNum =
         (await getAccountNumberFromAddress(user.safeAddress)) ||
@@ -1539,23 +1646,20 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
 
     delete otpStore[sanitizedOldEmail];
 
-    // ✅ SEND TWO EMAILS - Security alert to OLD email, Confirmation to NEW email
     try {
       const accountNum =
         (await getAccountNumberFromAddress(user.safeAddress)) ||
         user.safeAddress;
 
-      // Send security alert to OLD email (with warning about unauthorized change)
       await sendSecurityChangeEmail(
-        sanitizedOldEmail, // ✅ OLD EMAIL gets the warning
+        sanitizedOldEmail,
         user.username,
         "email",
         accountNum,
       );
 
-      // Send confirmation to NEW email (friendly, no panic)
       await sendEmailChangeConfirmation(
-        sanitizedNewEmail, // ✅ NEW EMAIL gets the confirmation
+        sanitizedNewEmail,
         user.username,
         accountNum,
       );
@@ -1605,7 +1709,6 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
 
     delete otpStore[sanitizedEmail];
 
-    // ✅ SEND SECURITY EMAIL
     try {
       const accountNum =
         (await getAccountNumberFromAddress(user.safeAddress)) ||
@@ -1727,16 +1830,15 @@ app.listen(PORT, "0.0.0.0", () => {
   console.log(`   ✅ Constant-time comparisons`);
   console.log(`   ✅ Environment-based CORS`);
 
-  // ✅ START CLEANUP HERE (after everything is loaded)
   setInterval(cleanupStaleQueueEntries, 5 * 60 * 1000);
   console.log(`   ✅ Transaction queue cleanup (every 5 minutes)`);
 });
 
 // ===============================================
-// KEEP-ALIVE (Update with your actual domain)
+// KEEP-ALIVE
 // ===============================================
 const INTERVAL = 10 * 60 * 1000;
-const URL = "https://salva-api-lx2t.onrender.com/api/stats"; // Update if different
+const URL = "https://salva-api-lx2t.onrender.com/api/stats";
 
 function reloadWebsite() {
   fetch(URL)

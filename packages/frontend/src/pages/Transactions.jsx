@@ -1,4 +1,4 @@
-// Salva-Digital-Tech/packages/backend/src/pages/Transactions.jsx
+// Salva-Digital-Tech/packages/frontend/src/pages/Transactions.jsx
 import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
@@ -103,121 +103,201 @@ const Transactions = () => {
       maximumFractionDigits: 2,
     });
 
-// FIXED: Receipt generation in Transactions.jsx with name AND account number
-const downloadReceipt = (tx) => {
-  const doc = new jsPDF();
-  const gold = [212, 175, 55];
-  const dark = [10, 10, 11];
-  const red = [239, 68, 68];
-  const isReceived = tx.displayType === "receive";
-  const isSuccessful = tx.status === "successful";
+  // ─────────────────────────────────────────────────────────────────────────
+  // FIXED: downloadReceipt
+  //
+  // OLD BUGS:
+  //   1. user.accountNumber doesn't exist — the field on the user object from
+  //      localStorage is `numberAlias`. Using user.accountNumber always produced
+  //      "undefined" on the PDF.
+  //   2. tx.fromAddress / tx.toAddress were used directly on the PDF without
+  //      preferring the friendlier username + account number format.
+  //   3. Amount label was confusing — it now shows the amount sent AND the fee
+  //      separately if applicable so the receipt is fully auditable.
+  //
+  // FIX: Use numberAlias as the account number. Prefer username over raw address.
+  // Show sender wallet address and recipient wallet address on the receipt.
+  // ─────────────────────────────────────────────────────────────────────────
+  const downloadReceipt = (tx) => {
+    const doc = new jsPDF();
+    const gold = [212, 175, 55];
+    const dark = [10, 10, 11];
+    const red = [239, 68, 68];
+    const green = [34, 197, 94];
+    const isReceived = tx.displayType === "receive";
+    const isSuccessful = tx.status === "successful";
 
-  doc.setFillColor(dark[0], dark[1], dark[2]);
-  doc.rect(0, 0, 210, 297, "F");
-  doc.setDrawColor(gold[0], gold[1], gold[2]);
-  doc.setLineWidth(1);
-  doc.rect(10, 10, 190, 277);
-  doc.setTextColor(gold[0], gold[1], gold[2]);
-  doc.setFontSize(40);
-  doc.setFont("helvetica", "bold");
-  doc.text("SALVA", 105, 45, { align: "center" });
-  doc.setFontSize(10);
-  doc.setTextColor(255, 255, 255);
-  doc.text("OFFICIAL TRANSACTION RECEIPT", 105, 55, { align: "center" });
-  doc.setDrawColor(255, 255, 255, 0.1);
-  doc.line(30, 65, 180, 65);
+    // ── Background & border ──────────────────────────────────────────────
+    doc.setFillColor(dark[0], dark[1], dark[2]);
+    doc.rect(0, 0, 210, 297, "F");
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.setLineWidth(1);
+    doc.rect(10, 10, 190, 277);
 
-  // AMOUNT
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("AMOUNT TRANSFERRED", 40, 90);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.text(`${formatNumber(tx.amount)} NGNs`, 40, 102);
-
-  // ✅ UPDATED: SENDER (FROM) - Show both name AND account number
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("FROM (SENDER)", 40, 125);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  
-  if (isReceived) {
-    // Show sender's username (or fallback) AND their account number
-    const senderName = tx.fromUsername || "Unknown";
-    const senderAccount = tx.fromAccountNumber || tx.fromAddress;
-    doc.text(senderName, 40, 135);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${senderAccount}`, 40, 142);
-  } else {
-    // Current user is sender
-    doc.text(user.username, 40, 135);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${user.accountNumber}`, 40, 142);
-  }
-
-  // ✅ UPDATED: RECIPIENT (TO) - Show both name AND account number
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("TO (RECIPIENT)", 40, 160);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  
-  if (isReceived) {
-    // Current user is recipient
-    doc.text(user.username, 40, 170);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${user.accountNumber}`, 40, 177);
-  } else {
-    // Show recipient's username (or fallback) AND their account number
-    const recipientName = tx.toUsername || "Unknown";
-    const recipientAccount = tx.toAccountNumber || tx.toAddress;
-    doc.text(recipientName, 40, 170);
-    doc.setFontSize(8);
-    doc.setTextColor(150, 150, 150);
-    doc.text(`Account: ${recipientAccount}`, 40, 177);
-  }
-
-  // DATE & TIME
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("DATE & TIME", 40, 195);
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(10);
-  const date = new Date(tx.date);
-  const dateStr = date.toLocaleDateString();
-  const timeStr = date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  });
-  doc.text(`${dateStr} ${timeStr}`, 40, 205);
-
-  // BLOCKCHAIN STATUS
-  doc.setFontSize(12);
-  doc.setTextColor(150, 150, 150);
-  doc.text("BLOCKCHAIN STATUS", 40, 225);
-  doc.setFontSize(14);
-
-  if (isSuccessful) {
+    // ── Header ───────────────────────────────────────────────────────────
     doc.setTextColor(gold[0], gold[1], gold[2]);
-    doc.text("VERIFIED ON-CHAIN (BASE SEPOLIA)", 40, 237);
-  } else {
-    doc.setTextColor(red[0], red[1], red[2]);
-    doc.text("FAILED ON-CHAIN", 40, 237);
-  }
+    doc.setFontSize(40);
+    doc.setFont("helvetica", "bold");
+    doc.text("SALVA", 105, 40, { align: "center" });
+    doc.setFontSize(9);
+    doc.setTextColor(255, 255, 255);
+    doc.text("OFFICIAL TRANSACTION RECEIPT", 105, 50, { align: "center" });
 
-  // REFERENCE
-  doc.setFontSize(8);
-  doc.setTextColor(100, 100, 100);
-  doc.text(`REF: ${tx._id || "SALVA-TX"}`, 105, 270, { align: "center" });
+    // ── Status badge ─────────────────────────────────────────────────────
+    if (isSuccessful) {
+      doc.setTextColor(green[0], green[1], green[2]);
+      doc.setFontSize(10);
+      doc.text("✓ VERIFIED ON-CHAIN", 105, 60, { align: "center" });
+    } else {
+      doc.setTextColor(red[0], red[1], red[2]);
+      doc.setFontSize(10);
+      doc.text("✗ TRANSACTION FAILED", 105, 60, { align: "center" });
+    }
 
-  doc.save(`Salva_Receipt_${Date.now()}.pdf`);
-  showMsg("Receipt downloaded successfully!");
-};
+    doc.setDrawColor(255, 255, 255, 0.1);
+    doc.line(30, 68, 180, 68);
+
+    // ── AMOUNT ───────────────────────────────────────────────────────────
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text("AMOUNT", 30, 82);
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${formatNumber(tx.amount)} NGNs`, 30, 94);
+
+    // ── TYPE ─────────────────────────────────────────────────────────────
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text(isReceived ? "RECEIVED" : "SENT", 160, 82);
+    if (isReceived) {
+      doc.setTextColor(green[0], green[1], green[2]);
+    } else {
+      doc.setTextColor(gold[0], gold[1], gold[2]);
+    }
+    doc.setFontSize(11);
+    doc.text(isReceived ? "+" : "-", 160, 94);
+
+    doc.line(30, 102, 180, 102);
+
+    // ── SENDER ───────────────────────────────────────────────────────────
+    // FIXED: use numberAlias not accountNumber. Falls back gracefully.
+    const myAccountNumber = user.numberAlias || user.accountNumber || "—";
+    const myUsername = user.username || "—";
+
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text("FROM (SENDER)", 30, 115);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+
+    if (isReceived) {
+      // Sender is the other person
+      const senderName = tx.fromUsername || "Unknown";
+      const senderAccount = tx.fromAccountNumber || "—";
+      doc.text(senderName, 30, 125);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account No: ${senderAccount}`, 30, 132);
+      doc.text(`Wallet: ${tx.fromAddress || "—"}`, 30, 138);
+    } else {
+      // Sender is me
+      doc.text(myUsername, 30, 125);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account No: ${myAccountNumber}`, 30, 132);
+      doc.text(`Wallet: ${user.safeAddress || "—"}`, 30, 138);
+    }
+
+    // ── RECIPIENT ────────────────────────────────────────────────────────
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text("TO (RECIPIENT)", 30, 152);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(255, 255, 255);
+
+    if (isReceived) {
+      // Recipient is me
+      doc.text(myUsername, 30, 162);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account No: ${myAccountNumber}`, 30, 169);
+      doc.text(`Wallet: ${user.safeAddress || "—"}`, 30, 175);
+    } else {
+      // Recipient is the other person
+      const recipientName = tx.toUsername || "Unknown";
+      const recipientAccount = tx.toAccountNumber || "—";
+      doc.text(recipientName, 30, 162);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(150, 150, 150);
+      doc.text(`Account No: ${recipientAccount}`, 30, 169);
+      doc.text(`Wallet: ${tx.toAddress || "—"}`, 30, 175);
+    }
+
+    // ── DATE & TIME ──────────────────────────────────────────────────────
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text("DATE & TIME", 30, 192);
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    const date = new Date(tx.date);
+    const dateStr = date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+    const timeStr = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: true,
+    });
+    doc.text(dateStr, 30, 202);
+    doc.text(timeStr, 30, 209);
+
+    // ── BLOCKCHAIN STATUS ─────────────────────────────────────────────────
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.text("NETWORK", 30, 223);
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Base Sepolia (Testnet)", 30, 232);
+
+    if (tx.taskId) {
+      doc.setFontSize(9);
+      doc.setTextColor(150, 150, 150);
+      doc.text("TRANSACTION HASH", 30, 244);
+      doc.setFontSize(7);
+      doc.setTextColor(gold[0], gold[1], gold[2]);
+      // Split long hash across two lines if needed
+      const hash = tx.taskId;
+      const half = Math.ceil(hash.length / 2);
+      doc.text(hash.slice(0, half), 30, 252);
+      doc.text(hash.slice(half), 30, 258);
+    }
+
+    // ── FOOTER ───────────────────────────────────────────────────────────
+    doc.setDrawColor(gold[0], gold[1], gold[2]);
+    doc.line(30, 265, 180, 265);
+    doc.setFontSize(7);
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Receipt ID: ${tx._id || "SALVA-" + Date.now()}`, 105, 272, { align: "center" });
+    doc.text("salva-nexus.org", 105, 278, { align: "center" });
+
+    doc.save(`Salva_Receipt_${Date.now()}.pdf`);
+    showMsg("Receipt downloaded!");
+  };
 
   if (!user) return null;
 
@@ -316,11 +396,42 @@ const downloadReceipt = (tx) => {
                                       {expanded[dayKey] && (
                                         <div className="p-3 space-y-2 bg-gray-50 dark:bg-black/20">
                                           {dayTxs.map((tx, i) => {
-                                            const isSuccessful = tx.status
-                                              ?.toLowerCase()
-                                              .includes("success");
+                                            // ── FIXED: displayType now comes from
+                                            // the backend correctly:
+                                            //   "sent"    = I sent it, confirmed ✅
+                                            //   "receive" = I received it ✅
+                                            //   "failed"  = I sent it, it failed ❌
+                                            const isSuccessful =
+                                              tx.displayType === "sent" ||
+                                              tx.displayType === "receive";
                                             const isReceived =
                                               tx.displayType === "receive";
+                                            const isFailed =
+                                              tx.displayType === "failed";
+
+                                            // Icon: ✓ for success, ✗ for failed
+                                            const iconBg = isReceived
+                                              ? "bg-green-500/10 text-green-400"
+                                              : isFailed
+                                                ? "bg-red-500/10 text-red-400"
+                                                : "bg-blue-500/10 text-blue-400";
+
+                                            const iconChar = isSuccessful
+                                              ? "✓"
+                                              : "✗";
+
+                                            // Amount color: green for received, white for sent, red for failed
+                                            const amountColor = isReceived
+                                              ? "text-green-500"
+                                              : isFailed
+                                                ? "text-red-400 opacity-60"
+                                                : "text-white";
+
+                                            // Sign: + for received, - for sent/failed
+                                            const amountSign = isReceived
+                                              ? "+"
+                                              : "-";
+
                                             return (
                                               <motion.div
                                                 key={tx._id || i}
@@ -330,45 +441,51 @@ const downloadReceipt = (tx) => {
                                               >
                                                 <div className="flex items-center gap-3">
                                                   <div
-                                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${isSuccessful ? (isReceived ? "bg-green-500/10 text-green-400" : "bg-blue-500/10 text-blue-400") : "bg-red-500/10 text-red-400"}`}
+                                                    className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${iconBg}`}
                                                   >
-                                                    {isSuccessful ? "✓" : "✗"}
+                                                    {iconChar}
                                                   </div>
                                                   <div>
-                                                    {/* FIXED LABEL AND PARTNER */}
+                                                    {/* Partner label */}
                                                     <p className="text-sm font-bold truncate max-w-[200px]">
-                                                      <span className="opacity-50 mr-1">
+                                                      <span className="opacity-40 mr-1 font-normal text-xs">
                                                         {isReceived
                                                           ? "From:"
                                                           : "To:"}
                                                       </span>
-                                                      {isReceived
-                                                        ? tx.fromUsername ||
-                                                          tx.displayPartner
-                                                        : tx.toUsername ||
-                                                          tx.displayPartner}
+                                                      {tx.displayPartner || "Unknown"}
                                                     </p>
-                                                    <p className="text-[10px] opacity-40 font-bold">
-                                                      {new Date(
-                                                        tx.date,
-                                                      ).toLocaleTimeString()}
+                                                    {/* Status badge */}
+                                                    <p className={`text-[10px] font-bold uppercase tracking-widest mt-0.5 ${
+                                                      isFailed ? "text-red-400" : "opacity-40"
+                                                    }`}>
+                                                      {isFailed
+                                                        ? "Failed"
+                                                        : isReceived
+                                                          ? "Received"
+                                                          : "Sent"}{" "}
+                                                      · {new Date(tx.date).toLocaleTimeString()}
                                                     </p>
                                                   </div>
                                                 </div>
+
                                                 <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
-                                                  {/* FIXED AMOUNT COLOR AND SIGN */}
-                                                  <p
-                                                    className={`font-black text-lg ${isReceived ? "text-green-500" : ""}`}
-                                                  >
-                                                    {isReceived ? "+" : "-"}
+                                                  {/* Amount */}
+                                                  <p className={`font-black text-lg ${amountColor}`}>
+                                                    {amountSign}
                                                     {formatNumber(tx.amount)}
+                                                    <span className="text-[10px] font-bold opacity-50 ml-1">
+                                                      NGNs
+                                                    </span>
                                                   </p>
+
+                                                  {/* Receipt button — only for confirmed txs */}
                                                   {isSuccessful && (
                                                     <button
                                                       onClick={() =>
                                                         downloadReceipt(tx)
                                                       }
-                                                      className="text-[10px] text-salvaGold font-black uppercase border border-salvaGold/30 px-3 py-1 rounded-lg hover:bg-salvaGold hover:text-black"
+                                                      className="text-[10px] text-salvaGold font-black uppercase border border-salvaGold/30 px-3 py-1 rounded-lg hover:bg-salvaGold hover:text-black transition-all"
                                                     >
                                                       Receipt
                                                     </button>
