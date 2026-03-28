@@ -102,10 +102,38 @@ async function getValidatorRemaining(addr) {
 
 // ─── ROUTES ──────────────────────────────────────────────────────
 
+// ─── UPDATED GET PROPOSALS ──────────────────────────────────────────
 router.get("/proposals", async (req, res) => {
   try {
     const all = await Proposal.find().sort({ createdAt: -1 });
-    // Background refresh logic remains the same for the polling loop
+
+    for (const p of all) {
+      try {
+        let remaining = (p.type === "registry") 
+          ? await getRegistryRemaining(p.registry) 
+          : await getValidatorRemaining(p.addr);
+
+        if (remaining === null) continue;
+
+        const isValidated = remaining === 0;
+
+        if (isValidated) {
+          if (!p.timeLockTimestamp) {
+            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + (48 * 60 * 60);
+          }
+          
+          // ⚡️ TOGGLE THIS LINE TO BYPASS TIME
+          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600; 
+        }
+
+        p.remainingValidation = remaining;
+        p.isValidated = isValidated;
+        await p.save();
+      } catch (err) {
+        console.error(`Sync error for ${p._id}:`, err.message);
+      }
+    }
+
     res.json({
       registryProposals: all.filter((p) => p.type === "registry"),
       validatorProposals: all.filter((p) => p.type === "validator"),
@@ -170,40 +198,43 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
   }
 });
 
+// ─── UPDATED VALIDATE ROUTE (Background Debugging) ──────────────────
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, chain = "base" } = req.body;
     const cleanRegistry = normalizeAddr(registry);
 
-    const sponsorFn =
-      chain === "base"
-        ? relay.sponsorValidateRegistryBase
-        : relay.sponsorValidateRegistryEth;
-    const result = await sponsorFn(
-      req.callerUser.safeAddress,
-      privateKey,
-      cleanRegistry,
-    );
+    const sponsorFn = (chain === "base") 
+      ? relay.sponsorValidateRegistryBase 
+      : relay.sponsorValidateRegistryEth;
+      
+    const result = await sponsorFn(req.callerUser.safeAddress, privateKey, cleanRegistry);
 
     res.json({ success: true, taskId: result.taskId });
 
-    waitForTx(result.taskId).then(async (status) => {
-      if (status.success) {
-        const remaining = await getRegistryRemaining(cleanRegistry);
-        const isValidated = remaining === 0;
-        await Proposal.findOneAndUpdate(
-          { type: "registry", registry: cleanRegistry.toLowerCase() },
-          {
-            remainingValidation: remaining,
-            isValidated,
-            timeLockTimestamp: isValidated
-              ? Math.floor(Date.now() / 1000) + 172800
-              : null,
-          },
-        );
-      }
-    });
+    // Added explicit error catching here
+    waitForTx(result.taskId)
+      .then(async (status) => {
+        if (status.success) {
+          const remaining = await getRegistryRemaining(cleanRegistry);
+          const isValidated = remaining === 0;
+          await Proposal.findOneAndUpdate(
+            { type: "registry", registry: cleanRegistry.toLowerCase() },
+            { 
+              remainingValidation: remaining, 
+              isValidated,
+              timeLockTimestamp: isValidated ? Math.floor(Date.now() / 1000) + 172800 : null 
+            }
+          );
+          console.log(`✅ Validation Sync Complete for ${cleanRegistry}`);
+        } else {
+          console.error(`❌ Chain Transaction Reverted for Task: ${result.taskId}`);
+        }
+      })
+      .catch(err => console.error("🔥 Background Sync Fatal Error:", err)); // Look for this in logs
+
   } catch (error) {
+    console.error("💥 Route Entry Error:", error.message);
     res.status(500).json({ message: error.message });
   }
 });
