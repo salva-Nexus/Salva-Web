@@ -1,6 +1,6 @@
+// Salva-Digital-Tech/packages/backend/src/services/relayService.js
 const { ethers } = require("ethers");
 const { wallet, provider } = require("./walletSigner");
-const Safe = require("@safe-global/protocol-kit").default;
 
 // ─── Guard ────────────────────────────────────────────────────────────────────
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
@@ -8,7 +8,7 @@ if (!MULTISIG_ADDRESS) {
   throw new Error("FATAL: MULTISIG_CONTRACT_ADDRESS env var is not set.");
 }
 
-// ─── ABIs ──────────────────────────────────────────────────────────────────────
+// ─── ABIs ─────────────────────────────────────────────────────────────────────
 const MULTISIG_IFACE = new ethers.Interface([
   "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
@@ -27,124 +27,119 @@ const SAFE_ABI = [
   "function getOwners() public view returns (address[])",
 ];
 
-// ─── Core: ETH Chain (Manual Hashing) ────────────────────────────────────────
-async function _executeViaSafeEth(
-  safeAddress,
-  ownerKey,
-  to,
-  data,
-  operation = 0,
-) {
+// ─── Core execution ───────────────────────────────────────────────────────────
+//
+// SIGNATURE SCHEME — Safe 1.3.0 eth_sign type (v = 31 or 32):
+//
+//   Safe ecrecover for v=31/32:
+//     recovered = ecrecover(keccak256("\x19Ethereum Signed Message:\n32" + safeTxHash), v-4, r, s)
+//
+//   So we sign the raw safeTxHash bytes with NO prefix (signingKey.sign),
+//   then set v = rawV + 4. Safe adds the prefix once during ecrecover → correct owner recovered.
+//
+//   This is the same for both ETH and Base — chain doesn't affect Safe signature scheme.
+//
+async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
+  if (!safeAddress || !ownerKey || !to || !data) {
+    throw new Error(
+      `_executeViaSafe: missing params — safeAddress=${safeAddress}, to=${to}, hasData=${!!data}`,
+    );
+  }
+
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
   const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
+  // Verify owner controls this Safe before spending gas
+  const owners = await safeContract.getOwners();
+  if (
+    !owners
+      .map((o) => o.toLowerCase())
+      .includes(ownerWallet.address.toLowerCase())
+  ) {
+    throw new Error(
+      `${ownerWallet.address} is not an owner of Safe ${normalizedSafe}. Owners: ${owners.join(", ")}`,
+    );
+  }
+
   const currentNonce = await safeContract.nonce();
+  console.log(
+    `🔍 Safe: ${normalizedSafe} | nonce: ${currentNonce} | to: ${normalizedTo}`,
+  );
+  console.log(`🔍 Calldata selector: ${data.slice(0, 10)}`);
+
+  // Get the Safe EIP-712 tx hash
   const safeTxHash = await safeContract.getTransactionHash(
     normalizedTo,
-    0,
+    0, // ETH value
     data,
-    operation,
-    0,
-    0,
-    0,
+    operation, // 0 = CALL
+    0, // safeTxGas
+    0, // baseGas
+    0, // gasPrice
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     currentNonce,
   );
 
+  // Raw secp256k1 sign — no Ethereum prefix added here.
+  // Safe adds "\x19Ethereum Signed Message:\n32" during ecrecover (v=31/32 type).
   const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
-  const v = rawSig.v + 4;
+  const v = rawSig.v + 4; // 27→31 or 28→32
   const signature =
     "0x" +
     rawSig.r.slice(2) +
     rawSig.s.slice(2) +
     v.toString(16).padStart(2, "0");
 
-  const safeWithSigner = safeContract.connect(wallet);
-  const tx = await safeWithSigner.execTransaction(
-    normalizedTo,
-    0,
-    data,
-    operation,
-    0,
-    0,
-    0,
-    ethers.ZeroAddress,
-    ethers.ZeroAddress,
-    signature,
-    { gasLimit: 1_200_000 },
-  );
+  console.log(`🔍 Signature v=${v}: ${signature.slice(0, 22)}...`);
 
-  return { taskId: tx.hash, txHash: tx.hash, receipt: await tx.wait() };
-}
+  // Backend wallet submits and pays gas
+  const tx = await safeContract
+    .connect(wallet)
+    .execTransaction(
+      normalizedTo,
+      0,
+      data,
+      operation,
+      0,
+      0,
+      0,
+      ethers.ZeroAddress,
+      ethers.ZeroAddress,
+      signature,
+      { gasLimit: 1_200_000 },
+    );
 
-// ─── Core: Base Chain (Safe SDK) ─────────────────────────────────────────────
-async function _executeViaSafeBase(
-  safeAddress,
-  ownerKey,
-  to,
-  data,
-  operation = 0,
-) {
-  // Ensure we pass the raw URL string, NOT the ethers provider object
-  const rpcUrl = process.env.ALCHEMY_RPC_URL;
+  console.log(`✅ Safe TX submitted: ${tx.hash}`);
+  const receipt = await tx.wait();
 
-  if (!rpcUrl) {
-    throw new Error("RPC_URL is not defined in environment variables");
+  if (!receipt || receipt.status === 0) {
+    throw new Error(`Safe inner call reverted. TX: ${tx.hash}`);
   }
-  const protocolKit = await Safe.init({
-    provider: rpcUrl,
-    signer: ownerKey,
-    safeAddress: safeAddress,
-  });
 
-  const safeTransaction = await protocolKit.createTransaction({
-    transactions: [{ to: ethers.getAddress(to), data, value: "0", operation }],
-  });
-
-  const signedTx = await protocolKit.signTransaction(safeTransaction);
-
-  // We execute using the backend 'wallet' to pay gas
-  const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
-  const tx = await safeContract.execTransaction(
-    signedTx.data.to,
-    signedTx.data.value,
-    signedTx.data.data,
-    signedTx.data.operation,
-    signedTx.data.safeTxGas,
-    signedTx.data.baseGas,
-    signedTx.data.gasPrice,
-    signedTx.data.gasToken,
-    signedTx.data.refundReceiver,
-    signedTx.encodedSignatures(),
-    { gasLimit: 1_200_000 },
-  );
-
-  return { taskId: tx.hash, txHash: tx.hash, receipt: await tx.wait() };
+  console.log(`✅ Safe TX confirmed: ${tx.hash}`);
+  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
-// ─── Multisig Helpers ─────────────────────────────────────────────────────────
-function _encodeMultisig(functionName, args) {
+// ─── Multisig call helpers ────────────────────────────────────────────────────
+function _encode(functionName, args) {
   const calldata = MULTISIG_IFACE.encodeFunctionData(functionName, args);
+  if (!calldata || calldata === "0x")
+    throw new Error(`ABI encoding failed for ${functionName}`);
   console.log(`📦 ${functionName} selector: ${calldata.slice(0, 10)}`);
   return calldata;
 }
 
-async function _callEth(safeAddress, ownerKey, functionName, args) {
-  const data = _encodeMultisig(functionName, args);
-  return _executeViaSafeEth(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
+// Both chains use the same _executeViaSafe — chain routing is done at the env/provider level
+async function _call(safeAddress, ownerKey, functionName, args) {
+  const data = _encode(functionName, args);
+  return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
 }
 
-async function _callBase(safeAddress, ownerKey, functionName, args) {
-  const data = _encodeMultisig(functionName, args);
-  return _executeViaSafeBase(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
-}
-
-// ─── Token Transfer & MultiSend ──────────────────────────────────────────────
+// ─── Token transfer ───────────────────────────────────────────────────────────
 async function _sponsorTransfer(
-  execFn,
   safeAddress,
   ownerKey,
   recipient,
@@ -156,15 +151,19 @@ async function _sponsorTransfer(
   const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
   const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
 
+  if (!NGN_TOKEN) throw new Error("NGN_TOKEN_ADDRESS env var is not set");
+
   if (fee > 0n) {
-    const encodePacked = (to, data) =>
-      ethers.concat([
+    const encodePacked = (to, data) => {
+      const dataBytes = ethers.getBytes(data);
+      return ethers.concat([
         "0x00",
-        ethers.getAddress(to),
+        ethers.getBytes(ethers.getAddress(to)),
         ethers.zeroPadValue("0x00", 32),
-        ethers.zeroPadValue(ethers.toBeHex(ethers.getBytes(data).length), 32),
-        data,
+        ethers.zeroPadValue(ethers.toBeHex(dataBytes.length), 32),
+        dataBytes,
       ]);
+    };
     const tx1 = iface.encodeFunctionData("transfer", [recipient, amount]);
     const tx2 = iface.encodeFunctionData("transfer", [TREASURY, fee]);
     const packed = ethers.concat([
@@ -174,57 +173,48 @@ async function _sponsorTransfer(
     const data = new ethers.Interface([
       "function multiSend(bytes)",
     ]).encodeFunctionData("multiSend", [packed]);
-    return execFn(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
+    return _executeViaSafe(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
   }
-  return execFn(
-    safeAddress,
-    ownerKey,
-    NGN_TOKEN,
-    iface.encodeFunctionData("transfer", [recipient, amount]),
-    0,
-  );
+
+  const data = iface.encodeFunctionData("transfer", [recipient, amount]);
+  return _executeViaSafe(safeAddress, ownerKey, NGN_TOKEN, data, 0);
 }
 
-// ─── Full Export Mapping ──────────────────────────────────────────────────────
+// ─── Exports ──────────────────────────────────────────────────────────────────
 module.exports = {
-  sponsorSafeTransfer: (...a) => _sponsorTransfer(_executeViaSafeBase, ...a),
-  sponsorSafeTransferETH: (...a) => _sponsorTransfer(_executeViaSafeEth, ...a),
-  sponsorSafeTransferBase: (...a) =>
-    _sponsorTransfer(_executeViaSafeBase, ...a),
+  // Token transfer
+  sponsorSafeTransfer: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
+  sponsorSafeTransferETH: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
+  sponsorSafeTransferBase: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
 
+  // Registry
   sponsorProposeInitializationEth: (s, k, n, r) =>
-    _callEth(s, k, "proposeInitialization", [n, r]),
+    _call(s, k, "proposeInitialization", [n, r]),
   sponsorProposeInitializationBase: (s, k, n, r) =>
-    _callBase(s, k, "proposeInitialization", [n, r]),
-
-  sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
-    _callEth(s, k, "proposeValidatorUpdate", [t, a]),
-  sponsorProposeValidatorUpdateBase: (s, k, t, a) =>
-    _callBase(s, k, "proposeValidatorUpdate", [t, a]),
-
-  sponsorValidateRegistryEth: (s, k, r) =>
-    _callEth(s, k, "validateRegistry", [r]),
+    _call(s, k, "proposeInitialization", [n, r]),
+  sponsorValidateRegistryEth: (s, k, r) => _call(s, k, "validateRegistry", [r]),
   sponsorValidateRegistryBase: (s, k, r) =>
-    _callBase(s, k, "validateRegistry", [r]),
+    _call(s, k, "validateRegistry", [r]),
+  sponsorCancelInitEth: (s, k, r) => _call(s, k, "cancelInit", [r]),
+  sponsorCancelInitBase: (s, k, r) => _call(s, k, "cancelInit", [r]),
+  sponsorExecuteInitEth: (s, k, r) => _call(s, k, "executeInit", [r]),
+  sponsorExecuteInitBase: (s, k, r) => _call(s, k, "executeInit", [r]),
 
+  // Validator
+  sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
+    _call(s, k, "proposeValidatorUpdate", [t, a]),
+  sponsorProposeValidatorUpdateBase: (s, k, t, a) =>
+    _call(s, k, "proposeValidatorUpdate", [t, a]),
   sponsorValidateValidatorEth: (s, k, t) =>
-    _callEth(s, k, "validateValidator", [t]),
+    _call(s, k, "validateValidator", [t]),
   sponsorValidateValidatorBase: (s, k, t) =>
-    _callBase(s, k, "validateValidator", [t]),
-
-  sponsorCancelInitEth: (s, k, r) => _callEth(s, k, "cancelInit", [r]),
-  sponsorCancelInitBase: (s, k, r) => _callBase(s, k, "cancelInit", [r]),
-
+    _call(s, k, "validateValidator", [t]),
   sponsorCancelValidatorUpdateEth: (s, k, t) =>
-    _callEth(s, k, "cancelValidatorUpdate", [t]),
+    _call(s, k, "cancelValidatorUpdate", [t]),
   sponsorCancelValidatorUpdateBase: (s, k, t) =>
-    _callBase(s, k, "cancelValidatorUpdate", [t]),
-
-  sponsorExecuteInitEth: (s, k, r) => _callEth(s, k, "executeInit", [r]),
-  sponsorExecuteInitBase: (s, k, r) => _callBase(s, k, "executeInit", [r]),
-
+    _call(s, k, "cancelValidatorUpdate", [t]),
   sponsorExecuteUpdateValidatorEth: (s, k, t) =>
-    _callEth(s, k, "executeUpdateValidator", [t]),
+    _call(s, k, "executeUpdateValidator", [t]),
   sponsorExecuteUpdateValidatorBase: (s, k, t) =>
-    _callBase(s, k, "executeUpdateValidator", [t]),
+    _call(s, k, "executeUpdateValidator", [t]),
 };
