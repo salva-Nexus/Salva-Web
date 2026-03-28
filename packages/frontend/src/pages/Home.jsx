@@ -399,7 +399,7 @@ const Home = () => {
 
           <p className="text-base sm:text-lg md:text-xl opacity-60 max-w-2xl mx-auto leading-relaxed px-4 mb-10">
             Salva is the premier on-chain financial protocol designed for
-            everyday Nigerian payments. Instant settlement. Zero friction. Built
+            everyday payments and data resolution. Instant settlement. Zero friction. Built
             on Base Mainnet.
           </p>
 
