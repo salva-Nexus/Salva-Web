@@ -187,6 +187,7 @@ async function _sponsorTransfer(
 
 // ─── Full Export Mapping ──────────────────────────────────────────────────────
 module.exports = {
+  sponsorSafeTransfer: (...a) => _sponsorTransfer(_executeViaSafeBase, ...a),
   sponsorSafeTransferETH: (...a) => _sponsorTransfer(_executeViaSafeEth, ...a),
   sponsorSafeTransferBase: (...a) =>
     _sponsorTransfer(_executeViaSafeBase, ...a),
