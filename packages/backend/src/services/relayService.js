@@ -28,17 +28,6 @@ const SAFE_ABI = [
 ];
 
 // ─── Core execution ───────────────────────────────────────────────────────────
-//
-// SIGNATURE SCHEME — Safe 1.3.0 eth_sign type (v = 31 or 32):
-//
-//   Safe ecrecover for v=31/32:
-//     recovered = ecrecover(keccak256("\x19Ethereum Signed Message:\n32" + safeTxHash), v-4, r, s)
-//
-//   So we sign the raw safeTxHash bytes with NO prefix (signingKey.sign),
-//   then set v = rawV + 4. Safe adds the prefix once during ecrecover → correct owner recovered.
-//
-//   This is the same for both ETH and Base — chain doesn't affect Safe signature scheme.
-//
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   if (!safeAddress || !ownerKey || !to || !data) {
     throw new Error(
@@ -49,42 +38,36 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const normalizedSafe = ethers.getAddress(safeAddress);
   const normalizedTo = ethers.getAddress(to);
   const ownerWallet = new ethers.Wallet(ownerKey, provider);
-  const safeContract = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
+
+  // Read-only contract for view calls (nonce, getOwners, getTransactionHash)
+  const safeReader = new ethers.Contract(normalizedSafe, SAFE_ABI, provider);
 
   // Verify owner controls this Safe before spending gas
-  const owners = await safeContract.getOwners();
-  if (
-    !owners
-      .map((o) => o.toLowerCase())
-      .includes(ownerWallet.address.toLowerCase())
-  ) {
+  const owners = await safeReader.getOwners();
+  if (!owners.map((o) => o.toLowerCase()).includes(ownerWallet.address.toLowerCase())) {
     throw new Error(
       `${ownerWallet.address} is not an owner of Safe ${normalizedSafe}. Owners: ${owners.join(", ")}`,
     );
   }
 
-  const currentNonce = await safeContract.nonce();
-  console.log(
-    `🔍 Safe: ${normalizedSafe} | nonce: ${currentNonce} | to: ${normalizedTo}`,
-  );
+  const currentNonce = await safeReader.nonce();
+  console.log(`🔍 Safe: ${normalizedSafe} | nonce: ${currentNonce} | to: ${normalizedTo}`);
   console.log(`🔍 Calldata selector: ${data.slice(0, 10)}`);
 
-  // Get the Safe EIP-712 tx hash
-  const safeTxHash = await safeContract.getTransactionHash(
+  const safeTxHash = await safeReader.getTransactionHash(
     normalizedTo,
-    0, // ETH value
+    0,
     data,
-    operation, // 0 = CALL
-    0, // safeTxGas
-    0, // baseGas
-    0, // gasPrice
+    operation,
+    0,
+    0,
+    0,
     ethers.ZeroAddress,
     ethers.ZeroAddress,
     currentNonce,
   );
 
-  // Raw secp256k1 sign — no Ethereum prefix added here.
-  // Safe adds "\x19Ethereum Signed Message:\n32" during ecrecover (v=31/32 type).
+  // Raw secp256k1 sign — no prefix. Safe adds prefix during ecrecover (v=31/32).
   const rawSig = ownerWallet.signingKey.sign(ethers.getBytes(safeTxHash));
   const v = rawSig.v + 4; // 27→31 or 28→32
   const signature =
@@ -95,22 +78,25 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
 
   console.log(`🔍 Signature v=${v}: ${signature.slice(0, 22)}...`);
 
-  // Backend wallet submits and pays gas
-  const tx = await safeContract
-    .connect(wallet)
-    .execTransaction(
-      normalizedTo,
-      0,
-      data,
-      operation,
-      0,
-      0,
-      0,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      signature,
-      { gasLimit: 1_200_000 },
-    );
+  // ─── FIX: create a NEW contract instance bound to the signer wallet.
+  // Using safeReader.connect(wallet) in ethers v6 can lose the interface
+  // and produce an empty `data` field on the submitted tx.
+  // Creating a fresh Contract with the wallet as provider avoids this.
+  const safeWriter = new ethers.Contract(normalizedSafe, SAFE_ABI, wallet);
+
+  const tx = await safeWriter.execTransaction(
+    normalizedTo,
+    0,
+    data,
+    operation,
+    0,
+    0,
+    0,
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
+    signature,
+    { gasLimit: 1_200_000 },
+  );
 
   console.log(`✅ Safe TX submitted: ${tx.hash}`);
   const receipt = await tx.wait();
@@ -132,20 +118,13 @@ function _encode(functionName, args) {
   return calldata;
 }
 
-// Both chains use the same _executeViaSafe — chain routing is done at the env/provider level
 async function _call(safeAddress, ownerKey, functionName, args) {
   const data = _encode(functionName, args);
   return _executeViaSafe(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
 }
 
 // ─── Token transfer ───────────────────────────────────────────────────────────
-async function _sponsorTransfer(
-  safeAddress,
-  ownerKey,
-  recipient,
-  amount,
-  fee = 0n,
-) {
+async function _sponsorTransfer(safeAddress, ownerKey, recipient, amount, fee = 0n) {
   const iface = new ethers.Interface(["function transfer(address,uint256)"]);
   const NGN_TOKEN = process.env.NGN_TOKEN_ADDRESS;
   const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
@@ -166,13 +145,8 @@ async function _sponsorTransfer(
     };
     const tx1 = iface.encodeFunctionData("transfer", [recipient, amount]);
     const tx2 = iface.encodeFunctionData("transfer", [TREASURY, fee]);
-    const packed = ethers.concat([
-      encodePacked(NGN_TOKEN, tx1),
-      encodePacked(NGN_TOKEN, tx2),
-    ]);
-    const data = new ethers.Interface([
-      "function multiSend(bytes)",
-    ]).encodeFunctionData("multiSend", [packed]);
+    const packed = ethers.concat([encodePacked(NGN_TOKEN, tx1), encodePacked(NGN_TOKEN, tx2)]);
+    const data = new ethers.Interface(["function multiSend(bytes)"]).encodeFunctionData("multiSend", [packed]);
     return _executeViaSafe(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
   }
 
@@ -183,38 +157,27 @@ async function _sponsorTransfer(
 // ─── Exports ──────────────────────────────────────────────────────────────────
 module.exports = {
   // Token transfer
-  sponsorSafeTransfer: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
-  sponsorSafeTransferETH: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
+  sponsorSafeTransfer:     (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
+  sponsorSafeTransferETH:  (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
   sponsorSafeTransferBase: (s, k, r, a, f) => _sponsorTransfer(s, k, r, a, f),
 
   // Registry
-  sponsorProposeInitializationEth: (s, k, n, r) =>
-    _call(s, k, "proposeInitialization", [n, r]),
-  sponsorProposeInitializationBase: (s, k, n, r) =>
-    _call(s, k, "proposeInitialization", [n, r]),
-  sponsorValidateRegistryEth: (s, k, r) => _call(s, k, "validateRegistry", [r]),
-  sponsorValidateRegistryBase: (s, k, r) =>
-    _call(s, k, "validateRegistry", [r]),
-  sponsorCancelInitEth: (s, k, r) => _call(s, k, "cancelInit", [r]),
-  sponsorCancelInitBase: (s, k, r) => _call(s, k, "cancelInit", [r]),
-  sponsorExecuteInitEth: (s, k, r) => _call(s, k, "executeInit", [r]),
-  sponsorExecuteInitBase: (s, k, r) => _call(s, k, "executeInit", [r]),
+  sponsorProposeInitializationEth:  (s, k, n, r) => _call(s, k, "proposeInitialization",  [n, r]),
+  sponsorProposeInitializationBase: (s, k, n, r) => _call(s, k, "proposeInitialization",  [n, r]),
+  sponsorValidateRegistryEth:       (s, k, r)    => _call(s, k, "validateRegistry",       [r]),
+  sponsorValidateRegistryBase:      (s, k, r)    => _call(s, k, "validateRegistry",       [r]),
+  sponsorCancelInitEth:             (s, k, r)    => _call(s, k, "cancelInit",             [r]),
+  sponsorCancelInitBase:            (s, k, r)    => _call(s, k, "cancelInit",             [r]),
+  sponsorExecuteInitEth:            (s, k, r)    => _call(s, k, "executeInit",            [r]),
+  sponsorExecuteInitBase:           (s, k, r)    => _call(s, k, "executeInit",            [r]),
 
   // Validator
-  sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
-    _call(s, k, "proposeValidatorUpdate", [t, a]),
-  sponsorProposeValidatorUpdateBase: (s, k, t, a) =>
-    _call(s, k, "proposeValidatorUpdate", [t, a]),
-  sponsorValidateValidatorEth: (s, k, t) =>
-    _call(s, k, "validateValidator", [t]),
-  sponsorValidateValidatorBase: (s, k, t) =>
-    _call(s, k, "validateValidator", [t]),
-  sponsorCancelValidatorUpdateEth: (s, k, t) =>
-    _call(s, k, "cancelValidatorUpdate", [t]),
-  sponsorCancelValidatorUpdateBase: (s, k, t) =>
-    _call(s, k, "cancelValidatorUpdate", [t]),
-  sponsorExecuteUpdateValidatorEth: (s, k, t) =>
-    _call(s, k, "executeUpdateValidator", [t]),
-  sponsorExecuteUpdateValidatorBase: (s, k, t) =>
-    _call(s, k, "executeUpdateValidator", [t]),
+  sponsorProposeValidatorUpdateEth:  (s, k, t, a) => _call(s, k, "proposeValidatorUpdate",  [t, a]),
+  sponsorProposeValidatorUpdateBase: (s, k, t, a) => _call(s, k, "proposeValidatorUpdate",  [t, a]),
+  sponsorValidateValidatorEth:       (s, k, t)    => _call(s, k, "validateValidator",       [t]),
+  sponsorValidateValidatorBase:      (s, k, t)    => _call(s, k, "validateValidator",       [t]),
+  sponsorCancelValidatorUpdateEth:   (s, k, t)    => _call(s, k, "cancelValidatorUpdate",   [t]),
+  sponsorCancelValidatorUpdateBase:  (s, k, t)    => _call(s, k, "cancelValidatorUpdate",   [t]),
+  sponsorExecuteUpdateValidatorEth:  (s, k, t)    => _call(s, k, "executeUpdateValidator",  [t]),
+  sponsorExecuteUpdateValidatorBase: (s, k, t)    => _call(s, k, "executeUpdateValidator",  [t]),
 };
