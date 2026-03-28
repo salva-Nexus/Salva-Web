@@ -328,9 +328,32 @@ const Dashboard = () => {
     }
   };
 
-  const executeTransfer = async (privateKey) => {
-    setLoading(true);
-    showMsg("Transaction queued...", "info");
+  /**
+   * Step 3: Execute the transfer.
+   *
+   * CRITICAL FLOW CHANGE:
+   * ─────────────────────
+   * 1. Close ALL modals immediately so the user is back on the dashboard.
+   * 2. Reset the send form right away.
+   * 3. Show "Transaction Queued" toast instantly.
+   * 4. Fire the API call in the background (no modal blocking the UI).
+   * 5. When the API responds, show the real outcome — success or error — as a toast.
+   * 6. On success, refresh the balance after a short delay.
+   *
+   * This means the user is NEVER stuck staring at "PROCESSING…" inside a modal.
+   * The modals close the moment the PIN is verified; everything else is fire-and-toast.
+   */
+  const executeTransfer = async (privateKey, capturedConfirmationData) => {
+    // ── Step 1: Immediately close every modal and reset form ──────────────
+    setIsPinModalOpen(false);
+    setIsConfirmModalOpen(false);
+    setIsSendOpen(false);
+    resetSendForm();
+
+    // ── Step 2: Tell the user the transaction is on its way ───────────────
+    showMsg("Transaction queued — sending...", "info");
+
+    // ── Step 3: Fire the transfer request in the background ───────────────
     try {
       const res = await fetch(`${SALVA_API_URL}/api/transfer`, {
         method: "POST",
@@ -338,31 +361,43 @@ const Dashboard = () => {
         body: JSON.stringify({
           userPrivateKey: privateKey,
           safeAddress: user.safeAddress,
-          toInput: confirmationData.rawInput,
-          amount: confirmationData.amount,
-          registryAddress: confirmationData.registryAddress || null,
-          inputType: confirmationData.inputType,
+          toInput: capturedConfirmationData.rawInput,
+          amount: capturedConfirmationData.amount,
+          registryAddress: capturedConfirmationData.registryAddress || null,
+          inputType: capturedConfirmationData.inputType,
         }),
       });
+
       const data = await res.json();
+
       if (res.ok) {
-        showMsg("Transfer Successful!");
-        setIsSendOpen(false);
-        resetSendForm();
+        // ── Success: show confirmation and refresh balance ─────────────
+        showMsg("✅ Transfer Successful!", "success");
+        // Refresh balance a bit after the chain has had time to settle
         setTimeout(() => fetchBalance(user.safeAddress), 3500);
       } else {
-        showMsg(data.message || "Transfer failed", "error");
+        // ── Server returned a non-2xx: tell the user exactly what failed ──
+        showMsg(data.message || "Transfer failed — please try again", "error");
       }
     } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setLoading(false);
+      // ── Network/fetch error ────────────────────────────────────────────
+      showMsg("Network error — transfer may not have gone through", "error");
     }
+    // NOTE: No finally loading state needed — the modal is already gone.
+    // The user is on the dashboard and the toast handles all feedback.
   };
 
+  /**
+   * Step 2: Verify PIN, then hand off to executeTransfer.
+   *
+   * We capture confirmationData into a local variable here so that even if
+   * React state has moved on by the time executeTransfer resolves, the
+   * correct data is used for the API call.
+   */
   const verifyPinAndProceed = async () => {
     if (transactionPin.length !== 4)
       return showMsg("PIN must be 4 digits", "error");
+
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
@@ -371,24 +406,42 @@ const Dashboard = () => {
         body: JSON.stringify({ email: user.email, pin: transactionPin }),
       });
       const data = await res.json();
+
       if (res.ok) {
-        setIsPinModalOpen(false);
-        await executeTransfer(data.privateKey);
+        // PIN is valid. Capture confirmation data before any state resets.
+        const capturedData = { ...confirmationData };
+        const privateKey = data.privateKey;
+
+        // Clear PIN field immediately
+        setTransactionPin("");
+        setPinAttempts(0);
+
+        // Stop the PIN modal's own loading spinner, then hand off.
+        // executeTransfer will close the modal itself as its very first action.
+        setLoading(false);
+        await executeTransfer(privateKey, capturedData);
       } else {
-        setPinAttempts((p) => p + 1);
-        if (pinAttempts >= 2) {
-          showMsg("Too many failed attempts", "error");
+        // Wrong PIN
+        const newAttempts = pinAttempts + 1;
+        setPinAttempts(newAttempts);
+
+        if (newAttempts >= 3) {
+          showMsg(
+            "Too many failed attempts — redirecting to settings",
+            "error",
+          );
+          setLoading(false);
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
           showMsg(
-            `Invalid PIN. ${2 - pinAttempts} attempt${2 - pinAttempts !== 1 ? "s" : ""} remaining`,
+            `Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} remaining`,
             "error",
           );
+          setLoading(false);
         }
       }
     } catch {
       showMsg("Network error", "error");
-    } finally {
       setLoading(false);
     }
   };
@@ -1247,7 +1300,9 @@ const Dashboard = () => {
             className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${
               notification.type === "error"
                 ? "bg-red-600 text-white"
-                : "bg-salvaGold text-black"
+                : notification.type === "info"
+                  ? "bg-zinc-800 text-white border border-white/10"
+                  : "bg-salvaGold text-black"
             }`}
           >
             {notification.message}
