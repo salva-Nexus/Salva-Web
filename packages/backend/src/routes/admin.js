@@ -109,30 +109,25 @@ router.get("/proposals", async (req, res) => {
 
     for (const p of all) {
       try {
-        // 1. Get fresh data from the MultiSig contract
-        let remaining =
-          p.type === "registry"
-            ? await getRegistryRemaining(p.registry)
-            : await getValidatorRemaining(p.addr);
+        let remaining = (p.type === "registry") 
+          ? await getRegistryRemaining(p.registry) 
+          : await getValidatorRemaining(p.addr);
 
         if (remaining === null) continue;
 
-        const reachedQuorum = remaining === 0;
+        const isValidated = remaining === 0;
 
-        // 2. If Quorum reached, handle the 48h timer
-        if (reachedQuorum) {
+        if (isValidated) {
           if (!p.timeLockTimestamp) {
-            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
+            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + (48 * 60 * 60);
           }
-
-          // ─── THE TOGGLE: UNCOMMENT TO BYPASS TIME ────────────────
-          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600;
-          // ─────────────────────────────────────────────────────────
+          
+          // ⚡️ TOGGLE THIS LINE TO BYPASS TIME
+          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600; 
         }
 
-        // 3. Sync DB to match Blockchain reality
         p.remainingValidation = remaining;
-        p.isValidated = reachedQuorum;
+        p.isValidated = isValidated;
         await p.save();
       } catch (err) {
         console.error(`Sync error for ${p._id}:`, err.message);
@@ -209,37 +204,48 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
     const { privateKey, registry, chain = "base" } = req.body;
     const cleanRegistry = normalizeAddr(registry);
 
-    const sponsorFn = (chain === "base") 
-      ? relay.sponsorValidateRegistryBase 
-      : relay.sponsorValidateRegistryEth;
-      
-    const result = await sponsorFn(req.callerUser.safeAddress, privateKey, cleanRegistry);
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
+
+    const sponsorFn =
+      chain === "base"
+        ? relay.sponsorValidateRegistryBase
+        : relay.sponsorValidateRegistryEth;
+
+    const result = await sponsorFn(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanRegistry,
+    );
 
     res.json({ success: true, taskId: result.taskId });
 
-    // Added explicit error catching here
+    // Background Sync
     waitForTx(result.taskId)
       .then(async (status) => {
         if (status.success) {
           const remaining = await getRegistryRemaining(cleanRegistry);
           const isValidated = remaining === 0;
+
           await Proposal.findOneAndUpdate(
             { type: "registry", registry: cleanRegistry.toLowerCase() },
-            { 
-              remainingValidation: remaining, 
+            {
+              remainingValidation: remaining,
               isValidated,
-              timeLockTimestamp: isValidated ? Math.floor(Date.now() / 1000) + 172800 : null 
-            }
+              // ─── THE BYPASS LINE ──────────────────────────────────────────
+              // Toggle the line below: +172800 for real wait, -3600 to skip
+              timeLockTimestamp: isValidated
+                ? Math.floor(Date.now() / 1000) - 3600
+                : null,
+              // ──────────────────────────────────────────────────────────────
+            },
           );
-          console.log(`✅ Validation Sync Complete for ${cleanRegistry}`);
-        } else {
-          console.error(`❌ Chain Transaction Reverted for Task: ${result.taskId}`);
+          console.log("✅ Registry Validated and Timelock bypassed.");
         }
       })
-      .catch(err => console.error("🔥 Background Sync Fatal Error:", err)); // Look for this in logs
-
+      .catch((err) => console.error("❌ Background Sync Error:", err.message));
   } catch (error) {
-    console.error("💥 Route Entry Error:", error.message);
+    console.error("💥 Validation Route Error:", error.message);
     res.status(500).json({ message: error.message });
   }
 });
