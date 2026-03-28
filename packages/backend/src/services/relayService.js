@@ -156,45 +156,46 @@ async function _executeViaSafeBase(
     `🔍 [BASE] Safe: ${normalizedSafe} | Nonce: ${currentNonce} | Chain: ${network.chainId}`,
   );
 
-  // 2. Build the EIP-712 Signature
-  // This replaces the manual hashing and the weird v+4 logic
-  const signature = await ownerWallet.signTypedData(
-    // Domain: Tells the wallet exactly which contract and chain this signature is for
-    {
-      name: "Gnosis Safe", // Standard for Safe v1.3.0+
-      version: "1.3.0",
-      chainId: network.chainId,
-      verifyingContract: normalizedSafe,
-    },
-    // Types: The schema for a Safe transaction
-    {
-      SafeTx: [
-        { name: "to", type: "address" },
-        { name: "value", type: "uint256" },
-        { name: "data", type: "bytes" },
-        { name: "operation", type: "uint8" },
-        { name: "safeTxGas", type: "uint256" },
-        { name: "baseGas", type: "uint256" },
-        { name: "gasPrice", type: "uint256" },
-        { name: "gasToken", type: "address" },
-        { name: "refundReceiver", type: "address" },
-        { name: "nonce", type: "uint256" },
-      ],
-    },
-    // Message: The actual transaction data
-    {
-      to: normalizedTo,
-      value: 0,
-      data: data,
-      operation: operation,
-      safeTxGas: 0,
-      baseGas: 0,
-      gasPrice: 0,
-      gasToken: ethers.ZeroAddress,
-      refundReceiver: ethers.ZeroAddress,
-      nonce: currentNonce,
-    },
-  );
+  // 1. Define the EIP-712 Domain (The 'Magic' config the Safe contract expects)
+  const domain = {
+    name: "Gnosis Safe",
+    version: "1.3.0",
+    chainId: network.chainId,
+    verifyingContract: normalizedSafe,
+  };
+
+  // 2. Define the exact Schema (Types) for a Safe Transaction
+  const types = {
+    SafeTx: [
+      { name: "to", type: "address" },
+      { name: "value", type: "uint256" },
+      { name: "data", type: "bytes" },
+      { name: "operation", type: "uint8" },
+      { name: "safeTxGas", type: "uint256" },
+      { name: "baseGas", type: "uint256" },
+      { name: "gasPrice", type: "uint256" },
+      { name: "gasToken", type: "address" },
+      { name: "refundReceiver", type: "address" },
+      { name: "nonce", type: "uint256" },
+    ],
+  };
+
+  // 3. The specific transaction message
+  const message = {
+    to: normalizedTo,
+    value: 0,
+    data: data,
+    operation: operation,
+    safeTxGas: 0,
+    baseGas: 0,
+    gasPrice: 0,
+    gasToken: ethers.ZeroAddress,
+    refundReceiver: ethers.ZeroAddress,
+    nonce: Number(currentNonce), // Ensure this is a number/bigint
+  };
+
+  // 4. Generate the signature (ethers handles the hashing and EIP-712 wrapping)
+  const signature = await ownerWallet.signTypedData(domain, types, message);
 
   console.log(
     `🔍 [BASE] EIP-712 Signature generated: ${signature.slice(0, 20)}...`,
