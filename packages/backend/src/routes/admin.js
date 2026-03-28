@@ -109,25 +109,30 @@ router.get("/proposals", async (req, res) => {
 
     for (const p of all) {
       try {
-        let remaining = (p.type === "registry") 
-          ? await getRegistryRemaining(p.registry) 
-          : await getValidatorRemaining(p.addr);
+        // 1. Get fresh data from the MultiSig contract
+        let remaining =
+          p.type === "registry"
+            ? await getRegistryRemaining(p.registry)
+            : await getValidatorRemaining(p.addr);
 
         if (remaining === null) continue;
 
-        const isValidated = remaining === 0;
+        const reachedQuorum = remaining === 0;
 
-        if (isValidated) {
+        // 2. If Quorum reached, handle the 48h timer
+        if (reachedQuorum) {
           if (!p.timeLockTimestamp) {
-            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + (48 * 60 * 60);
+            p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
           }
-          
-          // ⚡️ TOGGLE THIS LINE TO BYPASS TIME
-          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600; 
+
+          // ─── THE TOGGLE: UNCOMMENT TO BYPASS TIME ────────────────
+          // p.timeLockTimestamp = Math.floor(Date.now() / 1000) - 3600;
+          // ─────────────────────────────────────────────────────────
         }
 
+        // 3. Sync DB to match Blockchain reality
         p.remainingValidation = remaining;
-        p.isValidated = isValidated;
+        p.isValidated = reachedQuorum;
         await p.save();
       } catch (err) {
         console.error(`Sync error for ${p._id}:`, err.message);
