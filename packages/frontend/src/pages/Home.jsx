@@ -560,12 +560,12 @@ const Home = () => {
             {
               step: "01",
               title: "Create a Wallet",
-              desc: "Use any compatible wallet — Salva Wallet, Coinbase Wallet, MetaMask, or your bank app. Your wallet becomes your on-chain identity anchor.",
+              desc: "Use any compatible wallet — Salva Wallet, Coinbase Wallet, MetaMask, or your bank app.",
             },
             {
               step: "02",
               title: "Register Your Alias",
-              desc: 'Claim your name directly from your wallet or bank app. "charles@salva", "sandra_eberechi@uba" — your permanent on-chain identity.',
+              desc: 'Claim your name directly from your wallet or bank app. "charles@salva", "sandra_eberechi@uba" — your easy-to-use identity.',
             },
             {
               step: "03",
