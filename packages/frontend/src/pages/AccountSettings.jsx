@@ -3,7 +3,7 @@ import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Edit2, Lock, Mail, Key, ArrowLeft } from 'lucide-react';
+import { Edit2, Lock, Mail, Key, ArrowLeft, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
 import Stars from '../components/Stars';
 
 const AccountSettings = () => {
@@ -11,11 +11,15 @@ const AccountSettings = () => {
   const [loading, setLoading] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
-  const [activeModal, setActiveModal] = useState(null); // 'email' | 'password' | 'pin' | 'username'
-  const [modalStep, setModalStep] = useState(1); // 1: Warning, 2: OTP, 3: New Value
+  const [activeModal, setActiveModal] = useState(null); 
+  const [modalStep, setModalStep] = useState(1); 
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
   const [pinStatus, setPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
+  
+  // New State for Modern Confirmation Cards
+  const [confirmDialog, setConfirmDialog] = useState({ show: false, title: '', message: '', onConfirm: null });
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -191,9 +195,18 @@ const AccountSettings = () => {
     }
   };
 
-  const handleUnlinkName = async () => {
-    if (!window.confirm('Are you sure you want to unlink your name alias? You can re-link a new name afterwards.')) return;
+  const confirmUnlink = () => {
+    setConfirmDialog({
+      show: true,
+      title: 'Unlink Name Alias?',
+      message: 'This will remove your human-readable identity. You can link a new name at any time, but someone else might claim this one.',
+      onConfirm: executeUnlink
+    });
+  };
+
+  const executeUnlink = async () => {
     setUnlinkLoading(true);
+    setConfirmDialog({ ...confirmDialog, show: false });
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
         method: 'POST',
@@ -242,62 +255,66 @@ const AccountSettings = () => {
             animate={{ opacity: 1, y: 0 }}
             className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-2xl"
           >
-            <p className="text-sm font-bold text-red-500">
-              🔒 Account Locked: Transactions disabled until {new Date(pinStatus.lockedUntil).toLocaleString()}
+            <p className="text-sm font-bold text-red-500 flex items-center gap-2">
+              <Lock size={16} /> Account Locked: Transactions disabled until {new Date(pinStatus.lockedUntil).toLocaleString()}
             </p>
           </motion.div>
         )}
 
         <div className="space-y-4">
-          {/* ── Username ── */}
-          <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
+          {/* Username */}
+          <div className="group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs uppercase opacity-40 font-bold mb-1">Full Name</p>
                 <p className="text-lg font-black">{user.username}</p>
               </div>
-              <button onClick={() => openModal('username')} className="p-2 hover:bg-white dark:hover:bg-white/10 rounded-full transition-colors">
-                <Edit2 size={18} className="text-salvaGold" />
+              <button onClick={() => openModal('username')} className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Edit2 size={18} />
               </button>
             </div>
           </div>
 
-          {/* ── Email ── */}
-          <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
+          {/* Email */}
+          <div className="group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs uppercase opacity-40 font-bold mb-1">Email Address</p>
                 <p className="text-lg font-black">{user.email}</p>
               </div>
-              <button onClick={() => openModal('email')} className="p-2 hover:bg-white dark:hover:bg-white/10 rounded-full transition-colors">
-                <Edit2 size={18} className="text-salvaGold" />
+              <button onClick={() => openModal('email')} className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Mail size={18} />
               </button>
             </div>
           </div>
 
-          {/* ── Password ── */}
-          <button onClick={() => openModal('password')} className="w-full bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left">
+          {/* Password */}
+          <button onClick={() => openModal('password')} className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs uppercase opacity-40 font-bold mb-1">Security</p>
                 <p className="text-lg font-black">Reset Password</p>
               </div>
-              <Lock size={18} className="text-salvaGold" />
+              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Lock size={18} />
+              </div>
             </div>
           </button>
 
-          {/* ── PIN ── */}
-          <button onClick={() => openModal('pin')} className="w-full bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left">
+          {/* PIN */}
+          <button onClick={() => openModal('pin')} className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left">
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-xs uppercase opacity-40 font-bold mb-1">Transaction Security</p>
                 <p className="text-lg font-black">{pinStatus.hasPin ? 'Reset' : 'Set'} Transaction PIN</p>
               </div>
-              <Key size={18} className="text-salvaGold" />
+              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Key size={18} />
+              </div>
             </div>
           </button>
 
-          {/* ── Name Alias / Unlink ── */}
+          {/* Name Alias */}
           {user.nameAlias && (
             <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
               <div className="flex justify-between items-center">
@@ -307,11 +324,11 @@ const AccountSettings = () => {
                   <p className="text-xs opacity-50 mt-1">Linked to your wallet address</p>
                 </div>
                 <button
-                  onClick={handleUnlinkName}
+                  onClick={confirmUnlink}
                   disabled={unlinkLoading}
-                  className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+                  className="px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
                 >
-                  {unlinkLoading ? 'Unlinking...' : 'Unlink'}
+                  {unlinkLoading ? '...' : 'Unlink'}
                 </button>
               </div>
             </div>
@@ -319,102 +336,163 @@ const AccountSettings = () => {
         </div>
       </div>
 
-      {/* ── Modal ── */}
+      {/* ── Dynamic Modals ── */}
       <AnimatePresence>
-        {activeModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <motion.div onClick={closeModal} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+        {(activeModal || confirmDialog.show) && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+            <motion.div 
+               onClick={() => { closeModal(); setConfirmDialog({ ...confirmDialog, show: false }); }} 
+               className="absolute inset-0 bg-black/90 backdrop-blur-xl" 
+               initial={{ opacity: 0 }} 
+               animate={{ opacity: 1 }} 
+               exit={{ opacity: 0 }} 
+            />
+            
+            {/* Confirmation Dialogs (Unlink etc) */}
+            {confirmDialog.show && (
+               <motion.div 
+                 onClick={(e) => e.stopPropagation()} 
+                 className="relative bg-white dark:bg-[#121214] p-8 rounded-[2rem] w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden" 
+                 initial={{ opacity: 0, scale: 0.9, y: 20 }} 
+                 animate={{ opacity: 1, scale: 1, y: 0 }} 
+                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
+               >
+                 <div className="flex flex-col items-center text-center">
+                   <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
+                     <AlertTriangle className="text-red-500" size={32} />
+                   </div>
+                   <h3 className="text-2xl font-black mb-2">{confirmDialog.title}</h3>
+                   <p className="text-sm opacity-60 mb-8">{confirmDialog.message}</p>
+                   <div className="flex w-full gap-3">
+                     <button 
+                       onClick={() => setConfirmDialog({ ...confirmDialog, show: false })} 
+                       className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                     >
+                       Go Back
+                     </button>
+                     <button 
+                       onClick={confirmDialog.onConfirm} 
+                       className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-red-500/20"
+                     >
+                       Unlink Now
+                     </button>
+                   </div>
+                 </div>
+               </motion.div>
+            )}
 
-              {/* Step 1: Warning */}
-              {modalStep === 1 && requiresOTP && !isFirstTimePin && (
-                <>
-                  <h3 className="text-2xl font-black mb-4">⚠️ Security Warning</h3>
-                  <p className="text-sm opacity-80 mb-6">
-                    Changing your {activeModal === 'email' ? 'email' : activeModal === 'password' ? 'password' : 'PIN'} will <strong className="text-salvaGold">lock your account for 24 hours</strong>. You won't be able to perform any transactions during this period.
-                  </p>
-                  <div className="flex gap-3">
-                    <button onClick={closeModal} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                    <button onClick={sendOTP} disabled={loading} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110">{loading ? 'SENDING...' : 'OK, PROCEED'}</button>
-                  </div>
-                </>
-              )}
-
-              {/* Step 2: OTP */}
-              {modalStep === 2 && (
-                <>
-                  <h3 className="text-2xl font-black mb-4">Verify Your Identity</h3>
-                  <p className="text-sm opacity-60 mb-4">We sent a code to: <strong>{user.email}</strong></p>
-                  <input type="text" maxLength="6" placeholder="000000" value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-2xl tracking-[0.5em] font-black mb-6" />
-                  <div className="flex gap-3">
-                    <button onClick={closeModal} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                    <button onClick={verifyOTP} disabled={loading || !otp} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50">{loading ? 'VERIFYING...' : 'VERIFY'}</button>
-                  </div>
-                </>
-              )}
-
-              {/* Step 3: New Values */}
-              {((modalStep === 3 && requiresOTP) || (modalStep === 3 && activeModal === 'username') || (isFirstTimePin && modalStep === 1)) && (
-                <>
-                  <h3 className="text-2xl font-black mb-4">
-                    {activeModal === 'email' ? 'New Email Address' :
-                     activeModal === 'password' ? 'New Password' :
-                     activeModal === 'pin' ? (isFirstTimePin ? 'Set Transaction PIN' : 'Reset Transaction PIN') :
-                     'New Username'}
-                  </h3>
-
-                  <div className="space-y-4 mb-6">
-                    {isResetPin && (
-                      <>
-                        <input
-                          type="password"
-                          inputMode="numeric"
-                          maxLength={4}
-                          placeholder="Old PIN (••••)"
-                          value={formData.oldPin}
-                          onChange={(e) => setFormData({ ...formData, oldPin: e.target.value.replace(/\D/g, '') })}
-                          className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none font-bold text-center text-xl"
-                        />
-                        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent"></div>
-                      </>
-                    )}
-
-                    <input
-                      type={activeModal === 'password' ? 'password' : activeModal === 'pin' ? 'password' : 'text'}
-                      inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
-                      maxLength={activeModal === 'pin' ? 4 : undefined}
-                      placeholder={activeModal === 'pin' ? 'New PIN (••••)' : `Enter new ${activeModal}`}
-                      value={formData.newValue}
-                      onChange={(e) => setFormData({ ...formData, newValue: activeModal === 'pin' ? e.target.value.replace(/\D/g, '') : e.target.value })}
-                      className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none font-bold"
-                    />
-
-                    <input
-                      type={activeModal === 'password' ? 'password' : activeModal === 'pin' ? 'password' : 'text'}
-                      inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
-                      maxLength={activeModal === 'pin' ? 4 : undefined}
-                      placeholder={activeModal === 'pin' ? 'Confirm PIN (••••)' : `Confirm new ${activeModal}`}
-                      value={formData.confirmValue}
-                      onChange={(e) => setFormData({ ...formData, confirmValue: activeModal === 'pin' ? e.target.value.replace(/\D/g, '') : e.target.value })}
-                      className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none font-bold"
-                    />
-                  </div>
-
-                  {isResetPin && (
-                    <div className="mb-6 p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl">
-                      <p className="text-xs text-orange-500 font-bold">
-                        ⚠️ If you've forgotten your old PIN, contact support. Without it, we cannot decrypt your wallet.
-                      </p>
+            {/* Account Settings Forms */}
+            {activeModal && (
+              <motion.div 
+                onClick={(e) => e.stopPropagation()} 
+                className="relative bg-white dark:bg-[#121214] p-8 rounded-[2.5rem] w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl" 
+                initial={{ opacity: 0, scale: 0.95 }} 
+                animate={{ opacity: 1, scale: 1 }} 
+                exit={{ opacity: 0, scale: 0.95 }}
+              >
+                
+                {/* Step 1: Warning */}
+                {modalStep === 1 && requiresOTP && !isFirstTimePin && (
+                  <div className="text-center">
+                    <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-6 mx-auto">
+                      <AlertTriangle className="text-salvaGold" size={32} />
                     </div>
-                  )}
-
-                  <div className="flex gap-3">
-                    <button onClick={closeModal} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5">Cancel</button>
-                    <button onClick={handleSubmit} disabled={loading || !formData.newValue || !formData.confirmValue || (isResetPin && !formData.oldPin)} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50">{loading ? 'UPDATING...' : 'CONFIRM'}</button>
+                    <h3 className="text-2xl font-black mb-4">Security Protocol</h3>
+                    <p className="text-sm opacity-80 mb-8 leading-relaxed">
+                      Changing your <span className="text-salvaGold font-bold">{activeModal}</span> will trigger a security cooldown. Your account will be <strong className="text-white">locked for 24 hours</strong>.
+                    </p>
+                    <div className="flex gap-3">
+                      <button onClick={closeModal} className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold hover:bg-gray-200 dark:hover:bg-white/10">Cancel</button>
+                      <button onClick={sendOTP} disabled={loading} className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all">
+                        {loading ? 'Processing...' : 'I Understand'}
+                      </button>
+                    </div>
                   </div>
-                </>
-              )}
-            </motion.div>
+                )}
+
+                {/* Step 2: OTP */}
+                {modalStep === 2 && (
+                  <div className="text-center">
+                    <h3 className="text-2xl font-black mb-2">Verify</h3>
+                    <p className="text-sm opacity-60 mb-8">Verification code sent to <strong>{user.email}</strong></p>
+                    <input 
+                      type="text" 
+                      maxLength="6" 
+                      placeholder="••••••" 
+                      value={otp} 
+                      onChange={(e) => setOtp(e.target.value)} 
+                      className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[0.4em] font-black mb-8" 
+                    />
+                    <div className="flex gap-3">
+                      <button onClick={closeModal} className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold">Cancel</button>
+                      <button onClick={verifyOTP} disabled={loading || !otp} className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold disabled:opacity-50 transition-all">
+                        {loading ? 'Verifying...' : 'Verify Identity'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Step 3: Input Fields */}
+                {((modalStep === 3) || (isFirstTimePin && modalStep === 1)) && (
+                  <>
+                    <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
+                      <CheckCircle2 className="text-salvaGold" />
+                      Update {activeModal}
+                    </h3>
+
+                    <div className="space-y-4 mb-8">
+                      {isResetPin && (
+                        <div className="space-y-2">
+                          <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">Current PIN</label>
+                          <input
+                            type="password"
+                            inputMode="numeric"
+                            maxLength={4}
+                            placeholder="••••"
+                            value={formData.oldPin}
+                            onChange={(e) => setFormData({ ...formData, oldPin: e.target.value.replace(/\D/g, '') })}
+                            className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-2xl tracking-widest"
+                          />
+                        </div>
+                      )}
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">New {activeModal}</label>
+                        <input
+                          type={['password', 'pin'].includes(activeModal) ? 'password' : 'text'}
+                          inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
+                          maxLength={activeModal === 'pin' ? 4 : undefined}
+                          placeholder={activeModal === 'pin' ? '••••' : `Enter new ${activeModal}`}
+                          value={formData.newValue}
+                          onChange={(e) => setFormData({ ...formData, newValue: activeModal === 'pin' ? e.target.value.replace(/\D/g, '') : e.target.value })}
+                          className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-bold placeholder:opacity-30"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">Confirm {activeModal}</label>
+                        <input
+                          type={['password', 'pin'].includes(activeModal) ? 'password' : 'text'}
+                          inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
+                          maxLength={activeModal === 'pin' ? 4 : undefined}
+                          placeholder={activeModal === 'pin' ? '••••' : `Confirm new ${activeModal}`}
+                          value={formData.confirmValue}
+                          onChange={(e) => setFormData({ ...formData, confirmValue: activeModal === 'pin' ? e.target.value.replace(/\D/g, '') : e.target.value })}
+                          className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-bold placeholder:opacity-30"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button onClick={closeModal} className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold">Cancel</button>
+                      <button onClick={handleSubmit} disabled={loading || !formData.newValue} className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all">
+                        {loading ? 'Updating...' : 'Save Changes'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </motion.div>
+            )}
           </div>
         )}
       </AnimatePresence>
@@ -422,7 +500,13 @@ const AccountSettings = () => {
       {/* ── Toast ── */}
       <AnimatePresence>
         {notification.show && (
-          <motion.div initial={{ y: 100, x: "-50%", opacity: 0 }} animate={{ y: 0, x: "-50%", opacity: 1 }} exit={{ y: 100, x: "-50%", opacity: 0 }} className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-xs uppercase tracking-widest shadow-2xl ${notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'}`}>
+          <motion.div 
+            initial={{ y: 100, x: "-50%", opacity: 0 }} 
+            animate={{ y: 0, x: "-50%", opacity: 1 }} 
+            exit={{ y: 100, x: "-50%", opacity: 0 }} 
+            className={`fixed bottom-6 left-1/2 px-8 py-5 rounded-3xl z-[100] font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center gap-3 ${notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'}`}
+          >
+            {notification.type === 'error' ? <AlertTriangle size={16} /> : <CheckCircle2 size={16} />}
             {notification.message}
           </motion.div>
         )}

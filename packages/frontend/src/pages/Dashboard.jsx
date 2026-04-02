@@ -643,6 +643,31 @@ const Dashboard = () => {
 
   const showRegistryDropdown = inputType === "name";
 
+  // ── Notification style config ─────────────────────────────────────────
+  const notifConfig = {
+    success: {
+      icon: "✓",
+      iconBg: "bg-salvaGold",
+      iconColor: "text-black",
+      border: "border-salvaGold/40",
+      btn: "bg-salvaGold text-black hover:brightness-110",
+    },
+    error: {
+      icon: "✕",
+      iconBg: "bg-red-500",
+      iconColor: "text-white",
+      border: "border-red-500/40",
+      btn: "bg-red-500 text-white hover:bg-red-400",
+    },
+    info: {
+      icon: "↻",
+      iconBg: "bg-white/10",
+      iconColor: "text-white",
+      border: "border-white/20",
+      btn: "bg-white/10 text-white hover:bg-white/20",
+    },
+  };
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
       <Stars />
@@ -1157,24 +1182,56 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Toast ── */}
+      {/* ── Notification Box ── replaces old bottom toast ── */}
       <AnimatePresence>
-        {notification.show && (
-          <motion.div
-            initial={{ y: 100, x: "-50%", opacity: 0 }}
-            animate={{ y: 0, x: "-50%", opacity: 1 }}
-            exit={{ y: 100, x: "-50%", opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-6 py-4 rounded-2xl z-[100] font-black text-[10px] uppercase tracking-widest shadow-2xl w-[90%] sm:w-auto text-center ${
-              notification.type === "error"
-                ? "bg-red-600 text-white"
-                : notification.type === "info"
-                  ? "bg-zinc-800 text-white border border-white/10"
-                  : "bg-salvaGold text-black"
-            }`}
-          >
-            {notification.message}
-          </motion.div>
-        )}
+        {notification.show && (() => {
+          const cfg = notifConfig[notification.type] || notifConfig.info;
+          return (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+              {/* Backdrop — click to dismiss */}
+              <motion.div
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setNotification({ ...notification, show: false })}
+              />
+
+              {/* Card */}
+              <motion.div
+                className={`relative w-full max-w-xs bg-white dark:bg-zinc-900 rounded-3xl border ${cfg.border} shadow-2xl overflow-hidden`}
+                initial={{ opacity: 0, scale: 0.85, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.85, y: 20 }}
+                transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Thin top color bar */}
+                <div className={`h-1 w-full ${cfg.iconBg}`} />
+
+                <div className="p-7 text-center">
+                  {/* Icon */}
+                  <div className={`w-12 h-12 ${cfg.iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
+                    <span className={`text-xl font-black ${cfg.iconColor}`}>{cfg.icon}</span>
+                  </div>
+
+                  {/* Message */}
+                  <p className="font-black text-sm leading-relaxed mb-6">
+                    {notification.message}
+                  </p>
+
+                  {/* OK button */}
+                  <button
+                    onClick={() => setNotification({ ...notification, show: false })}
+                    className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${cfg.btn}`}
+                  >
+                    OK
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          );
+        })()}
       </AnimatePresence>
     </div>
   );
