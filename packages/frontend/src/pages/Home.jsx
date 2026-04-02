@@ -55,6 +55,10 @@ const FAQItem = ({ question, answer }) => {
   );
 };
 
+// ─── Smart stat display ──────────────────────────────────────────────────────
+// If NGNs circulating > 10M → "10M+"
+// If citizens > 200K → "200K+"
+// Otherwise → animated count-up
 const CountUp = ({ to, decimals = 0 }) => {
   const [currentValue, setCurrentValue] = useState(0);
   useEffect(() => {
@@ -78,19 +82,34 @@ const CountUp = ({ to, decimals = 0 }) => {
   );
 };
 
-// ── FEATURE VISUALS ──────────────────────────────────────────────
-const AliasVisual = () => {
+function formatNGNsStat(totalMinted) {
+  const n = parseFloat(totalMinted) || 0;
+  if (n > 10_000_000) return { capped: true, label: "10M+" };
+  return { capped: false, value: n };
+}
+
+function formatCitizensStat(userCount) {
+  const n = parseInt(userCount) || 0;
+  if (n > 200_000) return { capped: true, label: "200K+" };
+  return { capped: false, value: n };
+}
+
+// ─── Feature Visuals ─────────────────────────────────────────────────────────
+
+// Name Service Protocol visual — names pointing to addresses or numbers
+const NameServiceVisual = () => {
   const [activeIdx, setActiveIdx] = useState(0);
   const items = [
-    { alias: "charles@coinbase", addr: "0xd8dA...96045" },
-    { alias: "1122746245", addr: "0xAb5...3C9f" },
-    { alias: "aggregatorv3@chainlink", addr: "0x71C...8E2a" },
-    { alias: "khabib@opay", addr: "1234...789" },
+    { alias: "cboi@salva", dest: "0xd8dA...96045" },
+    { alias: "sandra_eberechi@uba", dest: "0xAb5...3C9f" },
+    { alias: "aggregatorv3_eth@chainlink", dest: "0x71C...8E2a" },
+    { alias: "khabib@opay", dest: "1234567890" },
+    { alias: "charles@coinbase", dest: "0xF3a...9D1b" },
   ];
   useEffect(() => {
     const t = setInterval(
       () => setActiveIdx((i) => (i + 1) % items.length),
-      2000,
+      2200,
     );
     return () => clearInterval(t);
   }, []);
@@ -105,23 +124,23 @@ const AliasVisual = () => {
         <motion.div
           key={i}
           animate={{
-            opacity: activeIdx === i ? 1 : 0.25,
+            opacity: activeIdx === i ? 1 : 0.22,
             scale: activeIdx === i ? 1 : 0.97,
           }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3"
+          transition={{ duration: 0.45 }}
+          className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-2.5"
         >
-          <span className="text-salvaGold font-black text-sm">
+          <span className="text-salvaGold font-black text-sm truncate max-w-[140px]">
             {item.alias}
           </span>
-          <ArrowRight size={14} className="opacity-30 mx-2 flex-shrink-0" />
+          <ArrowRight size={13} className="opacity-30 mx-2 flex-shrink-0" />
           <span className="font-mono text-xs opacity-50 truncate">
-            {item.addr}
+            {item.dest}
           </span>
         </motion.div>
       ))}
       <p className="text-[9px] opacity-20 text-center uppercase tracking-widest font-bold mt-1">
-        Human-readable · Collision-proof · Namespaced
+        Human-readable · Collision-proof · Multi-chain
       </p>
     </div>
   );
@@ -162,7 +181,7 @@ const StablecoinVisual = () => {
         </p>
       </div>
       <div className="grid grid-cols-3 gap-2">
-        {["No FX Risk", "On-chain", "Base L2"].map((t) => (
+        {["No FX Risk", "On-chain", "Base Testnet"].map((t) => (
           <div
             key={t}
             className="text-center bg-white/5 border border-white/10 rounded-lg py-2"
@@ -217,7 +236,7 @@ const WalletVisual = () => (
   </div>
 );
 
-// ── COMMON COMPONENTS ─────────────────────────────────────────────────────
+// ─── Shared layout ────────────────────────────────────────────────────────────
 const CinematicFeature = ({
   icon: Icon,
   tag,
@@ -269,12 +288,37 @@ const CinematicFeature = ({
   );
 };
 
+// ─── Chain badges (easily extensible) ────────────────────────────────────────
+const LIVE_CHAINS = [
+  { name: "Base Testnet", color: "text-blue-400", dot: "bg-blue-400" },
+  // Add more here as you deploy: { name: "Arbitrum Testnet", color: "text-cyan-400", dot: "bg-cyan-400" },
+  // { name: "Eth Testnet", color: "text-purple-400", dot: "bg-purple-400" },
+];
+
+const ChainBadges = () => (
+  <div className="inline-flex flex-wrap items-center gap-2 bg-black/30 border border-salvaGold/20 rounded-full px-4 py-2 mb-8">
+    <div className="w-2 h-2 bg-salvaGold rounded-full animate-pulse" />
+    <span className="text-[10px] text-salvaGold font-black uppercase tracking-[0.25em]">
+      Live on
+    </span>
+    {LIVE_CHAINS.map((c, i) => (
+      <span key={c.name} className="flex items-center gap-1.5">
+        {i > 0 && <span className="text-salvaGold/30 text-[10px]">·</span>}
+        <span className={`w-1.5 h-1.5 rounded-full ${c.dot} animate-pulse`} />
+        <span className={`text-[10px] font-black uppercase tracking-widest ${c.color}`}>
+          {c.name}
+        </span>
+      </span>
+    ))}
+  </div>
+);
+
 const Ticker = () => {
   const items = [
-    "Dual Alias Protocol",
+    "Name Service Protocol",
     "NGNs Stablecoin",
     "Safe Smart Wallet",
-    "Base L2",
+    "Multi-Chain",
     "Gasless Transactions",
     "On-chain Identity",
     "Nigerian Finance",
@@ -300,7 +344,7 @@ const Ticker = () => {
   );
 };
 
-// ── MAIN COMPONENT ─────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 const Home = () => {
   const [stats, setStats] = useState({ totalMinted: 0, userCount: 0 });
   const [loading, setLoading] = useState(true);
@@ -313,16 +357,10 @@ const Home = () => {
       const savedUser = localStorage.getItem("salva_user");
       if (savedUser) {
         const userData = JSON.parse(savedUser);
-        // FIX: Only redirect to dashboard if user has safeAddress AND no ownerKey
-        // (meaning PIN is already set). If ownerKey is present, they need to set PIN first
-        // — don't intercept them here, let SetTransactionPin handle it.
-        // If safeAddress exists but NO ownerKey → PIN already set → go to dashboard.
         if (userData.safeAddress && !userData.ownerKey) {
           navigate("/dashboard", { replace: true });
           return;
         }
-        // If ownerKey is present, user is mid-onboarding (needs to set PIN).
-        // Do NOT redirect — they will be navigated by Login.jsx to /set-transaction-pin.
       }
     } catch (_) {
       localStorage.removeItem("salva_user");
@@ -369,11 +407,14 @@ const Home = () => {
       </div>
     );
 
+  const ngnsDisplay = formatNGNsStat(stats.totalMinted);
+  const citizensDisplay = formatCitizensStat(stats.userCount);
+
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white transition-colors duration-500 overflow-x-hidden">
       <Stars />
 
-      {/* ── HERO SECTION ── */}
+      {/* ── HERO ── */}
       <section className="relative min-h-screen flex flex-col justify-center pt-24 pb-12 px-4 sm:px-6 text-center">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_50%_at_50%_30%,rgba(212,175,55,0.08),transparent)] pointer-events-none" />
 
@@ -383,11 +424,9 @@ const Home = () => {
           transition={{ duration: 1 }}
           className="relative z-10"
         >
-          <div className="inline-flex items-center gap-2 bg-salvaGold/10 border border-salvaGold/30 rounded-full px-4 py-2 mb-8">
-            <div className="w-2 h-2 bg-salvaGold rounded-full animate-pulse" />
-            <span className="text-[10px] text-salvaGold font-black uppercase tracking-[0.3em]">
-              Live on Base Mainnet
-            </span>
+          {/* Chain badges — easily add more chains here */}
+          <div className="flex justify-center">
+            <ChainBadges />
           </div>
 
           <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-8xl font-black mb-6 tracking-tighter leading-[0.9] px-2">
@@ -398,9 +437,9 @@ const Home = () => {
           </h1>
 
           <p className="text-base sm:text-lg md:text-xl opacity-60 max-w-2xl mx-auto leading-relaxed px-4 mb-10">
-            Salva is the premier on-chain financial protocol designed for
-            everyday payments and data resolution. Instant settlement. Zero friction. Built
-            on Base Mainnet.
+            Salva is the premier on-chain name service and financial protocol
+            designed for everyday payments and data resolution. Send money with
+            a name, not a hash.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
@@ -424,6 +463,7 @@ const Home = () => {
 
           {/* ── STATS CARDS ── */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto px-4">
+            {/* NGNs Circulating */}
             <motion.div
               whileHover={{ y: -5 }}
               className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl group text-left"
@@ -437,15 +477,18 @@ const Home = () => {
               </p>
               <h3 className="text-4xl sm:text-5xl font-black tracking-tight flex items-baseline gap-3">
                 {loading ? (
-                  "0"
+                  "—"
+                ) : ngnsDisplay.capped ? (
+                  <span>{ngnsDisplay.label}</span>
                 ) : (
-                  <CountUp to={stats.totalMinted} decimals={2} />
+                  <CountUp to={ngnsDisplay.value} decimals={2} />
                 )}
                 <span className="text-salvaGold text-lg font-bold">NGNs</span>
               </h3>
               <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full" />
             </motion.div>
 
+            {/* Citizens */}
             <motion.div
               whileHover={{ y: -5 }}
               className="relative p-10 rounded-[3rem] bg-gradient-to-br from-white/5 to-transparent border border-salvaGold/20 backdrop-blur-xl group text-left"
@@ -458,7 +501,13 @@ const Home = () => {
                 Salva Network Citizens
               </p>
               <h3 className="text-4xl sm:text-5xl font-black tracking-tight">
-                {loading ? "0" : <CountUp to={stats.userCount} />}
+                {loading ? (
+                  "—"
+                ) : citizensDisplay.capped ? (
+                  <span>{citizensDisplay.label}</span>
+                ) : (
+                  <CountUp to={citizensDisplay.value} />
+                )}
               </h3>
               <div className="mt-4 h-1 w-12 bg-salvaGold/30 rounded-full" />
             </motion.div>
@@ -476,10 +525,10 @@ const Home = () => {
         <CinematicFeature
           index={0}
           icon={Zap}
-          tag="Dual Alias Protocol"
+          tag="Name Service Protocol"
           title="Send Money Like Sending a Text"
-          description="Replace wallet addresses with human-readable identifiers. Send to 'charles@salva' or '1122746245' — no hex strings, no copy-paste errors. Names and numbers are namespaced so @salva and @coinbase identities never collide."
-          visual={<AliasVisual />}
+          description="Replace wallet addresses with human-readable names. Send to 'cboi@salva', 'sandra_eberechi@uba', or 'aggregatorv3_eth@chainlink' — no hex strings, no copy-paste errors. Names are namespaced so @salva and @coinbase identities never collide."
+          visual={<NameServiceVisual />}
         />
         <CinematicFeature
           index={1}
@@ -494,7 +543,7 @@ const Home = () => {
           icon={Shield}
           tag="Smart Wallet (AA)"
           title="No Gas Fees. Ever."
-          description="Built on Safe Protocol — your wallet is a smart contract, not just a key. Transactions are sponsored so you never pay gas. Built on Base L2 for sub-cent settlement. Account abstraction means batched transactions and enterprise-grade security baked in."
+          description="Built on Safe Protocol — your wallet is a smart contract, not just a key. Transactions are sponsored so you never pay gas. Built on Base (and expanding) for sub-cent settlement. Account abstraction means batched transactions and enterprise-grade security baked in."
           visual={<WalletVisual />}
         />
       </section>
@@ -511,18 +560,18 @@ const Home = () => {
           {[
             {
               step: "01",
-              title: "Create Wallet",
-              desc: "Register with email. A Safe smart wallet is deployed on Base — no gas, no seed phrases to manage.",
+              title: "Create a Wallet",
+              desc: "Use any compatible wallet — Salva Wallet, Coinbase Wallet, MetaMask, or your bank app. Your wallet becomes your on-chain identity anchor.",
             },
             {
               step: "02",
-              title: "Register Alias",
-              desc: 'Claim your name or account number. "charles@salva" or "1122746245" — your on-chain identity.',
+              title: "Register Your Alias",
+              desc: 'Claim your name directly from your wallet or bank app. "charles@salva", "sandra_eberechi@uba" — your permanent on-chain identity.',
             },
             {
               step: "03",
               title: "Send & Receive",
-              desc: "Transfer NGNs to anyone by alias. Instant settlement, zero gas, email confirmation.",
+              desc: "Transfer crypto or NGNs to anyone using their alias. No long wallet addresses, no copy-paste mistakes — just a name.",
             },
           ].map((item, i) => (
             <motion.div
@@ -551,16 +600,16 @@ const Home = () => {
         </div>
         <div className="space-y-2">
           <FAQItem
+            question="What is Salva's Name Service Protocol?"
+            answer="Salva's Name Service Protocol maps human-readable names like 'charles@salva' to wallet addresses or account numbers on-chain. Think of it like DNS for blockchain — instead of copying a 42-character address, you just use a name. Names are namespaced, so @salva and @coinbase are completely separate registries that can never collide."
+          />
+          <FAQItem
             question="What makes Salva a 'Smart' wallet?"
-            answer="Traditional wallets require seed phrases and gas fees for every action. Salva uses Safe Smart Account technology on Base L2 — your account is a smart contract that supports gasless interactions and enhanced security out of the box."
+            answer="Traditional wallets require seed phrases and gas fees for every action. Salva uses Safe Smart Account technology — your account is a smart contract that supports gasless interactions and enhanced security out of the box."
           />
           <FAQItem
-            question="What is a Dual Alias?"
-            answer="A dual alias means you can be found by both a name (e.g. 'charles@salva') and a number (e.g. '1122746245'). Both resolve to your wallet address. The namespace prevents collisions — 'charles@salva' and 'charles@coinbase' are completely different identities."
-          />
-          <FAQItem
-            question="Is this running on Mainnet?"
-            answer="Yes. Salva is deployed on the Base Layer 2 Mainnet. Transactions settle with Ethereum security at Base's speed and cost."
+            question="Which chains is Salva deployed on?"
+            answer="Salva is currently live on Base Testnet. We are expanding to additional chains — Ethereum, Arbitrum, and others. The name service protocol is designed to be chain-agnostic, so the same alias infrastructure works everywhere."
           />
           <FAQItem
             question="How are NGNs valued?"

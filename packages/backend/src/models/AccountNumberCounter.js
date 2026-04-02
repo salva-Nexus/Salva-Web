@@ -7,3 +7,5 @@ const AccountNumberCounterSchema = new mongoose.Schema({
 });
 
 module.exports = mongoose.model('AccountNumberCounter', AccountNumberCounterSchema);
+
+// This MODEL is not useless, since v2.0.4 doesn't use number alias anymore
