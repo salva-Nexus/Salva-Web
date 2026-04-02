@@ -101,8 +101,8 @@ const NameServiceVisual = () => {
   const [activeIdx, setActiveIdx] = useState(0);
   const items = [
     { alias: "cboi@salva", dest: "0xd8dA...96045" },
-    { alias: "sandra_eberechi@uba", dest: "0xAb5...3C9f" },
-    { alias: "aggregatorv3_eth@chainlink", dest: "0x71C...8E2a" },
+    { alias: "suzy_brown@chase", dest: "0xAb5...3C9f" },
+    { alias: "usdc_eth@usdc", dest: "0x71C...8E2a" },
     { alias: "khabib@opay", dest: "1234567890" },
     { alias: "charles@coinbase", dest: "0xF3a...9D1b" },
   ];
