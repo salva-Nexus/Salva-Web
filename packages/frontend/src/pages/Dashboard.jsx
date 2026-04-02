@@ -20,12 +20,10 @@ const formatAmountInput = (raw) => {
   return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
 };
 
-// Detect what kind of input the user typed
 function detectInputType(val) {
   const t = val.trim();
   if (!t) return "empty";
   if (t.startsWith("0x")) return "address";
-  if (/^\d+$/.test(t)) return "number";
   return "name";
 }
 
@@ -53,18 +51,11 @@ const Dashboard = () => {
         const u = JSON.parse(saved);
         return {
           hasName: !!u.nameAlias,
-          hasNumber: !!u.numberAlias,
           nameAlias: u.nameAlias || null,
-          numberAlias: u.numberAlias || null,
         };
       }
     } catch {}
-    return {
-      hasName: false,
-      hasNumber: false,
-      nameAlias: null,
-      numberAlias: null,
-    };
+    return { hasName: false, nameAlias: null };
   });
   const [showAliasModal, setShowAliasModal] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -81,7 +72,6 @@ const Dashboard = () => {
   const [transferAmount, setTransferAmount] = useState("");
   const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
   const [selectedRegistry, setSelectedRegistry] = useState(null);
-  // "address" | "number" | "name" | "empty"
   const [inputType, setInputType] = useState("empty");
 
   const navigate = useNavigate();
@@ -95,14 +85,12 @@ const Dashboard = () => {
       const data = await res.json();
       if (
         data.isValidator !== currentUser.isValidator ||
-        data.nameAlias !== currentUser.nameAlias ||
-        data.numberAlias !== currentUser.numberAlias
+        data.nameAlias !== currentUser.nameAlias
       ) {
         const updatedUser = {
           ...currentUser,
           isValidator: data.isValidator,
           nameAlias: data.nameAlias,
-          numberAlias: data.numberAlias,
         };
         localStorage.setItem("salva_user", JSON.stringify(updatedUser));
         setUser(updatedUser);
@@ -175,7 +163,10 @@ const Dashboard = () => {
         `${SALVA_API_URL}/api/alias/status/${safeAddress}`,
       );
       const data = await res.json();
-      setAliasStatus(data);
+      setAliasStatus({
+        hasName: !!data.nameAlias,
+        nameAlias: data.nameAlias || null,
+      });
     } catch {}
   };
 
@@ -190,7 +181,6 @@ const Dashboard = () => {
       const regsArray = Array.isArray(regData) ? regData : [];
       setRegistries(regsArray);
       setFeeConfig(feeData);
-      // Auto-select Salva registry if it's the only one
       if (regsArray.length === 1) {
         setSelectedRegistry(regsArray[0]);
       }
@@ -228,12 +218,10 @@ const Dashboard = () => {
     setFeePreview({ feeNGN: fee });
   };
 
-  // ── Recipient input handler ──────────────────────────────────────────────
   const handleRecipientChange = (val) => {
     setRecipientInput(val);
     const type = detectInputType(val);
     setInputType(type);
-    // Reset registry selection when input type changes to address
     if (type === "address") {
       setSelectedRegistry(null);
     }
@@ -255,21 +243,13 @@ const Dashboard = () => {
     setFeePreview({ feeNGN: 0 });
   };
 
-  /**
-   * Step 1 of send: resolve recipient and show confirmation card.
-   *
-   * - address → skip on-chain lookup, show address directly
-   * - name    → POST /api/resolve-recipient with name + registryAddress
-   * - number  → POST /api/resolve-recipient with number + registryAddress
-   */
   const resolveAndConfirm = async () => {
     if (!recipientInput || !transferAmount)
       return showMsg("Fill all fields", "error");
 
     const type = detectInputType(recipientInput);
 
-    // Name or number inputs require a registry selection
-    if ((type === "name" || type === "number") && !selectedRegistry) {
+    if (type === "name" && !selectedRegistry) {
       return showMsg("Select a wallet to send to", "error");
     }
 
@@ -279,11 +259,9 @@ const Dashboard = () => {
       let displayIdentifier = recipientInput.trim();
 
       if (type === "address") {
-        // Raw address — no on-chain lookup needed
         resolvedAddress = recipientInput.trim().toLowerCase();
         displayIdentifier = recipientInput.trim();
       } else {
-        // Name or number — resolve via backend
         const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -299,15 +277,9 @@ const Dashboard = () => {
           return;
         }
         resolvedAddress = data.resolvedAddress.toLowerCase();
-
-        // Build display: name@walletname or number (walletname)
-        if (type === "name") {
-          displayIdentifier = `${recipientInput.trim()}@${selectedRegistry.name
-            .replace(/\s+/g, "")
-            .toLowerCase()}`;
-        } else {
-          displayIdentifier = `${recipientInput.trim()} (${selectedRegistry.name})`;
-        }
+        displayIdentifier = `${recipientInput.trim()}@${selectedRegistry.name
+          .replace(/\s+/g, "")
+          .toLowerCase()}`;
       }
 
       setConfirmationData({
@@ -328,32 +300,14 @@ const Dashboard = () => {
     }
   };
 
-  /**
-   * Step 3: Execute the transfer.
-   *
-   * CRITICAL FLOW CHANGE:
-   * ─────────────────────
-   * 1. Close ALL modals immediately so the user is back on the dashboard.
-   * 2. Reset the send form right away.
-   * 3. Show "Transaction Queued" toast instantly.
-   * 4. Fire the API call in the background (no modal blocking the UI).
-   * 5. When the API responds, show the real outcome — success or error — as a toast.
-   * 6. On success, refresh the balance after a short delay.
-   *
-   * This means the user is NEVER stuck staring at "PROCESSING…" inside a modal.
-   * The modals close the moment the PIN is verified; everything else is fire-and-toast.
-   */
   const executeTransfer = async (privateKey, capturedConfirmationData) => {
-    // ── Step 1: Immediately close every modal and reset form ──────────────
     setIsPinModalOpen(false);
     setIsConfirmModalOpen(false);
     setIsSendOpen(false);
     resetSendForm();
 
-    // ── Step 2: Tell the user the transaction is on its way ───────────────
     showMsg("Transaction queued — sending...", "info");
 
-    // ── Step 3: Fire the transfer request in the background ───────────────
     try {
       const res = await fetch(`${SALVA_API_URL}/api/transfer`, {
         method: "POST",
@@ -371,29 +325,16 @@ const Dashboard = () => {
       const data = await res.json();
 
       if (res.ok) {
-        // ── Success: show confirmation and refresh balance ─────────────
         showMsg("✅ Transfer Successful!", "success");
-        // Refresh balance a bit after the chain has had time to settle
         setTimeout(() => fetchBalance(user.safeAddress), 3500);
       } else {
-        // ── Server returned a non-2xx: tell the user exactly what failed ──
         showMsg(data.message || "Transfer failed — please try again", "error");
       }
     } catch {
-      // ── Network/fetch error ────────────────────────────────────────────
       showMsg("Network error — transfer may not have gone through", "error");
     }
-    // NOTE: No finally loading state needed — the modal is already gone.
-    // The user is on the dashboard and the toast handles all feedback.
   };
 
-  /**
-   * Step 2: Verify PIN, then hand off to executeTransfer.
-   *
-   * We capture confirmationData into a local variable here so that even if
-   * React state has moved on by the time executeTransfer resolves, the
-   * correct data is used for the API call.
-   */
   const verifyPinAndProceed = async () => {
     if (transactionPin.length !== 4)
       return showMsg("PIN must be 4 digits", "error");
@@ -408,28 +349,17 @@ const Dashboard = () => {
       const data = await res.json();
 
       if (res.ok) {
-        // PIN is valid. Capture confirmation data before any state resets.
         const capturedData = { ...confirmationData };
         const privateKey = data.privateKey;
-
-        // Clear PIN field immediately
         setTransactionPin("");
         setPinAttempts(0);
-
-        // Stop the PIN modal's own loading spinner, then hand off.
-        // executeTransfer will close the modal itself as its very first action.
         setLoading(false);
         await executeTransfer(privateKey, capturedData);
       } else {
-        // Wrong PIN
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
-
         if (newAttempts >= 3) {
-          showMsg(
-            "Too many failed attempts — redirecting to settings",
-            "error",
-          );
+          showMsg("Too many failed attempts — redirecting to settings", "error");
           setLoading(false);
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
@@ -446,111 +376,84 @@ const Dashboard = () => {
     }
   };
 
-  // ── Alias Registration Modal ─────────────────────────────────────────────
+  // ── Alias Modal ─────────────────────────────────────────────────────────
   const AliasModal = () => {
-    const [step, setStep] = useState("choose");
+    const [step, setStep] = useState("input"); // "input" | "confirm" | "linking" | "success"
     const [nameInput, setNameInput] = useState("");
     const [nameError, setNameError] = useState("");
-    const [checkingName, setCheckingName] = useState(false);
-    const [resolvedAlias, setResolvedAlias] = useState("");
-    const [localLoading, setLocalLoading] = useState(false);
+    const [checking, setChecking] = useState(false);
+    const [weldedName, setWeldedName] = useState("");
 
-    const handleChooseName = async () => {
-      const name = nameInput.toLowerCase().trim();
-      // Enforce phishingProof rules: lowercase letters, digits 2–9, '.', '-', '_', max 16
-      if (!/^[a-z2-9._-]{1,16}$/.test(name)) {
-        setNameError(
-          "Use lowercase letters, digits 2–9, dots, dashes, underscores. Max 16 chars.",
-        );
+    const validateNameLocally = (val) => {
+      if (!val) return "Name is required";
+      if (val.includes("0") || val.includes("1"))
+        return "Digits 0 and 1 are not allowed";
+      if (!/^[a-z2-9._-]+$/.test(val))
+        return "Only lowercase letters, digits 2–9, dots, dashes, underscores";
+      if ((val.match(/_/g) || []).length > 1)
+        return "Only one underscore allowed";
+      if (val.length > 16) return "Max 16 characters";
+      return "";
+    };
+
+    const handleCheckAvailability = async () => {
+      const err = validateNameLocally(nameInput);
+      if (err) {
+        setNameError(err);
         return;
       }
       setNameError("");
-      setCheckingName(true);
+      setChecking(true);
       try {
         const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name }),
+          body: JSON.stringify({ name: nameInput }),
         });
         const data = await res.json();
-        if (data.taken) {
+        if (!res.ok) {
+          setNameError(data.message || "Check failed");
+          return;
+        }
+        if (!data.available) {
           setNameError("This name is already taken. Try another.");
           return;
         }
-        setResolvedAlias(`${name}@salva`);
-        setStep("name-confirm");
+        setWeldedName(data.welded);
+        setStep("confirm");
       } catch {
         setNameError("Failed to check availability");
       } finally {
-        setCheckingName(false);
+        setChecking(false);
       }
     };
 
-    const handleLinkName = async () => {
-      setLocalLoading(true);
+    const handleConfirmLink = async () => {
+      setStep("linking");
       try {
         const res = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             safeAddress: user.safeAddress,
-            name: nameInput.toLowerCase().trim(),
+            name: nameInput,
           }),
         });
         const data = await res.json();
-        if (res.ok) {
-          const updatedUser = {
-            ...user,
-            nameAlias: nameInput.toLowerCase().trim(),
-          };
-          localStorage.setItem("salva_user", JSON.stringify(updatedUser));
-          setUser(updatedUser);
-          setAliasStatus((prev) => ({
-            ...prev,
-            hasName: true,
-            nameAlias: nameInput.toLowerCase().trim(),
-          }));
-          setStep("success");
-          showMsg("Name alias registered!");
-        } else {
-          setNameError(data.message || "Failed to register");
-          setStep("name-input");
+        if (!res.ok) {
+          setNameError(data.message || "Linking failed");
+          setStep("confirm");
+          return;
         }
+        const updatedUser = { ...user, nameAlias: data.nameAlias };
+        localStorage.setItem("salva_user", JSON.stringify(updatedUser));
+        setUser(updatedUser);
+        setAliasStatus({ hasName: true, nameAlias: data.nameAlias });
+        setStep("success");
+        showMsg("Name linked successfully!");
       } catch {
         setNameError("Network error");
-        setStep("name-input");
-      } finally {
-        setLocalLoading(false);
-      }
-    };
-
-    const handleLinkNumber = async () => {
-      setStep("loading");
-      try {
-        const res = await fetch(`${SALVA_API_URL}/api/alias/link-number`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ safeAddress: user.safeAddress }),
-        });
-        const data = await res.json();
-        if (res.ok) {
-          const updatedUser = { ...user, numberAlias: data.numberAlias };
-          localStorage.setItem("salva_user", JSON.stringify(updatedUser));
-          setUser(updatedUser);
-          setAliasStatus((prev) => ({
-            ...prev,
-            hasNumber: true,
-            numberAlias: data.numberAlias,
-          }));
-          setStep("success");
-          showMsg("Account number registered!");
-        } else {
-          showMsg(data.message || "Failed to register number", "error");
-          setStep("choose");
-        }
-      } catch {
-        showMsg("Network error", "error");
-        setStep("choose");
+        setStep("confirm");
       }
     };
 
@@ -570,97 +473,77 @@ const Dashboard = () => {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
         >
-          {step === "choose" && (
+          {/* ── Step: Input ── */}
+          {step === "input" && (
             <>
               <div className="text-center mb-8">
                 <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🔖</span>
+                  <span className="text-2xl">🔗</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">Register an Alias</h3>
+                <h3 className="text-2xl font-black mb-2">Link Name to Address</h3>
                 <p className="text-sm opacity-60">
-                  Choose what to register. You can have both.
+                  Register a human-readable name for your wallet
                 </p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {!aliasStatus.hasName && (
-                  <button
-                    onClick={() => setStep("name-input")}
-                    className="p-5 rounded-2xl border border-salvaGold/30 bg-salvaGold/5 hover:border-salvaGold transition-all text-left"
-                  >
-                    <p className="text-2xl mb-2">✍️</p>
-                    <p className="font-black text-sm">Name Alias</p>
-                    <p className="text-xs opacity-50 mt-1">
-                      e.g. charles@salva
-                    </p>
-                  </button>
-                )}
-                {!aliasStatus.hasNumber && (
-                  <button
-                    onClick={handleLinkNumber}
-                    className="p-5 rounded-2xl border border-white/10 bg-white/5 hover:border-salvaGold/30 transition-all text-left"
-                  >
-                    <p className="text-2xl mb-2">🔢</p>
-                    <p className="font-black text-sm">Account Number</p>
-                    <p className="text-xs opacity-50 mt-1">
-                      Assigned automatically
-                    </p>
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setShowAliasModal(false)}
-                className="w-full mt-4 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all"
-              >
-                Cancel
-              </button>
-            </>
-          )}
 
-          {step === "name-input" && (
-            <>
-              <button
-                onClick={() => setStep("choose")}
-                className="text-[10px] uppercase tracking-widest text-salvaGold font-black mb-6"
-              >
-                ← Back
-              </button>
-              <h3 className="text-2xl font-black mb-2">Choose Your Name</h3>
-              <p className="text-sm opacity-60 mb-6">
-                Will be registered as{" "}
-                <span className="text-salvaGold font-bold">
-                  {nameInput || "yourname"}@salva
-                </span>
-              </p>
-              <input
-                type="text"
-                placeholder="yourname"
-                value={nameInput}
-                onChange={(e) => {
-                  setNameInput(e.target.value.toLowerCase());
-                  setNameError("");
-                }}
-                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold text-lg mb-2"
-              />
+              <div className="mb-2">
+                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                  Choose Your Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="yourname"
+                  value={nameInput}
+                  onChange={(e) => {
+                    const val = e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9._-]/g, "");
+                    setNameInput(val);
+                    setNameError("");
+                  }}
+                  maxLength={16}
+                  className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold text-lg"
+                />
+              </div>
+
+              {nameInput && (
+                <p className="text-xs text-salvaGold font-bold mb-2 ml-1">
+                  Will appear as:{" "}
+                  <span className="opacity-70">{nameInput}@salva</span>
+                </p>
+              )}
+
               {nameError && (
                 <p className="text-xs text-red-400 mb-3 font-bold">
                   {nameError}
                 </p>
               )}
+
               <p className="text-[10px] opacity-40 mb-6">
-                Lowercase letters, digits 2–9, dots, dashes, underscores. Max 16
-                chars.
+                Lowercase letters, digits 2–9, dots, dashes, one underscore max.
+                No 0 or 1. Max 16 chars.
               </p>
-              <button
-                onClick={handleChooseName}
-                disabled={checkingName || !nameInput}
-                className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
-              >
-                {checkingName ? "Checking..." : "Check Availability"}
-              </button>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowAliasModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCheckAvailability}
+                  disabled={checking || !nameInput}
+                  className="flex-1 py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
+                >
+                  {checking ? "Checking..." : "Check Availability"}
+                </button>
+              </div>
             </>
           )}
 
-          {step === "name-confirm" && (
+          {/* ── Step: Confirm ── */}
+          {step === "confirm" && (
             <>
               <div className="text-center mb-8">
                 <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -669,44 +552,56 @@ const Dashboard = () => {
                 <h3 className="text-2xl font-black mb-2">Name is Available!</h3>
                 <div className="mt-4 p-4 bg-salvaGold/5 border border-salvaGold/20 rounded-2xl">
                   <p className="text-2xl font-black text-salvaGold">
-                    {resolvedAlias}
+                    {weldedName}
                   </p>
                 </div>
               </div>
+
               <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl mb-6">
                 <p className="text-xs text-yellow-400 font-bold">
                   ⚠️ Double-check for typos. This alias is permanent and cannot
                   be changed once registered.
                 </p>
               </div>
+
+              {nameError && (
+                <p className="text-xs text-red-400 mb-3 font-bold">
+                  {nameError}
+                </p>
+              )}
+
               <div className="flex gap-3">
                 <button
-                  onClick={() => setStep("name-input")}
+                  onClick={() => {
+                    setStep("input");
+                    setNameError("");
+                  }}
                   className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all"
                 >
                   Go Back
                 </button>
                 <button
-                  onClick={handleLinkName}
-                  disabled={localLoading}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
+                  onClick={handleConfirmLink}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110"
                 >
-                  {localLoading ? "Registering..." : "Confirm & Register"}
+                  Confirm & Link
                 </button>
               </div>
             </>
           )}
 
-          {step === "loading" && (
+          {/* ── Step: Linking ── */}
+          {step === "linking" && (
             <div className="text-center py-12">
               <div className="w-12 h-12 border-4 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin mx-auto mb-4" />
-              <p className="font-black">Registering on-chain...</p>
+              <p className="font-black">Linking on-chain...</p>
               <p className="text-xs opacity-40 mt-2">
                 This may take a few seconds
               </p>
             </div>
           )}
 
+          {/* ── Step: Success ── */}
           {step === "success" && (
             <div className="text-center py-8">
               <motion.div
@@ -717,15 +612,15 @@ const Dashboard = () => {
               >
                 <span className="text-3xl">🎉</span>
               </motion.div>
-              <h3 className="text-2xl font-black mb-2">Alias Registered!</h3>
+              <h3 className="text-2xl font-black mb-2">Name Linked!</h3>
+              <p className="text-salvaGold font-black text-lg mb-2">
+                {weldedName}
+              </p>
               <p className="text-sm opacity-60 mb-6">
                 Your alias is now live on-chain.
               </p>
               <button
-                onClick={() => {
-                  setShowAliasModal(false);
-                  fetchAliasStatus(user.safeAddress);
-                }}
+                onClick={() => setShowAliasModal(false)}
                 className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all"
               >
                 Done
@@ -746,10 +641,7 @@ const Dashboard = () => {
       ]
     : [{ id: "buy", label: "Buy NGNs" }];
 
-  const bothAliasLinked = aliasStatus.hasName && aliasStatus.hasNumber;
-
-  // Show wallet dropdown when input is name or number
-  const showRegistryDropdown = inputType === "name" || inputType === "number";
+  const showRegistryDropdown = inputType === "name";
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
@@ -765,34 +657,28 @@ const Dashboard = () => {
               {user.username}
             </h2>
           </div>
-          {(aliasStatus.hasName || aliasStatus.hasNumber) && (
-            <div className="bg-gray-100 dark:bg-white/5 p-4 rounded-2xl w-full sm:w-auto space-y-1">
-              {aliasStatus.hasName && (
-                <div>
-                  <p className="text-[9px] uppercase opacity-40 font-bold">
-                    Name Alias
-                  </p>
-                  <p className="font-mono font-bold text-salvaGold text-sm">
-                    {aliasStatus.nameAlias}@salva
-                  </p>
-                </div>
-              )}
-              {aliasStatus.hasNumber && (
-                <div>
-                  <p className="text-[9px] uppercase opacity-40 font-bold">
-                    Account Number
-                  </p>
-                  <p className="font-mono font-bold text-salvaGold text-sm">
-                    {aliasStatus.numberAlias}
-                  </p>
-                </div>
-              )}
+          {aliasStatus.hasName && (
+            <div
+              className="bg-gray-100 dark:bg-white/5 p-4 rounded-2xl w-full sm:w-auto cursor-pointer hover:border hover:border-salvaGold/30 transition-all"
+              onClick={() => {
+                navigator.clipboard.writeText(aliasStatus.nameAlias);
+                showMsg("Name alias copied!");
+              }}
+              title="Click to copy"
+            >
+              <p className="text-[9px] uppercase opacity-40 font-bold mb-1">
+                Name Alias
+              </p>
+              <p className="font-mono font-bold text-salvaGold text-sm">
+                {aliasStatus.nameAlias}
+              </p>
+              <p className="text-[9px] opacity-30 mt-1">click to copy</p>
             </div>
           )}
         </header>
 
-        {/* ── Register Alias Button ── */}
-        {!bothAliasLinked && (
+        {/* ── Link Name to Address Button ── */}
+        {!aliasStatus.hasName && (
           <motion.button
             onClick={() => setShowAliasModal(true)}
             whileHover={{ scale: 1.01 }}
@@ -801,14 +687,10 @@ const Dashboard = () => {
           >
             <div className="text-left">
               <p className="font-black text-sm text-salvaGold">
-                Register an Alias
+                Link Name to Address
               </p>
               <p className="text-[10px] opacity-50 mt-0.5">
-                {!aliasStatus.hasName && !aliasStatus.hasNumber
-                  ? "Register a name or account number to receive payments"
-                  : !aliasStatus.hasName
-                    ? "Add a name alias (number already registered)"
-                    : "Add an account number (name already registered)"}
+                Register a human-readable name to receive payments
               </p>
             </div>
             <span className="text-salvaGold text-xl group-hover:translate-x-1 transition-transform">
@@ -847,15 +729,8 @@ const Dashboard = () => {
             </button>
             <button
               onClick={() => {
-                const copyText = aliasStatus.hasNumber
-                  ? aliasStatus.numberAlias
-                  : user.safeAddress;
-                navigator.clipboard.writeText(copyText);
-                showMsg(
-                  aliasStatus.hasNumber
-                    ? "Account number copied!"
-                    : "Wallet address copied!",
-                );
+                navigator.clipboard.writeText(user.safeAddress);
+                showMsg("Wallet address copied!");
               }}
               className="border border-salvaGold/30 hover:bg-white/5 transition-all py-4 rounded-2xl font-bold text-sm sm:text-base"
             >
@@ -1018,25 +893,20 @@ const Dashboard = () => {
                   <input
                     required
                     type="text"
-                    placeholder="Name, account number, or 0x address"
+                    placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
                     className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
                   />
 
-                  {/* Input type hint */}
                   {inputType !== "empty" && (
                     <p className="text-[10px] opacity-40 font-bold ml-1">
-                      {inputType === "address" &&
-                        "✓ Wallet address — sending directly"}
-                      {inputType === "name" &&
-                        "Name alias — select a wallet below"}
-                      {inputType === "number" &&
-                        "Account number — select a wallet below"}
+                      {inputType === "address"
+                        ? "✓ Wallet address — sending directly"
+                        : "Name alias — select a wallet below"}
                     </p>
                   )}
 
-                  {/* Wallet dropdown — shown for name or number inputs */}
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
                       <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
@@ -1161,7 +1031,6 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="space-y-3 mb-6">
-                {/* Recipient display */}
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
                   <p className="font-black text-lg text-salvaGold">
@@ -1180,7 +1049,6 @@ const Dashboard = () => {
                   </p>
                 </div>
 
-                {/* Amount */}
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
                   <p className="font-black text-xl">
@@ -1189,7 +1057,6 @@ const Dashboard = () => {
                   </p>
                 </div>
 
-                {/* Fee */}
                 {confirmationData.feeNGN > 0 && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
@@ -1265,8 +1132,8 @@ const Dashboard = () => {
               />
               {pinAttempts > 0 && (
                 <p className="text-xs text-red-500 text-center mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
-                  remaining
+                  ⚠️ {3 - pinAttempts} attempt
+                  {3 - pinAttempts !== 1 ? "s" : ""} remaining
                 </p>
               )}
               <div className="flex gap-3">

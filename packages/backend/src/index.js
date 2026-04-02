@@ -31,11 +31,13 @@ const {
 } = require("./services/emailService");
 
 const {
-  isAccountNumber,
   isNameAlias,
-  getAccountNumberFromAddress,
   resolveToAddress,
-  isNameAvailable,
+  checkNameAvailability,
+  linkNameToWallet,
+  unlinkName,
+  weldName,
+  getNamespace,
 } = require("./services/registryResolver");
 
 const User = require("./models/User");
@@ -757,160 +759,64 @@ app.get("/api/user/status/:email", async (req, res) => {
   }
 });
 
-// ===============================================
-// ALIAS — LINK NUMBER
-// ===============================================
-app.post("/api/alias/link-number", async (req, res) => {
-  try {
-    const { safeAddress } = req.body;
-
-    if (!safeAddress || !ethers.isAddress(safeAddress)) {
-      return res.status(400).json({ message: "Invalid wallet address" });
-    }
-
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
-    if (user.numberAlias)
-      return res
-        .status(400)
-        .json({ message: "Number alias already registered" });
-
-    let counterDoc = await AccountNumberCounter.findById("main");
-    if (!counterDoc) {
-      counterDoc = await AccountNumberCounter.create({
-        _id: "main",
-        lastAssigned: "1122746244",
-      });
-    }
-    const nextNumber = (BigInt(counterDoc.lastAssigned) + 1n).toString();
-
-    const REGISTRY_ABI = ["function linkNumber(uint128,address) external"];
-    const registryContract = new ethers.Contract(
-      process.env.REGISTRY_CONTRACT_ADDRESS,
-      REGISTRY_ABI,
-      wallet,
-    );
-
-    let tx;
-    try {
-      tx = await registryContract.linkNumber(
-        BigInt(nextNumber),
-        user.safeAddress,
-      );
-      console.log(`⏳ linkNumber TX sent: ${tx.hash}`);
-    } catch (sendError) {
-      console.error("❌ linkNumber send failed:", sendError.message);
-      return res
-        .status(500)
-        .json({ message: "On-chain linking failed. Please try again." });
-    }
-
-    let receipt;
-    try {
-      receipt = await tx.wait();
-    } catch (waitError) {
-      console.error("❌ linkNumber reverted:", waitError.message);
-      return res
-        .status(500)
-        .json({ message: "On-chain linking reverted. Please try again." });
-    }
-
-    if (!receipt || receipt.status === 0) {
-      return res
-        .status(500)
-        .json({ message: "On-chain linking failed (receipt status 0)." });
-    }
-
-    console.log(
-      `✅ linkNumber confirmed on-chain for ${nextNumber} → ${user.safeAddress}`,
-    );
-
-    counterDoc.lastAssigned = nextNumber;
-    await counterDoc.save();
-
-    user.numberAlias = nextNumber;
-    await user.save();
-
-    console.log(
-      `✅ Number alias ${nextNumber} registered for ${user.safeAddress}`,
-    );
-    res.json({ success: true, numberAlias: nextNumber });
-  } catch (error) {
-    console.error("❌ Link number error:", error);
-    return handleError(error, res, "Failed to link number alias");
-  }
-});
 
 app.post("/api/alias/link-name", async (req, res) => {
   try {
     const { safeAddress, name } = req.body;
-
     if (!safeAddress || !ethers.isAddress(safeAddress)) {
       return res.status(400).json({ message: "Invalid wallet address" });
     }
-
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
-      return res.status(400).json({
-        message:
-          "Invalid name. Use lowercase letters, digits 2–9, dots, dashes, underscores. Max 16 chars.",
-      });
+      return res.status(400).json({ message: "Invalid name format" });
     }
-
+    if ((name.match(/_/g) || []).length > 1) {
+      return res
+        .status(400)
+        .json({ message: "Only one underscore is allowed." });
+    }
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
     if (user.nameAlias)
       return res.status(400).json({ message: "Name alias already registered" });
-
-    const available = await isNameAvailable(name);
+    const registryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+    const namespace = await getNamespace(registryAddress);
+    const welded = weldName(name, namespace);
+    const available = await checkNameAvailability(welded, registryAddress);
     if (!available) {
       return res.status(409).json({ message: "Name is already taken" });
     }
-
-    const LINK_ABI = [
-      "function linkName(string memory, address) external returns (bool)",
-    ];
-    const registryContract = new ethers.Contract(
-      process.env.REGISTRY_CONTRACT_ADDRESS,
-      LINK_ABI,
-      wallet,
-    );
-
-    let tx;
-    try {
-      tx = await registryContract.linkName(name, user.safeAddress);
-      console.log(`⏳ linkName TX sent: ${tx.hash}`);
-    } catch (sendError) {
-      console.error("❌ linkName send failed:", sendError.message);
-      return res.status(500).json({
-        message: "On-chain name registration failed. Please try again.",
-      });
-    }
-
-    let receipt;
-    try {
-      receipt = await tx.wait();
-    } catch (waitError) {
-      console.error("❌ linkName reverted:", waitError.message);
-      return res.status(500).json({
-        message: "On-chain name registration reverted. Please try again.",
-      });
-    }
-
-    if (!receipt || receipt.status === 0) {
-      return res.status(500).json({
-        message: "On-chain name registration failed (receipt status 0).",
-      });
-    }
-
-    console.log(`✅ linkName confirmed: '${name}' → ${user.safeAddress}`);
-
-    user.nameAlias = name;
+    // Link with PURE name — registry welds internally
+    await linkNameToWallet(name, user.safeAddress, registryAddress);
+    // Store welded name in DB
+    user.nameAlias = welded;
     await user.save();
-
-    res.json({ success: true, nameAlias: name });
+    console.log(`✅ nameAlias '${welded}' saved for ${user.safeAddress}`);
+    res.json({ success: true, nameAlias: welded });
   } catch (error) {
-    console.error("❌ Link name error:", error);
+    console.error("❌ link-name error:", error);
     return handleError(error, res, "Failed to link name alias");
+  }
+});
+
+app.post("/api/alias/unlink-name", async (req, res) => {
+  try {
+    const { safeAddress } = req.body;
+    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+      return res.status(400).json({ message: "Invalid wallet address" });
+    }
+    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user.nameAlias) return res.status(400).json({ message: "No name alias registered" });
+    const registryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+    // Unlink with WELDED name as bytes
+    await unlinkName(user.nameAlias, registryAddress);
+    user.nameAlias = null;
+    await user.save();
+    console.log(`✅ nameAlias cleared for ${user.safeAddress}`);
+    res.json({ success: true, message: "Name alias unlinked successfully" });
+  } catch (error) {
+    console.error("❌ unlink-name error:", error);
+    return handleError(error, res, "Failed to unlink name alias");
   }
 });
 
@@ -921,12 +827,25 @@ app.post("/api/alias/check-name", async (req, res) => {
   try {
     const { name } = req.body;
     if (!name || !/^[a-z2-9._-]{1,16}$/.test(name)) {
-      return res.status(400).json({ message: "Invalid name format" });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Invalid name. Use lowercase letters, digits 2–9, dots, dashes, underscores. Max 16 chars.",
+        });
     }
-    const available = await isNameAvailable(name);
-    res.json({ taken: !available, available });
+    if ((name.match(/_/g) || []).length > 1) {
+      return res
+        .status(400)
+        .json({ message: "Only one underscore is allowed." });
+    }
+    const registryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+    const namespace = await getNamespace(registryAddress);
+    const welded = weldName(name, namespace);
+    const available = await checkNameAvailability(welded, registryAddress);
+    res.json({ available, welded });
   } catch (error) {
-    return handleError(error, res, "Failed to check name");
+    return handleError(error, res, "Failed to check name availability");
   }
 });
 
@@ -939,12 +858,9 @@ app.get("/api/alias/status/:safeAddress", async (req, res) => {
       safeAddress: req.params.safeAddress.toLowerCase(),
     });
     if (!user) return res.status(404).json({ message: "User not found" });
-
     res.json({
       nameAlias: user.nameAlias || null,
-      numberAlias: user.numberAlias || null,
       hasName: !!user.nameAlias,
-      hasNumber: !!user.numberAlias,
     });
   } catch (error) {
     return handleError(error, res, "Failed to get alias status");
@@ -1123,7 +1039,7 @@ app.post("/api/transfer", async (req, res) => {
             .json({ message: "Selected Registry not found in database" });
         }
 
-        finalToInput = `${finalToInput}${registryDoc.nspace}`;
+        finalToInput = weldName(finalToInput, registryDoc.nspace);
         console.log(`🔗 Welded Recipient: ${finalToInput}`);
       }
 
