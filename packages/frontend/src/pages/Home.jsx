@@ -600,7 +600,7 @@ const Home = () => {
         <div className="space-y-2">
           <FAQItem
             question="What is Salva's Name Service Protocol?"
-            answer="Salva's Name Service Protocol maps human-readable names like 'charles@salva' to wallet addresses or account numbers on-chain. Think of it like DNS for blockchain — instead of copying a 42-character address, you just use a name. Names are namespaced, so @salva and @coinbase are completely separate registries that can never collide."
+            answer="Salva's Name Service Protocol maps human-readable names like 'charles@salva' to wallet addresses or account numbers on-chain. instead of copying a 42-character address, you just use a name. Names are namespaced, so @salva and @coinbase are completely separate registries that can never collide."
           />
           <FAQItem
             question="What makes Salva a 'Smart' wallet?"
