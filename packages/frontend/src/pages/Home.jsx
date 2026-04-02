@@ -438,8 +438,7 @@ const Home = () => {
 
           <p className="text-base sm:text-lg md:text-xl opacity-60 max-w-2xl mx-auto leading-relaxed px-4 mb-10">
             Salva is the premier on-chain name service and financial protocol
-            designed for everyday payments and data resolution. Send money with
-            a name, not a hash.
+            designed for everyday payments and data resolution.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
