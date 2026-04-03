@@ -148,16 +148,17 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       nspace,
       registry,
       registryName,
+      isWallet = false,
       chain = "base",
     } = req.body;
-
+ 
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
-
+ 
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
-
+ 
     const existing = await Proposal.findOne({
       type: "registry",
       registry: cleanRegistry.toLowerCase(),
@@ -166,32 +167,33 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       return res
         .status(409)
         .json({ message: "A proposal for this registry already exists" });
-
+ 
     const sponsorFn =
       chain === "base"
         ? relay.sponsorProposeInitializationBase
         : relay.sponsorProposeInitializationEth;
-
+ 
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       nspace,
       cleanRegistry,
     );
-
+ 
     // Return immediately, sync in background
     const proposal = await Proposal.create({
       type: "registry",
       registry: cleanRegistry.toLowerCase(),
       nspace,
       registryName: registryName || nspace,
+      isWallet: !!isWallet,
       remainingValidation: null,
       isValidated: false,
       timeLockTimestamp: null,
     });
-
+ 
     res.json({ success: true, taskId: result.taskId, proposal });
-
+ 
     waitForTx(result.taskId)
       .then(async (status) => {
         if (status.success) {
@@ -206,7 +208,6 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
           });
           console.log(`✅ Registry proposal synced: remaining=${remaining}`);
         } else {
-          // Tx failed — clean up the DB entry
           await Proposal.deleteOne({ _id: proposal._id });
           console.error(`❌ propose-registry tx failed, proposal removed`);
         }
@@ -326,24 +327,30 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       nspace,
       chain = "base",
     } = req.body;
-
+ 
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
-
+ 
+    // Fetch the proposal now so we have isWallet available in the background handler
+    const proposal = await Proposal.findOne({
+      type: "registry",
+      registry: cleanRegistry.toLowerCase(),
+    });
+ 
     const sponsorFn =
       chain === "base"
         ? relay.sponsorExecuteInitBase
         : relay.sponsorExecuteInitEth;
-
+ 
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       cleanRegistry,
     );
-
+ 
     res.json({ success: true, taskId: result.taskId });
-
+ 
     waitForTx(result.taskId)
       .then(async (status) => {
         if (status.success) {
@@ -351,19 +358,27 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
             type: "registry",
             registry: cleanRegistry.toLowerCase(),
           });
-          await WalletRegistry.findOneAndUpdate(
-            { registryAddress: cleanRegistry.toLowerCase() },
-            {
-              name: registryName || nspace,
-              nspace: nspace || "",
-              registryAddress: cleanRegistry.toLowerCase(),
-              active: true,
-            },
-            { upsert: true, new: true },
-          );
-          console.log(
-            `✅ Registry executed and live: ${nspace} → ${cleanRegistry}`,
-          );
+ 
+          // Only add to WalletRegistry if isWallet was flagged on the proposal
+          if (proposal?.isWallet) {
+            await WalletRegistry.findOneAndUpdate(
+              { registryAddress: cleanRegistry.toLowerCase() },
+              {
+                name: registryName || nspace,
+                nspace: nspace || "",
+                registryAddress: cleanRegistry.toLowerCase(),
+                active: true,
+              },
+              { upsert: true, new: true },
+            );
+            console.log(
+              `✅ Registry executed and added to WalletRegistry (isWallet=true): ${nspace} → ${cleanRegistry}`,
+            );
+          } else {
+            console.log(
+              `✅ Registry executed on-chain (isWallet=false, not added to WalletRegistry): ${nspace} → ${cleanRegistry}`,
+            );
+          }
         }
       })
       .catch((err) =>

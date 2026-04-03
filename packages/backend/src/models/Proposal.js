@@ -9,6 +9,7 @@ const ProposalSchema = new mongoose.Schema({
   registry: { type: String, lowercase: true, default: null },
   nspace: { type: String, default: null },
   registryName: { type: String, default: null },
+  isWallet: { type: Boolean, default: false }, // true = crypto wallet, added to WalletRegistry DB on execute
 
   // ── Validator fields ─────────────────────────────────────────────────
   addr: { type: String, lowercase: true, default: null },

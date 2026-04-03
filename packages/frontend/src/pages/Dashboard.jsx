@@ -359,7 +359,10 @@ const Dashboard = () => {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
         if (newAttempts >= 3) {
-          showMsg("Too many failed attempts — redirecting to settings", "error");
+          showMsg(
+            "Too many failed attempts — redirecting to settings",
+            "error",
+          );
           setLoading(false);
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
@@ -480,7 +483,9 @@ const Dashboard = () => {
                 <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🔗</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">Link Name to Address</h3>
+                <h3 className="text-2xl font-black mb-2">
+                  Link Name to Address
+                </h3>
                 <p className="text-sm opacity-60">
                   Register a human-readable name for your wallet
                 </p>
@@ -1184,54 +1189,63 @@ const Dashboard = () => {
 
       {/* ── Notification Box ── replaces old bottom toast ── */}
       <AnimatePresence>
-        {notification.show && (() => {
-          const cfg = notifConfig[notification.type] || notifConfig.info;
-          return (
-            <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-              {/* Backdrop — click to dismiss */}
-              <motion.div
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setNotification({ ...notification, show: false })}
-              />
+        {notification.show &&
+          (() => {
+            const cfg = notifConfig[notification.type] || notifConfig.info;
+            return (
+              <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+                {/* Backdrop — click to dismiss */}
+                <motion.div
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() =>
+                    setNotification({ ...notification, show: false })
+                  }
+                />
 
-              {/* Card */}
-              <motion.div
-                className={`relative w-full max-w-xs bg-white dark:bg-zinc-900 rounded-3xl border ${cfg.border} shadow-2xl overflow-hidden`}
-                initial={{ opacity: 0, scale: 0.85, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.85, y: 20 }}
-                transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Thin top color bar */}
-                <div className={`h-1 w-full ${cfg.iconBg}`} />
+                {/* Card */}
+                <motion.div
+                  className={`relative w-full max-w-xs bg-white dark:bg-zinc-900 rounded-3xl border ${cfg.border} shadow-2xl overflow-hidden`}
+                  initial={{ opacity: 0, scale: 0.85, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.85, y: 20 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 28 }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Thin top color bar */}
+                  <div className={`h-1 w-full ${cfg.iconBg}`} />
 
-                <div className="p-7 text-center">
-                  {/* Icon */}
-                  <div className={`w-12 h-12 ${cfg.iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                    <span className={`text-xl font-black ${cfg.iconColor}`}>{cfg.icon}</span>
+                  <div className="p-7 text-center">
+                    {/* Icon */}
+                    <div
+                      className={`w-12 h-12 ${cfg.iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}
+                    >
+                      <span className={`text-xl font-black ${cfg.iconColor}`}>
+                        {cfg.icon}
+                      </span>
+                    </div>
+
+                    {/* Message */}
+                    <p className="font-black text-sm leading-relaxed mb-6">
+                      {notification.message}
+                    </p>
+
+                    {/* OK button */}
+                    <button
+                      onClick={() =>
+                        setNotification({ ...notification, show: false })
+                      }
+                      className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${cfg.btn}`}
+                    >
+                      OK
+                    </button>
                   </div>
-
-                  {/* Message */}
-                  <p className="font-black text-sm leading-relaxed mb-6">
-                    {notification.message}
-                  </p>
-
-                  {/* OK button */}
-                  <button
-                    onClick={() => setNotification({ ...notification, show: false })}
-                    className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${cfg.btn}`}
-                  >
-                    OK
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          );
-        })()}
+                </motion.div>
+              </div>
+            );
+          })()}
       </AnimatePresence>
     </div>
   );

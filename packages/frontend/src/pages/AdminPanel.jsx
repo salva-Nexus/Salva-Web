@@ -94,11 +94,18 @@ const RegistryCard = ({ p, i, hasVoted, loading, onValidate, onExecute, onCancel
           </p>
           <p className="text-salvaGold font-black text-sm">{p.nspace}</p>
           <p className="font-mono text-[10px] opacity-40 break-all">{p.registry}</p>
+          {/* isWallet badge */}
+          <span className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${
+            p.isWallet
+              ? "bg-blue-500/10 text-blue-400"
+              : "bg-white/5 text-white/30"
+          }`}>
+            {p.isWallet ? "🔵 Crypto Wallet" : "⚙️ Non-Wallet Registry"}
+          </span>
         </div>
 
         {/* Vote remaining + timelock badges */}
         <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
-          {/* Vote remaining — always shown */}
           {p.remainingValidation !== null && p.remainingValidation !== undefined ? (
             <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
               quorumReached
@@ -115,12 +122,10 @@ const RegistryCard = ({ p, i, hasVoted, loading, onValidate, onExecute, onCancel
             </span>
           )}
 
-          {/* 48h countdown — shown once quorum is reached */}
           {p.isValidated && p.timeLockTimestamp && (
             <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
           )}
 
-          {/* Waiting for timelock info — quorum reached but timeLock not set yet */}
           {p.isValidated && !p.timeLockTimestamp && (
             <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-salvaGold/10 text-salvaGold">
               ⏳ TIMELOCK STARTING...
@@ -131,8 +136,6 @@ const RegistryCard = ({ p, i, hasVoted, loading, onValidate, onExecute, onCancel
 
       {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
-
-        {/* VALIDATE — show only if quorum NOT yet reached */}
         {!quorumReached && (
           hasVoted ? (
             <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
@@ -149,7 +152,6 @@ const RegistryCard = ({ p, i, hasVoted, loading, onValidate, onExecute, onCancel
           )
         )}
 
-        {/* EXECUTE — visible once quorum reached, locked until timelock done */}
         {quorumReached && (
           <button
             onClick={() => canExecute ? onExecute(p) : null}
@@ -165,7 +167,6 @@ const RegistryCard = ({ p, i, hasVoted, loading, onValidate, onExecute, onCancel
           </button>
         )}
 
-        {/* CANCEL — always available to any validator */}
         <button
           onClick={() => onCancel(p)}
           disabled={loading}
@@ -284,14 +285,14 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   const [showRegForm, setShowRegForm] = useState(false);
   const [showValForm, setShowValForm] = useState(false);
-  const [regForm, setRegForm] = useState({ name: "", nspace: "@", address: "" });
+  // isWallet added to regForm state
+  const [regForm, setRegForm] = useState({ name: "", nspace: "@", address: "", isWallet: false });
   const [valForm, setValForm] = useState({ address: "", action: true });
 
   const [isPinOpen, setIsPinOpen] = useState(false);
   const [adminPin, setAdminPin] = useState("");
   const [pendingAdminAction, setPendingAdminAction] = useState(null);
 
-  // Vote tracking keyed by MongoDB _id — never bleeds across proposals
   const VOTE_KEY = `salva_votes_v2_${user.safeAddress}`;
   const [myVotes, setMyVotes] = useState(() => {
     try { return JSON.parse(localStorage.getItem(VOTE_KEY) || "{}"); }
@@ -304,7 +305,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     localStorage.setItem(VOTE_KEY, JSON.stringify(updated));
   };
 
-  // Patch a single proposal in state after server returns updated data
   const patchProposal = (updated) => {
     if (!updated) return;
     setProposals((prev) => {
@@ -344,11 +344,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   useEffect(() => {
     fetchProposals();
-    const interval = setInterval(fetchProposals, 15000); // poll every 15s
+    const interval = setInterval(fetchProposals, 15000);
     return () => clearInterval(interval);
   }, [fetchProposals]);
 
-  // PIN gate
   const requestPin = (actionFn) => {
     setPendingAdminAction(() => actionFn);
     setAdminPin("");
@@ -382,14 +381,23 @@ const AdminPanelInner = ({ user, showMsg }) => {
       return showMsg("Fill all fields. Namespace must start with @", "error");
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/propose-registry`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, nspace: regForm.nspace, registry: regForm.address, registryName: regForm.name, safeAddress: user.safeAddress }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        // isWallet passed to backend
+        body: JSON.stringify({
+          privateKey,
+          nspace: regForm.nspace,
+          registry: regForm.address,
+          registryName: regForm.name,
+          isWallet: regForm.isWallet,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to propose registry");
       showMsg("Registry proposal submitted!");
       setShowRegForm(false);
-      setRegForm({ name: "", nspace: "@", address: "" });
+      setRegForm({ name: "", nspace: "@", address: "", isWallet: false });
       await fetchProposals();
     });
   };
@@ -398,7 +406,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
     if (!valForm.address) return showMsg("Enter target address", "error");
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/propose-validator`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, targetAddress: valForm.address, action: valForm.action, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
@@ -413,15 +422,14 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleValidateRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-registry`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, registry: proposal.registry, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to validate registry");
-      // Lock this validator's vote button for THIS specific proposal (by _id)
       persistVote(proposal._id);
       showMsg("Validation cast!");
-      // Immediately update UI with server response
       if (data.proposal) patchProposal(data.proposal);
       else await fetchProposals();
     });
@@ -430,7 +438,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleValidateValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-validator`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, targetAddress: proposal.addr, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
@@ -445,7 +454,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleCancelRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-registry`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, registry: proposal.registry, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
@@ -458,7 +468,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleCancelValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-validator`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, targetAddress: proposal.addr, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
@@ -471,12 +482,23 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleExecuteRegistry = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/execute-registry`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ privateKey, registry: proposal.registry, registryName: proposal.registryName || proposal.nspace, nspace: proposal.nspace, safeAddress: user.safeAddress }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          privateKey,
+          registry: proposal.registry,
+          registryName: proposal.registryName || proposal.nspace,
+          nspace: proposal.nspace,
+          safeAddress: user.safeAddress,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to execute registry");
-      showMsg("Registry initialized and live on Salva!");
+      showMsg(
+        proposal.isWallet
+          ? "Registry initialized and live on Salva!"
+          : "Registry initialized on-chain (not a wallet, not added to transfer list).",
+      );
       await fetchProposals();
     });
   };
@@ -484,7 +506,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const handleExecuteValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/execute-validator`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ privateKey, targetAddress: proposal.addr, action: proposal.action, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
@@ -504,12 +527,18 @@ const AdminPanelInner = ({ user, showMsg }) => {
           <h3 className="text-2xl font-black">MultiSig Control</h3>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => { setShowRegForm(!showRegForm); setShowValForm(false); }} disabled={loading}
-            className="px-4 py-2 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50">
+          <button
+            onClick={() => { setShowRegForm(!showRegForm); setShowValForm(false); }}
+            disabled={loading}
+            className="px-4 py-2 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
+          >
             + Registry
           </button>
-          <button onClick={() => { setShowValForm(!showValForm); setShowRegForm(false); }} disabled={loading}
-            className="px-4 py-2 border border-salvaGold text-salvaGold font-black text-xs uppercase tracking-widest rounded-xl hover:bg-salvaGold hover:text-black transition-all disabled:opacity-50">
+          <button
+            onClick={() => { setShowValForm(!showValForm); setShowRegForm(false); }}
+            disabled={loading}
+            className="px-4 py-2 border border-salvaGold text-salvaGold font-black text-xs uppercase tracking-widest rounded-xl hover:bg-salvaGold hover:text-black transition-all disabled:opacity-50"
+          >
             + Validator
           </button>
         </div>
@@ -527,36 +556,99 @@ const AdminPanelInner = ({ user, showMsg }) => {
       {fetchError && (
         <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
           <p className="text-xs text-red-400 font-bold">⚠️ {fetchError}</p>
-          <button onClick={fetchProposals} className="text-[10px] text-salvaGold font-black uppercase tracking-widest border border-salvaGold/30 px-3 py-1 rounded-lg hover:bg-salvaGold hover:text-black transition-all">Retry</button>
+          <button
+            onClick={fetchProposals}
+            className="text-[10px] text-salvaGold font-black uppercase tracking-widest border border-salvaGold/30 px-3 py-1 rounded-lg hover:bg-salvaGold hover:text-black transition-all"
+          >
+            Retry
+          </button>
         </div>
       )}
 
       {/* Propose Registry Form */}
       <AnimatePresence>
         {showRegForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
             <div className="p-6 rounded-3xl border border-salvaGold/30 bg-salvaGold/5 space-y-4">
-              <p className="text-xs uppercase tracking-widest font-black text-salvaGold">Propose Registry Initialization</p>
+              <p className="text-xs uppercase tracking-widest font-black text-salvaGold">
+                Propose Registry Initialization
+              </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Name</label>
-                  <input placeholder="e.g. Trust Wallet" value={regForm.name} onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold" />
+                  <input
+                    placeholder="e.g. Trust Wallet"
+                    value={regForm.name}
+                    onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Namespace (must start with @)</label>
-                  <input placeholder="@trustwallet" value={regForm.nspace} onChange={(e) => setRegForm({ ...regForm, nspace: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold" />
+                  <input
+                    placeholder="@trustwallet"
+                    value={regForm.nspace}
+                    onChange={(e) => setRegForm({ ...regForm, nspace: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Registry Contract Address</label>
-                  <input placeholder="0x..." value={regForm.address} onChange={(e) => setRegForm({ ...regForm, address: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono" />
+                  <input
+                    placeholder="0x..."
+                    value={regForm.address}
+                    onChange={(e) => setRegForm({ ...regForm, address: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono"
+                  />
                 </div>
               </div>
+
+              {/* ── isWallet checkbox ── */}
+              <label className="flex items-center gap-3 cursor-pointer group w-fit">
+                <div
+                  onClick={() => setRegForm({ ...regForm, isWallet: !regForm.isWallet })}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
+                    regForm.isWallet
+                      ? "bg-blue-500 border-blue-500"
+                      : "border-white/20 bg-black/20 group-hover:border-white/40"
+                  }`}
+                >
+                  {regForm.isWallet && (
+                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </div>
+                <div onClick={() => setRegForm({ ...regForm, isWallet: !regForm.isWallet })}>
+                  <p className="text-xs font-black text-white">This is a crypto wallet</p>
+                  <p className="text-[10px] opacity-40">
+                    {regForm.isWallet
+                      ? "Will be added to the transfer wallet list for Salva users"
+                      : "Will not appear in the transfer wallet list"}
+                  </p>
+                </div>
+              </label>
+
               <div className="flex gap-3">
-                <button onClick={() => setShowRegForm(false)} disabled={loading} className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all disabled:opacity-50">Cancel</button>
-                <button onClick={handleProposeRegistry} disabled={loading} className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50">{loading ? "Submitting…" : "Submit Proposal"}</button>
+                <button
+                  onClick={() => setShowRegForm(false)}
+                  disabled={loading}
+                  className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleProposeRegistry}
+                  disabled={loading}
+                  className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Submitting…" : "Submit Proposal"}
+                </button>
               </div>
             </div>
           </motion.div>
@@ -566,26 +658,61 @@ const AdminPanelInner = ({ user, showMsg }) => {
       {/* Propose Validator Form */}
       <AnimatePresence>
         {showValForm && (
-          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: "auto" }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden"
+          >
             <div className="p-6 rounded-3xl border border-white/10 bg-white/5 space-y-4">
               <p className="text-xs uppercase tracking-widest font-black text-salvaGold">Propose Validator Update</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Target Wallet Address</label>
-                  <input placeholder="0x..." value={valForm.address} onChange={(e) => setValForm({ ...valForm, address: e.target.value })}
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono" />
+                  <input
+                    placeholder="0x..."
+                    value={valForm.address}
+                    onChange={(e) => setValForm({ ...valForm, address: e.target.value })}
+                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono"
+                  />
                 </div>
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">Action</label>
                   <div className="flex gap-3">
-                    <button onClick={() => setValForm({ ...valForm, action: true })} className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}>Add Validator</button>
-                    <button onClick={() => setValForm({ ...valForm, action: false })} className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}>Remove Validator</button>
+                    <button
+                      onClick={() => setValForm({ ...valForm, action: true })}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
+                        valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"
+                      }`}
+                    >
+                      Add Validator
+                    </button>
+                    <button
+                      onClick={() => setValForm({ ...valForm, action: false })}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
+                        !valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"
+                      }`}
+                    >
+                      Remove Validator
+                    </button>
                   </div>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={() => setShowValForm(false)} disabled={loading} className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all disabled:opacity-50">Cancel</button>
-                <button onClick={handleProposeValidator} disabled={loading} className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50">{loading ? "Submitting…" : "Submit Proposal"}</button>
+                <button
+                  onClick={() => setShowValForm(false)}
+                  disabled={loading}
+                  className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleProposeValidator}
+                  disabled={loading}
+                  className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
+                >
+                  {loading ? "Submitting…" : "Submit Proposal"}
+                </button>
               </div>
             </div>
           </motion.div>
@@ -596,23 +723,29 @@ const AdminPanelInner = ({ user, showMsg }) => {
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Registry Proposals</p>
         {fetchingProposals ? (
-          <div className="flex justify-center py-8"><div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-8">
+            <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+          </div>
         ) : proposals.registryProposals.length === 0 ? (
-          <div className="text-center py-8 opacity-20"><p className="text-xs uppercase font-bold tracking-widest">No active registry proposals</p></div>
+          <div className="text-center py-8 opacity-20">
+            <p className="text-xs uppercase font-bold tracking-widest">No active registry proposals</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {proposals.registryProposals.map((p, i) => p && p.registry ? (
-              <RegistryCard
-                key={p._id || i}
-                p={p}
-                i={i}
-                hasVoted={!!myVotes[p._id]}
-                loading={loading}
-                onValidate={handleValidateRegistry}
-                onExecute={handleExecuteRegistry}
-                onCancel={handleCancelRegistry}
-              />
-            ) : null)}
+            {proposals.registryProposals.map((p, i) =>
+              p && p.registry ? (
+                <RegistryCard
+                  key={p._id || i}
+                  p={p}
+                  i={i}
+                  hasVoted={!!myVotes[p._id]}
+                  loading={loading}
+                  onValidate={handleValidateRegistry}
+                  onExecute={handleExecuteRegistry}
+                  onCancel={handleCancelRegistry}
+                />
+              ) : null
+            )}
           </div>
         )}
       </div>
@@ -621,23 +754,29 @@ const AdminPanelInner = ({ user, showMsg }) => {
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">Validator Proposals</p>
         {fetchingProposals ? (
-          <div className="flex justify-center py-8"><div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" /></div>
+          <div className="flex justify-center py-8">
+            <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+          </div>
         ) : proposals.validatorProposals.length === 0 ? (
-          <div className="text-center py-8 opacity-20"><p className="text-xs uppercase font-bold tracking-widest">No active validator proposals</p></div>
+          <div className="text-center py-8 opacity-20">
+            <p className="text-xs uppercase font-bold tracking-widest">No active validator proposals</p>
+          </div>
         ) : (
           <div className="space-y-4">
-            {proposals.validatorProposals.map((p, i) => p && p.addr ? (
-              <ValidatorCard
-                key={p._id || i}
-                p={p}
-                i={i}
-                hasVoted={!!myVotes[p._id]}
-                loading={loading}
-                onValidate={handleValidateValidator}
-                onExecute={handleExecuteValidator}
-                onCancel={handleCancelValidator}
-              />
-            ) : null)}
+            {proposals.validatorProposals.map((p, i) =>
+              p && p.addr ? (
+                <ValidatorCard
+                  key={p._id || i}
+                  p={p}
+                  i={i}
+                  hasVoted={!!myVotes[p._id]}
+                  loading={loading}
+                  onValidate={handleValidateValidator}
+                  onExecute={handleExecuteValidator}
+                  onCancel={handleCancelValidator}
+                />
+              ) : null
+            )}
           </div>
         )}
       </div>
@@ -646,23 +785,52 @@ const AdminPanelInner = ({ user, showMsg }) => {
       <AnimatePresence>
         {isPinOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
-            <motion.div onClick={() => { setIsPinOpen(false); setAdminPin(""); }} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/95 backdrop-blur-md" />
-            <motion.div onClick={(e) => e.stopPropagation()} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl">
+            <motion.div
+              onClick={() => { setIsPinOpen(false); setAdminPin(""); }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+            />
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl"
+            >
               <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-3"><span className="text-2xl">🔐</span></div>
+                <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                  <span className="text-2xl">🔐</span>
+                </div>
                 <h3 className="text-xl font-black mb-1">Admin Verification</h3>
                 <p className="text-xs opacity-50">Enter your transaction PIN to sign</p>
               </div>
               <input
-                type="password" inputMode="numeric" maxLength="4" value={adminPin}
+                type="password"
+                inputMode="numeric"
+                maxLength="4"
+                value={adminPin}
                 onChange={(e) => setAdminPin(e.target.value.replace(/\D/g, ""))}
                 onKeyDown={(e) => e.key === "Enter" && adminPin.length === 4 && executePinnedAction()}
-                placeholder="••••" autoFocus
+                placeholder="••••"
+                autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
               />
               <div className="flex gap-3">
-                <button onClick={() => { setIsPinOpen(false); setAdminPin(""); }} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5">Cancel</button>
-                <button onClick={executePinnedAction} disabled={adminPin.length !== 4} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50">Sign</button>
+                <button
+                  onClick={() => { setIsPinOpen(false); setAdminPin(""); }}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={executePinnedAction}
+                  disabled={adminPin.length !== 4}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
+                >
+                  Sign
+                </button>
               </div>
             </motion.div>
           </div>
