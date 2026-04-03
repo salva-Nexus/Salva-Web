@@ -944,37 +944,49 @@ app.get("/api/balance/:address", async (req, res) => {
 
 app.post("/api/resolve-recipient", async (req, res) => {
   try {
-    const { input } = req.body;
- 
+    const { input, registryAddress } = req.body;
+
     if (!input) return res.status(400).json({ message: "Input required" });
- 
-    const trimmed = input.trim();
- 
-    // 0x addresses don't need resolution
-    if (trimmed.startsWith("0x")) {
+
+    if (input.trim().startsWith("0x")) {
       return res
         .status(400)
         .json({ message: "Address inputs do not need resolution" });
     }
- 
-    // Name alias — weld it and resolve via REGISTRY_CONTRACT_ADDRESS in .env
-    const namespace = await getNamespace(); // always reads .env internally
-    const welded = weldName(trimmed, namespace);
-    console.log(`🔗 Welded Name for resolution: ${welded}`);
- 
+
+    if (!registryAddress) {
+      return res.status(400).json({ message: "Registry selection required" });
+    }
+
+    const registryDoc = await WalletRegistry.findOne({
+      registryAddress: registryAddress.toLowerCase(),
+    });
+
+    if (!registryDoc) {
+      return res
+        .status(404)
+        .json({ message: "Selected Registry not found in database" });
+    }
+
+    const weldedInput = `${input.trim()}${registryDoc.nspace}`;
+    console.log(`🔗 Welded Name: ${weldedInput}`);
+
+    // ✅ FIX: resolve is ALWAYS called on REGISTRY_CONTRACT_ADDRESS from .env
+    const envRegistryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+
     let resolvedAddress;
     try {
-      resolvedAddress = await resolveToAddress(welded); // ignores any registry arg
+      resolvedAddress = await resolveToAddress(weldedInput, envRegistryAddress);
     } catch (err) {
       return res
         .status(404)
         .json({ message: err.message || "Recipient not found" });
     }
- 
+
     const recipientUser = await User.findOne({
       safeAddress: resolvedAddress.toLowerCase(),
     });
- 
+
     res.json({
       resolvedAddress,
       displayName: recipientUser?.username || null,
@@ -986,12 +998,12 @@ app.post("/api/resolve-recipient", async (req, res) => {
 });
 
 // ===============================================
-// TRANSFER
-// Pure crypto wallet transfer:
-//   - Name alias  → resolve to address via REGISTRY_CONTRACT_ADDRESS
-//   - 0x address  → use directly
-//   - ERC-20 transfer is always address → address
-//   - No account numbers anywhere in the transfer flow
+// TRANSFER — FIXED
+//
+// Key change: replaced checkGelatoTaskStatus (which polled
+// eth_getUserOperationReceipt — wrong for direct Safe txs) with
+// waitForTxReceipt which uses provider.waitForTransaction on the
+// actual txHash returned by sponsorSafeTransfer.
 // ===============================================
 app.post("/api/transfer", async (req, res) => {
   try {
@@ -1000,41 +1012,52 @@ app.post("/api/transfer", async (req, res) => {
       safeAddress,
       toInput,
       amount,
+      registryAddress,
+      inputType,
     } = req.body;
- 
+
     validateAmount(amount);
- 
-    // ── 1. Resolve recipient to a wallet address ─────────────────────────────
-    // This is a crypto wallet. The blockchain only knows addresses.
-    // If it's a name alias, resolve it via REGISTRY_CONTRACT_ADDRESS (.env).
-    // If it's a 0x address, use it directly.
+
+    const envRegistryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+
+    // ── 1. Resolve Recipient ─────────────────────────────────────────────────
     let recipientAddress;
-    const trimmedInput = toInput.trim();
- 
+    let finalToInput = toInput.trim();
+
     try {
-      if (trimmedInput.startsWith("0x")) {
-        // Direct address — validate and use
-        if (!ethers.isAddress(trimmedInput)) {
-          return res.status(400).json({ message: "Invalid wallet address" });
+      if (!finalToInput.startsWith("0x")) {
+        // It's a name alias — must have a registry selected
+        if (!registryAddress) {
+          return res.status(400).json({
+            message: "Registry selection required for name resolution",
+          });
         }
-        recipientAddress = trimmedInput.toLowerCase();
-      } else {
-        // Name alias — weld and resolve via .env registry
-        const namespace = await getNamespace();
-        const welded = weldName(trimmedInput, namespace);
-        console.log(`🔗 Welded Recipient: ${welded}`);
-        recipientAddress = await resolveToAddress(welded);
+
+        const registryDoc = await WalletRegistry.findOne({
+          registryAddress: registryAddress.toLowerCase(),
+        });
+
+        if (!registryDoc) {
+          return res
+            .status(404)
+            .json({ message: "Selected Registry not found in database" });
+        }
+
+        // Weld: "charles" + "@salva" → "charles@salva"
+        finalToInput = weldName(finalToInput, registryDoc.nspace);
+        console.log(`🔗 Welded Recipient: ${finalToInput}`);
       }
+
+      // ✅ FIX: ALWAYS resolve on REGISTRY_CONTRACT_ADDRESS from .env
+      recipientAddress = await resolveToAddress(finalToInput, envRegistryAddress);
     } catch (error) {
       return res.status(404).json({ message: error.message });
     }
- 
-    console.log(`✅ Recipient resolved to: ${recipientAddress}`);
- 
+
     // ── 2. Fee Calculation ───────────────────────────────────────────────────
     const { feeNGN, feeWei } = await getFeeForAmount(amount);
     const amountNum = parseFloat(amount);
- 
+
     const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)"];
     const tokenContract = new ethers.Contract(
       process.env.NGN_TOKEN_ADDRESS,
@@ -1043,11 +1066,11 @@ app.post("/api/transfer", async (req, res) => {
     );
     const balanceWei = await tokenContract.balanceOf(safeAddress);
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, 6));
- 
+
     let actualAmountWei;
     let actualFeeWei;
     let recipientReceives;
- 
+
     if (feeNGN === 0) {
       actualAmountWei = ethers.parseUnits(amount.toString(), 6);
       actualFeeWei = 0n;
@@ -1068,43 +1091,43 @@ app.post("/api/transfer", async (req, res) => {
     } else {
       return res.status(400).json({ message: "Insufficient balance" });
     }
- 
-    // ── 3. Sender / Recipient metadata (username only — no account numbers) ──
+
+    // ── 3. Metadata (wallet addresses only — no account numbers) ────────────
     const senderUser = await User.findOne({
       safeAddress: safeAddress.toLowerCase(),
     });
     const recipientUser = await User.findOne({
       safeAddress: recipientAddress.toLowerCase(),
     });
- 
+
     await delayBeforeBlockchain(safeAddress, "Transfer queued");
- 
+
     const queueEntry = await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
       type: "transfer",
-      payload: { toInput: trimmedInput, amount, recipientAddress, feeNGN },
+      payload: { toInput: finalToInput, amount, recipientAddress, feeNGN },
     }).save();
- 
+
     // ── 4. Blockchain Execution ──────────────────────────────────────────────
     try {
       queueEntry.status = "SENDING";
       queueEntry.updatedAt = new Date();
       await queueEntry.save();
- 
+
       const result = await sponsorSafeTransfer(
         safeAddress,
         userPrivateKey,
-        recipientAddress,   // ← always a wallet address
+        recipientAddress,
         actualAmountWei,
         actualFeeWei,
       );
- 
+
       if (!result || !result.txHash) {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = "Failed to submit to relay";
         await queueEntry.save();
- 
+
         await new Transaction({
           fromAddress: safeAddress.toLowerCase(),
           fromUsername: senderUser?.username || null,
@@ -1116,18 +1139,18 @@ app.post("/api/transfer", async (req, res) => {
           type: "transfer",
           date: new Date(),
         }).save();
- 
+
         return res
           .status(400)
           .json({ success: false, message: "Transfer failed on blockchain" });
       }
- 
+
       queueEntry.taskId = result.txHash;
       queueEntry.txHash = result.txHash;
       await queueEntry.save();
- 
+
       const taskStatus = await waitForTxReceipt(result.txHash);
- 
+
       const txRecord = {
         fromAddress: safeAddress.toLowerCase(),
         fromUsername: senderUser?.username || null,
@@ -1139,21 +1162,21 @@ app.post("/api/transfer", async (req, res) => {
         type: "transfer",
         date: new Date(),
       };
- 
+
       await new Transaction(txRecord).save();
- 
+
       if (taskStatus.success) {
         queueEntry.status = "CONFIRMED";
         queueEntry.updatedAt = new Date();
         await queueEntry.save();
         await applyCooldown(safeAddress, 20);
- 
+
         if (senderUser?.email) {
           try {
             await sendTransactionEmailToSender(
               senderUser.email,
               senderUser.username,
-              trimmedInput,
+              finalToInput,
               amount,
               "successful",
             );
@@ -1166,14 +1189,14 @@ app.post("/api/transfer", async (req, res) => {
             await sendTransactionEmailToReceiver(
               recipientUser.email,
               recipientUser.username,
-              senderUser?.username || safeAddress,
+              safeAddress,
               amount,
             );
           } catch (e) {
             console.error("❌ Recipient email error:", e.message);
           }
         }
- 
+
         return res.json({
           success: true,
           taskId: result.txHash,
@@ -1200,58 +1223,6 @@ app.post("/api/transfer", async (req, res) => {
     return res
       .status(500)
       .json({ message: error.message || "Transfer failed" });
-  }
-});
- 
-// ===============================================
-// TRANSACTIONS
-// Display partner is username or wallet address — no account numbers.
-// ===============================================
-app.get("/api/transactions/:address", async (req, res) => {
-  try {
-    const address = req.params.address.toLowerCase();
- 
-    if (!ethers.isAddress(address)) {
-      return res.status(400).json({ message: "Invalid address format" });
-    }
- 
-    const transactions = await Transaction.find({
-      $or: [{ fromAddress: address }, { toAddress: address }],
-    })
-      .sort({ date: -1 })
-      .limit(50);
- 
-    const formatted = transactions.map((tx) => {
-      const isFromMe = tx.fromAddress?.toLowerCase() === address;
-      const isToMe = tx.toAddress?.toLowerCase() === address;
-      const isSuccessful = tx.status === "successful";
- 
-      let displayType;
-      if (isFromMe) {
-        displayType = isSuccessful ? "sent" : "failed";
-      } else if (isToMe && isSuccessful) {
-        displayType = "receive";
-      } else {
-        displayType = "hidden";
-      }
- 
-      // Partner display: prefer username, fall back to address
-      const displayPartner = isFromMe
-        ? tx.toUsername || tx.toAddress
-        : tx.fromUsername || tx.fromAddress;
- 
-      return {
-        ...tx._doc,
-        displayType,
-        displayPartner,
-      };
-    });
- 
-    const visible = formatted.filter((tx) => tx.displayType !== "hidden");
-    res.json(visible);
-  } catch (error) {
-    console.error("❌ History Fetch Error:", error);
-    return handleError(error, res, "Failed to fetch transactions");
   }
 });
 
@@ -1285,9 +1256,6 @@ app.get("/api/transactions/:address", async (req, res) => {
       return res.status(400).json({ message: "Invalid address format" });
     }
 
-    // ── FIXED: removed the `status: "successful"` restriction on toAddress.
-    // Recipients must see ALL transactions sent to them, not just successful ones.
-    // The displayType logic below handles how to label each tx correctly.
     const transactions = await Transaction.find({
       $or: [{ fromAddress: address }, { toAddress: address }],
     })
@@ -1299,28 +1267,19 @@ app.get("/api/transactions/:address", async (req, res) => {
       const isToMe = tx.toAddress?.toLowerCase() === address;
       const isSuccessful = tx.status === "successful";
 
-      // Determine display type:
-      // - If I sent it: "sent" (or "failed" if it failed)
-      // - If sent to me and it succeeded: "receive"
-      // - If sent to me and it failed: don't show as receive (it never arrived)
       let displayType;
       if (isFromMe) {
         displayType = isSuccessful ? "sent" : "failed";
       } else if (isToMe && isSuccessful) {
         displayType = "receive";
       } else {
-        // Failed tx sent to me — I don't need to see it (it never arrived)
-        // We'll filter these out below
         displayType = "hidden";
       }
 
-      // The partner is whoever is on the other side of the transaction
+      // Display partner: prefer username, fall back to wallet address
       const displayPartner = isFromMe
-        ? tx.toUsername || tx.toAccountNumber || tx.toAddress
-        : tx.fromUsername ||
-          tx.senderDisplayIdentifier ||
-          tx.fromAccountNumber ||
-          tx.fromAddress;
+        ? tx.toUsername || tx.toAddress
+        : tx.fromUsername || tx.fromAddress;
 
       return {
         ...tx._doc,
@@ -1329,9 +1288,7 @@ app.get("/api/transactions/:address", async (req, res) => {
       };
     });
 
-    // Filter out "hidden" entries (failed txs where I was the recipient — money never arrived)
     const visible = formatted.filter((tx) => tx.displayType !== "hidden");
-
     res.json(visible);
   } catch (error) {
     console.error("❌ History Fetch Error:", error);

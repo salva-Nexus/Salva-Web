@@ -32,7 +32,6 @@ const UserSchema = new mongoose.Schema({
   pinSetupCompleted: { type: Boolean, default: false },
   isValidator: { type: Boolean, default: false },
   nameAlias: { type: String, default: null, sparse: true },
-  numberAlias: { type: String, default: null, sparse: true },
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

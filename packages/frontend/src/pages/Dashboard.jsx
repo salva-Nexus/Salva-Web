@@ -1,6 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
 import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import Stars from "../components/Stars";
@@ -40,6 +40,7 @@ const Dashboard = () => {
   });
   const [showBalance, setShowBalance] = useState(true);
   const [activeTab, setActiveTab] = useState("buy");
+  const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0 });
   const [amountError, setAmountError] = useState(false);
@@ -48,7 +49,10 @@ const Dashboard = () => {
       const saved = localStorage.getItem("salva_user");
       if (saved) {
         const u = JSON.parse(saved);
-        return { hasName: !!u.nameAlias, nameAlias: u.nameAlias || null };
+        return {
+          hasName: !!u.nameAlias,
+          nameAlias: u.nameAlias || null,
+        };
       }
     } catch {}
     return { hasName: false, nameAlias: null };
@@ -67,6 +71,7 @@ const Dashboard = () => {
   const [recipientInput, setRecipientInput] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
+  const [selectedRegistry, setSelectedRegistry] = useState(null);
   const [inputType, setInputType] = useState("empty");
 
   const navigate = useNavigate();
@@ -167,9 +172,18 @@ const Dashboard = () => {
 
   const fetchMeta = async () => {
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/fee-config`);
-      const feeData = await res.json();
+      const [regRes, feeRes] = await Promise.all([
+        fetch(`${SALVA_API_URL}/api/registries`),
+        fetch(`${SALVA_API_URL}/api/fee-config`),
+      ]);
+      const regData = await regRes.json();
+      const feeData = await feeRes.json();
+      const regsArray = Array.isArray(regData) ? regData : [];
+      setRegistries(regsArray);
       setFeeConfig(feeData);
+      if (regsArray.length === 1) {
+        setSelectedRegistry(regsArray[0]);
+      }
     } catch {}
   };
 
@@ -206,7 +220,15 @@ const Dashboard = () => {
 
   const handleRecipientChange = (val) => {
     setRecipientInput(val);
-    setInputType(detectInputType(val));
+    const type = detectInputType(val);
+    setInputType(type);
+    // If user switches to address input, clear registry selection
+    if (type === "address") {
+      setSelectedRegistry(null);
+    } else if (type === "name" && registries.length === 1) {
+      // Auto-select if only one registry
+      setSelectedRegistry(registries[0]);
+    }
   };
 
   // ── Send flow ────────────────────────────────────────────────────────────
@@ -220,29 +242,44 @@ const Dashboard = () => {
     setRecipientInput("");
     setTransferAmount("");
     setTransferAmountDisplay("");
+    setSelectedRegistry(registries.length === 1 ? registries[0] : null);
     setInputType("empty");
     setFeePreview({ feeNGN: 0 });
   };
 
+  // ── Step 1: Resolve recipient and show confirmation card ─────────────────
+  // For address inputs: no resolution needed, go straight to confirm.
+  // For name inputs: call /api/resolve-recipient which welds name+namespace
+  // and calls resolveAddress on REGISTRY_CONTRACT_ADDRESS from .env.
   const resolveAndConfirm = async () => {
     if (!recipientInput || !transferAmount)
       return showMsg("Fill all fields", "error");
+
+    const type = detectInputType(recipientInput);
+
+    if (type === "name" && !selectedRegistry) {
+      return showMsg("Select a wallet to send to", "error");
+    }
 
     setLoading(true);
     try {
       let resolvedAddress = null;
       let displayIdentifier = recipientInput.trim();
 
-      if (inputType === "address") {
-        // Raw 0x address — use directly, no resolution needed
+      if (type === "address") {
+        // Raw 0x address — no resolution needed
         resolvedAddress = recipientInput.trim().toLowerCase();
         displayIdentifier = recipientInput.trim();
       } else {
-        // Name alias — backend resolves via REGISTRY_CONTRACT_ADDRESS in .env
+        // Name alias — backend welds name + namespace, then resolves
+        // against REGISTRY_CONTRACT_ADDRESS from .env
         const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ input: recipientInput.trim() }),
+          body: JSON.stringify({
+            input: recipientInput.trim(),
+            registryAddress: selectedRegistry.registryAddress,
+          }),
         });
         const data = await res.json();
         if (!res.ok || !data.resolvedAddress) {
@@ -250,18 +287,18 @@ const Dashboard = () => {
           return;
         }
         resolvedAddress = data.resolvedAddress.toLowerCase();
-        // Show username if resolved, else just the alias they typed
-        displayIdentifier = data.displayName
-          ? `${data.displayName} (${recipientInput.trim()})`
-          : recipientInput.trim();
+        // Display as "charles@salva" style
+        displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
       }
 
       setConfirmationData({
         resolvedAddress,
         displayIdentifier,
         amount: transferAmount,
+        registryAddress: selectedRegistry?.registryAddress || null,
+        walletName: selectedRegistry?.name || null,
+        inputType: type,
         rawInput: recipientInput.trim(),
-        inputType,
         feeNGN: feePreview.feeNGN,
       });
       setIsConfirmModalOpen(true);
@@ -289,6 +326,8 @@ const Dashboard = () => {
           safeAddress: user.safeAddress,
           toInput: capturedConfirmationData.rawInput,
           amount: capturedConfirmationData.amount,
+          registryAddress: capturedConfirmationData.registryAddress || null,
+          inputType: capturedConfirmationData.inputType,
         }),
       });
 
@@ -329,7 +368,10 @@ const Dashboard = () => {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
         if (newAttempts >= 3) {
-          showMsg("Too many failed attempts — redirecting to settings", "error");
+          showMsg(
+            "Too many failed attempts — redirecting to settings",
+            "error",
+          );
           setLoading(false);
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
@@ -348,7 +390,7 @@ const Dashboard = () => {
 
   // ── Alias Modal ─────────────────────────────────────────────────────────
   const AliasModal = () => {
-    const [step, setStep] = useState("input");
+    const [step, setStep] = useState("input"); // "input" | "confirm" | "linking" | "success"
     const [nameInput, setNameInput] = useState("");
     const [nameError, setNameError] = useState("");
     const [checking, setChecking] = useState(false);
@@ -368,7 +410,10 @@ const Dashboard = () => {
 
     const handleCheckAvailability = async () => {
       const err = validateNameLocally(nameInput);
-      if (err) { setNameError(err); return; }
+      if (err) {
+        setNameError(err);
+        return;
+      }
       setNameError("");
       setChecking(true);
       try {
@@ -378,8 +423,14 @@ const Dashboard = () => {
           body: JSON.stringify({ name: nameInput }),
         });
         const data = await res.json();
-        if (!res.ok) { setNameError(data.message || "Check failed"); return; }
-        if (!data.available) { setNameError("This name is already taken. Try another."); return; }
+        if (!res.ok) {
+          setNameError(data.message || "Check failed");
+          return;
+        }
+        if (!data.available) {
+          setNameError("This name is already taken. Try another.");
+          return;
+        }
         setWeldedName(data.welded);
         setStep("confirm");
       } catch {
@@ -395,7 +446,10 @@ const Dashboard = () => {
         const res = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ safeAddress: user.safeAddress, name: nameInput }),
+          body: JSON.stringify({
+            safeAddress: user.safeAddress,
+            name: nameInput,
+          }),
         });
         const data = await res.json();
         if (!res.ok) {
@@ -420,30 +474,44 @@ const Dashboard = () => {
         <motion.div
           onClick={() => setShowAliasModal(false)}
           className="absolute inset-0 bg-black/95 backdrop-blur-md"
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
         />
         <motion.div
           onClick={(e) => e.stopPropagation()}
           className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-          initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
         >
+          {/* ── Step: Input ── */}
           {step === "input" && (
             <>
               <div className="text-center mb-8">
                 <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🔗</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">Link Name to Address</h3>
-                <p className="text-sm opacity-60">Register a human-readable name for your wallet</p>
+                <h3 className="text-2xl font-black mb-2">
+                  Link Name to Address
+                </h3>
+                <p className="text-sm opacity-60">
+                  Register a human-readable name for your wallet
+                </p>
               </div>
+
               <div className="mb-2">
-                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Choose Your Name</label>
+                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                  Choose Your Name
+                </label>
                 <input
                   type="text"
                   placeholder="yourname"
                   value={nameInput}
                   onChange={(e) => {
-                    const val = e.target.value.toLowerCase().replace(/[^a-z0-9._-]/g, "");
+                    const val = e.target.value
+                      .toLowerCase()
+                      .replace(/[^a-z0-9._-]/g, "");
                     setNameInput(val);
                     setNameError("");
                   }}
@@ -451,24 +519,44 @@ const Dashboard = () => {
                   className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold text-lg"
                 />
               </div>
+
               {nameInput && (
                 <p className="text-xs text-salvaGold font-bold mb-2 ml-1">
-                  Will appear as: <span className="opacity-70">{nameInput}@salva</span>
+                  Will appear as:{" "}
+                  <span className="opacity-70">{nameInput}@salva</span>
                 </p>
               )}
-              {nameError && <p className="text-xs text-red-400 mb-3 font-bold">{nameError}</p>}
+
+              {nameError && (
+                <p className="text-xs text-red-400 mb-3 font-bold">
+                  {nameError}
+                </p>
+              )}
+
               <p className="text-[10px] opacity-40 mb-6">
-                Lowercase letters, digits 2–9, dots, dashes, one underscore max. No 0 or 1. Max 16 chars.
+                Lowercase letters, digits 2–9, dots, dashes, one underscore max.
+                No 0 or 1. Max 16 chars.
               </p>
+
               <div className="flex gap-3">
-                <button onClick={() => setShowAliasModal(false)} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all">Cancel</button>
-                <button onClick={handleCheckAvailability} disabled={checking || !nameInput} className="flex-1 py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50">
+                <button
+                  onClick={() => setShowAliasModal(false)}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCheckAvailability}
+                  disabled={checking || !nameInput}
+                  className="flex-1 py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-50"
+                >
                   {checking ? "Checking..." : "Check Availability"}
                 </button>
               </div>
             </>
           )}
 
+          {/* ── Step: Confirm ── */}
           {step === "confirm" && (
             <>
               <div className="text-center mb-8">
@@ -477,40 +565,80 @@ const Dashboard = () => {
                 </div>
                 <h3 className="text-2xl font-black mb-2">Name is Available!</h3>
                 <div className="mt-4 p-4 bg-salvaGold/5 border border-salvaGold/20 rounded-2xl">
-                  <p className="text-2xl font-black text-salvaGold">{weldedName}</p>
+                  <p className="text-2xl font-black text-salvaGold">
+                    {weldedName}
+                  </p>
                 </div>
               </div>
+
               <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl mb-6">
-                <p className="text-xs text-yellow-400 font-bold">⚠️ Double-check for typos. This alias is permanent and cannot be changed once registered.</p>
+                <p className="text-xs text-yellow-400 font-bold">
+                  ⚠️ Double-check for typos. This alias is permanent and cannot
+                  be changed once registered.
+                </p>
               </div>
-              {nameError && <p className="text-xs text-red-400 mb-3 font-bold">{nameError}</p>}
+
+              {nameError && (
+                <p className="text-xs text-red-400 mb-3 font-bold">
+                  {nameError}
+                </p>
+              )}
+
               <div className="flex gap-3">
-                <button onClick={() => { setStep("input"); setNameError(""); }} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all">Go Back</button>
-                <button onClick={handleConfirmLink} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110">Confirm & Link</button>
+                <button
+                  onClick={() => {
+                    setStep("input");
+                    setNameError("");
+                  }}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5 transition-all"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={handleConfirmLink}
+                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110"
+                >
+                  Confirm & Link
+                </button>
               </div>
             </>
           )}
 
+          {/* ── Step: Linking ── */}
           {step === "linking" && (
             <div className="text-center py-12">
               <div className="w-12 h-12 border-4 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin mx-auto mb-4" />
               <p className="font-black">Linking on-chain...</p>
-              <p className="text-xs opacity-40 mt-2">This may take a few seconds</p>
+              <p className="text-xs opacity-40 mt-2">
+                This may take a few seconds
+              </p>
             </div>
           )}
 
+          {/* ── Step: Success ── */}
           {step === "success" && (
             <div className="text-center py-8">
               <motion.div
-                initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300 }}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: "spring", stiffness: 300 }}
                 className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4"
               >
                 <span className="text-3xl">🎉</span>
               </motion.div>
               <h3 className="text-2xl font-black mb-2">Name Linked!</h3>
-              <p className="text-salvaGold font-black text-lg mb-2">{weldedName}</p>
-              <p className="text-sm opacity-60 mb-6">Your alias is now live on-chain.</p>
-              <button onClick={() => setShowAliasModal(false)} className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all">Done</button>
+              <p className="text-salvaGold font-black text-lg mb-2">
+                {weldedName}
+              </p>
+              <p className="text-sm opacity-60 mb-6">
+                Your alias is now live on-chain.
+              </p>
+              <button
+                onClick={() => setShowAliasModal(false)}
+                className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all"
+              >
+                Done
+              </button>
             </div>
           )}
         </motion.div>
@@ -521,8 +649,13 @@ const Dashboard = () => {
   if (!user) return null;
 
   const tabs = user.isValidator
-    ? [{ id: "buy", label: "Buy NGNs" }, { id: "admin", label: "Admin Panel" }]
+    ? [
+        { id: "buy", label: "Buy NGNs" },
+        { id: "admin", label: "Admin Panel" },
+      ]
     : [{ id: "buy", label: "Buy NGNs" }];
+
+  const showRegistryDropdown = inputType === "name";
 
   // ── Notification style config ─────────────────────────────────────────
   const notifConfig = {
@@ -572,8 +705,12 @@ const Dashboard = () => {
               }}
               title="Click to copy"
             >
-              <p className="text-[9px] uppercase opacity-40 font-bold mb-1">Name Alias</p>
-              <p className="font-mono font-bold text-salvaGold text-sm">{aliasStatus.nameAlias}</p>
+              <p className="text-[9px] uppercase opacity-40 font-bold mb-1">
+                Name Alias
+              </p>
+              <p className="font-mono font-bold text-salvaGold text-sm">
+                {aliasStatus.nameAlias}
+              </p>
               <p className="text-[9px] opacity-30 mt-1">click to copy</p>
             </div>
           )}
@@ -588,18 +725,29 @@ const Dashboard = () => {
             className="w-full mb-6 p-4 rounded-2xl border border-dashed border-salvaGold/40 bg-salvaGold/5 hover:border-salvaGold hover:bg-salvaGold/10 transition-all flex items-center justify-between group"
           >
             <div className="text-left">
-              <p className="font-black text-sm text-salvaGold">Link Name to Address</p>
-              <p className="text-[10px] opacity-50 mt-0.5">Register a human-readable name to receive payments</p>
+              <p className="font-black text-sm text-salvaGold">
+                Link Name to Address
+              </p>
+              <p className="text-[10px] opacity-50 mt-0.5">
+                Register a human-readable name to receive payments
+              </p>
             </div>
-            <span className="text-salvaGold text-xl group-hover:translate-x-1 transition-transform">→</span>
+            <span className="text-salvaGold text-xl group-hover:translate-x-1 transition-transform">
+              →
+            </span>
           </motion.button>
         )}
 
         {/* ── Balance Card ── */}
         <div className="rounded-3xl bg-gray-100 dark:bg-black p-6 sm:p-10 mb-8 border border-white/5 shadow-2xl overflow-hidden">
           <div className="flex justify-between items-center mb-4">
-            <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">Available Balance</p>
-            <button onClick={() => setShowBalance(!showBalance)} className="hover:scale-110 transition-transform p-2">
+            <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
+              Available Balance
+            </p>
+            <button
+              onClick={() => setShowBalance(!showBalance)}
+              className="hover:scale-110 transition-transform p-2"
+            >
               {showBalance ? "👁" : "👁‍🗨"}
             </button>
           </div>
@@ -607,7 +755,9 @@ const Dashboard = () => {
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none whitespace-nowrap">
               {showBalance ? formatNumber(balance) : "••••••.••"}
             </h1>
-            <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">NGNs</span>
+            <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">
+              NGNs
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:gap-4 mt-8 sm:mt-10">
             <button
@@ -636,9 +786,13 @@ const Dashboard = () => {
           }}
           className="mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-salvaGold/30 transition-all"
         >
-          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">Smart Wallet Address (Base)</p>
+          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">
+            Smart Wallet Address (Base)
+          </p>
           <p className="font-mono text-[10px] sm:text-xs text-salvaGold font-medium break-all truncate">
-            {showBalance ? user.safeAddress : "0x••••••••••••••••••••••••••••••••••••••••"}
+            {showBalance
+              ? user.safeAddress
+              : "0x••••••••••••••••••••••••••••••••••••••••"}
           </p>
         </div>
 
@@ -647,7 +801,9 @@ const Dashboard = () => {
           to="/transactions"
           className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
         >
-          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">View Transaction History →</p>
+          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">
+            View Transaction History →
+          </p>
         </Link>
 
         {/* ── Tabs ── */}
@@ -670,18 +826,26 @@ const Dashboard = () => {
         {/* ── Buy NGNs Tab ── */}
         {activeTab === "buy" && (
           <motion.section
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
             className="flex flex-col items-center justify-center min-h-[300px] text-center py-16"
           >
             <div className="w-20 h-20 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-6">
               <span className="text-4xl font-black text-salvaGold">₦</span>
             </div>
             <h3 className="text-2xl font-black mb-2">Buy NGNs</h3>
-            <p className="opacity-50 text-sm mb-8 max-w-xs">Purchase Nigerian Naira stablecoin directly into your wallet</p>
-            <button disabled className="px-10 py-4 bg-salvaGold text-black font-black rounded-2xl text-sm uppercase tracking-widest opacity-50 cursor-not-allowed shadow-lg shadow-salvaGold/20">
+            <p className="opacity-50 text-sm mb-8 max-w-xs">
+              Purchase Nigerian Naira stablecoin directly into your wallet
+            </p>
+            <button
+              disabled
+              className="px-10 py-4 bg-salvaGold text-black font-black rounded-2xl text-sm uppercase tracking-widest opacity-50 cursor-not-allowed shadow-lg shadow-salvaGold/20"
+            >
               BUY NGNs
             </button>
-            <p className="text-[10px] uppercase tracking-[0.3em] opacity-30 font-bold mt-3">Coming Soon</p>
+            <p className="text-[10px] uppercase tracking-[0.3em] opacity-30 font-bold mt-3">
+              Coming Soon
+            </p>
           </motion.section>
         )}
 
@@ -695,14 +859,30 @@ const Dashboard = () => {
       <AnimatePresence>
         {noPinWarning && (
           <motion.div
-            initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }}
+            initial={{ x: "100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "100%" }}
             className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-red-500 text-white p-6 rounded-l-3xl shadow-2xl max-w-sm"
           >
-            <h4 className="font-black text-lg mb-2">🔐 Transaction PIN Required</h4>
-            <p className="text-sm mb-4">Set a transaction PIN before sending.</p>
+            <h4 className="font-black text-lg mb-2">
+              🔐 Transaction PIN Required
+            </h4>
+            <p className="text-sm mb-4">
+              Set a transaction PIN before sending.
+            </p>
             <div className="flex gap-2">
-              <button onClick={() => navigate("/account-settings")} className="flex-1 bg-white text-red-500 py-2 rounded-xl font-bold text-sm">Go to Settings</button>
-              <button onClick={() => setNoPinWarning(false)} className="px-4 bg-red-600 py-2 rounded-xl font-bold text-sm">✕</button>
+              <button
+                onClick={() => navigate("/account-settings")}
+                className="flex-1 bg-white text-red-500 py-2 rounded-xl font-bold text-sm"
+              >
+                Go to Settings
+              </button>
+              <button
+                onClick={() => setNoPinWarning(false)}
+                className="px-4 bg-red-600 py-2 rounded-xl font-bold text-sm"
+              >
+                ✕
+              </button>
             </div>
           </motion.div>
         )}
@@ -718,44 +898,91 @@ const Dashboard = () => {
             <motion.div
               onClick={() => !loading && setIsSendOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
             <motion.div
               className="relative bg-white dark:bg-zinc-900 p-6 sm:p-12 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl"
-              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1">Send NGNs</h3>
-              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">Salva Secure Transfer</p>
+              <h3 className="text-2xl sm:text-3xl font-black mb-1">
+                Send NGNs
+              </h3>
+              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
+                Salva Secure Transfer
+              </p>
 
               <form
-                onSubmit={(e) => { e.preventDefault(); resolveAndConfirm(); }}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  resolveAndConfirm();
+                }}
                 className="space-y-5"
               >
-                {/* Recipient */}
+                {/* Recipient input */}
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase opacity-40 font-bold block">Recipient</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block">
+                    Recipient
+                  </label>
                   <input
                     required
                     type="text"
-                    placeholder="Name alias or 0x wallet address"
+                    placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
                     className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm"
                   />
+
                   {inputType !== "empty" && (
                     <p className="text-[10px] opacity-40 font-bold ml-1">
                       {inputType === "address"
                         ? "✓ Wallet address — sending directly"
-                        : "✓ Name alias — will resolve on-chain"}
+                        : "Name alias — select a wallet below"}
                     </p>
+                  )}
+
+                  {/* Registry dropdown — only shown for name alias input */}
+                  {showRegistryDropdown && registries.length > 0 && (
+                    <div>
+                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
+                        Select Wallet
+                      </label>
+                      <select
+                        required
+                        value={selectedRegistry?.registryAddress || ""}
+                        onChange={(e) =>
+                          setSelectedRegistry(
+                            registries.find(
+                              (r) => r.registryAddress === e.target.value,
+                            ) || null,
+                          )
+                        }
+                        className="w-full p-4 bg-white dark:bg-black rounded-xl border border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
+                      >
+                        <option value="">-- Select Wallet --</option>
+                        {registries.map((reg) => (
+                          <option
+                            key={reg.registryAddress}
+                            value={reg.registryAddress}
+                          >
+                            {reg.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   )}
                 </div>
 
                 {/* Amount */}
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Amount (NGNs)</label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                    Amount (NGNs)
+                  </label>
                   <div className="relative">
                     <input
                       required
@@ -770,19 +997,29 @@ const Dashboard = () => {
                         computeFeePreview(raw);
                       }}
                       className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${
-                        amountError ? "border border-red-500 text-red-500" : "border border-transparent"
+                        amountError
+                          ? "border border-red-500 text-red-500"
+                          : "border border-transparent"
                       }`}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">NGNs</span>
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
+                      NGNs
+                    </span>
                   </div>
                   {amountError && (
-                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">⚠️ Insufficient balance</p>
+                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">
+                      ⚠️ Insufficient balance
+                    </p>
                   )}
                   {feePreview.feeNGN > 0 && transferAmount && !amountError && (
                     <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
                       <div className="flex justify-between">
-                        <span className="opacity-50 uppercase font-bold">Network Fee</span>
-                        <span className="text-red-400 font-black">-{formatNumber(feePreview.feeNGN)} NGNs</span>
+                        <span className="opacity-50 uppercase font-bold">
+                          Network Fee
+                        </span>
+                        <span className="text-red-400 font-black">
+                          -{formatNumber(feePreview.feeNGN)} NGNs
+                        </span>
                       </div>
                     </div>
                   )}
@@ -812,37 +1049,61 @@ const Dashboard = () => {
             <motion.div
               onClick={() => setIsConfirmModalOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
               className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
             >
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">⚠️</span>
                 </div>
                 <h3 className="text-xl font-black mb-1">Verify Recipient</h3>
-                <p className="text-sm opacity-60">Double-check before sending. Blockchain transactions are irreversible.</p>
+                <p className="text-sm opacity-60">
+                  Double-check before sending. Blockchain transactions are
+                  irreversible.
+                </p>
               </div>
               <div className="space-y-3 mb-6">
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-lg text-salvaGold">{confirmationData.displayIdentifier}</p>
-                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">{confirmationData.resolvedAddress}</p>
-                  <p className="text-[10px] text-yellow-400 font-bold mt-2">⚠️ Make sure this is the correct recipient</p>
+                  <p className="font-black text-lg text-salvaGold">
+                    {confirmationData.displayIdentifier}
+                  </p>
+                  {/* Always show the resolved wallet address so user can verify */}
+                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
+                    {confirmationData.resolvedAddress}
+                  </p>
+                  {confirmationData.walletName && (
+                    <p className="text-[10px] opacity-50 mt-1 font-bold">
+                      via {confirmationData.walletName}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-yellow-400 font-bold mt-2">
+                    ⚠️ Make sure this is the correct recipient
+                  </p>
                 </div>
+
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
                   <p className="font-black text-xl">
-                    {formatNumber(confirmationData.amount)} <span className="text-salvaGold">NGNs</span>
+                    {formatNumber(confirmationData.amount)}{" "}
+                    <span className="text-salvaGold">NGNs</span>
                   </p>
                 </div>
+
                 {confirmationData.feeNGN > 0 && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
-                    <p className="font-black text-base text-red-400">-{formatNumber(confirmationData.feeNGN)} NGNs</p>
+                    <p className="font-black text-base text-red-400">
+                      -{formatNumber(confirmationData.feeNGN)} NGNs
+                    </p>
                   </div>
                 )}
               </div>
@@ -877,18 +1138,24 @@ const Dashboard = () => {
             <motion.div
               onClick={() => !loading && setIsPinModalOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
               className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
             >
               <div className="text-center mb-6">
                 <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="text-3xl">🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2">Enter Transaction PIN</h3>
+                <h3 className="text-2xl font-black mb-2">
+                  Enter Transaction PIN
+                </h3>
                 <p className="text-sm opacity-60">Verify identity to proceed</p>
               </div>
               <input
@@ -897,14 +1164,17 @@ const Dashboard = () => {
                 pattern="\d{4}"
                 maxLength="4"
                 value={transactionPin}
-                onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) =>
+                  setTransactionPin(e.target.value.replace(/\D/g, ""))
+                }
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
               />
               {pinAttempts > 0 && (
                 <p className="text-xs text-red-500 text-center mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""} remaining
+                  ⚠️ {3 - pinAttempts} attempt
+                  {3 - pinAttempts !== 1 ? "s" : ""} remaining
                 </p>
               )}
               <div className="flex gap-3">
@@ -937,8 +1207,12 @@ const Dashboard = () => {
               <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
                 <motion.div
                   className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  onClick={() => setNotification({ ...notification, show: false })}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() =>
+                    setNotification({ ...notification, show: false })
+                  }
                 />
                 <motion.div
                   className={`relative w-full max-w-xs bg-white dark:bg-zinc-900 rounded-3xl border ${cfg.border} shadow-2xl overflow-hidden`}
@@ -950,12 +1224,20 @@ const Dashboard = () => {
                 >
                   <div className={`h-1 w-full ${cfg.iconBg}`} />
                   <div className="p-7 text-center">
-                    <div className={`w-12 h-12 ${cfg.iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}>
-                      <span className={`text-xl font-black ${cfg.iconColor}`}>{cfg.icon}</span>
+                    <div
+                      className={`w-12 h-12 ${cfg.iconBg} rounded-2xl flex items-center justify-center mx-auto mb-4`}
+                    >
+                      <span className={`text-xl font-black ${cfg.iconColor}`}>
+                        {cfg.icon}
+                      </span>
                     </div>
-                    <p className="font-black text-sm leading-relaxed mb-6">{notification.message}</p>
+                    <p className="font-black text-sm leading-relaxed mb-6">
+                      {notification.message}
+                    </p>
                     <button
-                      onClick={() => setNotification({ ...notification, show: false })}
+                      onClick={() =>
+                        setNotification({ ...notification, show: false })
+                      }
                       className={`w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 ${cfg.btn}`}
                     >
                       OK
