@@ -15,6 +15,15 @@ const BASE_REGISTRY_ABI = [
   "function namespace() external pure returns (string memory)",
 ];
 
+// ── ALWAYS use the single registry from .env ─────────────────────────────
+// resolveAddress / checkNameAvailability / getNamespace must NEVER be called
+// with arbitrary addresses from the WalletRegistry DB.
+function getRegistryAddress() {
+  const addr = process.env.REGISTRY_CONTRACT_ADDRESS;
+  if (!addr) throw new Error("REGISTRY_CONTRACT_ADDRESS not set in .env");
+  return addr;
+}
+
 function getRegistryContract(registryAddress, signerOrProvider) {
   return new ethers.Contract(
     registryAddress,
@@ -34,10 +43,12 @@ function weldName(pureName, namespace) {
 }
 
 /**
- * Fetches the namespace string from the BaseRegistry contract.
+ * Fetches the namespace string from the REGISTRY_CONTRACT_ADDRESS contract.
  * e.g. "@salva"
+ * The optional registryAddress param is IGNORED — always uses .env value.
  */
-async function getNamespace(registryAddress) {
+async function getNamespace(_ignored) {
+  const registryAddress = getRegistryAddress();
   const reg = getRegistryContract(registryAddress, provider);
   return await reg.namespace();
 }
@@ -45,9 +56,11 @@ async function getNamespace(registryAddress) {
 /**
  * Checks if a name is available.
  * Calls resolveAddress with the FULLY WELDED name (e.g. "charles@salva") as bytes.
+ * ALWAYS uses REGISTRY_CONTRACT_ADDRESS from .env — ignores any passed address.
  * Returns true if available (resolves to address(0)).
  */
-async function checkNameAvailability(weldedName, registryAddress) {
+async function checkNameAvailability(weldedName, _ignored) {
+  const registryAddress = getRegistryAddress();
   try {
     const reg = getRegistryContract(registryAddress, provider);
     const resolved = await reg.resolveAddress(nameToBytes(weldedName));
@@ -69,8 +82,10 @@ async function checkNameAvailability(weldedName, registryAddress) {
  * Links a PURE name to a wallet address.
  * Calls linkToWallet with PURE name (e.g. "charles") as bytes.
  * The registry welds it with "@salva" internally before calling Singleton.
+ * ALWAYS uses REGISTRY_CONTRACT_ADDRESS from .env.
  */
-async function linkNameToWallet(pureName, walletAddress, registryAddress) {
+async function linkNameToWallet(pureName, walletAddress, _ignored) {
+  const registryAddress = getRegistryAddress();
   const reg = getRegistryContract(registryAddress, wallet);
 
   let tx;
@@ -105,8 +120,10 @@ async function linkNameToWallet(pureName, walletAddress, registryAddress) {
 /**
  * Unlinks a name alias.
  * Calls unlink with the FULLY WELDED name (e.g. "charles@salva") as bytes.
+ * ALWAYS uses REGISTRY_CONTRACT_ADDRESS from .env.
  */
-async function unlinkName(weldedName, registryAddress) {
+async function unlinkName(weldedName, _ignored) {
+  const registryAddress = getRegistryAddress();
   const reg = getRegistryContract(registryAddress, wallet);
 
   let tx;
@@ -135,10 +152,12 @@ async function unlinkName(weldedName, registryAddress) {
 }
 
 /**
- * Resolves a welded name alias to an address during transfers.
+ * Resolves a welded name alias to a wallet address.
  * Calls resolveAddress with FULLY WELDED name as bytes.
+ * ALWAYS uses REGISTRY_CONTRACT_ADDRESS from .env — ignores any passed address.
  */
-async function resolveNameToAddress(weldedName, registryAddress) {
+async function resolveNameToAddress(weldedName, _ignored) {
+  const registryAddress = getRegistryAddress();
   try {
     const reg = getRegistryContract(registryAddress, provider);
     const resolved = await reg.resolveAddress(nameToBytes(weldedName));
@@ -155,10 +174,11 @@ async function resolveNameToAddress(weldedName, registryAddress) {
 
 /**
  * Resolves any recipient input to a wallet address.
- * - 0x address → validates and returns as-is
- * - name string → expects already-welded name (e.g. "charles@salva")
+ * - 0x address → validates and returns as-is (no registry needed)
+ * - name string → resolves via REGISTRY_CONTRACT_ADDRESS from .env
+ * The registryAddress param is IGNORED — always uses .env value.
  */
-async function resolveToAddress(input, registryAddress) {
+async function resolveToAddress(input, _ignored) {
   const trimmed = input.trim();
 
   if (trimmed.startsWith("0x")) {
@@ -168,12 +188,8 @@ async function resolveToAddress(input, registryAddress) {
     return trimmed.toLowerCase();
   }
 
-  if (!registryAddress) {
-    throw new Error("A registry must be selected to resolve a name");
-  }
-
-  // At this point input is already welded (transfer route welds before calling here)
-  return await resolveNameToAddress(trimmed, registryAddress);
+  // Name alias — resolve via the canonical registry in .env
+  return await resolveNameToAddress(trimmed);
 }
 
 /** Returns true if input is a name alias (not a 0x address). */
