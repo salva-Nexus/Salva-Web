@@ -480,7 +480,7 @@ const Dashboard = () => {
         />
         <motion.div
           onClick={(e) => e.stopPropagation()}
-          className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+          className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-lg border border-gray-200 dark:border-white/10 shadow-2xl"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.95 }}
@@ -1073,7 +1073,7 @@ const Dashboard = () => {
               <div className="space-y-3 mb-6">
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-lg text-salvaGold">
+                  <p className="font-black text-sm sm:text-base text-salvaGold break-all leading-snug">
                     {confirmationData.displayIdentifier}
                   </p>
                   {/* Always show the resolved wallet address so user can verify */}
