@@ -151,14 +151,14 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       isWallet = false,
       chain = "base",
     } = req.body;
- 
+
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
- 
+
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
- 
+
     const existing = await Proposal.findOne({
       type: "registry",
       registry: cleanRegistry.toLowerCase(),
@@ -167,19 +167,19 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       return res
         .status(409)
         .json({ message: "A proposal for this registry already exists" });
- 
+
     const sponsorFn =
       chain === "base"
         ? relay.sponsorProposeInitializationBase
         : relay.sponsorProposeInitializationEth;
- 
+
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       nspace,
       cleanRegistry,
     );
- 
+
     // Return immediately, sync in background
     const proposal = await Proposal.create({
       type: "registry",
@@ -191,9 +191,9 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       isValidated: false,
       timeLockTimestamp: null,
     });
- 
+
     res.json({ success: true, taskId: result.taskId, proposal });
- 
+
     waitForTx(result.taskId)
       .then(async (status) => {
         if (status.success) {
@@ -203,8 +203,11 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
             { remainingValidation: remaining },
           );
           await notifyAllValidators("New Registry Proposal", {
+            type: "registry",
+            registryName: registryName || nspace,
             nspace,
             registry: cleanRegistry,
+            isWallet: !!isWallet,
           });
           console.log(`✅ Registry proposal synced: remaining=${remaining}`);
         } else {
@@ -327,30 +330,30 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       nspace,
       chain = "base",
     } = req.body;
- 
+
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
- 
+
     // Fetch the proposal now so we have isWallet available in the background handler
     const proposal = await Proposal.findOne({
       type: "registry",
       registry: cleanRegistry.toLowerCase(),
     });
- 
+
     const sponsorFn =
       chain === "base"
         ? relay.sponsorExecuteInitBase
         : relay.sponsorExecuteInitEth;
- 
+
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       cleanRegistry,
     );
- 
+
     res.json({ success: true, taskId: result.taskId });
- 
+
     waitForTx(result.taskId)
       .then(async (status) => {
         if (status.success) {
@@ -358,7 +361,7 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
             type: "registry",
             registry: cleanRegistry.toLowerCase(),
           });
- 
+
           // Only add to WalletRegistry if isWallet was flagged on the proposal
           if (proposal?.isWallet) {
             await WalletRegistry.findOneAndUpdate(
@@ -440,6 +443,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
             { remainingValidation: remaining },
           );
           await notifyAllValidators("New Validator Update Proposal", {
+            type: "validator",
             targetAddress: cleanTarget,
             action,
           });

@@ -1,17 +1,16 @@
 // Salva-Digital-Tech/packages/backend/src/services/emailService.js
-const { Resend } = require('resend');
+const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Format number with commas
 const formatAmount = (amount) => {
-  return parseFloat(amount).toLocaleString('en-US', {
+  return parseFloat(amount).toLocaleString("en-US", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2
+    maximumFractionDigits: 2,
   });
 };
 
 // ===============================================
-// WELCOME EMAIL - SPAM-PROOF VERSION
+// WELCOME EMAIL
 // ===============================================
 async function sendWelcomeEmail(userEmail, userName) {
   const html = `
@@ -39,7 +38,6 @@ async function sendWelcomeEmail(userEmail, userName) {
             <p style="color: #666666; line-height: 1.6; margin: 0 0 20px 0;">
               SALVA makes crypto simple with account aliases, strong security, and everyday transactions.
             </p>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; margin: 20px 0;">
               <tr>
                 <td>
@@ -49,7 +47,6 @@ async function sendWelcomeEmail(userEmail, userName) {
                 </td>
               </tr>
             </table>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fff8e1; border-left: 4px solid #D4AF37; margin: 20px 0;">
               <tr>
                 <td>
@@ -60,7 +57,6 @@ async function sendWelcomeEmail(userEmail, userName) {
                 </td>
               </tr>
             </table>
-            
             <p style="color: #666666; text-align: center; margin: 30px 0 10px 0;">
               Welcome to the future of everyday crypto.
             </p>
@@ -96,28 +92,36 @@ Need help? Email us at salva.notify@gmail.com
 
   try {
     await resend.emails.send({
-      from: 'SALVA Support <no-reply@salva-nexus.org>',
+      from: "SALVA Support <no-reply@salva-nexus.org>",
       to: userEmail,
-      subject: 'Welcome to SALVA - Your Account is Ready',
-      html: html,
-      text: text
+      subject: "Welcome to SALVA - Your Account is Ready",
+      html,
+      text,
     });
     console.log(`📧 Welcome email sent to: ${userEmail}`);
   } catch (error) {
-    console.error('❌ Failed to send welcome email:', error.message);
+    console.error("❌ Failed to send welcome email:", error.message);
   }
 }
 
 // ===============================================
-// TRANSACTION EMAIL - SENDER (SPAM-PROOF)
+// TRANSACTION EMAIL - SENDER
 // ===============================================
-async function sendTransactionEmailToSender(senderEmail, senderName, recipientIdentifier, amount, status) {
-  const subject = status === 'successful'
-    ? 'Payment Sent Successfully - SALVA'
-    : 'Payment Failed - SALVA';
+async function sendTransactionEmailToSender(
+  senderEmail,
+  senderName,
+  recipientIdentifier,
+  amount,
+  status,
+) {
+  const subject =
+    status === "successful"
+      ? "Payment Sent Successfully - SALVA"
+      : "Payment Failed - SALVA";
 
-  const statusColor = status === 'successful' ? '#10B981' : '#EF4444';
-  const statusText = status === 'successful' ? 'PAYMENT SENT' : 'PAYMENT FAILED';
+  const statusColor = status === "successful" ? "#10B981" : "#EF4444";
+  const statusText =
+    status === "successful" ? "PAYMENT SENT" : "PAYMENT FAILED";
 
   const html = `
     <!DOCTYPE html>
@@ -143,11 +147,12 @@ async function sendTransactionEmailToSender(senderEmail, senderName, recipientId
           <td style="padding: 40px;">
             <p style="color: #333333; font-weight: bold; margin: 0 0 10px 0;">Hello ${senderName},</p>
             <p style="color: #666666; line-height: 1.6; margin: 0 0 20px 0;">
-              ${status === 'successful'
-      ? 'Your payment has been successfully processed and sent to the recipient.'
-      : 'We were unable to process your payment. Please try again or contact support.'}
+              ${
+                status === "successful"
+                  ? "Your payment has been successfully processed and sent to the recipient."
+                  : "We were unable to process your payment. Please try again or contact support."
+              }
             </p>
-            
             <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; margin: 20px 0;">
               <tr>
                 <td>
@@ -162,24 +167,19 @@ async function sendTransactionEmailToSender(senderEmail, senderName, recipientId
                 </td>
               </tr>
             </table>
-            
-            ${status === 'successful' ? `
+            ${
+              status === "successful"
+                ? `
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #e6f7f1; border-left: 4px solid #10B981; margin: 20px 0;">
-              <tr>
-                <td>
-                  <p style="color: #10B981; margin: 0;">Transaction verified on Base Sepolia blockchain</p>
-                </td>
-              </tr>
+              <tr><td><p style="color: #10B981; margin: 0;">Transaction verified on Base Sepolia blockchain</p></td></tr>
             </table>
-            ` : `
+            `
+                : `
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fee; border-left: 4px solid #EF4444; margin: 20px 0;">
-              <tr>
-                <td>
-                  <p style="color: #EF4444; margin: 0;">Please ensure you have sufficient balance and try again</p>
-                </td>
-              </tr>
+              <tr><td><p style="color: #EF4444; margin: 0;">Please ensure you have sufficient balance and try again</p></td></tr>
             </table>
-            `}
+            `
+            }
           </td>
         </tr>
         <tr>
@@ -195,14 +195,12 @@ async function sendTransactionEmailToSender(senderEmail, senderName, recipientId
 
   const text = `Hello ${senderName},
 
-${status === 'successful'
-      ? 'Your payment has been successfully processed.'
-      : 'We were unable to process your payment.'}
+${status === "successful" ? "Your payment has been successfully processed." : "We were unable to process your payment."}
 
 Amount: ${formatAmount(amount)} NGNs
 Recipient: ${recipientIdentifier}
 
-${status === 'successful' ? 'Transaction verified on Base Sepolia blockchain.' : 'Please ensure you have sufficient balance and try again.'}
+${status === "successful" ? "Transaction verified on Base Sepolia blockchain." : "Please ensure you have sufficient balance and try again."}
 
 Need help? Email us at salva.notify@gmail.com
 
@@ -210,22 +208,27 @@ Need help? Email us at salva.notify@gmail.com
 
   try {
     await resend.emails.send({
-      from: 'SALVA Support <no-reply@salva-nexus.org>',
+      from: "SALVA Support <no-reply@salva-nexus.org>",
       to: senderEmail,
-      subject: subject,
-      html: html,
-      text: text
+      subject,
+      html,
+      text,
     });
     console.log(`📧 Sender email sent to: ${senderEmail}`);
   } catch (error) {
-    console.error('❌ Failed to send sender email:', error.message);
+    console.error("❌ Failed to send sender email:", error.message);
   }
 }
 
 // ===============================================
-// TRANSACTION EMAIL - RECEIVER (SPAM-PROOF)
+// TRANSACTION EMAIL - RECEIVER
 // ===============================================
-async function sendTransactionEmailToReceiver(receiverEmail, receiverName, senderIdentifier, amount) {
+async function sendTransactionEmailToReceiver(
+  receiverEmail,
+  receiverName,
+  senderIdentifier,
+  amount,
+) {
   const html = `
     <!DOCTYPE html>
     <html>
@@ -252,7 +255,6 @@ async function sendTransactionEmailToReceiver(receiverEmail, receiverName, sende
             <p style="color: #666666; line-height: 1.6; margin: 0 0 20px 0;">
               You have received a payment. The funds are now available in your SALVA wallet.
             </p>
-            
             <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; margin: 20px 0;">
               <tr>
                 <td>
@@ -267,13 +269,8 @@ async function sendTransactionEmailToReceiver(receiverEmail, receiverName, sende
                 </td>
               </tr>
             </table>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #e6f7f1; border-left: 4px solid #10B981; margin: 20px 0;">
-              <tr>
-                <td>
-                  <p style="color: #10B981; margin: 0;">Transaction verified on Base Sepolia blockchain</p>
-                </td>
-              </tr>
+              <tr><td><p style="color: #10B981; margin: 0;">Transaction verified on Base Sepolia blockchain</p></td></tr>
             </table>
           </td>
         </tr>
@@ -303,26 +300,31 @@ Need help? Email us at salva.notify@gmail.com
 
   try {
     await resend.emails.send({
-      from: 'SALVA Support <no-reply@salva-nexus.org>',
+      from: "SALVA Support <no-reply@salva-nexus.org>",
       to: receiverEmail,
-      subject: 'Payment Received - SALVA',
-      html: html,
-      text: text
+      subject: "Payment Received - SALVA",
+      html,
+      text,
     });
     console.log(`📧 Receiver email sent to: ${receiverEmail}`);
   } catch (error) {
-    console.error('❌ Failed to send receiver email:', error.message);
+    console.error("❌ Failed to send receiver email:", error.message);
   }
 }
 
 // ===============================================
-// SECURITY CHANGE EMAIL (SPAM-PROOF)
+// SECURITY CHANGE EMAIL
 // ===============================================
-async function sendSecurityChangeEmail(userEmail, userName, changeType, accountNumber) {
+async function sendSecurityChangeEmail(
+  userEmail,
+  userName,
+  changeType,
+  accountNumber,
+) {
   const changeTypeText = {
-    'email': 'Email Address',
-    'password': 'Password',
-    'pin': 'Transaction PIN'
+    email: "Email Address",
+    password: "Password",
+    pin: "Transaction PIN",
   };
 
   const html = `
@@ -351,7 +353,6 @@ async function sendSecurityChangeEmail(userEmail, userName, changeType, accountN
             <p style="color: #666666; line-height: 1.6; margin: 0 0 20px 0;">
               Your ${changeTypeText[changeType]} has been successfully changed.
             </p>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fff8e1; border: 2px solid #F59E0B; margin: 20px 0;">
               <tr>
                 <td>
@@ -362,7 +363,6 @@ async function sendSecurityChangeEmail(userEmail, userName, changeType, accountN
                 </td>
               </tr>
             </table>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fee; border-left: 4px solid #EF4444; margin: 20px 0;">
               <tr>
                 <td>
@@ -375,7 +375,6 @@ async function sendSecurityChangeEmail(userEmail, userName, changeType, accountN
                 </td>
               </tr>
             </table>
-            
             <div style="text-align: center; margin-top: 30px;">
               <a href="mailto:salva.notify@gmail.com?subject=Unauthorized%20Account%20Change%20-%20${accountNumber}" style="display: inline-block; background-color: #EF4444; color: #ffffff; padding: 12px 30px; text-decoration: none; font-weight: bold;">CONTACT SUPPORT</a>
             </div>
@@ -409,20 +408,20 @@ Contact us at: salva.notify@gmail.com
 
   try {
     await resend.emails.send({
-      from: 'SALVA Security <no-reply@salva-nexus.org>',
+      from: "SALVA Security <no-reply@salva-nexus.org>",
       to: userEmail,
       subject: `Security Alert: ${changeTypeText[changeType]} Changed - SALVA`,
-      html: html,
-      text: text
+      html,
+      text,
     });
     console.log(`📧 Security alert sent to: ${userEmail}`);
   } catch (error) {
-    console.error('❌ Failed to send security email:', error.message);
+    console.error("❌ Failed to send security email:", error.message);
   }
 }
 
 // ===============================================
-// EMAIL CHANGE CONFIRMATION (SPAM-PROOF)
+// EMAIL CHANGE CONFIRMATION
 // ===============================================
 async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
   const html = `
@@ -451,7 +450,6 @@ async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
             <p style="color: #666666; line-height: 1.6; margin: 0 0 20px 0;">
               Your email address has been successfully updated. This is now your primary email for all SALVA communications.
             </p>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #e6f7f1; border: 1px solid #10B981; margin: 20px 0;">
               <tr>
                 <td>
@@ -464,7 +462,6 @@ async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
                 </td>
               </tr>
             </table>
-            
             <table width="100%" cellpadding="15" cellspacing="0" style="background-color: #fff8e1; border-left: 4px solid #F59E0B; margin: 20px 0;">
               <tr>
                 <td>
@@ -475,7 +472,6 @@ async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
                 </td>
               </tr>
             </table>
-            
             <p style="color: #666666; text-align: center; margin: 20px 0;">
               Thank you for keeping your account information up to date.
             </p>
@@ -497,14 +493,12 @@ async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
 
   const text = `Hello ${userName},
 
-Your email address has been successfully updated. This is now your primary email for all SALVA communications.
+Your email address has been successfully updated.
 
 Your Account Number: ${accountNumber}
 
 24-HOUR SECURITY LOCK ACTIVE
 As a security measure, your account has been temporarily restricted for 24 hours.
-
-Thank you for keeping your account information up to date.
 
 Need help? Email us at salva.notify@gmail.com
 
@@ -512,40 +506,67 @@ Need help? Email us at salva.notify@gmail.com
 
   try {
     await resend.emails.send({
-      from: 'SALVA Support <no-reply@salva-nexus.org>',
+      from: "SALVA Support <no-reply@salva-nexus.org>",
       to: newEmail,
-      subject: 'Email Updated Successfully - SALVA',
-      html: html,
-      text: text
+      subject: "Email Updated Successfully - SALVA",
+      html,
+      text,
     });
     console.log(`📧 Email change confirmation sent to: ${newEmail}`);
   } catch (error) {
-    console.error('❌ Failed to send email change confirmation:', error.message);
+    console.error(
+      "❌ Failed to send email change confirmation:",
+      error.message,
+    );
   }
 }
 
-// ADD THIS FUNCTION to emailService.js before module.exports
-
-async function sendValidatorProposalEmail(validatorEmail, validatorName, subject, payload) {
+// ===============================================
+// VALIDATOR PROPOSAL EMAIL
+//
+// FIXED: The old version checked payload.type to decide how to render,
+// but notifyAllValidators was called with payloads that had no type field
+// at all — so every call fell into the validator branch regardless of
+// whether it was a registry or validator proposal.
+//
+// FIX: notifyAllValidators in admin.js now passes a payload with an
+// explicit type field ("registry" or "validator"). This function renders
+// the correct email for each type.
+// ===============================================
+async function sendValidatorProposalEmail(
+  validatorEmail,
+  validatorName,
+  subject,
+  payload,
+) {
   let detailsHtml = "";
   let detailsText = "";
 
   if (payload.type === "registry") {
+    // ── Registry proposal email ──────────────────────────────────────────
+    const walletBadge = payload.isWallet
+      ? `<p style="display:inline-block;background-color:#1d4ed8;color:#fff;font-size:10px;font-weight:bold;padding:3px 8px;border-radius:4px;margin:0 0 10px 0;">CRYPTO WALLET</p>`
+      : `<p style="display:inline-block;background-color:#374151;color:#9ca3af;font-size:10px;font-weight:bold;padding:3px 8px;border-radius:4px;margin:0 0 10px 0;">NON-WALLET REGISTRY</p>`;
+
     detailsHtml = `
       <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; margin: 20px 0;">
         <tr><td>
+          ${walletBadge}
           <p style="color:#999;font-size:11px;margin:0 0 5px 0;">REGISTRY NAME</p>
-          <p style="color:#000;font-size:20px;font-weight:bold;margin:0 0 15px 0;">${payload.registryName}</p>
+          <p style="color:#000;font-size:20px;font-weight:bold;margin:0 0 15px 0;">${payload.registryName || payload.nspace}</p>
           <p style="color:#999;font-size:11px;margin:0 0 5px 0;">NAMESPACE</p>
           <p style="color:#D4AF37;font-size:16px;font-weight:bold;margin:0 0 15px 0;">${payload.nspace}</p>
           <p style="color:#999;font-size:11px;margin:0 0 5px 0;">CONTRACT ADDRESS</p>
           <p style="color:#333;font-size:12px;margin:0;word-break:break-all;">${payload.registry}</p>
         </td></tr>
       </table>`;
-    detailsText = `Registry: ${payload.registryName}\nNamespace: ${payload.nspace}\nAddress: ${payload.registry}`;
-  } else {
+
+    detailsText = `Registry: ${payload.registryName || payload.nspace}\nNamespace: ${payload.nspace}\nAddress: ${payload.registry}\nType: ${payload.isWallet ? "Crypto Wallet" : "Non-Wallet Registry"}`;
+  } else if (payload.type === "validator") {
+    // ── Validator proposal email ─────────────────────────────────────────
     const actionText = payload.action ? "ADD VALIDATOR" : "REMOVE VALIDATOR";
     const actionColor = payload.action ? "#10B981" : "#EF4444";
+
     detailsHtml = `
       <table width="100%" cellpadding="20" cellspacing="0" style="background-color: #f9f9f9; border: 1px solid #e0e0e0; margin: 20px 0;">
         <tr><td>
@@ -555,7 +576,14 @@ async function sendValidatorProposalEmail(validatorEmail, validatorName, subject
           <p style="color:#333;font-size:12px;margin:0;word-break:break-all;">${payload.targetAddress}</p>
         </td></tr>
       </table>`;
+
     detailsText = `Action: ${actionText}\nTarget: ${payload.targetAddress}`;
+  } else {
+    // Unknown type — log and bail
+    console.error(
+      `❌ sendValidatorProposalEmail: unknown payload type "${payload.type}"`,
+    );
+    return;
   }
 
   const html = `
@@ -591,6 +619,7 @@ async function sendValidatorProposalEmail(validatorEmail, validatorName, subject
       html,
       text,
     });
+    console.log(`📧 Validator proposal email sent to: ${validatorEmail}`);
   } catch (error) {
     console.error("❌ Validator proposal email failed:", error.message);
   }
@@ -602,5 +631,5 @@ module.exports = {
   sendTransactionEmailToReceiver,
   sendSecurityChangeEmail,
   sendEmailChangeConfirmation,
-  sendValidatorProposalEmail, // ADD THIS
+  sendValidatorProposalEmail,
 };
