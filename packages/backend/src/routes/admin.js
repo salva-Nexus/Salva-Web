@@ -120,7 +120,8 @@ router.get("/proposals", async (req, res) => {
 
         // Set timelock only once when quorum is first reached
         if (isValidated && !p.timeLockTimestamp) {
-          p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
+
+          p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 120; // 2 minutes from now
         }
 
         p.remainingValidation = remaining;
