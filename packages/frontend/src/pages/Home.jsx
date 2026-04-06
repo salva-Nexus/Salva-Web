@@ -305,7 +305,9 @@ const ChainBadges = () => (
       <span key={c.name} className="flex items-center gap-1.5">
         {i > 0 && <span className="text-salvaGold/30 text-[10px]">·</span>}
         <span className={`w-1.5 h-1.5 rounded-full ${c.dot} animate-pulse`} />
-        <span className={`text-[10px] font-black uppercase tracking-widest ${c.color}`}>
+        <span
+          className={`text-[10px] font-black uppercase tracking-widest ${c.color}`}
+        >
           {c.name}
         </span>
       </span>
