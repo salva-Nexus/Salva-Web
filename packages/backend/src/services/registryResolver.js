@@ -1,18 +1,21 @@
 // Salva-Digital-Tech/packages/backend/src/services/registryResolver.js
 const { ethers } = require("ethers");
-const { wallet, provider } = require("./walletSigner");
+const { provider } = require("./walletSigner");
 
-// BaseRegistry ABI — backend wallet holds REGISTRAR_ROLE.
+// BaseRegistry ABI — updated to match current contract.
 // RULES:
-//   linkToWallet  → PURE name only      e.g. "charles"        (registry welds internally)
-//   resolveAddress → WELDED name        e.g. "charles@salva"  (Singleton needs namespace)
-//   unlink         → WELDED name        e.g. "charles@salva"  (Singleton needs namespace)
+//   link          → PURE name only       e.g. "charles"       (requires backend signature, payable)
+//   resolveAddress → WELDED name         e.g. "charles@salva" (Singleton needs namespace)
+//   unlink         → PURE name only      e.g. "charles"       (registry resolves namespace internally)
+//   namespace      → view (not pure)     returns the namespace string e.g. "@salva"
 // All strings are converted to UTF-8 bytes before contract calls.
 const BASE_REGISTRY_ABI = [
-  "function linkToWallet(bytes calldata _name, address _wallet) external returns (bool)",
+  // UPDATED: link replaces linkToWallet. Now requires signature param and is payable.
+  "function link(bytes calldata _name, address _wallet, bytes calldata signature) external payable",
   "function unlink(bytes calldata _name) external returns (bool)",
   "function resolveAddress(bytes calldata _name) external view returns (address)",
-  "function namespace() external pure returns (string memory)",
+  // UPDATED: view not pure — reads factory state
+  "function namespace() external view returns (string memory)",
 ];
 
 function getRegistryContract(registryAddress, signerOrProvider) {
@@ -66,71 +69,25 @@ async function checkNameAvailability(weldedName, registryAddress) {
 }
 
 /**
- * Links a PURE name to a wallet address.
- * Calls linkToWallet with PURE name (e.g. "charles") as bytes.
- * The registry welds it with "@salva" internally before calling Singleton.
+ * Unlinks a name alias via the registry.
+ * Calls unlink with the PURE name (not welded) — the contract resolves namespace internally.
+ * NOTE: This is kept for direct backend use cases. In production, unlink goes through
+ * the user's Safe wallet via index.js /api/alias/unlink-name endpoint.
  */
-async function linkNameToWallet(pureName, walletAddress, registryAddress) {
-  const reg = getRegistryContract(registryAddress, wallet);
-
+async function unlinkName(pureName, registryAddress, signerWallet) {
+  const reg = getRegistryContract(registryAddress, signerWallet);
   let tx;
   try {
-    tx = await reg.linkToWallet(nameToBytes(pureName), walletAddress, {
-      gasLimit: 300_000,
-    });
-    console.log(
-      `⏳ linkToWallet TX sent: ${tx.hash} ('${pureName}' → ${walletAddress})`,
-    );
-  } catch (sendErr) {
-    console.error(`❌ linkToWallet send failed:`, sendErr.message);
-    throw new Error("On-chain name linking failed. Please try again.");
-  }
-
-  let receipt;
-  try {
-    receipt = await tx.wait();
-  } catch (waitErr) {
-    console.error(`❌ linkToWallet reverted:`, waitErr.message);
-    throw new Error("On-chain name linking reverted. Please try again.");
-  }
-
-  if (!receipt || receipt.status === 0) {
-    throw new Error("On-chain name linking failed (receipt status 0).");
-  }
-
-  console.log(`✅ '${pureName}' linked to ${walletAddress} (tx: ${tx.hash})`);
-  return { txHash: tx.hash };
-}
-
-/**
- * Unlinks a name alias.
- * Calls unlink with the FULLY WELDED name (e.g. "charles@salva") as bytes.
- */
-async function unlinkName(weldedName, registryAddress) {
-  const reg = getRegistryContract(registryAddress, wallet);
-
-  let tx;
-  try {
-    tx = await reg.unlink(nameToBytes(weldedName), { gasLimit: 200_000 });
-    console.log(`⏳ unlink TX sent: ${tx.hash} ('${weldedName}')`);
+    tx = await reg.unlink(nameToBytes(pureName), { gasLimit: 200_000 });
+    console.log(`⏳ unlink TX sent: ${tx.hash} ('${pureName}')`);
   } catch (sendErr) {
     console.error(`❌ unlink send failed:`, sendErr.message);
     throw new Error("On-chain unlink failed. Please try again.");
   }
-
-  let receipt;
-  try {
-    receipt = await tx.wait();
-  } catch (waitErr) {
-    console.error(`❌ unlink reverted:`, waitErr.message);
-    throw new Error("On-chain unlink reverted. Please try again.");
-  }
-
-  if (!receipt || receipt.status === 0) {
+  const receipt = await tx.wait();
+  if (!receipt || receipt.status === 0)
     throw new Error("On-chain unlink failed (receipt status 0).");
-  }
-
-  console.log(`✅ '${weldedName}' unlinked (tx: ${tx.hash})`);
+  console.log(`✅ '${pureName}' unlinked (tx: ${tx.hash})`);
   return { txHash: tx.hash };
 }
 
@@ -160,19 +117,14 @@ async function resolveNameToAddress(weldedName, registryAddress) {
  */
 async function resolveToAddress(input, registryAddress) {
   const trimmed = input.trim();
-
   if (trimmed.startsWith("0x")) {
-    if (!ethers.isAddress(trimmed)) {
+    if (!ethers.isAddress(trimmed))
       throw new Error(`Invalid wallet address: ${trimmed}`);
-    }
     return trimmed.toLowerCase();
   }
-
-  if (!registryAddress) {
+  if (!registryAddress)
     throw new Error("A registry must be selected to resolve a name");
-  }
-
-  // At this point input is already welded (transfer route welds before calling here)
+  // Input is expected to already be welded (transfer route welds before calling here)
   return await resolveNameToAddress(trimmed, registryAddress);
 }
 
@@ -184,7 +136,6 @@ function isNameAlias(input) {
 
 module.exports = {
   checkNameAvailability,
-  linkNameToWallet,
   unlinkName,
   resolveNameToAddress,
   resolveToAddress,

@@ -1,13 +1,7 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
 import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import {
-  motion,
-  AnimatePresence,
-  useMotionValue,
-  useTransform,
-  useAnimation,
-} from "framer-motion";
+import { motion, AnimatePresence, useAnimation } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import Stars from "../components/Stars";
 import AdminPanel from "./AdminPanel";
@@ -33,37 +27,18 @@ function detectInputType(val) {
   return "name";
 }
 
-// ── Notification component ─────────────────────────────────────────────────
+// ── Notification ───────────────────────────────────────────────────────────
 const SalvaNotification = ({ notification, onClose }) => {
   const cfgMap = {
-    success: {
-      icon: "✓",
-      bar: "#D4AF37",
-      text: "#000",
-      btnBg: "#D4AF37",
-      btnText: "#000",
-    },
-    error: {
-      icon: "✕",
-      bar: "#EF4444",
-      text: "#fff",
-      btnBg: "#EF4444",
-      btnText: "#fff",
-    },
+    success: { icon: "✓", bar: "#D4AF37", btnBg: "#D4AF37", btnText: "#000" },
+    error: { icon: "✕", bar: "#EF4444", btnBg: "#EF4444", btnText: "#fff" },
     info: {
       icon: "↻",
       bar: "#3B82F6",
-      text: "#fff",
       btnBg: "rgba(255,255,255,0.15)",
       btnText: "#fff",
     },
-    warning: {
-      icon: "⚠",
-      bar: "#F59E0B",
-      text: "#000",
-      btnBg: "#F59E0B",
-      btnText: "#000",
-    },
+    warning: { icon: "⚠", bar: "#F59E0B", btnBg: "#F59E0B", btnText: "#000" },
   };
   const cfg = cfgMap[notification.type] || cfgMap.info;
   if (!notification.show) return null;
@@ -112,8 +87,7 @@ const SalvaNotification = ({ notification, onClose }) => {
 };
 
 // ── Swipeable Balance Card ─────────────────────────────────────────────────
-// Shows NGNs on left panel, USD (USDT+USDC) on right panel.
-// Swipe left or tap arrow to see foreign stablecoin balance.
+// Panel 0 = NGNs, Panel 1 = USD. Both directions freely swipeable.
 const BalanceCard = ({
   balance,
   usdtBalance,
@@ -123,55 +97,60 @@ const BalanceCard = ({
   onSend,
   onReceive,
 }) => {
-  const [activePanel, setActivePanel] = useState(0); // 0=NGNs, 1=USD
-  const x = useMotionValue(0);
+  const [activePanel, setActivePanel] = useState(0);
   const controls = useAnimation();
-
-  const handleDragEnd = (_, info) => {
-    if (info.offset.x < -60 && activePanel === 0) {
-      setActivePanel(1);
-      controls.start({ x: "-100%" });
-    } else if (info.offset.x > 60 && activePanel === 1) {
-      setActivePanel(0);
-      controls.start({ x: "0%" });
-    } else {
-      controls.start({ x: activePanel === 0 ? "0%" : "-100%" });
-    }
-  };
+  const dragStartX = useRef(0);
 
   const goTo = (panel) => {
     setActivePanel(panel);
-    controls.start({ x: panel === 0 ? "0%" : "-100%" });
+    controls.start({
+      x: panel === 0 ? "0%" : "-50%",
+      transition: { type: "spring", stiffness: 300, damping: 30 },
+    });
   };
 
-  const totalUsd = (parseFloat(usdtBalance) + parseFloat(usdcBalance)).toFixed(
-    2,
-  );
+  const handleDragStart = (_, info) => {
+    dragStartX.current = info.point.x;
+  };
+
+  const handleDragEnd = (_, info) => {
+    const offset = info.offset.x;
+    if (offset < -50 && activePanel === 0) goTo(1);
+    else if (offset > 50 && activePanel === 1) goTo(0);
+    else goTo(activePanel);
+  };
+
+  const totalUsd = (
+    parseFloat(usdtBalance || 0) + parseFloat(usdcBalance || 0)
+  ).toFixed(2);
 
   return (
     <div className="rounded-3xl overflow-hidden bg-gray-100 dark:bg-black border border-white/5 shadow-2xl mb-8">
-      {/* Swipeable panels */}
       <div className="relative overflow-hidden">
+        {/* Track is 200% wide so each panel is 100% of the card */}
         <motion.div
           className="flex"
+          style={{ width: "200%" }}
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
-          dragElastic={0.1}
+          dragElastic={0.08}
+          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           animate={controls}
           initial={{ x: "0%" }}
-          transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          style={{ width: "200%" }}
         >
-          {/* Panel 1: NGNs */}
-          <div className="w-1/2 p-6 sm:p-10">
+          {/* Panel 0: NGNs */}
+          <div className="p-6 sm:p-10" style={{ width: "50%" }}>
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
                   NGNs Balance
                 </p>
-                <span className="text-[10px] text-salvaGold/60 font-bold">
-                  ← swipe for USD
+                <span
+                  className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
+                  onClick={() => goTo(1)}
+                >
+                  swipe → USD
                 </span>
               </div>
               <button
@@ -189,7 +168,6 @@ const BalanceCard = ({
                 NGNs
               </span>
             </div>
-            {/* Dot indicators */}
             <div className="flex gap-2 mt-4">
               <div className="w-5 h-1.5 bg-salvaGold rounded-full" />
               <div
@@ -199,15 +177,18 @@ const BalanceCard = ({
             </div>
           </div>
 
-          {/* Panel 2: USD */}
-          <div className="w-1/2 p-6 sm:p-10">
+          {/* Panel 1: USD */}
+          <div className="p-6 sm:p-10" style={{ width: "50%" }}>
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
                   USD Balance
                 </p>
-                <span className="text-[10px] text-salvaGold/60 font-bold">
-                  swipe for NGNs →
+                <span
+                  className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
+                  onClick={() => goTo(0)}
+                >
+                  ← NGNs
                 </span>
               </div>
               <button
@@ -225,15 +206,14 @@ const BalanceCard = ({
                 USD
               </span>
             </div>
-            <div className="flex gap-2 mt-3">
+            <div className="mt-2">
               <p className="text-[10px] opacity-40 font-mono">
-                USDT: {showBalance ? formatNumber(usdtBalance) : "••••"}{" "}
+                USDT: {showBalance ? formatNumber(usdtBalance) : "••••"}
                 &nbsp;·&nbsp; USDC:{" "}
                 {showBalance ? formatNumber(usdcBalance) : "••••"}
               </p>
             </div>
-            {/* Dot indicators */}
-            <div className="flex gap-2 mt-4">
+            <div className="flex gap-2 mt-3">
               <div
                 className="w-1.5 h-1.5 bg-white/20 rounded-full cursor-pointer"
                 onClick={() => goTo(0)}
@@ -267,26 +247,18 @@ const BalanceCard = ({
 const LinkNameTab = ({ user, registries, showMsg }) => {
   const [linkedNames, setLinkedNames] = useState([]);
   const [loadingNames, setLoadingNames] = useState(true);
-
-  // Link form state
   const [nameInput, setNameInput] = useState("");
   const [walletInput, setWalletInput] = useState("");
   const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [nameCheckResult, setNameCheckResult] = useState(null); // {available, reserved, welded}
+  const [nameCheckResult, setNameCheckResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [linkStep, setLinkStep] = useState("form"); // form | confirm | pin | linking | success | reserved
-
-  // Reserved name email
+  const [linkStep, setLinkStep] = useState("form");
   const [reservedEmail, setReservedEmail] = useState("");
   const [reservedSubmitting, setReservedSubmitting] = useState(false);
-
-  // PIN for link
   const [pinInput, setPinInput] = useState("");
   const [pinLoading, setPinLoading] = useState(false);
-
-  // Unlink state
-  const [unlinkTarget, setUnlinkTarget] = useState(null); // alias entry
+  const [unlinkTarget, setUnlinkTarget] = useState(null);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
   const [unlinkPinInput, setUnlinkPinInput] = useState("");
   const [unlinkPinStep, setUnlinkPinStep] = useState(false);
@@ -310,7 +282,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
     fetchLinkedNames();
   }, [fetchLinkedNames]);
 
-  // Client-side name validation (mirrors contract rules)
   const validateNameLocally = (val) => {
     if (!val) return "Name is required";
     if (val.includes("0") || val.includes("1"))
@@ -359,13 +330,10 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         return;
       }
       setNameCheckResult(data);
-      if (data.reserved) {
-        setLinkStep("reserved");
-      } else if (!data.available) {
+      if (data.reserved) setLinkStep("reserved");
+      else if (!data.available)
         setNameError("This name is already taken. Try another.");
-      } else {
-        setLinkStep("confirm");
-      }
+      else setLinkStep("confirm");
     } catch {
       setNameError("Network error. Please try again.");
     } finally {
@@ -392,9 +360,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         setNameInput("");
         setWalletInput("");
         setReservedEmail("");
-      } else {
-        showMsg(data.message || "Failed to send", "error");
-      }
+      } else showMsg(data.message || "Failed to send", "error");
     } catch {
       showMsg("Network error", "error");
     } finally {
@@ -402,16 +368,10 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
     }
   };
 
-  const handleConfirmLink = () => {
-    setLinkStep("pin");
-    setPinInput("");
-  };
-
   const handleExecuteLink = async () => {
     if (pinInput.length !== 4) return;
     setPinLoading(true);
     try {
-      // 1. Verify PIN and get private key
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -426,8 +386,8 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
 
       setLinkStep("linking");
 
-      // 2. Call link-name with private key
-      const res = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
+      // Prepare: get signature + fee from backend
+      const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -435,33 +395,52 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           name: nameInput,
           walletToLink: walletInput,
           registryAddress: selectedRegistry.registryAddress,
-          userPrivateKey: pinData.privateKey,
         }),
       });
-      const data = await res.json();
+      const prepData = await prepRes.json();
 
-      if (data.reserved) {
+      if (prepData.reserved) {
         setLinkStep("reserved");
         return;
       }
-      if (data.lowBalance) {
-        showMsg(data.message, "warning");
+      if (prepData.lowBalance) {
+        showMsg(prepData.message, "warning");
         setLinkStep("form");
         return;
       }
-      if (!res.ok) {
-        showMsg(data.message || "Linking failed", "error");
+      if (!prepRes.ok) {
+        showMsg(prepData.message || "Preparation failed", "error");
         setLinkStep("confirm");
         return;
       }
 
-      // 3. Success
+      // Execute: fire the multicall with user's private key
+      const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          safeAddress: user.safeAddress,
+          pureName: prepData.pureName,
+          weldedName: prepData.weldedName,
+          walletToLink: prepData.walletToLink,
+          registryAddress: prepData.registryAddress,
+          signature: prepData.signature,
+          ethFee: prepData.ethFee,
+          feeTokenAddress: prepData.feeTokenAddress,
+          userPrivateKey: pinData.privateKey,
+        }),
+      });
+      const execData = await execRes.json();
+      if (!execRes.ok) {
+        showMsg(execData.message || "Linking failed", "error");
+        setLinkStep("confirm");
+        return;
+      }
+
       setLinkStep("success");
       await fetchLinkedNames();
-
-      // Update localStorage user
       const savedUser = JSON.parse(localStorage.getItem("salva_user") || "{}");
-      savedUser.nameAlias = data.alias?.name;
+      savedUser.nameAlias = execData.alias?.name;
       localStorage.setItem("salva_user", JSON.stringify(savedUser));
     } catch (err) {
       showMsg(err.message || "Failed to link name", "error");
@@ -469,19 +448,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
     } finally {
       setPinLoading(false);
     }
-  };
-
-  const startUnlink = (aliasEntry) => {
-    setUnlinkTarget(aliasEntry);
-    setShowUnlinkConfirm(true);
-    setUnlinkPinInput("");
-    setUnlinkPinStep(false);
-  };
-
-  const handleUnlinkConfirmed = () => {
-    setShowUnlinkConfirm(false);
-    setUnlinkPinStep(true);
-    setUnlinkPinInput("");
   };
 
   const handleExecuteUnlink = async () => {
@@ -499,7 +465,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         setUnlinkLoading(false);
         return;
       }
-
       const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -511,15 +476,12 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         }),
       });
       const data = await res.json();
-
       if (res.ok) {
         showMsg(`"${unlinkTarget.name}" unlinked successfully!`);
         setUnlinkPinStep(false);
         setUnlinkTarget(null);
         await fetchLinkedNames();
-      } else {
-        showMsg(data.message || "Unlink failed", "error");
-      }
+      } else showMsg(data.message || "Unlink failed", "error");
     } catch {
       showMsg("Network error during unlink", "error");
     } finally {
@@ -542,7 +504,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
       animate={{ opacity: 1 }}
       className="space-y-8"
     >
-      {/* ── Section 1: Linked Names List ── */}
+      {/* Linked Names List */}
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
           Your Linked Names
@@ -592,7 +554,12 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                     </p>
                   </div>
                   <button
-                    onClick={() => startUnlink(alias)}
+                    onClick={() => {
+                      setUnlinkTarget(alias);
+                      setShowUnlinkConfirm(true);
+                      setUnlinkPinInput("");
+                      setUnlinkPinStep(false);
+                    }}
                     className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
                   >
                     Unlink
@@ -604,20 +571,17 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         )}
       </div>
 
-      {/* ── Section 2: Link a New Name ── */}
+      {/* Register New Name */}
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
           Register a New Name
         </p>
 
-        {/* ── FORM step ── */}
         {linkStep === "form" && (
           <div className="p-6 rounded-3xl border border-salvaGold/20 bg-salvaGold/5 space-y-4">
             <p className="text-xs font-black text-salvaGold uppercase tracking-widest">
               Link Name to Address
             </p>
-
-            {/* Name input */}
             <div>
               <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
                 Name (lowercase a–z, 2–9, one _ max, no 0 or 1)
@@ -627,10 +591,9 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 placeholder="yourname"
                 value={nameInput}
                 onChange={(e) => {
-                  const v = e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z2-9_]/g, "");
-                  setNameInput(v);
+                  setNameInput(
+                    e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""),
+                  );
                   setNameError("");
                 }}
                 maxLength={32}
@@ -646,8 +609,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 </p>
               )}
             </div>
-
-            {/* Wallet address input */}
             <div>
               <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
                 Wallet Address to Link This Name To
@@ -663,12 +624,9 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none font-mono text-sm"
               />
               <p className="text-[10px] opacity-30 mt-1 ml-1">
-                ⚠️ Make sure you select the wallet service that manages this
-                address below.
+                ⚠️ Select the wallet service that manages this address below.
               </p>
             </div>
-
-            {/* Registry selector */}
             <div>
               <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
                 Which Wallet Service Does This Address Belong To?
@@ -676,10 +634,11 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
               <select
                 value={selectedRegistry?.registryAddress || ""}
                 onChange={(e) => {
-                  const found = registries.find(
-                    (r) => r.registryAddress === e.target.value,
+                  setSelectedRegistry(
+                    registries.find(
+                      (r) => r.registryAddress === e.target.value,
+                    ) || null,
                   );
-                  setSelectedRegistry(found || null);
                   setNameError("");
                 }}
                 className="w-full p-4 bg-white dark:bg-black/40 rounded-xl border border-gray-200 dark:border-white/10 text-sm outline-none focus:border-salvaGold font-bold text-black dark:text-white"
@@ -692,11 +651,9 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 ))}
               </select>
             </div>
-
             {nameError && (
               <p className="text-xs text-red-400 font-bold">{nameError}</p>
             )}
-
             <button
               onClick={handleCheckName}
               disabled={
@@ -709,7 +666,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           </div>
         )}
 
-        {/* ── RESERVED step ── */}
         {linkStep === "reserved" && (
           <div className="p-6 rounded-3xl border border-yellow-500/30 bg-yellow-500/5 space-y-5">
             <div className="text-center">
@@ -717,8 +673,8 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
               <h3 className="text-xl font-black mb-2">Whitelisted Name</h3>
               <p className="text-sm opacity-70 leading-relaxed">
                 <strong className="text-salvaGold">{nameInput}</strong> is a
-                reserved name in the Salva protocol. Enter your email and we
-                will reach out to verify your eligibility.
+                reserved name. Enter your email and we will reach out to verify
+                your eligibility.
               </p>
             </div>
             <input
@@ -746,7 +702,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           </div>
         )}
 
-        {/* ── CONFIRM step ── */}
         {linkStep === "confirm" && nameCheckResult && (
           <div className="p-6 rounded-3xl border border-green-500/30 bg-green-500/5 space-y-5">
             <div className="text-center">
@@ -776,9 +731,8 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
             </div>
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
               <p className="text-xs text-yellow-400 font-bold">
-                ⚠️ A fee of <strong>1 USDT or 1 USDC</strong> will be charged
-                from your wallet. This is permanent — double-check the name and
-                wallet address.
+                ⚠️ A fee of <strong>1 USDT or 1 USDC</strong> will be charged.
+                This is permanent — double-check the name and wallet address.
               </p>
             </div>
             <div className="flex gap-3">
@@ -789,7 +743,10 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 Go Back
               </button>
               <button
-                onClick={handleConfirmLink}
+                onClick={() => {
+                  setLinkStep("pin");
+                  setPinInput("");
+                }}
                 className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110"
               >
                 Confirm & Enter PIN
@@ -798,7 +755,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           </div>
         )}
 
-        {/* ── PIN step ── */}
         {linkStep === "pin" && (
           <div className="p-6 rounded-3xl border border-white/10 bg-white/5 space-y-5 text-center">
             <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto">
@@ -838,7 +794,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           </div>
         )}
 
-        {/* ── LINKING step ── */}
         {linkStep === "linking" && (
           <div className="p-12 rounded-3xl border border-white/10 bg-white/5 text-center space-y-4">
             <div className="w-12 h-12 border-4 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin mx-auto" />
@@ -849,7 +804,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
           </div>
         )}
 
-        {/* ── SUCCESS step ── */}
         {linkStep === "success" && (
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -878,7 +832,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         )}
       </div>
 
-      {/* ── Unlink Confirm Modal ── */}
+      {/* Unlink Confirm Modal */}
       <AnimatePresence>
         {showUnlinkConfirm && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -904,7 +858,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                 </p>
                 <p className="text-sm opacity-60 mb-6">
                   This removes the link on-chain. Someone else could claim this
-                  name after. You can re-link a new name anytime.
+                  name after.
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -914,7 +868,11 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
                     Cancel
                   </button>
                   <button
-                    onClick={handleUnlinkConfirmed}
+                    onClick={() => {
+                      setShowUnlinkConfirm(false);
+                      setUnlinkPinStep(true);
+                      setUnlinkPinInput("");
+                    }}
                     className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110"
                   >
                     Yes, Unlink
@@ -926,7 +884,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Unlink PIN Modal ── */}
+      {/* Unlink PIN Modal */}
       <AnimatePresence>
         {unlinkPinStep && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -1011,7 +969,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState("buy");
   const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
-  const [feePreview, setFeePreview] = useState({ feeNGN: 0 });
+  const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
   const [amountError, setAmountError] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
@@ -1028,16 +986,20 @@ const Dashboard = () => {
   const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
   const [selectedRegistry, setSelectedRegistry] = useState(null);
   const [inputType, setInputType] = useState("empty");
+  // Coin selection: "NGN" | "USDT" | "USDC"
+  const [selectedCoin, setSelectedCoin] = useState("NGN");
 
   const navigate = useNavigate();
 
-  const showMsg = useCallback((msg, type = "success") => {
-    setNotification({ show: true, message: msg, type });
-  }, []);
-
-  const closeNotif = useCallback(() => {
-    setNotification((n) => ({ ...n, show: false }));
-  }, []);
+  const showMsg = useCallback(
+    (msg, type = "success") =>
+      setNotification({ show: true, message: msg, type }),
+    [],
+  );
+  const closeNotif = useCallback(
+    () => setNotification((n) => ({ ...n, show: false })),
+    [],
+  );
 
   const refreshUserStatus = async (email, currentUser) => {
     try {
@@ -1081,15 +1043,30 @@ const Dashboard = () => {
     }
   }, [user]);
 
+  // Poll balance every 30 seconds
   useEffect(() => {
-    if (transferAmount && balance) {
+    if (!user?.safeAddress) return;
+    const interval = setInterval(() => fetchBalance(user.safeAddress), 30000);
+    return () => clearInterval(interval);
+  }, [user?.safeAddress]);
+
+  useEffect(() => {
+    if (transferAmount) {
       const amt = parseFloat(transferAmount);
-      const bal = parseFloat(balance);
-      setAmountError(!isNaN(amt) && amt > bal);
+      if (selectedCoin === "NGN") {
+        const bal = parseFloat(balance);
+        setAmountError(!isNaN(amt) && amt > bal);
+      } else if (selectedCoin === "USDT") {
+        const bal = parseFloat(usdtBalance);
+        setAmountError(!isNaN(amt) && amt > bal);
+      } else {
+        const bal = parseFloat(usdcBalance);
+        setAmountError(!isNaN(amt) && amt > bal);
+      }
     } else {
       setAmountError(false);
     }
-  }, [transferAmount, balance]);
+  }, [transferAmount, balance, usdtBalance, usdcBalance, selectedCoin]);
 
   const fetchBalance = async (address) => {
     try {
@@ -1140,15 +1117,24 @@ const Dashboard = () => {
     } catch {}
   };
 
-  const computeFeePreview = (amount) => {
-    if (!feeConfig || !amount) return setFeePreview({ feeNGN: 0 });
+  const computeFeePreview = (amount, coin) => {
     const amt = parseFloat(amount);
-    if (isNaN(amt)) return;
-    let fee = 0;
-    if (amt >= feeConfig.tier2Min) fee = feeConfig.tier2Fee;
-    else if (amt >= feeConfig.tier1Min && amt <= feeConfig.tier1Max)
-      fee = feeConfig.tier1Fee;
-    setFeePreview({ feeNGN: fee });
+    if (isNaN(amt) || !amount) {
+      setFeePreview({ feeNGN: 0, feeUsd: 0 });
+      return;
+    }
+
+    if (coin === "NGN" && feeConfig) {
+      let fee = 0;
+      if (amt >= feeConfig.tier2Min) fee = feeConfig.tier2Fee;
+      else if (amt >= feeConfig.tier1Min && amt <= feeConfig.tier1Max)
+        fee = feeConfig.tier1Fee;
+      setFeePreview({ feeNGN: fee, feeUsd: 0 });
+    } else if (coin === "USDT" || coin === "USDC") {
+      // $0.015 fee for $5 and above, free below $5
+      const fee = amt >= 5 ? 0.015 : 0;
+      setFeePreview({ feeNGN: 0, feeUsd: fee });
+    }
   };
 
   const handleRecipientChange = (val) => {
@@ -1172,7 +1158,8 @@ const Dashboard = () => {
     setTransferAmountDisplay("");
     setSelectedRegistry(registries.length === 1 ? registries[0] : null);
     setInputType("empty");
-    setFeePreview({ feeNGN: 0 });
+    setFeePreview({ feeNGN: 0, feeUsd: 0 });
+    setSelectedCoin("NGN");
   };
 
   const resolveAndConfirm = async () => {
@@ -1216,6 +1203,8 @@ const Dashboard = () => {
         inputType: type,
         rawInput: recipientInput.trim(),
         feeNGN: feePreview.feeNGN,
+        feeUsd: feePreview.feeUsd,
+        coin: selectedCoin,
       });
       setIsConfirmModalOpen(true);
     } catch {
@@ -1225,13 +1214,12 @@ const Dashboard = () => {
     }
   };
 
-  const executeTransfer = async (privateKey, capturedConfirmationData) => {
+  const executeTransfer = async (privateKey, capturedData) => {
     setIsPinModalOpen(false);
     setIsConfirmModalOpen(false);
     setIsSendOpen(false);
     resetSendForm();
     showMsg("Transaction queued — sending…", "info");
-
     try {
       const res = await fetch(`${SALVA_API_URL}/api/transfer`, {
         method: "POST",
@@ -1239,19 +1227,18 @@ const Dashboard = () => {
         body: JSON.stringify({
           userPrivateKey: privateKey,
           safeAddress: user.safeAddress,
-          toInput: capturedConfirmationData.rawInput,
-          amount: capturedConfirmationData.amount,
-          registryAddress: capturedConfirmationData.registryAddress || null,
-          inputType: capturedConfirmationData.inputType,
+          toInput: capturedData.rawInput,
+          amount: capturedData.amount,
+          registryAddress: capturedData.registryAddress || null,
+          inputType: capturedData.inputType,
+          coin: capturedData.coin,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         showMsg("✅ Transfer Successful!");
         setTimeout(() => fetchBalance(user.safeAddress), 3500);
-      } else {
-        showMsg(data.message || "Transfer failed", "error");
-      }
+      } else showMsg(data.message || "Transfer failed", "error");
     } catch {
       showMsg("Network error — transfer may not have gone through", "error");
     }
@@ -1270,11 +1257,10 @@ const Dashboard = () => {
       const data = await res.json();
       if (res.ok) {
         const capturedData = { ...confirmationData };
-        const privateKey = data.privateKey;
         setTransactionPin("");
         setPinAttempts(0);
         setLoading(false);
-        await executeTransfer(privateKey, capturedData);
+        await executeTransfer(data.privateKey, capturedData);
       } else {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
@@ -1308,12 +1294,19 @@ const Dashboard = () => {
   ];
 
   const showRegistryDropdown = inputType === "name";
+  const currentCoinBalance =
+    selectedCoin === "NGN"
+      ? balance
+      : selectedCoin === "USDT"
+        ? usdtBalance
+        : usdcBalance;
+  const coinSymbol = selectedCoin === "NGN" ? "NGNs" : selectedCoin;
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-4xl mx-auto relative z-10">
-        {/* ── Header ── */}
+        {/* Header */}
         <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-8">
           <div>
             <p className="text-[10px] uppercase tracking-widest text-salvaGold font-bold">
@@ -1325,7 +1318,7 @@ const Dashboard = () => {
           </div>
         </header>
 
-        {/* ── Swipeable Balance Card ── */}
+        {/* Balance Card */}
         <BalanceCard
           balance={balance}
           usdtBalance={usdtBalance}
@@ -1339,7 +1332,7 @@ const Dashboard = () => {
           }}
         />
 
-        {/* ── Wallet address ── */}
+        {/* Wallet Address */}
         <div
           onClick={() => {
             navigator.clipboard.writeText(user.safeAddress);
@@ -1357,7 +1350,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* ── View Transactions ── */}
+        {/* View Transactions */}
         <Link
           to="/transactions"
           className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
@@ -1367,7 +1360,7 @@ const Dashboard = () => {
           </p>
         </Link>
 
-        {/* ── Tabs ── */}
+        {/* Tabs */}
         <div className="flex border-b border-white/10 mb-8 gap-8 overflow-x-auto no-scrollbar">
           {tabs.map((tab) => (
             <button
@@ -1380,7 +1373,7 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* ── Buy NGNs Tab ── */}
+        {/* Buy NGNs Tab */}
         {activeTab === "buy" && (
           <motion.section
             initial={{ opacity: 0 }}
@@ -1406,18 +1399,18 @@ const Dashboard = () => {
           </motion.section>
         )}
 
-        {/* ── Link a Name Tab ── */}
+        {/* Link a Name Tab */}
         {activeTab === "names" && (
           <LinkNameTab user={user} registries={registries} showMsg={showMsg} />
         )}
 
-        {/* ── Admin Panel Tab ── */}
+        {/* Admin Panel Tab */}
         {activeTab === "admin" && user.isValidator && (
           <AdminPanel user={user} showMsg={showMsg} />
         )}
       </div>
 
-      {/* ── No PIN Warning ── */}
+      {/* No PIN Warning */}
       <AnimatePresence>
         {noPinWarning && (
           <motion.div
@@ -1450,7 +1443,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Send Modal ── */}
+      {/* Send Modal */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -1469,12 +1462,38 @@ const Dashboard = () => {
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1">
-                Send NGNs
-              </h3>
-              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
+              <h3 className="text-2xl sm:text-3xl font-black mb-1">Send</h3>
+              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-6">
                 Salva Secure Transfer
               </p>
+
+              {/* Coin Selector */}
+              <div className="mb-5">
+                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                  Select Token
+                </label>
+                <div className="flex gap-2">
+                  {["NGN", "USDT", "USDC"].map((coin) => (
+                    <button
+                      key={coin}
+                      onClick={() => {
+                        setSelectedCoin(coin);
+                        setTransferAmount("");
+                        setTransferAmountDisplay("");
+                        setFeePreview({ feeNGN: 0, feeUsd: 0 });
+                      }}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 opacity-50 hover:opacity-80"}`}
+                    >
+                      {coin === "NGN" ? "NGNs" : coin}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] opacity-30 mt-1.5">
+                  Balance:{" "}
+                  {showBalance ? formatNumber(currentCoinBalance) : "••••"}{" "}
+                  {coinSymbol}
+                </p>
+              </div>
 
               <form
                 onSubmit={(e) => {
@@ -1483,6 +1502,7 @@ const Dashboard = () => {
                 }}
                 className="space-y-5"
               >
+                {/* Recipient */}
                 <div className="space-y-2">
                   <label className="text-[10px] uppercase opacity-40 font-bold block">
                     Recipient
@@ -1533,9 +1553,10 @@ const Dashboard = () => {
                   )}
                 </div>
 
+                {/* Amount */}
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
-                    Amount (NGNs)
+                    Amount ({coinSymbol})
                   </label>
                   <div className="relative">
                     <input
@@ -1548,12 +1569,12 @@ const Dashboard = () => {
                         setTransferAmountDisplay(fmt);
                         const raw = fmt.replace(/,/g, "");
                         setTransferAmount(raw);
-                        computeFeePreview(raw);
+                        computeFeePreview(raw, selectedCoin);
                       }}
                       className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
-                      NGNs
+                      {coinSymbol}
                     </span>
                   </div>
                   {amountError && (
@@ -1561,18 +1582,47 @@ const Dashboard = () => {
                       ⚠️ Insufficient balance
                     </p>
                   )}
-                  {feePreview.feeNGN > 0 && transferAmount && !amountError && (
-                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
-                      <div className="flex justify-between">
-                        <span className="opacity-50 uppercase font-bold">
-                          Network Fee
-                        </span>
-                        <span className="text-red-400 font-black">
-                          -{formatNumber(feePreview.feeNGN)} NGNs
-                        </span>
+
+                  {/* NGN fee preview */}
+                  {selectedCoin === "NGN" &&
+                    feePreview.feeNGN > 0 &&
+                    transferAmount &&
+                    !amountError && (
+                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="opacity-50 uppercase font-bold">
+                            Network Fee
+                          </span>
+                          <span className="text-red-400 font-black">
+                            -{formatNumber(feePreview.feeNGN)} NGNs
+                          </span>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+
+                  {/* USD fee preview */}
+                  {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
+                    transferAmount &&
+                    !amountError && (
+                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                        <div className="flex justify-between">
+                          <span className="opacity-50 uppercase font-bold">
+                            Network Fee
+                          </span>
+                          <span
+                            className={
+                              feePreview.feeUsd > 0
+                                ? "text-red-400 font-black"
+                                : "text-green-400 font-black"
+                            }
+                          >
+                            {feePreview.feeUsd > 0
+                              ? `-${feePreview.feeUsd} ${selectedCoin}`
+                              : "Free"}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                 </div>
 
                 <button
@@ -1588,7 +1638,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Confirmation Modal ── */}
+      {/* Confirmation Modal */}
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
@@ -1601,7 +1651,7 @@ const Dashboard = () => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-lg border border-gray-200 dark:border-white/10 shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
@@ -1619,7 +1669,7 @@ const Dashboard = () => {
               <div className="space-y-3 mb-6">
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-sm sm:text-base text-salvaGold break-all">
+                  <p className="font-black text-sm sm:text-base text-salvaGold break-all leading-snug">
                     {confirmationData.displayIdentifier}
                   </p>
                   <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
@@ -1638,14 +1688,21 @@ const Dashboard = () => {
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
                   <p className="font-black text-xl">
                     {formatNumber(confirmationData.amount)}{" "}
-                    <span className="text-salvaGold">NGNs</span>
+                    <span className="text-salvaGold">
+                      {confirmationData.coin === "NGN"
+                        ? "NGNs"
+                        : confirmationData.coin}
+                    </span>
                   </p>
                 </div>
-                {confirmationData.feeNGN > 0 && (
+                {(confirmationData.feeNGN > 0 ||
+                  confirmationData.feeUsd > 0) && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
                     <p className="font-black text-base text-red-400">
-                      -{formatNumber(confirmationData.feeNGN)} NGNs
+                      {confirmationData.feeNGN > 0
+                        ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
+                        : `-${confirmationData.feeUsd} ${confirmationData.coin}`}
                     </p>
                   </div>
                 )}
@@ -1674,7 +1731,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ── PIN Modal (transfer) ── */}
+      {/* PIN Modal */}
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
@@ -1741,7 +1798,7 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ── Salva Notification ── */}
+      {/* Notification */}
       <AnimatePresence>
         {notification.show && (
           <SalvaNotification notification={notification} onClose={closeNotif} />

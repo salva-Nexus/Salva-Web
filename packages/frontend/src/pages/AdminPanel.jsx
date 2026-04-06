@@ -42,7 +42,6 @@ class AdminErrorBoundary extends Component {
 // ── Live countdown timer ────────────────────────────────────────────────────
 const TimelockCountdown = ({ timeLockTimestamp }) => {
   const [remaining, setRemaining] = useState("");
-
   useEffect(() => {
     const calc = () => {
       const now = Math.floor(Date.now() / 1000);
@@ -60,15 +59,10 @@ const TimelockCountdown = ({ timeLockTimestamp }) => {
     const t = setInterval(calc, 1000);
     return () => clearInterval(t);
   }, [timeLockTimestamp]);
-
   const isReady = remaining === "READY";
   return (
     <span
-      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
-        isReady
-          ? "bg-green-500/10 text-green-400"
-          : "bg-salvaGold/10 text-salvaGold"
-      }`}
+      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${isReady ? "bg-green-500/10 text-green-400" : "bg-salvaGold/10 text-salvaGold"}`}
     >
       {isReady ? "✓ READY TO EXECUTE" : `⏱ ${remaining}`}
     </span>
@@ -102,7 +96,6 @@ const RegistryCard = ({
       transition={{ delay: i * 0.06 }}
       className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4"
     >
-      {/* Info row */}
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
         <div className="space-y-1 min-w-0">
           <p className="font-black text-lg text-white truncate">
@@ -112,28 +105,17 @@ const RegistryCard = ({
           <p className="font-mono text-[10px] opacity-40 break-all">
             {p.registry}
           </p>
-          {/* isWallet badge */}
           <span
-            className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${
-              p.isWallet
-                ? "bg-blue-500/10 text-blue-400"
-                : "bg-white/5 text-white/30"
-            }`}
+            className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${p.isWallet ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-white/30"}`}
           >
             {p.isWallet ? "🔵 Crypto Wallet" : "⚙️ Non-Wallet Registry"}
           </span>
         </div>
-
-        {/* Vote remaining + timelock badges */}
         <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
           {p.remainingValidation !== null &&
           p.remainingValidation !== undefined ? (
             <span
-              className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
-                quorumReached
-                  ? "bg-green-500/10 text-green-400"
-                  : "bg-white/5 text-white/60"
-              }`}
+              className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${quorumReached ? "bg-green-500/10 text-green-400" : "bg-white/5 text-white/60"}`}
             >
               {quorumReached
                 ? "✓ QUORUM REACHED"
@@ -144,11 +126,9 @@ const RegistryCard = ({
               READING VOTES...
             </span>
           )}
-
           {p.isValidated && p.timeLockTimestamp && (
             <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
           )}
-
           {p.isValidated && !p.timeLockTimestamp && (
             <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-salvaGold/10 text-salvaGold">
               ⏳ TIMELOCK STARTING...
@@ -156,8 +136,6 @@ const RegistryCard = ({
           )}
         </div>
       </div>
-
-      {/* Action buttons */}
       <div className="flex flex-wrap gap-2">
         {!quorumReached &&
           (hasVoted ? (
@@ -173,7 +151,6 @@ const RegistryCard = ({
               Validate
             </button>
           ))}
-
         {quorumReached && (
           <button
             onClick={() => (canExecute ? onExecute(p) : null)}
@@ -183,16 +160,11 @@ const RegistryCard = ({
                 ? "48-hour security timelock must expire first"
                 : "Execute registry initialization"
             }
-            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${
-              canExecute
-                ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white cursor-pointer"
-                : "bg-white/5 border-white/10 text-white/30 cursor-not-allowed"
-            } disabled:opacity-50`}
+            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${canExecute ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white cursor-pointer" : "bg-white/5 border-white/10 text-white/30 cursor-not-allowed"} disabled:opacity-50`}
           >
             {canExecute ? "⚡ Execute" : "🔒 Locked"}
           </button>
         )}
-
         <button
           onClick={() => onCancel(p)}
           disabled={loading}
@@ -230,26 +202,17 @@ const ValidatorCard = ({
       <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
         <div className="space-y-2 min-w-0">
           <span
-            className={`text-xs font-black uppercase px-2 py-1 rounded-lg ${
-              p.action
-                ? "bg-green-500/10 text-green-400"
-                : "bg-red-500/10 text-red-400"
-            }`}
+            className={`text-xs font-black uppercase px-2 py-1 rounded-lg ${p.action ? "bg-green-500/10 text-green-400" : "bg-red-500/10 text-red-400"}`}
           >
             {p.action ? "ADD VALIDATOR" : "REMOVE VALIDATOR"}
           </span>
           <p className="font-mono text-[10px] opacity-40 break-all">{p.addr}</p>
         </div>
-
         <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
           {p.remainingValidation !== null &&
           p.remainingValidation !== undefined ? (
             <span
-              className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${
-                quorumReached
-                  ? "bg-green-500/10 text-green-400"
-                  : "bg-white/5 text-white/60"
-              }`}
+              className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${quorumReached ? "bg-green-500/10 text-green-400" : "bg-white/5 text-white/60"}`}
             >
               {quorumReached
                 ? "✓ QUORUM REACHED"
@@ -260,11 +223,9 @@ const ValidatorCard = ({
               READING VOTES...
             </span>
           )}
-
           {p.isValidated && p.timeLockTimestamp && (
             <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
           )}
-
           {p.isValidated && !p.timeLockTimestamp && (
             <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-salvaGold/10 text-salvaGold">
               ⏳ TIMELOCK STARTING...
@@ -272,7 +233,6 @@ const ValidatorCard = ({
           )}
         </div>
       </div>
-
       <div className="flex flex-wrap gap-2">
         {!quorumReached &&
           (hasVoted ? (
@@ -288,7 +248,6 @@ const ValidatorCard = ({
               Validate
             </button>
           ))}
-
         {quorumReached && (
           <button
             onClick={() => (canExecute ? onExecute(p) : null)}
@@ -298,16 +257,11 @@ const ValidatorCard = ({
                 ? "48-hour security timelock must expire first"
                 : "Execute validator update"
             }
-            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${
-              canExecute
-                ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white cursor-pointer"
-                : "bg-white/5 border-white/10 text-white/30 cursor-not-allowed"
-            } disabled:opacity-50`}
+            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${canExecute ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white cursor-pointer" : "bg-white/5 border-white/10 text-white/30 cursor-not-allowed"} disabled:opacity-50`}
           >
             {canExecute ? "⚡ Execute" : "🔒 Locked"}
           </button>
         )}
-
         <button
           onClick={() => onCancel(p)}
           disabled={loading}
@@ -329,14 +283,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const [loading, setLoading] = useState(false);
   const [fetchingProposals, setFetchingProposals] = useState(true);
   const [fetchError, setFetchError] = useState(null);
-
   const [showRegForm, setShowRegForm] = useState(false);
   const [showValForm, setShowValForm] = useState(false);
-  // isWallet added to regForm state
+
+  // Registry form — NO address field. Address comes back from deployAndProposeInit return data.
   const [regForm, setRegForm] = useState({
     name: "",
     nspace: "@",
-    address: "",
     isWallet: false,
   });
   const [valForm, setValForm] = useState({ address: "", action: true });
@@ -438,29 +391,31 @@ const AdminPanelInner = ({ user, showMsg }) => {
   };
 
   // ── Actions ────────────────────────────────────────────────────────────
+
+  // CHANGED: No longer passes registry address. Uses deployAndProposeInit.
+  // The backend deploys the clone atomically and returns the clone address from tx logs.
   const handleProposeRegistry = () => {
-    if (!regForm.name || !regForm.nspace.startsWith("@") || !regForm.address)
+    if (!regForm.name || !regForm.nspace.startsWith("@"))
       return showMsg("Fill all fields. Namespace must start with @", "error");
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/propose-registry`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        // isWallet passed to backend
         body: JSON.stringify({
           privateKey,
           nspace: regForm.nspace,
-          registry: regForm.address,
           registryName: regForm.name,
           isWallet: regForm.isWallet,
           safeAddress: user.safeAddress,
+          // No registry address — contract deploys it atomically
         }),
       });
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.message || "Failed to propose registry");
-      showMsg("Registry proposal submitted!");
+      showMsg(`Registry deployed at ${data.cloneAddress} — proposal open!`);
       setShowRegForm(false);
-      setRegForm({ name: "", nspace: "@", address: "", isWallet: false });
+      setRegForm({ name: "", nspace: "@", isWallet: false });
       await fetchProposals();
     });
   };
@@ -649,7 +604,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
         </div>
       </div>
 
-      {/* Loading banner */}
       {loading && (
         <div className="p-4 rounded-2xl bg-salvaGold/10 border border-salvaGold/30 flex items-center gap-3">
           <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
@@ -659,7 +613,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
         </div>
       )}
 
-      {/* Fetch error */}
       {fetchError && (
         <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
           <p className="text-xs text-red-400 font-bold">⚠️ {fetchError}</p>
@@ -672,7 +625,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
         </div>
       )}
 
-      {/* Propose Registry Form */}
+      {/* Propose Registry Form — 2 fields only: Name + Namespace. Address is deployed on-chain automatically. */}
       <AnimatePresence>
         {showRegForm && (
           <motion.div
@@ -685,7 +638,11 @@ const AdminPanelInner = ({ user, showMsg }) => {
               <p className="text-xs uppercase tracking-widest font-black text-salvaGold">
                 Propose Registry Initialization
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <p className="text-[10px] opacity-50">
+                The registry contract will be deployed automatically when you
+                submit. No need to provide an address.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
                     Registry Name
@@ -712,32 +669,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
                     className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold"
                   />
                 </div>
-                <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
-                    Registry Contract Address
-                  </label>
-                  <input
-                    placeholder="0x..."
-                    value={regForm.address}
-                    onChange={(e) =>
-                      setRegForm({ ...regForm, address: e.target.value })
-                    }
-                    className="w-full p-3 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold font-mono"
-                  />
-                </div>
               </div>
 
-              {/* ── isWallet checkbox ── */}
+              {/* isWallet checkbox */}
               <label className="flex items-center gap-3 cursor-pointer group w-fit">
                 <div
                   onClick={() =>
                     setRegForm({ ...regForm, isWallet: !regForm.isWallet })
                   }
-                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${
-                    regForm.isWallet
-                      ? "bg-blue-500 border-blue-500"
-                      : "border-white/20 bg-black/20 group-hover:border-white/40"
-                  }`}
+                  className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${regForm.isWallet ? "bg-blue-500 border-blue-500" : "border-white/20 bg-black/20 group-hover:border-white/40"}`}
                 >
                   {regForm.isWallet && (
                     <svg
@@ -784,7 +724,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   disabled={loading}
                   className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
                 >
-                  {loading ? "Submitting…" : "Submit Proposal"}
+                  {loading ? "Deploying & Proposing…" : "Deploy & Propose"}
                 </button>
               </div>
             </div>
@@ -826,21 +766,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   <div className="flex gap-3">
                     <button
                       onClick={() => setValForm({ ...valForm, action: true })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
-                        valForm.action
-                          ? "bg-green-500 text-white"
-                          : "border border-white/10 opacity-40 hover:opacity-70"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
                     >
                       Add Validator
                     </button>
                     <button
                       onClick={() => setValForm({ ...valForm, action: false })}
-                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${
-                        !valForm.action
-                          ? "bg-red-500 text-white"
-                          : "border border-white/10 opacity-40 hover:opacity-70"
-                      }`}
+                      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
                     >
                       Remove Validator
                     </button>

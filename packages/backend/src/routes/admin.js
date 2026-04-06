@@ -29,7 +29,7 @@ function normalizeAddr(addr) {
   if (!addr) return null;
   try {
     return ethers.getAddress(addr.toLowerCase());
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -39,11 +39,9 @@ async function requireValidator(req, res, next) {
   const { safeAddress } = req.body;
   if (!safeAddress)
     return res.status(400).json({ message: "safeAddress required" });
-
   const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
   if (!user || !user.isValidator)
     return res.status(403).json({ message: "Not authorized" });
-
   req.callerUser = user;
   next();
 }
@@ -68,13 +66,13 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       const receipt = await provider.getTransactionReceipt(txHash);
-      if (receipt) return { success: receipt.status === 1 };
+      if (receipt) return { success: receipt.status === 1, receipt };
     } catch (err) {
-      if (i === maxRetries - 1) return { success: false };
+      if (i === maxRetries - 1) return { success: false, receipt: null };
     }
     await sleep(delayMs);
   }
-  return { success: false };
+  return { success: false, receipt: null };
 }
 
 // ─── On-chain read helpers ────────────────────────────────────────
@@ -118,14 +116,14 @@ router.get("/proposals", async (req, res) => {
 
         const isValidated = remaining === 0;
 
-        // Set timelock only once when quorum is first reached
-        // if (isValidated && !p.timeLockTimestamp) {
-        //   p.timeLockTimestamp = Math.floor(Date.now() / 1000) + 48 * 60 * 60;
-        // }
-
-        // This slams the timestamp to 48 hours AGO, making the timelock "expired" immediately.
-        if (p.type === "registry" && p.isValidated && p.timeLockTimestamp > Math.floor(Date.now() / 1000)) {
-          p.timeLockTimestamp = Math.floor(Date.now() / 1000) - (48 * 60 * 60 + 60);
+        // Fast-forward timelock for testing — remove in production
+        if (
+          p.type === "registry" &&
+          p.isValidated &&
+          p.timeLockTimestamp > Math.floor(Date.now() / 1000)
+        ) {
+          p.timeLockTimestamp =
+            Math.floor(Date.now() / 1000) - (48 * 60 * 60 + 60);
         }
 
         p.remainingValidation = remaining;
@@ -146,12 +144,14 @@ router.get("/proposals", async (req, res) => {
 });
 
 // ─── PROPOSE REGISTRY ─────────────────────────────────────────────
+// CHANGED: Uses deployAndProposeInit instead of proposeInitialization(string,address).
+// The registry clone is deployed atomically on-chain. The clone address is parsed
+// from the RegistryInitializationProposed event log in the receipt — not from UI input.
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const {
       privateKey,
       nspace,
-      registry,
       registryName,
       isWallet = false,
       chain = "base",
@@ -160,35 +160,66 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
 
-    const cleanRegistry = normalizeAddr(registry);
-    if (!cleanRegistry)
-      return res.status(400).json({ message: "Invalid registry address" });
-
+    // Check for existing proposal by namespace (not by address — we don't have it yet)
     const existing = await Proposal.findOne({
       type: "registry",
-      registry: cleanRegistry.toLowerCase(),
+      nspace: nspace.toLowerCase(),
     });
     if (existing)
       return res
         .status(409)
-        .json({ message: "A proposal for this registry already exists" });
+        .json({ message: "A proposal for this namespace already exists" });
 
     const sponsorFn =
       chain === "base"
-        ? relay.sponsorProposeInitializationBase
-        : relay.sponsorProposeInitializationEth;
+        ? relay.sponsorDeployAndProposeInitBase
+        : relay.sponsorDeployAndProposeInitEth;
 
+    // Execute deployAndProposeInit — deploys clone + opens proposal atomically
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       nspace,
-      cleanRegistry,
     );
 
-    // Return immediately, sync in background
+    if (!result?.txHash) {
+      return res
+        .status(500)
+        .json({ message: "Transaction failed to broadcast" });
+    }
+
+    // Parse the clone address from the RegistryInitializationProposed event in the receipt.
+    // Event signature: RegistryInitializationProposed(address indexed registry, string nspace, bytes16 nspaceToByte)
+    // The registry address is the first indexed param → topics[1]
+    let cloneAddress = null;
+    if (result.receipt?.logs) {
+      const EVENT_TOPIC = ethers.id(
+        "RegistryInitializationProposed(address,string,bytes16)",
+      );
+      for (const log of result.receipt.logs) {
+        if (log.topics[0] === EVENT_TOPIC) {
+          // topics[1] = address padded to 32 bytes, take last 20 bytes
+          cloneAddress = ethers.getAddress("0x" + log.topics[1].slice(26));
+          break;
+        }
+      }
+    }
+
+    if (!cloneAddress) {
+      console.error("❌ Could not parse clone address from receipt logs");
+      return res
+        .status(500)
+        .json({
+          message:
+            "Registry deployed but could not parse clone address from transaction logs",
+        });
+    }
+
+    console.log(`✅ Registry clone deployed at: ${cloneAddress}`);
+
     const proposal = await Proposal.create({
       type: "registry",
-      registry: cleanRegistry.toLowerCase(),
+      registry: cloneAddress.toLowerCase(),
       nspace,
       registryName: registryName || nspace,
       isWallet: !!isWallet,
@@ -197,32 +228,26 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       timeLockTimestamp: null,
     });
 
-    res.json({ success: true, taskId: result.taskId, proposal });
+    res.json({ success: true, txHash: result.txHash, cloneAddress, proposal });
 
-    waitForTx(result.taskId)
-      .then(async (status) => {
-        if (status.success) {
-          const remaining = await getRegistryRemaining(cleanRegistry);
-          await Proposal.updateOne(
-            { _id: proposal._id },
-            { remainingValidation: remaining },
-          );
-          await notifyAllValidators("New Registry Proposal", {
-            type: "registry",
-            registryName: registryName || nspace,
-            nspace,
-            registry: cleanRegistry,
-            isWallet: !!isWallet,
-          });
-          console.log(`✅ Registry proposal synced: remaining=${remaining}`);
-        } else {
-          await Proposal.deleteOne({ _id: proposal._id });
-          console.error(`❌ propose-registry tx failed, proposal removed`);
-        }
-      })
-      .catch((err) =>
-        console.error("❌ propose-registry bg error:", err.message),
+    // Background: sync remaining votes and notify validators
+    try {
+      const remaining = await getRegistryRemaining(cloneAddress);
+      await Proposal.updateOne(
+        { _id: proposal._id },
+        { remainingValidation: remaining },
       );
+      await notifyAllValidators("New Registry Proposal", {
+        type: "registry",
+        registryName: registryName || nspace,
+        nspace,
+        registry: cloneAddress,
+        isWallet: !!isWallet,
+      });
+      console.log(`✅ Registry proposal synced: remaining=${remaining}`);
+    } catch (err) {
+      console.error("❌ propose-registry bg error:", err.message);
+    }
   } catch (error) {
     console.error("❌ propose-registry error:", error.message);
     res.status(500).json({ message: error.message });
@@ -233,7 +258,6 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
 router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, chain = "base" } = req.body;
-
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
@@ -242,7 +266,6 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorValidateRegistryBase
         : relay.sponsorValidateRegistryEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -256,13 +279,11 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
         if (status.success) {
           const remaining = await getRegistryRemaining(cleanRegistry);
           const isValidated = remaining === 0;
-
           await Proposal.findOneAndUpdate(
             { type: "registry", registry: cleanRegistry.toLowerCase() },
             {
               remainingValidation: remaining,
               isValidated,
-              // Set 48h timelock only when quorum is first reached
               timeLockTimestamp: isValidated
                 ? Math.floor(Date.now() / 1000) + 48 * 60 * 60
                 : null,
@@ -286,7 +307,6 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
 router.post("/cancel-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registry, chain = "base" } = req.body;
-
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
@@ -295,7 +315,6 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorCancelInitBase
         : relay.sponsorCancelInitEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -335,22 +354,18 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       nspace,
       chain = "base",
     } = req.body;
-
     const cleanRegistry = normalizeAddr(registry);
     if (!cleanRegistry)
       return res.status(400).json({ message: "Invalid registry address" });
 
-    // Fetch the proposal now so we have isWallet available in the background handler
     const proposal = await Proposal.findOne({
       type: "registry",
       registry: cleanRegistry.toLowerCase(),
     });
-
     const sponsorFn =
       chain === "base"
         ? relay.sponsorExecuteInitBase
         : relay.sponsorExecuteInitEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -366,8 +381,6 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
             type: "registry",
             registry: cleanRegistry.toLowerCase(),
           });
-
-          // Only add to WalletRegistry if isWallet was flagged on the proposal
           if (proposal?.isWallet) {
             await WalletRegistry.findOneAndUpdate(
               { registryAddress: cleanRegistry.toLowerCase() },
@@ -402,7 +415,6 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
 router.post("/propose-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action, chain = "base" } = req.body;
-
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -420,7 +432,6 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorProposeValidatorUpdateBase
         : relay.sponsorProposeValidatorUpdateEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -471,7 +482,6 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
 router.post("/validate-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, chain = "base" } = req.body;
-
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -480,7 +490,6 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorValidateValidatorBase
         : relay.sponsorValidateValidatorEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -494,13 +503,11 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
         if (status.success) {
           const remaining = await getValidatorRemaining(cleanTarget);
           const isValidated = remaining === 0;
-
           await Proposal.findOneAndUpdate(
             { type: "validator", addr: cleanTarget.toLowerCase() },
             {
               remainingValidation: remaining,
               isValidated,
-              // Set 48h timelock only when quorum is first reached
               timeLockTimestamp: isValidated
                 ? Math.floor(Date.now() / 1000) + 48 * 60 * 60
                 : null,
@@ -524,7 +531,6 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
 router.post("/cancel-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, chain = "base" } = req.body;
-
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -533,7 +539,6 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorCancelValidatorUpdateBase
         : relay.sponsorCancelValidatorUpdateEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -567,7 +572,6 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
 router.post("/execute-validator", requireValidator, async (req, res) => {
   try {
     const { privateKey, targetAddress, action, chain = "base" } = req.body;
-
     const cleanTarget = normalizeAddr(targetAddress);
     if (!cleanTarget)
       return res.status(400).json({ message: "Invalid target address" });
@@ -576,7 +580,6 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
       chain === "base"
         ? relay.sponsorExecuteUpdateValidatorBase
         : relay.sponsorExecuteUpdateValidatorEth;
-
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
@@ -592,21 +595,16 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
             type: "validator",
             addr: cleanTarget.toLowerCase(),
           });
-
-          // Sync isValidator flag on the User record
           const updated = await User.findOneAndUpdate(
             { safeAddress: cleanTarget.toLowerCase() },
             { isValidator: action },
             { new: true },
           );
-
-          if (updated) {
+          if (updated)
             console.log(
               `✅ Validator executed: ${updated.username} isValidator=${action}`,
             );
-          } else {
-            console.warn(`⚠️ No user found with safeAddress ${cleanTarget}`);
-          }
+          else console.warn(`⚠️ No user found with safeAddress ${cleanTarget}`);
         }
       })
       .catch((err) =>

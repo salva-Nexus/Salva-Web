@@ -2,15 +2,16 @@ const { ethers } = require("ethers");
 const { wallet, provider } = require("./walletSigner");
 const Safe = require("@safe-global/protocol-kit").default;
 
-// ─── Guard ────────────────────────────────────────────────────────────────────
 const MULTISIG_ADDRESS = process.env.MULTISIG_CONTRACT_ADDRESS;
 if (!MULTISIG_ADDRESS) {
   throw new Error("FATAL: MULTISIG_CONTRACT_ADDRESS env var is not set.");
 }
 
-// ─── ABIs ──────────────────────────────────────────────────────────────────────
+// ─── ABIs ─────────────────────────────────────────────────────────────────────
 const MULTISIG_IFACE = new ethers.Interface([
-  "function proposeInitialization(string,address) external returns (address,string,bytes16,uint32)",
+  // deployAndProposeInit replaces proposeInitialization(string,address)
+  // Deploys a registry clone and opens a proposal atomically in one tx.
+  "function deployAndProposeInit(string memory namespace) external returns (address _clone)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
   "function validateRegistry(address) external returns (address,bytes16,uint32)",
   "function validateValidator(address) external returns (address,bool,uint32)",
@@ -27,7 +28,7 @@ const SAFE_ABI = [
   "function getOwners() public view returns (address[])",
 ];
 
-// ─── Core: ETH Chain (Manual Hashing) ────────────────────────────────────────
+// ─── Core: ETH Chain ──────────────────────────────────────────────────────────
 async function _executeViaSafeEth(
   safeAddress,
   ownerKey,
@@ -77,10 +78,11 @@ async function _executeViaSafeEth(
     { gasLimit: 1_200_000 },
   );
 
-  return { taskId: tx.hash, txHash: tx.hash, receipt: await tx.wait() };
+  const receipt = await tx.wait();
+  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
-// ─── Core: Base Chain (Safe SDK) ─────────────────────────────────────────────
+// ─── Core: Base Chain ─────────────────────────────────────────────────────────
 async function _executeViaSafeBase(
   safeAddress,
   ownerKey,
@@ -88,16 +90,13 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
-  // Ensure we pass the raw URL string, NOT the ethers provider object
   const rpcUrl = process.env.ALCHEMY_RPC_URL;
+  if (!rpcUrl) throw new Error("ALCHEMY_RPC_URL is not set");
 
-  if (!rpcUrl) {
-    throw new Error("RPC_URL is not defined in environment variables");
-  }
   const protocolKit = await Safe.init({
     provider: rpcUrl,
     signer: ownerKey,
-    safeAddress: safeAddress,
+    safeAddress,
   });
 
   const safeTransaction = await protocolKit.createTransaction({
@@ -105,9 +104,8 @@ async function _executeViaSafeBase(
   });
 
   const signedTx = await protocolKit.signTransaction(safeTransaction);
-
-  // We execute using the backend 'wallet' to pay gas
   const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
+
   const tx = await safeContract.execTransaction(
     signedTx.data.to,
     signedTx.data.value,
@@ -122,7 +120,8 @@ async function _executeViaSafeBase(
     { gasLimit: 1_200_000 },
   );
 
-  return { taskId: tx.hash, txHash: tx.hash, receipt: await tx.wait() };
+  const receipt = await tx.wait();
+  return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
 // ─── Multisig Helpers ─────────────────────────────────────────────────────────
@@ -133,16 +132,48 @@ function _encodeMultisig(functionName, args) {
 }
 
 async function _callEth(safeAddress, ownerKey, functionName, args) {
-  const data = _encodeMultisig(functionName, args);
-  return _executeViaSafeEth(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
+  return _executeViaSafeEth(
+    safeAddress,
+    ownerKey,
+    MULTISIG_ADDRESS,
+    _encodeMultisig(functionName, args),
+    0,
+  );
 }
 
 async function _callBase(safeAddress, ownerKey, functionName, args) {
-  const data = _encodeMultisig(functionName, args);
-  return _executeViaSafeBase(safeAddress, ownerKey, MULTISIG_ADDRESS, data, 0);
+  return _executeViaSafeBase(
+    safeAddress,
+    ownerKey,
+    MULTISIG_ADDRESS,
+    _encodeMultisig(functionName, args),
+    0,
+  );
 }
 
-// ─── Token Transfer & MultiSend ──────────────────────────────────────────────
+// ─── MultiSend encoder ────────────────────────────────────────────────────────
+// Encodes a single transaction for Safe's MultiSend format:
+// operation(1) | to(20) | value(32) | dataLength(32) | data(n)
+function _encodeMultiSendTx(operation, to, value, data) {
+  const dataBytes = ethers.getBytes(data);
+  const buf = new Uint8Array(1 + 20 + 32 + 32 + dataBytes.length);
+  let offset = 0;
+  buf[offset++] = operation;
+  ethers.getBytes(ethers.getAddress(to)).forEach((b) => (buf[offset++] = b));
+  ethers
+    .getBytes(ethers.zeroPadValue(ethers.toBeHex(value), 32))
+    .forEach((b) => (buf[offset++] = b));
+  ethers
+    .getBytes(ethers.zeroPadValue(ethers.toBeHex(dataBytes.length), 32))
+    .forEach((b) => (buf[offset++] = b));
+  dataBytes.forEach((b) => (buf[offset++] = b));
+  return buf;
+}
+
+// ─── Token Transfer ───────────────────────────────────────────────────────────
+// Supports NGN, USDT, USDC via tokenAddress param.
+// If fee > 0n, batches transfer + fee to treasury via MultiSend.
+// tokenAddress defaults to NGN_TOKEN_ADDRESS if not provided.
 async function _sponsorTransfer(
   execFn,
   safeAddress,
@@ -150,79 +181,127 @@ async function _sponsorTransfer(
   recipient,
   amount,
   fee = 0n,
+  tokenAddress = null,
 ) {
   const iface = new ethers.Interface(["function transfer(address,uint256)"]);
-  const NGN_TOKEN = process.env.NGN_TOKEN_ADDRESS;
+  const TOKEN = tokenAddress || process.env.NGN_TOKEN_ADDRESS;
   const TREASURY = process.env.TREASURY_CONTRACT_ADDRESS;
   const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
 
   if (fee > 0n) {
-    const encodePacked = (to, data) =>
-      ethers.concat([
-        "0x00",
-        ethers.getAddress(to),
-        ethers.zeroPadValue("0x00", 32),
-        ethers.zeroPadValue(ethers.toBeHex(ethers.getBytes(data).length), 32),
-        data,
-      ]);
     const tx1 = iface.encodeFunctionData("transfer", [recipient, amount]);
     const tx2 = iface.encodeFunctionData("transfer", [TREASURY, fee]);
-    const packed = ethers.concat([
-      encodePacked(NGN_TOKEN, tx1),
-      encodePacked(NGN_TOKEN, tx2),
+    const multiSendData = ethers.concat([
+      _encodeMultiSendTx(0, TOKEN, 0n, tx1),
+      _encodeMultiSendTx(0, TOKEN, 0n, tx2),
     ]);
     const data = new ethers.Interface([
       "function multiSend(bytes)",
-    ]).encodeFunctionData("multiSend", [packed]);
+    ]).encodeFunctionData("multiSend", [multiSendData]);
     return execFn(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
   }
+
   return execFn(
     safeAddress,
     ownerKey,
-    NGN_TOKEN,
+    TOKEN,
     iface.encodeFunctionData("transfer", [recipient, amount]),
     0,
   );
 }
 
-// ─── Full Export Mapping ──────────────────────────────────────────────────────
+// ─── Name Link MultiCall ──────────────────────────────────────────────────────
+// Batches two transactions via Safe MultiSend (delegatecall to MultiSend contract):
+//   1. registry.link(_name, _wallet, signature) — payable with ETH fee
+//   2. ERC20 feeToken.transfer(treasury, 1 USDT or 1 USDC) — $1 SNS registration fee
+async function _sponsorLinkName(
+  execFn,
+  safeAddress,
+  ownerKey,
+  registryAddress,
+  nameBytes,
+  walletAddress,
+  signature,
+  ethFee,
+  feeTokenAddress,
+) {
+  const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
+  const ONE_DOLLAR = ethers.parseUnits("1", 6);
+
+  const registryIface = new ethers.Interface([
+    "function link(bytes calldata _name, address _wallet, bytes calldata signature) external payable",
+  ]);
+  const erc20Iface = new ethers.Interface([
+    "function transfer(address,uint256) returns (bool)",
+  ]);
+
+  const linkCalldata = registryIface.encodeFunctionData("link", [
+    nameBytes,
+    walletAddress,
+    signature,
+  ]);
+  const feeCalldata = erc20Iface.encodeFunctionData("transfer", [
+    process.env.TREASURY_CONTRACT_ADDRESS,
+    ONE_DOLLAR,
+  ]);
+
+  const multiSendData = ethers.concat([
+    _encodeMultiSendTx(0, registryAddress, ethFee, linkCalldata),
+    _encodeMultiSendTx(0, feeTokenAddress, 0n, feeCalldata),
+  ]);
+
+  const data = new ethers.Interface([
+    "function multiSend(bytes)",
+  ]).encodeFunctionData("multiSend", [multiSendData]);
+  return execFn(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
+}
+
+// ─── Exports ──────────────────────────────────────────────────────────────────
 module.exports = {
-  sponsorSafeTransfer: (...a) => _sponsorTransfer(_executeViaSafeBase, ...a),
-  sponsorSafeTransferETH: (...a) => _sponsorTransfer(_executeViaSafeEth, ...a),
-  sponsorSafeTransferBase: (...a) =>
-    _sponsorTransfer(_executeViaSafeBase, ...a),
+  // ── Token Transfers ──────────────────────────────────────────────────────
+  // Pass tokenAddress for USDT/USDC; omit for NGN (defaults to NGN_TOKEN_ADDRESS)
+  sponsorSafeTransfer: (s, k, r, a, f, t) =>
+    _sponsorTransfer(_executeViaSafeBase, s, k, r, a, f, t),
+  sponsorSafeTransferETH: (s, k, r, a, f, t) =>
+    _sponsorTransfer(_executeViaSafeEth, s, k, r, a, f, t),
+  sponsorSafeTransferBase: (s, k, r, a, f, t) =>
+    _sponsorTransfer(_executeViaSafeBase, s, k, r, a, f, t),
 
-  sponsorProposeInitializationEth: (s, k, n, r) =>
-    _callEth(s, k, "proposeInitialization", [n, r]),
-  sponsorProposeInitializationBase: (s, k, n, r) =>
-    _callBase(s, k, "proposeInitialization", [n, r]),
+  // ── Name Linking Multicall ───────────────────────────────────────────────
+  sponsorLinkNameBase: (s, k, reg, nb, wa, sig, fee, token) =>
+    _sponsorLinkName(_executeViaSafeBase, s, k, reg, nb, wa, sig, fee, token),
+  sponsorLinkNameEth: (s, k, reg, nb, wa, sig, fee, token) =>
+    _sponsorLinkName(_executeViaSafeEth, s, k, reg, nb, wa, sig, fee, token),
 
-  sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
-    _callEth(s, k, "proposeValidatorUpdate", [t, a]),
-  sponsorProposeValidatorUpdateBase: (s, k, t, a) =>
-    _callBase(s, k, "proposeValidatorUpdate", [t, a]),
+  // ── Registry Proposals ───────────────────────────────────────────────────
+  // NEW: deployAndProposeInit — deploys clone + proposes in one atomic tx
+  sponsorDeployAndProposeInitBase: (s, k, namespace) =>
+    _callBase(s, k, "deployAndProposeInit", [namespace]),
+  sponsorDeployAndProposeInitEth: (s, k, namespace) =>
+    _callEth(s, k, "deployAndProposeInit", [namespace]),
 
   sponsorValidateRegistryEth: (s, k, r) =>
     _callEth(s, k, "validateRegistry", [r]),
   sponsorValidateRegistryBase: (s, k, r) =>
     _callBase(s, k, "validateRegistry", [r]),
+  sponsorCancelInitEth: (s, k, r) => _callEth(s, k, "cancelInit", [r]),
+  sponsorCancelInitBase: (s, k, r) => _callBase(s, k, "cancelInit", [r]),
+  sponsorExecuteInitEth: (s, k, r) => _callEth(s, k, "executeInit", [r]),
+  sponsorExecuteInitBase: (s, k, r) => _callBase(s, k, "executeInit", [r]),
 
+  // ── Validator Proposals ──────────────────────────────────────────────────
+  sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
+    _callEth(s, k, "proposeValidatorUpdate", [t, a]),
+  sponsorProposeValidatorUpdateBase: (s, k, t, a) =>
+    _callBase(s, k, "proposeValidatorUpdate", [t, a]),
   sponsorValidateValidatorEth: (s, k, t) =>
     _callEth(s, k, "validateValidator", [t]),
   sponsorValidateValidatorBase: (s, k, t) =>
     _callBase(s, k, "validateValidator", [t]),
-
-  sponsorCancelInitEth: (s, k, r) => _callEth(s, k, "cancelInit", [r]),
-  sponsorCancelInitBase: (s, k, r) => _callBase(s, k, "cancelInit", [r]),
-
   sponsorCancelValidatorUpdateEth: (s, k, t) =>
     _callEth(s, k, "cancelValidatorUpdate", [t]),
   sponsorCancelValidatorUpdateBase: (s, k, t) =>
     _callBase(s, k, "cancelValidatorUpdate", [t]),
-
-  sponsorExecuteInitEth: (s, k, r) => _callEth(s, k, "executeInit", [r]),
-  sponsorExecuteInitBase: (s, k, r) => _callBase(s, k, "executeInit", [r]),
-
   sponsorExecuteUpdateValidatorEth: (s, k, t) =>
     _callEth(s, k, "executeUpdateValidator", [t]),
   sponsorExecuteUpdateValidatorBase: (s, k, t) =>
