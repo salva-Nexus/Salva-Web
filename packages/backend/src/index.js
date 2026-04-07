@@ -90,6 +90,8 @@ app.use(
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: [
           "'self'",
+          "http://localhost:3001", // Add your backend port here
+          "ws://localhost:3001", // If using sockets
           "https://api.anthropic.com",
           process.env.BASE_SEPOLIA_RPC_URL,
         ],
@@ -133,35 +135,31 @@ app.use((req, res, next) => {
 // ===============================================
 // SECURITY: CORS (Environment-Based)
 // ===============================================
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? [
-        "https://salva-nexus.org",
-        "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com",
-      ]
-    : [
-        "https://salva-nexus.org",
-        "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com",
-        "http://localhost:3000",
-        "http://localhost:5173",
-      ];
+const allowedOrigins = [
+  "https://salva-nexus.org",
+  "https://www.salva-nexus.org",
+  "https://salva-web.onrender.com",
+  "http://localhost:3000",
+  "http://localhost:5173",
+  "http://127.0.0.1:3000", // Add this
+  "http://127.0.0.1:5173"  // Add this
+];
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn(`⚠️ CORS blocked: ${origin}`);
-        callback(new Error("Not allowed by CORS"));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE"],
-    credentials: true,
-  }),
-);
+app.use(cors({
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.error(`❌ CORS blocked an origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  credentials: true,
+}));
 
 app.use("/api/admin", adminRoutes);
 
@@ -477,10 +475,18 @@ async function getFeeForAmount(amountHuman, coin = "NGN") {
 
   const amount = parseFloat(amountHuman);
   if (amount >= config.tier2Min) {
-    return { feeNGN: config.tier2Fee, feeUsd: 0, feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6) };
+    return {
+      feeNGN: config.tier2Fee,
+      feeUsd: 0,
+      feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6),
+    };
   }
   if (amount >= config.tier1Min && amount <= config.tier1Max) {
-    return { feeNGN: config.tier1Fee, feeUsd: 0, feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6) };
+    return {
+      feeNGN: config.tier1Fee,
+      feeUsd: 0,
+      feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6),
+    };
   }
   return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
 }
@@ -1375,6 +1381,19 @@ app.get("/api/balance/:address", async (req, res) => {
       return res.status(400).json({ message: "Invalid address format" });
     }
 
+    // ── ADD THESE CHECKS ──────────────────────────────────────────────
+    if (
+      !process.env.NGN_TOKEN_ADDRESS ||
+      !process.env.USDT_CONTRACT_ADDRESS ||
+      !process.env.USDC_CONTRACT_ADDRESS
+    ) {
+      console.error("❌ Missing token contract addresses in .env");
+      return res
+        .status(200)
+        .json({ balance: "0.00", usdtBalance: "0.00", usdcBalance: "0.00" });
+    }
+    // ──────────────────────────────────────────────────────────────────
+
     const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
     const ngnContract = new ethers.Contract(
@@ -1555,11 +1574,9 @@ app.post("/api/transfer", async (req, res) => {
     try {
       if (!finalToInput.startsWith("0x")) {
         if (!registryAddress) {
-          return res
-            .status(400)
-            .json({
-              message: "Registry selection required for name resolution",
-            });
+          return res.status(400).json({
+            message: "Registry selection required for name resolution",
+          });
         }
         const registryDoc = await WalletRegistry.findOne({
           registryAddress: registryAddress.toLowerCase(),
@@ -1745,12 +1762,10 @@ app.post("/api/transfer", async (req, res) => {
         queueEntry.status = "FAILED";
         queueEntry.errorMessage = taskStatus.reason;
         await queueEntry.save();
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: taskStatus.reason || "Transfer reverted on-chain",
-          });
+        return res.status(400).json({
+          success: false,
+          message: taskStatus.reason || "Transfer reverted on-chain",
+        });
       }
     } catch (error) {
       queueEntry.status = "FAILED";

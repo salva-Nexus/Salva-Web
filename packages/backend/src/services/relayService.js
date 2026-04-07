@@ -83,28 +83,42 @@ async function _executeViaSafeEth(
 }
 
 // ─── Core: Base Chain ─────────────────────────────────────────────────────────
+// relayService.js
+
 async function _executeViaSafeBase(
-  safeAddress,
-  ownerKey,
-  to,
-  data,
-  operation = 0,
+  safeAddress, // 0xb298... (The Safe)
+  ownerKey,    // Private key of Safe owner
+  to,          // 0xFc8a... (The Multisig)
+  data,        // The encoded deployAndProposeInit call
+  operation = 0
 ) {
   const rpcUrl = process.env.ALCHEMY_RPC_URL;
-  if (!rpcUrl) throw new Error("ALCHEMY_RPC_URL is not set");
-
+  
+  // 1. Initialize Kit for the Safe
   const protocolKit = await Safe.init({
     provider: rpcUrl,
     signer: ownerKey,
-    safeAddress,
+    safeAddress: ethers.getAddress(safeAddress), 
   });
 
+  // 2. Create the transaction WHERE THE 'TO' IS THE MULTISIG
   const safeTransaction = await protocolKit.createTransaction({
-    transactions: [{ to: ethers.getAddress(to), data, value: "0", operation }],
+    transactions: [{
+      to: ethers.getAddress(to), // <--- THIS MUST BE THE MULTISIG
+      data: data,                // <--- THIS IS THE MULTISIG FUNCTION CALL
+      value: "0",
+      operation: operation
+    }]
   });
 
   const signedTx = await protocolKit.signTransaction(safeTransaction);
-  const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
+
+  // 3. The Backend Wallet (0xfD5A...) executes this ON the Safe
+  const safeContract = new ethers.Contract(
+    ethers.getAddress(safeAddress), 
+    SAFE_ABI, 
+    wallet // This is your backend signer from walletSigner.js
+  );
 
   const tx = await safeContract.execTransaction(
     signedTx.data.to,
@@ -117,7 +131,7 @@ async function _executeViaSafeBase(
     signedTx.data.gasToken,
     signedTx.data.refundReceiver,
     signedTx.encodedSignatures(),
-    { gasLimit: 1_200_000 },
+    { gasLimit: 1500000 }
   );
 
   const receipt = await tx.wait();
@@ -141,12 +155,15 @@ async function _callEth(safeAddress, ownerKey, functionName, args) {
   );
 }
 
+// Change this in your relayService.js
 async function _callBase(safeAddress, ownerKey, functionName, args) {
+  const multisigData = _encodeMultisig(functionName, args);
+
   return _executeViaSafeBase(
-    safeAddress,
-    ownerKey,
-    MULTISIG_ADDRESS,
-    _encodeMultisig(functionName, args),
+    safeAddress, // The Sender (Safe)
+    ownerKey, // The Signer
+    process.env.MULTISIG_CONTRACT_ADDRESS, // The Destination (Multisig)
+    multisigData,
     0,
   );
 }

@@ -87,7 +87,6 @@ const SalvaNotification = ({ notification, onClose }) => {
 };
 
 // ── Swipeable Balance Card ─────────────────────────────────────────────────
-// Panel 0 = NGNs, Panel 1 = USD. Both directions freely swipeable.
 const BalanceCard = ({
   balance,
   usdtBalance,
@@ -99,7 +98,6 @@ const BalanceCard = ({
 }) => {
   const [activePanel, setActivePanel] = useState(0);
   const controls = useAnimation();
-  const dragStartX = useRef(0);
 
   const goTo = (panel) => {
     setActivePanel(panel);
@@ -107,10 +105,6 @@ const BalanceCard = ({
       x: panel === 0 ? "0%" : "-50%",
       transition: { type: "spring", stiffness: 300, damping: 30 },
     });
-  };
-
-  const handleDragStart = (_, info) => {
-    dragStartX.current = info.point.x;
   };
 
   const handleDragEnd = (_, info) => {
@@ -127,14 +121,12 @@ const BalanceCard = ({
   return (
     <div className="rounded-3xl overflow-hidden bg-gray-100 dark:bg-black border border-white/5 shadow-2xl mb-8">
       <div className="relative overflow-hidden">
-        {/* Track is 200% wide so each panel is 100% of the card */}
         <motion.div
           className="flex"
           style={{ width: "200%" }}
           drag="x"
           dragConstraints={{ left: 0, right: 0 }}
           dragElastic={0.08}
-          onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
           animate={controls}
           initial={{ x: "0%" }}
@@ -265,6 +257,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
   const [unlinkLoading, setUnlinkLoading] = useState(false);
 
   const fetchLinkedNames = useCallback(async () => {
+    if (!user?.safeAddress) return;
     try {
       const res = await fetch(
         `${SALVA_API_URL}/api/alias/list/${user.safeAddress}`,
@@ -276,7 +269,7 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
     } finally {
       setLoadingNames(false);
     }
-  }, [user.safeAddress]);
+  }, [user?.safeAddress]);
 
   useEffect(() => {
     fetchLinkedNames();
@@ -386,7 +379,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
 
       setLinkStep("linking");
 
-      // Prepare: get signature + fee from backend
       const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -414,7 +406,6 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
         return;
       }
 
-      // Execute: fire the multicall with user's private key
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -439,9 +430,15 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
 
       setLinkStep("success");
       await fetchLinkedNames();
-      const savedUser = JSON.parse(localStorage.getItem("salva_user") || "{}");
-      savedUser.nameAlias = execData.alias?.name;
-      localStorage.setItem("salva_user", JSON.stringify(savedUser));
+      try {
+        const savedUser = JSON.parse(
+          localStorage.getItem("salva_user") || "{}",
+        );
+        savedUser.nameAlias = execData.alias?.name || savedUser.nameAlias;
+        localStorage.setItem("salva_user", JSON.stringify(savedUser));
+      } catch {
+        /* ignore localStorage errors */
+      }
     } catch (err) {
       showMsg(err.message || "Failed to link name", "error");
       setLinkStep("confirm");
@@ -954,7 +951,39 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
 
 // ── Dashboard ──────────────────────────────────────────────────────────────
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  // ── FIX 1: Initialize user from localStorage SYNCHRONOUSLY using lazy state init.
+  // The OLD broken code used a useEffect to set user from localStorage.
+  // The problem: when Login.jsx calls navigate("/dashboard"), React Router
+  // mounts the Dashboard component. The component renders with user=null
+  // (shows nothing). Then the useEffect fires asynchronously and calls setUser().
+  // BUT — if React Router had already pre-rendered this route (common with
+  // createBrowserRouter or Outlet-based layouts), the useEffect with [] deps
+  // already ran ONCE with user=null and will NOT run again on navigation.
+  // Result: user stays null forever → the page just shows blank / nothing,
+  // giving the appearance of being "stuck" on login (login page is still visible
+  // underneath or user sees a blank page and navigates back).
+  //
+  // THE FIX: Use useState lazy initialization (a function passed to useState)
+  // to read localStorage SYNCHRONOUSLY on first render. This means user is
+  // populated immediately on mount — no async gap, no stale effect problem.
+  // ──────────────────────────────────────────────────────────────────────────
+  const [user, setUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("salva_user");
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Safety check: must have a safeAddress to be a valid session
+      if (!parsed || !parsed.safeAddress) return null;
+      return parsed;
+    } catch {
+      // If localStorage is corrupted, clear it and return null
+      localStorage.removeItem("salva_user");
+      return null;
+    }
+  });
+
   const [balance, setBalance] = useState("0.00");
   const [usdtBalance, setUsdtBalance] = useState("0.00");
   const [usdcBalance, setUsdcBalance] = useState("0.00");
@@ -989,8 +1018,6 @@ const Dashboard = () => {
   // Coin selection: "NGN" | "USDT" | "USDC"
   const [selectedCoin, setSelectedCoin] = useState("NGN");
 
-  const navigate = useNavigate();
-
   const showMsg = useCallback(
     (msg, type = "success") =>
       setNotification({ show: true, message: msg, type }),
@@ -1001,14 +1028,35 @@ const Dashboard = () => {
     [],
   );
 
-  const refreshUserStatus = async (email, currentUser) => {
+  // ── FIX 2: Redirect to login if no valid user session.
+  // This runs after the synchronous state init above.
+  // If user is null (no localStorage, corrupted data, or missing safeAddress),
+  // redirect to login. We use useNavigate (React Router) instead of
+  // window.location.href so the redirect is handled cleanly by the router.
+  // ──────────────────────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user) {
+      navigate("/login", { replace: true });
+    }
+  }, [user, navigate]);
+
+  // ── FIX 3: Refresh user validator/alias status from server on mount.
+  // Only run when we have a valid user. We also removed the overly strict
+  // condition that only updated localStorage when isValidator changed —
+  // now we also sync nameAlias properly (matching old dashboard behavior).
+  // ──────────────────────────────────────────────────────────────────────────
+  const refreshUserStatus = useCallback(async (email, currentUser) => {
     try {
       const res = await fetch(
         `${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`,
       );
       if (!res.ok) return;
       const data = await res.json();
-      if (data.isValidator !== currentUser.isValidator) {
+      // Update if either isValidator or nameAlias has changed (restored old behavior)
+      if (
+        data.isValidator !== currentUser.isValidator ||
+        data.nameAlias !== currentUser.nameAlias
+      ) {
         const updatedUser = {
           ...currentUser,
           isValidator: data.isValidator,
@@ -1017,68 +1065,59 @@ const Dashboard = () => {
         localStorage.setItem("salva_user", JSON.stringify(updatedUser));
         setUser(updatedUser);
       }
-    } catch {}
-  };
-
-  useEffect(() => {
-    const savedUser = localStorage.getItem("salva_user");
-    if (savedUser) {
-      try {
-        const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
-        fetchBalance(parsedUser.safeAddress);
-        refreshUserStatus(parsedUser.email, parsedUser);
-      } catch {
-        window.location.href = "/login";
-      }
-    } else {
-      window.location.href = "/login";
+    } catch {
+      // Silently ignore — not critical
     }
   }, []);
 
+  // ── Fetch balance, meta, and account status when user is available ────────
   useEffect(() => {
-    if (user) {
-      checkAccountStatus();
-      fetchMeta();
-    }
-  }, [user]);
+    if (!user?.safeAddress) return;
+    fetchBalance(user.safeAddress);
+    refreshUserStatus(user.email, user);
+  }, [user?.safeAddress, refreshUserStatus]);
 
-  // Poll balance every 30 seconds
+  useEffect(() => {
+    if (!user?.email) return;
+    checkAccountStatus();
+    fetchMeta();
+  }, [user?.email]);
+
+  // ── Poll balance every 30 seconds ─────────────────────────────────────────
   useEffect(() => {
     if (!user?.safeAddress) return;
     const interval = setInterval(() => fetchBalance(user.safeAddress), 30000);
     return () => clearInterval(interval);
   }, [user?.safeAddress]);
 
+  // ── Amount error check ────────────────────────────────────────────────────
   useEffect(() => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
       if (selectedCoin === "NGN") {
-        const bal = parseFloat(balance);
-        setAmountError(!isNaN(amt) && amt > bal);
+        setAmountError(!isNaN(amt) && amt > parseFloat(balance));
       } else if (selectedCoin === "USDT") {
-        const bal = parseFloat(usdtBalance);
-        setAmountError(!isNaN(amt) && amt > bal);
+        setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance));
       } else {
-        const bal = parseFloat(usdcBalance);
-        setAmountError(!isNaN(amt) && amt > bal);
+        setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance));
       }
     } else {
       setAmountError(false);
     }
   }, [transferAmount, balance, usdtBalance, usdcBalance, selectedCoin]);
 
+  // ── Fetchers ────────────────────────────────────────────────────────────────
   const fetchBalance = async (address) => {
+    if (!address) return; // Guard: don't fetch without an address
     try {
       const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
+      if (!res.ok) return;
       const data = await res.json();
       setBalance(parseFloat(data.balance || 0).toFixed(2));
       setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
       setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
     } catch {
-      setBalance("0.00");
-      setUsdtBalance("0.00");
-      setUsdcBalance("0.00");
+      // Keep existing balances on error — don't reset to 0
     }
   };
 
@@ -1101,7 +1140,7 @@ const Dashboard = () => {
     if (!user?.email) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/user/pin-status/${user.email}`,
+        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`,
       );
       const data = await res.json();
       if (!data.hasPin) setNoPinWarning(true);
@@ -1123,7 +1162,6 @@ const Dashboard = () => {
       setFeePreview({ feeNGN: 0, feeUsd: 0 });
       return;
     }
-
     if (coin === "NGN" && feeConfig) {
       let fee = 0;
       if (amt >= feeConfig.tier2Min) fee = feeConfig.tier2Fee;
@@ -1131,9 +1169,7 @@ const Dashboard = () => {
         fee = feeConfig.tier1Fee;
       setFeePreview({ feeNGN: fee, feeUsd: 0 });
     } else if (coin === "USDT" || coin === "USDC") {
-      // $0.015 fee for $5 and above, free below $5
-      const fee = amt >= 5 ? 0.015 : 0;
-      setFeePreview({ feeNGN: 0, feeUsd: fee });
+      setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
     }
   };
 
@@ -1285,7 +1321,19 @@ const Dashboard = () => {
     }
   };
 
-  if (!user) return null;
+  // ── FIX 4: While user is null (before lazy init resolves or redirect fires),
+  // show a loading spinner instead of null / blank white screen.
+  // This prevents the jarring blank flash and gives users feedback.
+  // ──────────────────────────────────────────────────────────────────────────
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
+        <div className="text-salvaGold font-black text-2xl animate-pulse">
+          LOADING...
+        </div>
+      </div>
+    );
+  }
 
   const tabs = [
     { id: "buy", label: "Buy NGNs" },
@@ -1366,7 +1414,11 @@ const Dashboard = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${activeTab === tab.id ? "border-b-2 border-salvaGold text-salvaGold" : "opacity-40 hover:opacity-100"}`}
+              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? "border-b-2 border-salvaGold text-salvaGold"
+                  : "opacity-40 hover:opacity-100"
+              }`}
             >
               {tab.label}
             </button>
@@ -1482,7 +1534,11 @@ const Dashboard = () => {
                         setTransferAmountDisplay("");
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 opacity-50 hover:opacity-80"}`}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${
+                        selectedCoin === coin
+                          ? "bg-salvaGold text-black border-salvaGold"
+                          : "border-white/10 opacity-50 hover:opacity-80"
+                      }`}
                     >
                       {coin === "NGN" ? "NGNs" : coin}
                     </button>
@@ -1571,7 +1627,11 @@ const Dashboard = () => {
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all ${
+                        amountError
+                          ? "border border-red-500 text-red-500"
+                          : "border border-transparent"
+                      }`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       {coinSymbol}
@@ -1582,7 +1642,6 @@ const Dashboard = () => {
                       ⚠️ Insufficient balance
                     </p>
                   )}
-
                   {/* NGN fee preview */}
                   {selectedCoin === "NGN" &&
                     feePreview.feeNGN > 0 &&
@@ -1599,7 +1658,6 @@ const Dashboard = () => {
                         </div>
                       </div>
                     )}
-
                   {/* USD fee preview */}
                   {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
                     transferAmount &&
@@ -1628,7 +1686,11 @@ const Dashboard = () => {
                 <button
                   disabled={loading || amountError || !recipientInput}
                   type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${loading || amountError || !recipientInput ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest ${
+                    loading || amountError || !recipientInput
+                      ? "bg-zinc-800 text-zinc-600 cursor-not-allowed"
+                      : "bg-salvaGold text-black hover:brightness-110 active:scale-95"
+                  }`}
                 >
                   {loading ? "PROCESSING…" : "REVIEW & SEND"}
                 </button>

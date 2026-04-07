@@ -18,10 +18,6 @@ const privateKey = rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`;
 console.log("🔧 Initializing Backend Admin Wallet...");
 
 console.log("🔧 Initializing Backend Admin Wallet...");
-console.log("🔍 DEBUG - Raw key from env:", process.env.MANAGER_PRIVATE_KEY);
-console.log("🔍 DEBUG - After trim:", rawKey);
-console.log("🔍 DEBUG - After quote removal:", rawKey.replace(/['"]+/g, ''));
-console.log("🔍 DEBUG - Final privateKey:", privateKey);
 console.log("🔍 DEBUG - Key length:", privateKey.length, "chars");
 
 let wallet;
