@@ -83,38 +83,44 @@ async function _executeViaSafeEth(
 }
 
 // ─── Core: Base Chain ─────────────────────────────────────────────────────────
-// relayService.js — REPLACE your _executeViaSafeBase with this
-
+// relayService.js — THIS IS THE FINAL WORKING VERSION
 async function _executeViaSafeBase(safeAddress, ownerKey, to, data, operation = 0) {
   const rpcUrl = process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
 
-  // 1. Initialize Protocol Kit with the USER'S owner key for signing
+  console.log(`🔄 Safe execution: Safe=${safeAddress} → Target=${to}`);
+
+  // 1. Init Protocol Kit (owner signs, backend wallet pays gas)
   const protocolKit = await Safe.init({
     provider: rpcUrl,
-    signer: ownerKey,                    // User's decrypted owner private key
+    signer: ownerKey,                    // Owner EOA private key (signs only)
     safeAddress: ethers.getAddress(safeAddress),
   });
 
-  // 2. Create the Safe transaction (this is what gets signed)
+  // 2. Create the transaction (Safe will call the MultiSig)
   const safeTransaction = await protocolKit.createTransaction({
     transactions: [{
-      to: ethers.getAddress(to),         // ← MUST be the MULTISIG
+      to: ethers.getAddress(to),
       data: data,
       value: "0",
-      operation: operation,              // 0 = Call
+      operation: operation,
     }]
   });
 
-  // 3. Sign it with the owner's key
+  // 3. Sign with owner key
   const signedSafeTx = await protocolKit.signTransaction(safeTransaction);
 
-  // 4. EXECUTE using the Protocol Kit (this handles everything correctly)
-  //    The backend wallet (wallet) will pay gas, but the Safe is the msg.sender
-  const executeTxResponse = await protocolKit.executeTransaction(signedSafeTx);
+  // 4. EXECUTE using backend wallet as gas payer
+  //    This is the critical line that makes backend pay gas
+  const executeTxResponse = await protocolKit.executeTransaction(signedSafeTx, {
+    signer: wallet,           // ← Backend wallet pays gas
+    gasLimit: 1_800_000,      // Higher limit for deployAndProposeInit
+  });
 
   const receipt = await executeTxResponse.transactionResponse.wait();
 
-  console.log(`✅ Safe tx executed: ${executeTxResponse.transactionResponse.hash}`);
+  console.log(`✅ Success - Tx: ${executeTxResponse.transactionResponse.hash}`);
+  console.log(`   From: Safe ${safeAddress}`);
+  console.log(`   To:   MultiSig ${to}`);
 
   return {
     taskId: executeTxResponse.transactionResponse.hash,
