@@ -83,59 +83,44 @@ async function _executeViaSafeEth(
 }
 
 // ─── Core: Base Chain ─────────────────────────────────────────────────────────
-// relayService.js
+// relayService.js — REPLACE your _executeViaSafeBase with this
 
-async function _executeViaSafeBase(
-  safeAddress, // 0xb298... (The Safe)
-  ownerKey,    // Private key of Safe owner
-  to,          // 0xFc8a... (The Multisig)
-  data,        // The encoded deployAndProposeInit call
-  operation = 0
-) {
-  const rpcUrl = process.env.ALCHEMY_RPC_URL;
-  
-  // 1. Initialize Kit for the Safe
+async function _executeViaSafeBase(safeAddress, ownerKey, to, data, operation = 0) {
+  const rpcUrl = process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
+
+  // 1. Initialize Protocol Kit with the USER'S owner key for signing
   const protocolKit = await Safe.init({
     provider: rpcUrl,
-    signer: ownerKey,
-    safeAddress: ethers.getAddress(safeAddress), 
+    signer: ownerKey,                    // User's decrypted owner private key
+    safeAddress: ethers.getAddress(safeAddress),
   });
 
-  // 2. Create the transaction WHERE THE 'TO' IS THE MULTISIG
+  // 2. Create the Safe transaction (this is what gets signed)
   const safeTransaction = await protocolKit.createTransaction({
     transactions: [{
-      to: ethers.getAddress(to), // <--- THIS MUST BE THE MULTISIG
-      data: data,                // <--- THIS IS THE MULTISIG FUNCTION CALL
+      to: ethers.getAddress(to),         // ← MUST be the MULTISIG
+      data: data,
       value: "0",
-      operation: operation
+      operation: operation,              // 0 = Call
     }]
   });
 
-  const signedTx = await protocolKit.signTransaction(safeTransaction);
+  // 3. Sign it with the owner's key
+  const signedSafeTx = await protocolKit.signTransaction(safeTransaction);
 
-  // 3. The Backend Wallet (0xfD5A...) executes this ON the Safe
-  const safeContract = new ethers.Contract(
-    ethers.getAddress(safeAddress), 
-    SAFE_ABI, 
-    wallet // This is your backend signer from walletSigner.js
-  );
+  // 4. EXECUTE using the Protocol Kit (this handles everything correctly)
+  //    The backend wallet (wallet) will pay gas, but the Safe is the msg.sender
+  const executeTxResponse = await protocolKit.executeTransaction(signedSafeTx);
 
-  const tx = await safeContract.execTransaction(
-    signedTx.data.to,
-    signedTx.data.value,
-    signedTx.data.data,
-    signedTx.data.operation,
-    signedTx.data.safeTxGas,
-    signedTx.data.baseGas,
-    signedTx.data.gasPrice,
-    signedTx.data.gasToken,
-    signedTx.data.refundReceiver,
-    signedTx.encodedSignatures(),
-    { gasLimit: 1500000 }
-  );
+  const receipt = await executeTxResponse.transactionResponse.wait();
 
-  const receipt = await tx.wait();
-  return { taskId: tx.hash, txHash: tx.hash, receipt };
+  console.log(`✅ Safe tx executed: ${executeTxResponse.transactionResponse.hash}`);
+
+  return {
+    taskId: executeTxResponse.transactionResponse.hash,
+    txHash: executeTxResponse.transactionResponse.hash,
+    receipt
+  };
 }
 
 // ─── Multisig Helpers ─────────────────────────────────────────────────────────

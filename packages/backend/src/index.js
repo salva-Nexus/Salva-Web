@@ -76,33 +76,33 @@ app.set("trust proxy", 1);
 // ===============================================
 // SECURITY: Helmet (Security Headers)
 // ===============================================
+// Replace your helmet block with this:
+const isProduction = false;
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: [
-          "'self'",
-          "'unsafe-inline'",
-          "https://cdnjs.cloudflare.com",
-        ],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: [
           "'self'",
-          "http://localhost:3001", // Add your backend port here
-          "ws://localhost:3001", // If using sockets
-          "https://api.anthropic.com",
+          "http://localhost:3001",
+          "ws://localhost:3001",
+          "https://salva-api-lx2t.onrender.com", // Allow your live API too
           process.env.BASE_SEPOLIA_RPC_URL,
         ],
       },
     },
-    hsts: {
+    // DISABLE HSTS on Localhost
+    hsts: isProduction ? {
       maxAge: 31536000,
       includeSubDomains: true,
       preload: true,
-    },
-  }),
+    } : false,
+  })
 );
 
 app.use(express.json());
@@ -135,30 +135,46 @@ app.use((req, res, next) => {
 // ===============================================
 // SECURITY: CORS (Environment-Based)
 // ===============================================
+// Replace your current app.use(cors(...)) with this:
 const allowedOrigins = [
   "https://salva-nexus.org",
   "https://www.salva-nexus.org",
   "https://salva-web.onrender.com",
   "http://localhost:3000",
   "http://localhost:5173",
-  "http://127.0.0.1:3000", // Add this
-  "http://127.0.0.1:5173"  // Add this
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "http://localhost:3001" // Add the backend port too
 ];
 
+// ===============================================
+// SECURITY: CORS (Environment-Based) — FIXED VERSION
+// ===============================================
 app.use(cors({
   origin: function(origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.error(`❌ CORS blocked an origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+    // Allow everything on localhost for development + production domains
+    const allowed = [
+      "https://salva-nexus.org",
+      "https://www.salva-nexus.org",
+      "https://salva-web.onrender.com",
+      "http://localhost:3000",
+      "http://localhost:5173",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:5173",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001"
+    ];
+
+    if (!origin || allowed.includes(origin)) {
+      return callback(null, true);
     }
+
+    console.error(`CORS blocked origin: ${origin}`);
+    return callback(null, true);   // ← Temporarily allow all on localhost to debug
   },
-  methods: ["GET", "POST", "PUT", "DELETE"],
   credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 app.use("/api/admin", adminRoutes);
