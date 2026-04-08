@@ -188,7 +188,7 @@ const ChainBadge = () => (
   <div className="inline-flex items-center gap-3 bg-black/10 dark:bg-black/30 border border-salvaGold/30 rounded-full px-5 py-2.5 mb-10">
     <span className="w-2 h-2 bg-salvaGold rounded-full animate-pulse" />
     <span className="text-[10px] text-salvaGold font-black uppercase tracking-[0.3em]">
-      Live on Base Testnet
+      Live on Base Mainnet
     </span>
   </div>
 );
@@ -1273,10 +1273,7 @@ const Home = () => {
               <div className="space-y-2.5">
                 <span className="block text-salvaGold font-bold opacity-80 flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block animate-pulse" />
-                  Base Testnet
-                </span>
-                <span className="block opacity-30 text-xs">
-                  Base Mainnet (coming soon)
+                  Base Mainnet
                 </span>
               </div>
             </div>
