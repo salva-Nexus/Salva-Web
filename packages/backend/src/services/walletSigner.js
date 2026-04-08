@@ -15,7 +15,7 @@ if (!rpcUrl) {
 // it triggers an internal branch that attempts ENS on unsupported networks and
 // throws UNSUPPORTED_OPERATION. The correct fix is to use StaticNetwork via
 // Network.from() which hard-disables ENS address resolution entirely.
-const network = new ethers.Network("base-sepolia", 84532);
+const network = new ethers.Network("base", 8453);
 
 const provider = new ethers.JsonRpcProvider(rpcUrl, network, {
   staticNetwork: network, // Prevents ethers from fetching network info on every call
