@@ -348,8 +348,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
               remainingValidation: remaining,
               isValidated,
               timeLockTimestamp: isValidated
-                ? // ? Math.floor(Date.now() / 1000) + 24 * 60 * 60
-                  Math.floor(Date.now() / 1000) - 3600
+                ? Math.floor(Date.now() / 1000) + 24 * 60 * 60
                 : null,
             },
           );
@@ -581,9 +580,9 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
               remainingValidation: remaining,
               isValidated,
               timeLockTimestamp: isValidated
-                ? // Math.floor(Date.now() / 1000) + 24 * 60 * 60
-                  Math.floor(Date.now() / 1000) - 3600
-                : null,
+                ? Math.floor(Date.now() / 1000) + 24 * 60 * 60
+                : // Math.floor(Date.now() / 1000) - 3600
+                  null,
             },
           );
           console.log(
