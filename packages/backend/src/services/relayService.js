@@ -92,8 +92,7 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
-  const rpcUrl =
-    process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
+  const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
   const cleanSafe = ethers.getAddress(cleanEnvAddr(safeAddress) || safeAddress);
   const cleanTarget = ethers.getAddress(cleanEnvAddr(target) || target);
   const hexData = typeof data === "string" ? data : ethers.hexlify(data);

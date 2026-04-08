@@ -11,7 +11,9 @@ const NGNs_ADDRESS = "YOUR_DEPLOYED_CONTRACT_ADDRESS"; // <-- is this right
 router.get('/stats', async (req, res) => {
   try {
     // 1. Get Live Blockchain Data
-    const provider = new ethers.JsonRpcProvider(process.env.SEPOLIA_RPC_URL);
+    const provider = new ethers.JsonRpcProvider(
+      process.env.BASE_MAINNET_RPC_URL,
+    );
     const contract = new ethers.Contract(NGNs_ADDRESS, NGNs_ABI, provider);
     const rawSupply = await contract.totalSupply();
     

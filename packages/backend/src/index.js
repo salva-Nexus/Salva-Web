@@ -96,7 +96,7 @@ app.use(
           "http://localhost:3001",
           "ws://localhost:3001",
           "https://salva-api-lx2t.onrender.com", // Allow your live API too
-          process.env.BASE_SEPOLIA_RPC_URL,
+          process.env.BASE_MAINNET_RPC_URL,
         ],
       },
     },
@@ -703,7 +703,7 @@ app.post(
 
       console.log("🚀 Generating Safe Wallet & Deploying...");
       const identityData = await generateAndDeploySalvaIdentity(
-        process.env.BASE_SEPOLIA_RPC_URL,
+        process.env.BASE_MAINNET_RPC_URL,
       );
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -1116,8 +1116,7 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     // Execute via the user's Safe — Safe is msg.sender on the registry
     // Backend wallet pays gas. No fee charged to the user.
     const Safe = require("@safe-global/protocol-kit").default;
-    const rpcUrl =
-      process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
+    const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
 
     const protocolKit = await Safe.init({
       provider: rpcUrl,

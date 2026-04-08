@@ -1,11 +1,11 @@
 // Salva-Digital-Tech/packages/backend/src/services/walletSigner.js
 const { ethers } = require("ethers");
 
-const rpcUrl = process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
+const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
 
 if (!rpcUrl) {
   console.error(
-    "❌ No RPC URL found. Set ALCHEMY_RPC_URL or BASE_SEPOLIA_RPC_URL in .env",
+    "❌ No BASE_MAINNET_RPC_URL in .env",
   );
   process.exit(1);
 }
