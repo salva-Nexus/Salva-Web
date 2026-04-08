@@ -1,34 +1,47 @@
 // Salva-Digital-Tech/packages/backend/src/services/walletSigner.js
-const { ethers } = require('ethers');
-const path = require('path');
+const { ethers } = require("ethers");
 
-const provider = new ethers.JsonRpcProvider(
-  process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL,
-);
+const rpcUrl = process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
 
-// 1. Get the key and TRIM it to remove hidden spaces/newlines
-let rawKey = process.env.MANAGER_PRIVATE_KEY ? process.env.MANAGER_PRIVATE_KEY.trim() : "";
+if (!rpcUrl) {
+  console.error(
+    "❌ No RPC URL found. Set ALCHEMY_RPC_URL or BASE_SEPOLIA_RPC_URL in .env",
+  );
+  process.exit(1);
+}
 
-// 2. Remove quotes if they accidentally got into the string
-rawKey = rawKey.replace(/['"]+/g, '');
+// ─── Provider ─────────────────────────────────────────────────────────────────
+// In ethers v6, passing { ensAddress: null } does NOT disable ENS lookups —
+// it triggers an internal branch that attempts ENS on unsupported networks and
+// throws UNSUPPORTED_OPERATION. The correct fix is to use StaticNetwork via
+// Network.from() which hard-disables ENS address resolution entirely.
+const network = new ethers.Network("base-sepolia", 84532);
 
-// 3. Ensure it has the 0x prefix
-const privateKey = rawKey.startsWith('0x') ? rawKey : `0x${rawKey}`;
+const provider = new ethers.JsonRpcProvider(rpcUrl, network, {
+  staticNetwork: network, // Prevents ethers from fetching network info on every call
+});
 
-console.log("🔧 Initializing Backend Admin Wallet...");
+// ─── Wallet ───────────────────────────────────────────────────────────────────
+let rawKey = process.env.MANAGER_PRIVATE_KEY
+  ? process.env.MANAGER_PRIVATE_KEY.trim().replace(/['"]+/g, "")
+  : "";
 
-console.log("🔧 Initializing Backend Admin Wallet...");
-console.log("🔍 DEBUG - Key length:", privateKey.length, "chars");
+const privateKey = rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`;
+
+console.log("🔧 Initializing Salva Backend Admin Wallet...");
 
 let wallet;
 try {
-    // This is where the error was happening
-    wallet = new ethers.Wallet(privateKey, provider);
-    console.log("✅ Wallet Initialized Successfully:", wallet.address);
+  if (privateKey.length !== 66) {
+    throw new Error(
+      `Invalid private key length: ${privateKey.length}. Expected 66 chars including 0x.`,
+    );
+  }
+  wallet = new ethers.Wallet(privateKey, provider);
+  console.log("✅ Admin Wallet Ready:", wallet.address);
 } catch (error) {
-    console.error("❌ Ethers Error Details:", error.message);
-    // This will tell us exactly what 'value' ethers is seeing
-    process.exit(1); 
+  console.error("❌ Wallet Initialization Failed:", error.message);
+  process.exit(1);
 }
 
 module.exports = { wallet, provider };

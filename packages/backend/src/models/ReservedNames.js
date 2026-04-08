@@ -508,7 +508,7 @@ const RESERVED_NAMES_LIST = [
   "salva_dao",
   "salvanexus",
   "salva_nexus",
-  "cboi",
+  //"cboi",
   "charles",
   "charlesokoronkwo",
   "charles_okoronkwo",

@@ -1,212 +1,245 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 
-<head>
-  <meta charset="utf-8" />
-  <link rel="icon" type="image/png" href="/salva-logo.png" sizes="512x512" />
-  <link rel="apple-touch-icon" href="/salva-logo.png" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="theme-color" content="#D4AF37" />
-  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <!-- ── Primary SEO ──────────────────────────────────────────────────── -->
+    <title>
+      Salva — On-Chain Name Service & Nigerian Naira Stablecoin | DNS for Web3
+    </title>
+    <meta
+      name="description"
+      content="Salva is the premier on-chain naming service and payment protocol for Nigeria and Africa. Register human-readable aliases like charles@salva, hold NGNs stablecoin pegged 1:1 to the Naira, and send money like sending a text — no wallet addresses, no gas fees, no seed phrases. Built on Base."
+    />
+    <meta
+      name="keywords"
+      content="Salva, SNS, Salva Naming Service, NGNs, Nigerian stablecoin, Naira stablecoin, on-chain name service, DNS for blockchain, Base blockchain, smart wallet, Account Abstraction, Safe wallet, Nigeria DeFi, web3 Africa, blockchain payments Nigeria, ERC-20 Nigeria, ENS alternative Africa, phishing resistant naming, gasless wallet Nigeria"
+    />
+    <meta name="author" content="Salva Protocol" />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <link rel="canonical" href="https://salva-nexus.org/" />
 
-  <title>Salva — On-Chain Name Service & Payment Protocol</title>
-  <meta name="title" content="Salva — On-Chain Name Service & Payment Protocol" />
-  <meta name="description" content="Salva maps human-readable name aliases to wallet addresses and account numbers on-chain. Send crypto and NGN payments using names like 'charles@salva' — no seed phrases, no gas fees, no long wallet addresses." />
-  <meta name="keywords" content="Salva, Salva Nexus, Nigerian crypto wallet, on-chain name service, blockchain name resolution, NGN stablecoin, Base blockchain, Web3 Nigeria, name alias blockchain, NGNs, naira stablecoin, Safe smart wallet Nigeria, crypto name service" />
-  <meta name="author" content="Salva Nexus" />
-  <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
-  <meta name="revisit-after" content="3 days" />
-  <meta name="language" content="English" />
-  <meta name="category" content="Finance, Cryptocurrency, Web3, Payments, Name Service" />
-  <meta name="coverage" content="Nigeria, Africa" />
-  <meta name="rating" content="general" />
+    <!-- ── Open Graph / Facebook ─────────────────────────────────────────── -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://salva-nexus.org/" />
+    <meta property="og:site_name" content="Salva Protocol" />
+    <meta
+      property="og:title"
+      content="Salva — Send Money Like Sending a Text. On-Chain Name Service for Africa."
+    />
+    <meta
+      property="og:description"
+      content="Human-readable names for every wallet. NGNs stablecoin pegged 1:1 to the Naira. Gasless smart wallets. Register charles@salva and send crypto like a text message. No addresses. No gas. No complexity. Built on Base."
+    />
+    <meta property="og:image" content="https://salva-nexus.org/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Salva Protocol — On-Chain Name Service and NGNs Stablecoin for Nigeria"
+    />
+    <meta property="og:locale" content="en_NG" />
+    <meta property="og:locale:alternate" content="en_US" />
 
-  <link rel="canonical" href="https://salva-nexus.org/" />
-  <link rel="manifest" href="/manifest.json" />
+    <!-- ── Twitter / X Cards ─────────────────────────────────────────────── -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@salva_Nexus" />
+    <meta name="twitter:creator" content="@salva_Nexus" />
+    <meta
+      name="twitter:title"
+      content="Salva — On-Chain Payment Infrastructure for Nigeria"
+    />
+    <meta
+      name="twitter:description"
+      content="Register your name on-chain. Hold NGNs stablecoin. Send money like a text — no addresses, no gas, no complexity. Built on Base. Live now."
+    />
+    <meta name="twitter:image" content="https://salva-nexus.org/og-image.png" />
+    <meta
+      name="twitter:image:alt"
+      content="Salva Protocol — DNS for Web3, NGNs Stablecoin, Gasless Smart Wallet"
+    />
 
-  <!-- Open Graph -->
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://salva-nexus.org/" />
-  <meta property="og:title" content="Salva — On-Chain Name Service & Payment Protocol" />
-  <meta property="og:description" content="Send crypto payments using human-readable name aliases on-chain. 'charles@salva', 'sandra_eberechi@uba' — your on-chain identity. No seed phrases, no gas fees, no long wallet addresses." />
-  <meta property="og:image" content="https://salva-nexus.org/salva-logo.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:site_name" content="Salva" />
-  <meta property="og:locale" content="en_NG" />
+    <!-- ── Favicons ───────────────────────────────────────────────────────── -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#D4AF37" />
+    <meta name="msapplication-TileColor" content="#0A0A0B" />
 
-  <!-- Twitter / X -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@salva_Nexus" />
-  <meta name="twitter:creator" content="@salva_Nexus" />
-  <meta name="twitter:url" content="https://salva-nexus.org/" />
-  <meta name="twitter:title" content="Salva — On-Chain Name Service & Payment Protocol" />
-  <meta name="twitter:description" content="Send crypto & NGN payments using name aliases on-chain. Zero gas fees. No seed phrases. Built for everyday Nigerians. Currently on Base Testnet." />
-  <meta name="twitter:image" content="https://salva-nexus.org/salva-logo.png" />
+    <!-- ── Geo / Regional targeting ──────────────────────────────────────── -->
+    <meta name="geo.region" content="NG" />
+    <meta name="geo.placename" content="Nigeria" />
+    <meta name="ICBM" content="9.082, 8.6753" />
 
-  <!-- Structured Data: Organization -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Salva",
-    "alternateName": ["Salva Nexus", "Salva Protocol"],
-    "url": "https://salva-nexus.org/",
-    "logo": "https://salva-nexus.org/salva-logo.png",
-    "description": "Nigeria's on-chain name service and payment protocol — mapping human-readable name aliases to wallet addresses across blockchains.",
-    "foundingDate": "2024",
-    "areaServed": "Nigeria",
-    "sameAs": [
-      "https://x.com/salva_Nexus",
-      "https://github.com/salva-Nexus/SALVA-V2",
-      "https://instagram.com/salvaFinance"
-    ],
-    "contactPoint": {
-      "@type": "ContactPoint",
-      "email": "charlieonyii42@gmail.com",
-      "contactType": "customer support"
-    }
-  }
-  </script>
+    <!-- ── Performance hints ─────────────────────────────────────────────── -->
+    <link rel="preconnect" href="https://salva-api-lx2t.onrender.com" />
+    <link rel="dns-prefetch" href="https://salva-api-lx2t.onrender.com" />
 
-  <!-- Structured Data: WebSite -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "Salva",
-    "alternateName": "Salva Nexus",
-    "url": "https://salva-nexus.org/",
-    "description": "On-chain name service and NGN payment infrastructure. Human-readable aliases for wallets and account numbers.",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": "https://salva-nexus.org/?q={search_term_string}",
-      "query-input": "required name=search_term_string"
-    }
-  }
-  </script>
+    <!-- ── Structured Data (JSON-LD) ─────────────────────────────────────── -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "WebSite",
+            "@id": "https://salva-nexus.org/#website",
+            "url": "https://salva-nexus.org/",
+            "name": "Salva Protocol",
+            "description": "On-chain name service and payment protocol for Nigeria. Register human-readable aliases, hold NGNs stablecoin, and send money like a text.",
+            "publisher": { "@id": "https://salva-nexus.org/#organization" },
+            "inLanguage": "en-NG",
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://salva-nexus.org/login?action=register"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://salva-nexus.org/#organization",
+            "name": "Salva Protocol",
+            "url": "https://salva-nexus.org",
+            "logo": {
+              "@type": "ImageObject",
+              "url": "https://salva-nexus.org/logo.png",
+              "width": 512,
+              "height": 512
+            },
+            "sameAs": [
+              "https://x.com/salva_Nexus",
+              "https://github.com/salva-Nexus/SALVA-V2"
+            ],
+            "foundingDate": "2024",
+            "areaServed": { "@type": "Country", "name": "Nigeria" },
+            "description": "Salva builds on-chain name service and payment infrastructure for Africa, starting with the Nigerian Naira stablecoin (NGNs) and the Salva Naming Service (SNS) on Base blockchain."
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Salva Smart Wallet",
+            "applicationCategory": "FinanceApplication",
+            "operatingSystem": "Web, iOS, Android",
+            "url": "https://salva-nexus.org/login",
+            "description": "A gasless Safe-powered smart contract wallet supporting NGNs stablecoin, USDT, and USDC. No seed phrases, no gas fees, 4-digit PIN security.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "NGN"
+            },
+            "publisher": { "@id": "https://salva-nexus.org/#organization" }
+          },
+          {
+            "@type": "FAQPage",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "What is the Salva Naming Service (SNS)?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "SNS is a phishing-resistant, namespace-isolated on-chain identity layer — DNS for everything on-chain. It maps human-readable aliases like charles@salva to wallet addresses. Unlike ENS, SNS is namespace-isolated: @salva and @coinbase are completely separate registries that never collide."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "What is NGNs stablecoin?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "NGNs is a Nigerian Naira-pegged stablecoin built on Base blockchain. 1 NGNs = 1 Nigerian Naira. It enables on-chain transactions in local currency with no FX exposure or volatility."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is Salva wallet self-custodial?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. Salva is fully non-custodial. Your private key is encrypted client-side using PBKDF2 with 600,000 iterations. Salva never sees your key in plaintext. You control your funds with a 4-digit PIN."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "How much does it cost to register a Salva name?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Name registration costs exactly $1 (paid in USDT or USDC), one time. There are no renewals, no annual fees, and no expiry."
+                }
+              }
+            ]
+          }
+        ]
+      }
+    </script>
 
-  <!-- Structured Data: FinancialService -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FinancialService",
-    "name": "Salva",
-    "url": "https://salva-nexus.org/",
-    "logo": "https://salva-nexus.org/salva-logo.png",
-    "description": "On-chain name service and NGN payment protocol. Human-readable name aliases map to smart wallet addresses. Currently deployed on Base Testnet, expanding to additional chains.",
-    "areaServed": "Nigeria",
-    "currenciesAccepted": "NGN",
-    "priceRange": "Free",
-    "serviceType": "Blockchain Name Service & Payment Protocol",
-    "availableChannel": {
-      "@type": "ServiceChannel",
-      "serviceUrl": "https://salva-nexus.org/login"
-    }
-  }
-  </script>
+    <!-- ── Preload critical assets ─────────────────────────────────────────── -->
+    <link rel="modulepreload" href="/src/main.jsx" />
+  </head>
 
-  <!-- Structured Data: SoftwareApplication -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Salva",
-    "operatingSystem": "Web",
-    "applicationCategory": "FinanceApplication",
-    "url": "https://salva-nexus.org/",
-    "description": "Web3 payment app for Nigeria. Register a name alias from any compatible wallet. Send and receive NGNs or crypto instantly using human-readable names like 'charles@salva'.",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "NGN"
-    }
-  }
-  </script>
+  <body>
+    <div id="root">
+      <h1 style="display: none">
+        Salva Protocol: NGNs Stablecoin & On-Chain Name Service
+      </h1>
+      <p style="display: none">
+        Send money like a text with charles@salva. Non-custodial, gasless
+        payments for Nigeria on Base.
+      </p>
+    </div>
 
-  <style>
-    body {
-      background-color: #0A0A0B;
-      margin: 0;
-      font-family: Arial, sans-serif;
-    }
+    <!-- Noscript fallback -->
+    <noscript>
+      <div
+        style="
+          font-family: system-ui, sans-serif;
+          text-align: center;
+          padding: 60px 20px;
+          background: #0a0a0b;
+          color: #d4af37;
+          min-height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        "
+      >
+        <h1
+          style="
+            font-size: 2rem;
+            font-weight: 900;
+            letter-spacing: -0.05em;
+            margin-bottom: 12px;
+          "
+        >
+          SALVA
+        </h1>
+        <p style="color: #ffffff80; max-width: 420px; line-height: 1.6">
+          Salva requires JavaScript to run. Please enable JavaScript in your
+          browser to access the Salva Protocol — on-chain name service and NGNs
+          stablecoin for Nigeria.
+        </p>
+        <a
+          href="https://x.com/salva_Nexus"
+          style="
+            margin-top: 24px;
+            color: #d4af37;
+            font-weight: 700;
+            text-decoration: none;
+          "
+          >Follow us on X →</a
+        >
+      </div>
+    </noscript>
 
-    /* ── Favicon boost: make the S visible at 16px ───────────────────────── */
-    /* The PNG logo is used; ensure crisp rendering */
-    link[rel="icon"] { image-rendering: crisp-edges; }
-
-    #pre-render-content {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      text-align: center;
-      padding: 40px 20px;
-      color: #ffffff;
-    }
-    #pre-render-content h1 { color: #D4AF37; font-size: 48px; margin-bottom: 16px; font-weight: 900; }
-    #pre-render-content h2 { color: #D4AF37; font-size: 24px; margin-bottom: 12px; font-weight: 700; }
-    #pre-render-content p  { color: #aaaaaa; font-size: 18px; max-width: 600px; line-height: 1.6; margin-bottom: 12px; }
-    #pre-render-content a  { color: #D4AF37; margin: 8px; display: inline-block; }
-    #pre-render-content ul { color: #aaaaaa; font-size: 16px; text-align: left; max-width: 600px; line-height: 1.8; }
-    #root:not(:empty) + #pre-render-content { display: none; }
-  </style>
-</head>
-
-<body>
-  <div id="root"></div>
-
-  <!-- SSR / SEO fallback content (hidden once React mounts) -->
-  <div id="pre-render-content" aria-hidden="true">
-    <h1>SALVA</h1>
-    <h2>On-Chain Name Service &amp; Payment Protocol for Nigeria</h2>
-
-    <p>
-      Salva is Nigeria's on-chain name service and financial protocol, currently
-      deployed on Base Testnet. It maps human-readable name aliases to wallet
-      addresses and account numbers — so you send payments to a name like
-      <strong>charles@salva</strong> or <strong>sandra_eberechi@uba</strong>,
-      not a long hexadecimal address.
-    </p>
-
-    <p>
-      Salva is wallet-agnostic. Register your alias from Salva Wallet, Coinbase,
-      MetaMask, or your bank app. Each namespace (@salva, @coinbase, @uba) is
-      isolated — identities across registries never collide.
-    </p>
-
-    <h2>How it works</h2>
-    <ul>
-      <li>Create or connect any compatible wallet</li>
-      <li>Register a name alias — "charles@salva" or "aggregatorv3_eth@chainlink"</li>
-      <li>Your alias maps to your wallet address or account number on-chain</li>
-      <li>Send and receive crypto or NGNs (Nigerian Naira stablecoin) by name</li>
-      <li>Multiple registries (namespaces) each have their own isolated identity space</li>
-      <li>Currently on Base Testnet — expanding to more chains</li>
-    </ul>
-
-    <h2>Why Salva</h2>
-    <p>
-      Crypto payments today require copying 42-character wallet addresses.
-      Salva solves this with a permanent, phishing-resistant on-chain name registry
-      that links your identity to your wallet — the same way DNS links domain names
-      to IP addresses, but for blockchain.
-    </p>
-
-    <h2>Salva Smart Wallet</h2>
-    <p>
-      Salva also ships its own Smart Wallet powered by Safe Protocol — no seed phrases,
-      zero gas fees for users, gasless NGNs transfers. Built for everyday Nigerians.
-    </p>
-
-    <p>
-      <a href="https://salva-nexus.org/">Home</a>
-      <a href="https://salva-nexus.org/login">Create Wallet / Sign In</a>
-      <a href="https://x.com/salva_Nexus">Follow on X</a>
-      <a href="https://github.com/salva-Nexus/SALVA-V2">GitHub</a>
-    </p>
-  </div>
-</body>
-
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
 </html>

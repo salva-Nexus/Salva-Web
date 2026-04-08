@@ -84,7 +84,11 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://cdnjs.cloudflare.com",
+        ],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", "data:", "https:"],
         connectSrc: [
@@ -97,12 +101,14 @@ app.use(
       },
     },
     // DISABLE HSTS on Localhost
-    hsts: isProduction ? {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true,
-    } : false,
-  })
+    hsts: isProduction
+      ? {
+          maxAge: 31536000,
+          includeSubDomains: true,
+          preload: true,
+        }
+      : false,
+  }),
 );
 
 app.use(express.json());
@@ -144,38 +150,40 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:5173",
-  "http://localhost:3001" // Add the backend port too
+  "http://localhost:3001", // Add the backend port too
 ];
 
 // ===============================================
 // SECURITY: CORS (Environment-Based) — FIXED VERSION
 // ===============================================
-app.use(cors({
-  origin: function(origin, callback) {
-    // Allow everything on localhost for development + production domains
-    const allowed = [
-      "https://salva-nexus.org",
-      "https://www.salva-nexus.org",
-      "https://salva-web.onrender.com",
-      "http://localhost:3000",
-      "http://localhost:5173",
-      "http://127.0.0.1:3000",
-      "http://127.0.0.1:5173",
-      "http://localhost:3001",
-      "http://127.0.0.1:3001"
-    ];
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // Allow everything on localhost for development + production domains
+      const allowed = [
+        "https://salva-nexus.org",
+        "https://www.salva-nexus.org",
+        "https://salva-web.onrender.com",
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+      ];
 
-    if (!origin || allowed.includes(origin)) {
-      return callback(null, true);
-    }
+      if (!origin || allowed.includes(origin)) {
+        return callback(null, true);
+      }
 
-    console.error(`CORS blocked origin: ${origin}`);
-    return callback(null, true);   // ← Temporarily allow all on localhost to debug
-  },
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+      console.error(`CORS blocked origin: ${origin}`);
+      return callback(null, true); // ← Temporarily allow all on localhost to debug
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
+);
 
 app.use("/api/admin", adminRoutes);
 
@@ -184,7 +192,7 @@ app.use("/api/admin", adminRoutes);
 // ===============================================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
+  max: process.env.NODE_ENV === 'development' ? 100 : 5,
   message: "Too many authentication attempts. Please try again in 15 minutes.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -782,51 +790,51 @@ app.get("/api/user/status/:email", async (req, res) => {
   }
 });
 
+// ================================================================
+// ALIAS: PREPARE LINK — validates, signs, returns prepared data
+// Does NOT execute. Frontend calls /api/alias/execute-link after PIN.
+// ================================================================
 app.post("/api/alias/link-name", async (req, res) => {
   try {
     const { safeAddress, name, walletToLink, registryAddress } = req.body;
 
-    // ── 1. Input validation ───────────────────────────────────────────────
-    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+    // ── Input validation ────────────────────────────────────────────────────
+    if (!safeAddress || !ethers.isAddress(safeAddress))
       return res.status(400).json({ message: "Invalid safe address" });
-    }
-    if (!walletToLink || !ethers.isAddress(walletToLink)) {
+    if (!walletToLink || !ethers.isAddress(walletToLink))
       return res
         .status(400)
         .json({ message: "Invalid wallet address to link" });
-    }
-    if (!registryAddress || !ethers.isAddress(registryAddress)) {
+    if (!registryAddress || !ethers.isAddress(registryAddress))
       return res.status(400).json({ message: "Invalid registry address" });
-    }
-    if (!name || typeof name !== "string") {
+    if (!name || typeof name !== "string")
       return res.status(400).json({ message: "Name is required" });
-    }
 
     const pureName = name.trim().toLowerCase();
 
-    // Character validation: lowercase a-z, digits 2-9, one underscore max
-    if (!/^[a-z2-9_]{1,32}$/.test(pureName)) {
-      return res.status(400).json({
-        message:
-          "Invalid name. Use lowercase a–z, digits 2–9, one underscore max.",
-      });
-    }
-    if ((pureName.match(/_/g) || []).length > 1) {
+    if (!/^[a-z2-9_]{1,32}$/.test(pureName))
+      return res
+        .status(400)
+        .json({
+          message:
+            "Invalid name. Use lowercase a–z, digits 2–9, one underscore max.",
+        });
+    if ((pureName.match(/_/g) || []).length > 1)
       return res.status(400).json({ message: "Only one underscore allowed." });
-    }
-    if (pureName.includes("0") || pureName.includes("1")) {
+    if (pureName.includes("0") || pureName.includes("1"))
       return res
         .status(400)
         .json({ message: "Digits 0 and 1 are not allowed." });
-    }
-    if (pureName.startsWith("_") || pureName.endsWith("_")) {
+    if (pureName.startsWith("_") || pureName.endsWith("_"))
       return res
         .status(400)
         .json({ message: "Name cannot start or end with underscore." });
-    }
+    if (pureName.length < 2)
+      return res
+        .status(400)
+        .json({ message: "Name must be at least 2 characters." });
 
-    // ── 2. Reserved name check ────────────────────────────────────────────
-    const { isReservedName } = require("./models/ReservedNames");
+    // ── Reserved name check ─────────────────────────────────────────────────
     if (isReservedName(pureName)) {
       return res.status(200).json({
         reserved: true,
@@ -835,264 +843,105 @@ app.post("/api/alias/link-name", async (req, res) => {
       });
     }
 
-    // ── 3. Find user ──────────────────────────────────────────────────────
+    // ── Find user ───────────────────────────────────────────────────────────
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // ── 4. Balance gate — user must have ≥ 1 USDT or ≥ 1 USDC ──────────
-    const ERC20_ABI = [
-      "function balanceOf(address) view returns (uint256)",
-      "function transfer(address,uint256) returns (bool)",
-    ];
-    const usdtContract = new ethers.Contract(
-      process.env.USDT_CONTRACT_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
-    const usdcContract = new ethers.Contract(
-      process.env.USDC_CONTRACT_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
+    // ── Balance gate ─────────────────────────────────────────────────────────
+    // Default: USDC. Fallback: USDT. Need at least 1 token (1e6 units, 6 decimals).
+    const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+    const ONE_DOLLAR = ethers.parseUnits("1", 6);
 
-    const [usdtWei, usdcWei] = await Promise.all([
-      usdtContract.balanceOf(safeAddress).catch(() => 0n),
+    const usdcAddr = process.env.USDC_CONTRACT_ADDRESS;
+    const usdtAddr = process.env.USDT_CONTRACT_ADDRESS;
+
+    if (!usdcAddr || !usdtAddr)
+      return res
+        .status(500)
+        .json({ message: "Token contract addresses not configured" });
+
+    const usdcContract = new ethers.Contract(usdcAddr, ERC20_ABI, provider);
+    const usdtContract = new ethers.Contract(usdtAddr, ERC20_ABI, provider);
+
+    const [usdcWei, usdtWei] = await Promise.all([
       usdcContract.balanceOf(safeAddress).catch(() => 0n),
+      usdtContract.balanceOf(safeAddress).catch(() => 0n),
     ]);
 
-    const ONE_DOLLAR = ethers.parseUnits("1", 6); // 1 USDT or 1 USDC (both 6 decimals)
-    const hasUsdt = usdtWei >= ONE_DOLLAR;
     const hasUsdc = usdcWei >= ONE_DOLLAR;
+    const hasUsdt = usdtWei >= ONE_DOLLAR;
 
-    if (!hasUsdt && !hasUsdc) {
+    if (!hasUsdc && !hasUsdt) {
       return res.status(400).json({
         message:
-          "Insufficient balance. You need at least 1 USDT or 1 USDC in your wallet to register a name. Please fund your wallet and try again.",
+          "Insufficient balance. You need at least 1 USDC or 1 USDT in your wallet to register a name.",
         lowBalance: true,
       });
     }
 
-    // Prefer USDT if available, else USDC
-    const feeToken = hasUsdt
-      ? process.env.USDT_CONTRACT_ADDRESS
-      : process.env.USDC_CONTRACT_ADDRESS;
-    const feeTokenContract = hasUsdt ? usdtContract : usdcContract;
+    // USDC is default, USDT is fallback
+    const feeTokenAddress = hasUsdc ? usdcAddr : usdtAddr;
+    console.log(
+      `💰 Fee token selected: ${hasUsdc ? "USDC" : "USDT"} (${feeTokenAddress})`,
+    );
 
-    // ── 5. Underscore collision check ─────────────────────────────────────
-    // If name has underscore: check both halves and the reversed compound
-    // to prevent look-alike squatting across all users
+    // ── Underscore collision check ──────────────────────────────────────────
     if (pureName.includes("_")) {
       const parts = pureName.split("_");
-      const firstHalf = parts[0];
-      const secondHalf = parts[1];
-      const reversed = `${secondHalf}_${firstHalf}`;
-
-      // Check if any existing user has these aliases
+      const reversed = `${parts[1]}_${parts[0]}`;
       const collisionCheck = await User.findOne({
         "nameAliases.name": {
           $in: [
-            // Any existing alias that starts with either half
-            new RegExp(`^${firstHalf}@`),
-            new RegExp(`^${secondHalf}@`),
+            new RegExp(`^${parts[0]}@`),
+            new RegExp(`^${parts[1]}@`),
             new RegExp(`^${reversed}@`),
           ],
         },
       });
       if (collisionCheck) {
         return res.status(409).json({
-          message: `A similar name (${firstHalf} or ${secondHalf}) is a reserved name.`,
+          message: `A similar name (${parts[0]} or ${parts[1]}) is already registered.`,
         });
       }
     }
 
-    // ── 6. Get namespace from registry ────────────────────────────────────
-    const {
-      getNamespace,
-      checkNameAvailability,
-      weldName,
-    } = require("./services/registryResolver");
+    // ── On-chain availability check ─────────────────────────────────────────
     const namespace = await getNamespace(registryAddress);
     const weldedName = weldName(pureName, namespace);
+    console.log("DEBUG: pureName is:", pureName);
+    console.log("DEBUG: namespace found is:", namespace);
+    console.log("DEBUG: weldedName resulting is:", weldedName);
 
-    // ── 7. Check on-chain availability ────────────────────────────────────
     const available = await checkNameAvailability(weldedName, registryAddress);
-    if (!available) {
+    if (!available)
       return res
         .status(409)
         .json({ message: "This name is already taken on-chain." });
-    }
 
-    // ── 8. Backend signs the (name, wallet) pair ─────────────────────────
-    // The signature is: keccak256(abi.encodePacked(nameBytes, wallet))
-    // This mirrors exactly what BaseRegistry.link() verifies on-chain.
+    // ── Backend signs (nameBytes ++ wallet) ─────────────────────────────────
+    // Matches the assembly packing in BaseRegistry.link():
+    //   calldatacopy(0x00, _name.offset, _name.length)        ← name bytes
+    //   mstore(_name.length, shl(sub(0x100, mul(0x14,0x08)), _wallet)) ← wallet 20 bytes
+    //   messageHash := keccak256(0x00, add(_name.length, 0x14))
+    //
+    // Equivalent in JS: keccak256(concat(nameBytes, walletBytes20))
     const nameBytes = ethers.toUtf8Bytes(pureName);
     const walletAddress = ethers.getAddress(walletToLink);
-
-    // Replicate the assembly packing: name bytes ++ wallet address (20 bytes, left-aligned in 32)
-    const packed = ethers.concat([
-      nameBytes,
-      // wallet packed left-aligned: shl(sub(0x100, mul(0x14, 0x08)), wallet)
-      // = wallet address shifted to occupy top 20 bytes of a 32-byte word
-      ethers.zeroPadValue(walletAddress, 32).slice(0, 42),
-    ]);
-
-    // Actually: the contract does calldatacopy then mstore with shl — producing
-    // the raw bytes of name followed by the 20-byte address concatenated.
-    // ethers equivalent:
     const rawPacked = ethers.concat([
       nameBytes,
-      ethers.getBytes(walletAddress), // 20 raw bytes
+      ethers.getBytes(walletAddress),
     ]);
-
     const messageHash = ethers.keccak256(rawPacked);
-    // Sign with Ethereum prefix — toEthSignedMessageHash equivalent
+    // wallet.signMessage applies the Ethereum prefix → toEthSignedMessageHash
     const signature = await wallet.signMessage(ethers.getBytes(messageHash));
 
-    // ── 9. Get ETH fee from singleton ─────────────────────────────────────
-    const SINGLETON_ABI = [
-      "function getFeeInEth(address) view returns (uint256)",
-    ];
-    const singletonContract = new ethers.Contract(
-      process.env.SALVA_SINGLETON,
-      SINGLETON_ABI,
-      provider,
+    console.log(
+      `✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`,
     );
-    // Get the data feed address from the factory (we need it to call getFeeInEth)
-    const FACTORY_ABI = [
-      "function getSignerAndDataFeed() view returns (address, address)",
-    ];
-    // We don't have REGISTRY_FACTORY_ADDRESS directly but registry has factory reference
-    // Use existing registryResolver pattern — get fee from registry's singleton
-    let ethFee;
-    try {
-      // Fetch data feed from our registry contract
-      const REGISTRY_FACTORY_ABI = [
-        "function getSignerAndDataFeed() view returns (address signer, address dataFeed)",
-      ];
-      const BASE_REGISTRY_READ_ABI = [
-        "function namespace() view returns (string)",
-      ];
-      // We'll just use a fixed fee estimate if we can't fetch:
-      // getFeeInEth = 1e26 / ethUsdPrice. At $3000 ETH: ~0.000033 ETH ≈ 33000 gwei
-      // We'll call the singleton directly with a known data feed if available
-      // If CHAINLINK_FEED_ADDRESS is set, use it:
-      const feedAddress = process.env.CHAINLINK_ETH_USD_FEED;
-      if (feedAddress) {
-        ethFee = await singletonContract.getFeeInEth(feedAddress);
-      } else {
-        // Fallback: estimate 1 USD in ETH at current price (conservative 0.0004 ETH)
-        ethFee = ethers.parseEther("0.0004");
-      }
-    } catch (feeErr) {
-      console.warn(
-        "⚠️ Could not fetch ETH fee, using fallback:",
-        feeErr.message,
-      );
-      ethFee = ethers.parseEther("0.0004");
-    }
-
-    // ── 10. Build Safe multicall: link() + ERC20 fee transfer ────────────
-    // Transaction 1: call registry.link(nameBytes, walletToLink, signature) with ethFee value
-    const REGISTRY_LINK_ABI = [
-      "function link(bytes calldata _name, address _wallet, bytes calldata signature) external payable",
-    ];
-    const registryIface = new ethers.Interface(REGISTRY_LINK_ABI);
-    const linkCalldata = registryIface.encodeFunctionData("link", [
-      nameBytes,
-      walletAddress,
-      ethers.getBytes(signature),
-    ]);
-
-    // Transaction 2: ERC20 transfer of 1 token to Treasury
-    const erc20Iface = new ethers.Interface([
-      "function transfer(address,uint256) returns (bool)",
-    ]);
-    const feeTransferCalldata = erc20Iface.encodeFunctionData("transfer", [
-      process.env.TREASURY_CONTRACT_ADDRESS,
-      ONE_DOLLAR,
-    ]);
-
-    // Use Safe's MultiSend to batch both transactions
-    const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
-    const encodePacked = (to, value, data, operation = 0) => {
-      const dataBytes = ethers.getBytes(data);
-      return ethers.concat([
-        new Uint8Array([operation]),
-        ethers.getBytes(
-          ethers
-            .zeroPadValue(ethers.toBeHex(to), 32)
-            .replace("0x000000000000000000000000", "0x"),
-        ),
-        // Actually use proper ABI encoding for MultiSend
-        ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(to, 20), 20)),
-        ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(value), 32)),
-        ethers.getBytes(
-          ethers.zeroPadValue(ethers.toBeHex(dataBytes.length), 32),
-        ),
-        dataBytes,
-      ]);
-    };
-
-    // MultiSend packed format (per Safe protocol):
-    // operation(1) | to(20) | value(32) | dataLength(32) | data(n)
-    const encodeMultiSendTx = (operation, to, value, data) => {
-      const dataBytes = ethers.getBytes(data);
-      const buf = new Uint8Array(1 + 20 + 32 + 32 + dataBytes.length);
-      let offset = 0;
-      buf[offset++] = operation; // 0 = call, 1 = delegatecall
-      ethers
-        .getBytes(ethers.getAddress(to))
-        .forEach((b) => (buf[offset++] = b));
-      const valBytes = ethers.getBytes(
-        ethers.zeroPadValue(ethers.toBeHex(value), 32),
-      );
-      valBytes.forEach((b) => (buf[offset++] = b));
-      const lenBytes = ethers.getBytes(
-        ethers.zeroPadValue(ethers.toBeHex(dataBytes.length), 32),
-      );
-      lenBytes.forEach((b) => (buf[offset++] = b));
-      dataBytes.forEach((b) => (buf[offset++] = b));
-      return buf;
-    };
-
-    const tx1Packed = encodeMultiSendTx(
-      0,
-      registryAddress,
-      ethFee,
-      linkCalldata,
+    console.log(
+      `   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`,
     );
-    const tx2Packed = encodeMultiSendTx(0, feeToken, 0n, feeTransferCalldata);
-    const multiSendData = ethers.concat([tx1Packed, tx2Packed]);
 
-    const multiSendIface = new ethers.Interface([
-      "function multiSend(bytes memory transactions) public payable",
-    ]);
-    const multiSendCalldata = multiSendIface.encodeFunctionData("multiSend", [
-      multiSendData,
-    ]);
-
-    // Execute via relayService — use Safe SDK delegatecall to MultiSend (operation=1)
-    const {
-      sponsorSafeTransfer: _unused,
-      ...relay
-    } = require("./services/relayService");
-    // We need _executeViaSafeBase directly — but it's not exported.
-    // Use the existing pattern: build a Safe tx with delegatecall to MultiSend.
-    const Safe = require("@safe-global/protocol-kit").default;
-    const rpcUrl = process.env.ALCHEMY_RPC_URL;
-
-    const ownerPrivateKey = user.ownerPrivateKey; // This is the encrypted key — needs PIN
-    // NOTE: Link name does NOT require user PIN for this call.
-    // The backend wallet pays gas and executes this on behalf of the user.
-    // The user's Safe is the msg.sender to the registry.
-    // We decrypt using the user's stored key — but since we don't have PIN here,
-    // we must send the privateKey from the frontend (same pattern as transfer).
-    // RETURN the payload for the frontend to execute with PIN verification.
-    // This endpoint should instead return the signed data so frontend calls with PIN.
-
-    // REVISED APPROACH:
-    // Return the prepared transaction data. The frontend will call /api/alias/execute-link
-    // after PIN verification, which is the same pattern as transfer.
     return res.json({
       prepared: true,
       pureName,
@@ -1101,17 +950,106 @@ app.post("/api/alias/link-name", async (req, res) => {
       registryAddress,
       namespace,
       signature,
-      ethFee: ethFee.toString(),
-      feeToken,
-      // These are the two calls to batch
-      linkCalldata,
-      feeTransferCalldata,
-      message:
-        "Transaction prepared. Frontend should call /api/alias/execute-link with PIN-decrypted key.",
+      feeTokenAddress, // the token address the multicall will approve + registry will pull
     });
   } catch (error) {
     console.error("❌ link-name prepare error:", error);
     return handleError(error, res, "Failed to prepare name link");
+  }
+});
+
+// ================================================================
+// ALIAS: EXECUTE LINK — fires the Safe multicall after PIN verification
+// Receives prepared data from /api/alias/link-name + userPrivateKey from PIN
+// ================================================================
+app.post("/api/alias/execute-link", async (req, res) => {
+  try {
+    const {
+      safeAddress,
+      pureName,
+      weldedName,
+      walletToLink,
+      registryAddress,
+      signature,
+      feeTokenAddress,
+      userPrivateKey,
+    } = req.body;
+
+    // ── Input validation ────────────────────────────────────────────────────
+    if (!safeAddress || !ethers.isAddress(safeAddress))
+      return res.status(400).json({ message: "Invalid safe address" });
+    if (!userPrivateKey)
+      return res.status(400).json({ message: "Private key required" });
+    if (
+      !pureName ||
+      !weldedName ||
+      !walletToLink ||
+      !registryAddress ||
+      !signature ||
+      !feeTokenAddress
+    )
+      return res.status(400).json({ message: "Missing prepared link data" });
+
+    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const nameBytes = ethers.toUtf8Bytes(pureName);
+    const walletAddress = ethers.getAddress(walletToLink);
+
+    const { sponsorLinkNameBase } = require("./services/relayService");
+
+    console.log(`🔗 Executing link: "${weldedName}" → ${walletAddress}`);
+    console.log(
+      `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeToken: ${feeTokenAddress}`,
+    );
+
+    const result = await sponsorLinkNameBase(
+      safeAddress,
+      userPrivateKey,
+      registryAddress,
+      nameBytes,
+      walletAddress,
+      feeTokenAddress,
+      signature,
+    );
+
+    if (!result || !result.txHash)
+      return res
+        .status(400)
+        .json({ message: "Link transaction failed to broadcast" });
+
+    const taskStatus = await waitForTxReceipt(result.txHash);
+
+    if (!taskStatus.success)
+      return res
+        .status(400)
+        .json({
+          message: taskStatus.reason || "Link transaction reverted on-chain",
+        });
+
+    // ── Save to DB ──────────────────────────────────────────────────────────
+    const aliasEntry = {
+      name: weldedName,
+      wallet: walletAddress.toLowerCase(),
+      registryAddress: registryAddress.toLowerCase(),
+    };
+    user.nameAliases = user.nameAliases || [];
+    user.nameAliases.push(aliasEntry);
+    if (!user.nameAlias) user.nameAlias = weldedName;
+    await user.save();
+
+    console.log(
+      `✅ "${weldedName}" linked to ${walletAddress} (tx: ${result.txHash})`,
+    );
+
+    return res.json({
+      success: true,
+      txHash: result.txHash,
+      alias: aliasEntry,
+    });
+  } catch (error) {
+    console.error("❌ execute-link error:", error);
+    return handleError(error, res, "Failed to execute name link");
   }
 });
 
@@ -1124,30 +1062,25 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     const { safeAddress, weldedName, registryAddress, userPrivateKey } =
       req.body;
 
-    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+    if (!safeAddress || !ethers.isAddress(safeAddress))
       return res.status(400).json({ message: "Invalid safe address" });
-    }
-    if (!weldedName || typeof weldedName !== "string") {
+    if (!weldedName || typeof weldedName !== "string")
       return res.status(400).json({ message: "weldedName is required" });
-    }
-    if (!userPrivateKey) {
+    if (!userPrivateKey)
       return res
         .status(400)
         .json({ message: "Private key required (unlock with PIN first)" });
-    }
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Find the alias in the user's list
     const aliasIndex = (user.nameAliases || []).findIndex(
       (a) => a.name.toLowerCase() === weldedName.toLowerCase(),
     );
-    if (aliasIndex === -1) {
+    if (aliasIndex === -1)
       return res
         .status(404)
         .json({ message: "This name is not in your linked names list." });
-    }
 
     const aliasEntry = user.nameAliases[aliasIndex];
     const targetRegistryAddress =
@@ -1155,28 +1088,36 @@ app.post("/api/alias/unlink-name", async (req, res) => {
       aliasEntry.registryAddress ||
       process.env.REGISTRY_CONTRACT_ADDRESS;
 
-    // Unlink on-chain — the registry's unlink() takes the PURE name bytes
-    // (the contract's unlink resolves the namespace internally)
-    // BUT looking at UnlinkName.sol, it calls namespace(sender()) which is
-    // the registry address, then reconstructs the key — so we pass just the
-    // pure name WITHOUT the namespace suffix.
+    if (!targetRegistryAddress || !ethers.isAddress(targetRegistryAddress))
+      return res
+        .status(400)
+        .json({ message: "Could not resolve registry address for this alias" });
+
+    // Strip namespace to get the pure name — registry resolves namespace internally
+    // e.g. "charles@salva" → "charles"
     const pureName = weldedName.includes("@")
       ? weldedName.substring(0, weldedName.indexOf("@"))
       : weldedName;
 
-    const { unlinkName } = require("./services/registryResolver");
+    // Convert pure name to UTF-8 bytes — contract takes `bytes calldata _name`
+    const nameBytes = ethers.toUtf8Bytes(pureName);
+    const nameBytesHex = ethers.hexlify(nameBytes);
+    console.log(`🔓 Unlink: pureName="${pureName}" nameBytes=${nameBytesHex}`);
 
-    // Execute via the user's Safe (user is msg.sender to the registry)
-    const Safe = require("@safe-global/protocol-kit").default;
-    const rpcUrl = process.env.ALCHEMY_RPC_URL;
-
+    // ABI encode the unlink call
     const REGISTRY_ABI = [
       "function unlink(bytes calldata _name) external returns (bool)",
     ];
     const registryIface = new ethers.Interface(REGISTRY_ABI);
     const unlinkCalldata = registryIface.encodeFunctionData("unlink", [
-      ethers.toUtf8Bytes(pureName),
+      nameBytesHex,
     ]);
+
+    // Execute via the user's Safe — Safe is msg.sender on the registry
+    // Backend wallet pays gas. No fee charged to the user.
+    const Safe = require("@safe-global/protocol-kit").default;
+    const rpcUrl =
+      process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
 
     const protocolKit = await Safe.init({
       provider: rpcUrl,
@@ -1190,7 +1131,7 @@ app.post("/api/alias/unlink-name", async (req, res) => {
           to: ethers.getAddress(targetRegistryAddress),
           data: unlinkCalldata,
           value: "0",
-          operation: 0,
+          operation: 0, // regular call — msg.sender = Safe
         },
       ],
     });
@@ -1204,14 +1145,14 @@ app.post("/api/alias/unlink-name", async (req, res) => {
 
     const tx = await safeContract.execTransaction(
       signedTx.data.to,
-      signedTx.data.value,
+      BigInt(signedTx.data.value || "0"),
       signedTx.data.data,
-      signedTx.data.operation,
-      signedTx.data.safeTxGas,
-      signedTx.data.baseGas,
-      signedTx.data.gasPrice,
-      signedTx.data.gasToken,
-      signedTx.data.refundReceiver,
+      Number(signedTx.data.operation || 0),
+      BigInt(signedTx.data.safeTxGas || "0"),
+      BigInt(signedTx.data.baseGas || "0"),
+      BigInt(signedTx.data.gasPrice || "0"),
+      signedTx.data.gasToken || ethers.ZeroAddress,
+      signedTx.data.refundReceiver || ethers.ZeroAddress,
       signedTx.encodedSignatures(),
       { gasLimit: 300_000 },
     );
@@ -1219,13 +1160,11 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     console.log(`⏳ Unlink TX submitted: ${tx.hash}`);
     const receipt = await tx.wait();
 
-    if (!receipt || receipt.status === 0) {
+    if (!receipt || receipt.status === 0)
       return res.status(400).json({ message: "On-chain unlink failed." });
-    }
 
     // Remove from DB
     user.nameAliases.splice(aliasIndex, 1);
-    // Update legacy field
     if (user.nameAlias === weldedName) {
       user.nameAlias = user.nameAliases[0]?.name || null;
     }
@@ -1234,7 +1173,6 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     console.log(
       `✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash})`,
     );
-
     res.json({ success: true, txHash: tx.hash, removedAlias: weldedName });
   } catch (error) {
     console.error("❌ unlink-name error:", error);
@@ -1247,42 +1185,76 @@ app.post("/api/alias/unlink-name", async (req, res) => {
 // ===============================================
 app.post("/api/alias/check-name", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, registryAddress } = req.body;
+
+    // 1. Basic validation
     if (!name || typeof name !== "string") {
       return res.status(400).json({ message: "Name is required" });
+    }
+    if (!registryAddress || !ethers.isAddress(registryAddress)) {
+      return res.status(400).json({ message: "A valid registry address is required" });
     }
 
     const pureName = name.trim().toLowerCase();
 
-    // Character rules: a-z, 2-9, one underscore, no 0/1
+    // 2. Character rules: a-z, 2-9, one underscore max, no 0/1, min length 2
     if (!/^[a-z2-9_]{1,32}$/.test(pureName)) {
       return res.status(400).json({
-        message:
-          "Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.",
+        message: "Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.",
       });
     }
     if ((pureName.match(/_/g) || []).length > 1) {
       return res.status(400).json({ message: "Only one underscore allowed." });
     }
-    if (pureName.includes("0") || pureName.includes("1")) {
-      return res
-        .status(400)
-        .json({ message: "Digits 0 and 1 are not allowed." });
+    if (pureName.startsWith("_") || pureName.endsWith("_")) {
+      return res.status(400).json({ message: "Name cannot start or end with underscore." });
+    }
+    if (pureName.length < 2) {
+      return res.status(400).json({ message: "Name must be at least 2 characters." });
     }
 
-    // Reserved check
+    // 3. Reserved name check
     const { isReservedName } = require("./models/ReservedNames");
     if (isReservedName(pureName)) {
-      return res.json({ available: false, reserved: true, welded: null });
+      return res.json({ 
+        available: false, 
+        reserved: true, 
+        welded: null,
+        message: "This is a reserved name." 
+      });
     }
 
-    const registryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
-    const namespace = await getNamespace(registryAddress);
+    // 4. Get Namespace from DB (Matches link-name logic)
+    const WalletRegistry = require("./models/WalletRegistry");
+    const registryDoc = await WalletRegistry.findOne({ 
+      registryAddress: registryAddress.toLowerCase(),
+      active: true 
+    });
+
+    if (!registryDoc) {
+      return res.status(404).json({ message: "Selected wallet registry not found or inactive" });
+    }
+
+    // Use nspace from DB. Note: If your DB stores it without the '@', weldName handles it.
+    const namespace = registryDoc.nspace || ""; 
     const welded = weldName(pureName, namespace);
+
+    console.log(`🔍 Checking: pure='${pureName}' + ns='${namespace}' -> welded='${welded}'`);
+
+    // 5. On-chain availability check
     const available = await checkNameAvailability(welded, registryAddress);
 
-    res.json({ available, reserved: false, welded });
+    // 6. Response
+    res.json({ 
+      available, 
+      reserved: false, 
+      welded,
+      namespace,
+      registryAddress: registryDoc.registryAddress
+    });
+
   } catch (error) {
+    console.error("❌ check-name error:", error);
     return handleError(error, res, "Failed to check name availability");
   }
 });

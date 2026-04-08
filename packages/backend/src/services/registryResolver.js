@@ -19,6 +19,11 @@ const BASE_REGISTRY_ABI = [
 ];
 
 function getRegistryContract(registryAddress, signerOrProvider) {
+  // ADD THIS CHECK
+  if (!registryAddress || registryAddress === "undefined") {
+    throw new Error("Registry address is missing or undefined");
+  }
+
   return new ethers.Contract(
     registryAddress,
     BASE_REGISTRY_ABI,
@@ -41,8 +46,16 @@ function weldName(pureName, namespace) {
  * e.g. "@salva"
  */
 async function getNamespace(registryAddress) {
-  const reg = getRegistryContract(registryAddress, provider);
-  return await reg.namespace();
+  // ADD THIS CHECK
+  if (!registryAddress) return "";
+
+  try {
+    const reg = getRegistryContract(registryAddress, provider);
+    return await reg.namespace();
+  } catch (e) {
+    console.error("Failed to get namespace:", e.message);
+    return "";
+  }
 }
 
 /**

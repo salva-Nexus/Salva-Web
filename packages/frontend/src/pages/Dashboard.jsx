@@ -290,49 +290,64 @@ const LinkNameTab = ({ user, registries, showMsg }) => {
     return "";
   };
 
-  const handleCheckName = async () => {
-    const err = validateNameLocally(nameInput);
-    if (err) {
-      setNameError(err);
+const handleCheckName = async () => {
+  const err = validateNameLocally(nameInput);
+  if (err) {
+    setNameError(err);
+    return;
+  }
+  if (
+    !walletInput ||
+    !walletInput.startsWith("0x") ||
+    walletInput.length !== 42
+  ) {
+    setNameError("Enter a valid 0x wallet address to link to");
+    return;
+  }
+  if (!selectedRegistry) {
+    setNameError("Select which wallet service this name belongs to");
+    return;
+  }
+
+  setNameError("");
+  setChecking(true);
+  setNameCheckResult(null);
+
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // UPDATED: Added registryAddress to the payload
+      body: JSON.stringify({
+        name: nameInput,
+        registryAddress: selectedRegistry.registryAddress,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      setNameError(data.message || "Check failed");
       return;
     }
-    if (
-      !walletInput ||
-      !walletInput.startsWith("0x") ||
-      walletInput.length !== 42
-    ) {
-      setNameError("Enter a valid 0x wallet address to link to");
-      return;
+
+    setNameCheckResult(data);
+
+    if (data.reserved) {
+      setLinkStep("reserved");
+    } else if (!data.available) {
+      // This will now correctly report 'Taken' because the backend
+      // finally knows to check 'name@suffix' instead of just 'name'
+      setNameError("This name is already taken. Try another.");
+    } else {
+      setLinkStep("confirm");
     }
-    if (!selectedRegistry) {
-      setNameError("Select which wallet service this name belongs to");
-      return;
-    }
-    setNameError("");
-    setChecking(true);
-    setNameCheckResult(null);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameInput }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setNameError(data.message || "Check failed");
-        return;
-      }
-      setNameCheckResult(data);
-      if (data.reserved) setLinkStep("reserved");
-      else if (!data.available)
-        setNameError("This name is already taken. Try another.");
-      else setLinkStep("confirm");
-    } catch {
-      setNameError("Network error. Please try again.");
-    } finally {
-      setChecking(false);
-    }
-  };
+  } catch {
+    setNameError("Network error. Please try again.");
+  } finally {
+    setChecking(false);
+  }
+};
 
   const handleSendReservedNotification = async () => {
     if (!reservedEmail) return;

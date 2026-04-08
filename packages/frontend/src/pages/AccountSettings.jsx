@@ -9,7 +9,6 @@ import Stars from '../components/Stars';
 const AccountSettings = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: '' });
   const [activeModal, setActiveModal] = useState(null); 
   const [modalStep, setModalStep] = useState(1); 
@@ -195,40 +194,6 @@ const AccountSettings = () => {
     }
   };
 
-  const confirmUnlink = () => {
-    setConfirmDialog({
-      show: true,
-      title: 'Unlink Name Alias?',
-      message: 'This will remove your human-readable identity. You can link a new name at any time, but someone else might claim this one.',
-      onConfirm: executeUnlink
-    });
-  };
-
-  const executeUnlink = async () => {
-    setUnlinkLoading(true);
-    setConfirmDialog({ ...confirmDialog, show: false });
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ safeAddress: user.safeAddress })
-      });
-      const data = await res.json();
-      if (res.ok) {
-        showMsg('Name alias unlinked successfully!');
-        const updatedUser = { ...user, nameAlias: null };
-        localStorage.setItem('salva_user', JSON.stringify(updatedUser));
-        setUser(updatedUser);
-      } else {
-        showMsg(data.message || 'Unlink failed', 'error');
-      }
-    } catch {
-      showMsg('Network error', 'error');
-    } finally {
-      setUnlinkLoading(false);
-    }
-  };
-
   if (!user) return null;
 
   const requiresOTP = ['email', 'password', 'pin'].includes(activeModal);
@@ -313,26 +278,6 @@ const AccountSettings = () => {
               </div>
             </div>
           </button>
-
-          {/* Name Alias */}
-          {user.nameAlias && (
-            <div className="bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-xs uppercase opacity-40 font-bold mb-1">Name Alias</p>
-                  <p className="text-lg font-black text-salvaGold">{user.nameAlias}</p>
-                  <p className="text-xs opacity-50 mt-1">Linked to your wallet address</p>
-                </div>
-                <button
-                  onClick={confirmUnlink}
-                  disabled={unlinkLoading}
-                  className="px-6 py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-500 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
-                >
-                  {unlinkLoading ? '...' : 'Unlink'}
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
