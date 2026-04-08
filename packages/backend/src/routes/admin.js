@@ -585,7 +585,7 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
                   // Math.floor(Date.now() / 1000) - 3600
                 : null,
             },
-          );
+          ); 
           console.log(
             `✅ Validator validated — remaining=${remaining}${isValidated ? " (24h timelock started)" : ""}`,
           );
