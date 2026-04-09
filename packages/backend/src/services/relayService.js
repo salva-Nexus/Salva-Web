@@ -92,7 +92,8 @@ async function _executeViaSafeBase(
   data,
   operation = 0,
 ) {
-  const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
+  const rpcUrl =
+    process.env.ALCHEMY_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL;
   const cleanSafe = ethers.getAddress(cleanEnvAddr(safeAddress) || safeAddress);
   const cleanTarget = ethers.getAddress(cleanEnvAddr(target) || target);
   const hexData = typeof data === "string" ? data : ethers.hexlify(data);
@@ -207,14 +208,15 @@ async function _sponsorTransfer(
 }
 
 // ─── Name Link Multicall ──────────────────────────────────────────────────────
-// BaseRegistry.link() signature (updated — no longer payable, takes _feeToken):
+// BaseRegistry.link() signature:
 //   link(bytes _name, address _wallet, address _feeToken, bytes signature) external
 //
-// The registry calls IERC20(_feeToken).safeTransferFrom(msg.sender, singleton, 1e6)
-// so the Safe must approve the registry before calling link.
+// The registry calls IERC20(_feeToken).safeTransferFrom(msg.sender, singleton, fee)
+// where fee = _feeToken == ngns ? 1000e6 : 1e6
+// so the Safe must approve the registry for the correct amount before calling link.
 //
 // Multicall (both operation=0, regular calls, msg.sender = Safe via delegatecall):
-//   tx1: feeToken.approve(registryAddress, 1e6)
+//   tx1: feeToken.approve(registryAddress, feeAmount)   ← 1000e6 NGNs OR 1e6 USDC/USDT
 //   tx2: registry.link(nameBytes, wallet, feeTokenAddress, signature)
 //
 // Backend wallet pays gas. User Safe signs via their decrypted private key.
@@ -226,11 +228,10 @@ async function _sponsorLinkName(
   registryAddress,
   nameBytes, // Uint8Array from ethers.toUtf8Bytes(pureName)
   walletAddress, // checksummed address string
-  feeTokenAddress, // USDC or USDT address from .env
+  feeTokenAddress, // USDC, USDT, or NGNs address from .env
   signature, // 65-byte hex signature from backend wallet
 ) {
   const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
-  const ONE_DOLLAR = ethers.parseUnits("1", 6);
 
   const cleanRegistry = ethers.getAddress(
     cleanEnvAddr(registryAddress) || registryAddress,
@@ -239,6 +240,21 @@ async function _sponsorLinkName(
     cleanEnvAddr(feeTokenAddress) || feeTokenAddress,
   );
   const cleanWallet = ethers.getAddress(walletAddress);
+
+  // Fee amount must match exactly what the registry will pull via safeTransferFrom:
+  //   NGNs token  → 1000e6  (1,000 NGNs, 6 decimals)
+  //   USDC / USDT → 1e6     ($1, 6 decimals)
+  // Both tokens use 6 decimals so the unit is consistent.
+  const ngnAddr = cleanEnvAddr(process.env.NGN_TOKEN_ADDRESS);
+  const isNgn =
+    ngnAddr && cleanFeeToken.toLowerCase() === ngnAddr.toLowerCase();
+  const feeAmount = isNgn
+    ? ethers.parseUnits("1000", 6) // 1,000 NGNs
+    : ethers.parseUnits("1", 6); // $1 USDC or USDT
+
+  console.log(
+    `💰 Approve amount: ${ethers.formatUnits(feeAmount, 6)} ${isNgn ? "NGNs" : "USDC/USDT"}`,
+  );
 
   const erc20Iface = new ethers.Interface([
     "function approve(address spender, uint256 amount) returns (bool)",
@@ -252,10 +268,10 @@ async function _sponsorLinkName(
   const signatureHex =
     typeof signature === "string" ? signature : ethers.hexlify(signature);
 
-  // tx1: approve registry to spend exactly 1 token
+  // tx1: approve registry to spend exactly what it will pull
   const approveCalldata = erc20Iface.encodeFunctionData("approve", [
     cleanRegistry,
-    ONE_DOLLAR,
+    feeAmount,
   ]);
 
   // tx2: call registry.link — registry verifies signature then pulls fee via transferFrom
