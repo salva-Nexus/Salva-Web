@@ -830,14 +830,6 @@ const Home = () => {
               </p>
               <p>
                 <strong className="text-black dark:text-white">
-                  Pay once. Own it forever.
-                </strong>{" "}
-                Registering a name costs $1, paid once. No annual renewals, no
-                subscription fees. As long as you hold it, it's yours. You can
-                change the wallet it points to anytime.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
                   Works across multiple wallets and apps.
                 </strong>{" "}
                 Your name can point to your Salva Wallet, your Coinbase Wallet,
@@ -1021,7 +1013,7 @@ const Home = () => {
             {
               n: "02",
               title: "Register Your Name",
-              desc: "Choose your alias — like yourname@salva. Pay $1 once and it's yours forever. Link it to your Salva Wallet, or any other compatible wallet you already use.",
+              desc: "Choose your alias — like yourname@salva. Link it to your Salva Wallet, or any other compatible wallet you already use.",
             },
             {
               n: "03",
@@ -1141,7 +1133,7 @@ const Home = () => {
             },
             {
               q: "How much does it cost to register a name?",
-              a: "Registering a name costs $1 (paid in USDT or USDC), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
+              a: "Registering a name costs $1 (paid in NGNs(1000 NGNs), USDT or USDC), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
             },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
