@@ -192,7 +192,7 @@ app.use("/api/admin", adminRoutes);
 // ===============================================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'development' ? 100 : 5,
+  max: process.env.NODE_ENV === "development" ? 100 : 5,
   message: "Too many authentication attempts. Please try again in 15 minutes.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -813,12 +813,10 @@ app.post("/api/alias/link-name", async (req, res) => {
     const pureName = name.trim().toLowerCase();
 
     if (!/^[a-z2-9_]{1,32}$/.test(pureName))
-      return res
-        .status(400)
-        .json({
-          message:
-            "Invalid name. Use lowercase a–z, digits 2–9, one underscore max.",
-        });
+      return res.status(400).json({
+        message:
+          "Invalid name. Use lowercase a–z, digits 2–9, one underscore max.",
+      });
     if ((pureName.match(/_/g) || []).length > 1)
       return res.status(400).json({ message: "Only one underscore allowed." });
     if (pureName.includes("0") || pureName.includes("1"))
@@ -854,35 +852,42 @@ app.post("/api/alias/link-name", async (req, res) => {
 
     const usdcAddr = process.env.USDC_CONTRACT_ADDRESS;
     const usdtAddr = process.env.USDT_CONTRACT_ADDRESS;
+    const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
 
-    if (!usdcAddr || !usdtAddr)
+    if (!usdcAddr || !usdtAddr || !ngnAddr)
       return res
         .status(500)
         .json({ message: "Token contract addresses not configured" });
 
     const usdcContract = new ethers.Contract(usdcAddr, ERC20_ABI, provider);
     const usdtContract = new ethers.Contract(usdtAddr, ERC20_ABI, provider);
+    const ngnContract = new ethers.Contract(ngnAddr, ERC20_ABI, provider);
 
-    const [usdcWei, usdtWei] = await Promise.all([
+    // NGNs fee threshold: 1000 NGNs (6 decimals)
+    const ONE_THOUSAND_NGN = ethers.parseUnits("1000", 6);
+
+    const [usdcWei, usdtWei, ngnWei] = await Promise.all([
       usdcContract.balanceOf(safeAddress).catch(() => 0n),
       usdtContract.balanceOf(safeAddress).catch(() => 0n),
+      ngnContract.balanceOf(safeAddress).catch(() => 0n),
     ]);
 
     const hasUsdc = usdcWei >= ONE_DOLLAR;
     const hasUsdt = usdtWei >= ONE_DOLLAR;
+    const hasNgn = ngnWei >= ONE_THOUSAND_NGN;
 
-    if (!hasUsdc && !hasUsdt) {
+    if (!hasUsdc && !hasUsdt && !hasNgn) {
       return res.status(400).json({
         message:
-          "Insufficient balance. You need at least 1 USDC or 1 USDT in your wallet to register a name.",
+          "Insufficient balance. You need at least 1 USDC, 1 USDT, or 1,000 NGNs in your wallet to register a name.",
         lowBalance: true,
       });
     }
 
-    // USDC is default, USDT is fallback
-    const feeTokenAddress = hasUsdc ? usdcAddr : usdtAddr;
+    // Priority: USDC (default) → USDT → NGNs
+    const feeTokenAddress = hasUsdc ? usdcAddr : hasUsdt ? usdtAddr : ngnAddr;
     console.log(
-      `💰 Fee token selected: ${hasUsdc ? "USDC" : "USDT"} (${feeTokenAddress})`,
+      `💰 Fee token selected: ${hasUsdc ? "USDC" : hasUsdt ? "USDT" : "NGNs"} (${feeTokenAddress})`,
     );
 
     // ── Underscore collision check ──────────────────────────────────────────
@@ -1021,11 +1026,9 @@ app.post("/api/alias/execute-link", async (req, res) => {
     const taskStatus = await waitForTxReceipt(result.txHash);
 
     if (!taskStatus.success)
-      return res
-        .status(400)
-        .json({
-          message: taskStatus.reason || "Link transaction reverted on-chain",
-        });
+      return res.status(400).json({
+        message: taskStatus.reason || "Link transaction reverted on-chain",
+      });
 
     // ── Save to DB ──────────────────────────────────────────────────────────
     const aliasEntry = {
@@ -1191,7 +1194,9 @@ app.post("/api/alias/check-name", async (req, res) => {
       return res.status(400).json({ message: "Name is required" });
     }
     if (!registryAddress || !ethers.isAddress(registryAddress)) {
-      return res.status(400).json({ message: "A valid registry address is required" });
+      return res
+        .status(400)
+        .json({ message: "A valid registry address is required" });
     }
 
     const pureName = name.trim().toLowerCase();
@@ -1199,59 +1204,67 @@ app.post("/api/alias/check-name", async (req, res) => {
     // 2. Character rules: a-z, 2-9, one underscore max, no 0/1, min length 2
     if (!/^[a-z2-9_]{1,32}$/.test(pureName)) {
       return res.status(400).json({
-        message: "Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.",
+        message:
+          "Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.",
       });
     }
     if ((pureName.match(/_/g) || []).length > 1) {
       return res.status(400).json({ message: "Only one underscore allowed." });
     }
     if (pureName.startsWith("_") || pureName.endsWith("_")) {
-      return res.status(400).json({ message: "Name cannot start or end with underscore." });
+      return res
+        .status(400)
+        .json({ message: "Name cannot start or end with underscore." });
     }
     if (pureName.length < 2) {
-      return res.status(400).json({ message: "Name must be at least 2 characters." });
+      return res
+        .status(400)
+        .json({ message: "Name must be at least 2 characters." });
     }
 
     // 3. Reserved name check
     const { isReservedName } = require("./models/ReservedNames");
     if (isReservedName(pureName)) {
-      return res.json({ 
-        available: false, 
-        reserved: true, 
+      return res.json({
+        available: false,
+        reserved: true,
         welded: null,
-        message: "This is a reserved name." 
+        message: "This is a reserved name.",
       });
     }
 
     // 4. Get Namespace from DB (Matches link-name logic)
     const WalletRegistry = require("./models/WalletRegistry");
-    const registryDoc = await WalletRegistry.findOne({ 
+    const registryDoc = await WalletRegistry.findOne({
       registryAddress: registryAddress.toLowerCase(),
-      active: true 
+      active: true,
     });
 
     if (!registryDoc) {
-      return res.status(404).json({ message: "Selected wallet registry not found or inactive" });
+      return res
+        .status(404)
+        .json({ message: "Selected wallet registry not found or inactive" });
     }
 
     // Use nspace from DB. Note: If your DB stores it without the '@', weldName handles it.
-    const namespace = registryDoc.nspace || ""; 
+    const namespace = registryDoc.nspace || "";
     const welded = weldName(pureName, namespace);
 
-    console.log(`🔍 Checking: pure='${pureName}' + ns='${namespace}' -> welded='${welded}'`);
+    console.log(
+      `🔍 Checking: pure='${pureName}' + ns='${namespace}' -> welded='${welded}'`,
+    );
 
     // 5. On-chain availability check
     const available = await checkNameAvailability(welded, registryAddress);
 
     // 6. Response
-    res.json({ 
-      available, 
-      reserved: false, 
+    res.json({
+      available,
+      reserved: false,
       welded,
       namespace,
-      registryAddress: registryDoc.registryAddress
+      registryAddress: registryDoc.registryAddress,
     });
-
   } catch (error) {
     console.error("❌ check-name error:", error);
     return handleError(error, res, "Failed to check name availability");
