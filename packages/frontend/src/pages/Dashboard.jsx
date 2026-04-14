@@ -743,7 +743,7 @@ const handleCheckName = async () => {
             </div>
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
               <p className="text-xs text-yellow-400 font-bold">
-                ⚠️ A fee of <strong>1 USDT or 1 USDC</strong> will be charged.
+                ⚠️ A fee of <strong>0.5 USDT/USDC or 500 NGNs</strong> will be charged.
                 This is permanent — double-check the name and wallet address.
               </p>
             </div>
