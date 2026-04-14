@@ -846,9 +846,11 @@ app.post("/api/alias/link-name", async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // ── Balance gate ─────────────────────────────────────────────────────────
-    // Default: USDC. Fallback: USDT. Need at least 1 token (1e6 units, 6 decimals).
+    // Default: USDC. Fallback: USDT. Need at least 0.5 token (5e5 units, 6 decimals).
     const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
-    const ONE_DOLLAR = ethers.parseUnits("1", 6);
+
+    // Change variable name to match the 0.5 value to avoid logic errors
+    const POINT_FIVE = ethers.parseUnits("0.5", 6);
 
     const usdcAddr = process.env.USDC_CONTRACT_ADDRESS;
     const usdtAddr = process.env.USDT_CONTRACT_ADDRESS;
@@ -863,8 +865,8 @@ app.post("/api/alias/link-name", async (req, res) => {
     const usdtContract = new ethers.Contract(usdtAddr, ERC20_ABI, provider);
     const ngnContract = new ethers.Contract(ngnAddr, ERC20_ABI, provider);
 
-    // NGNs fee threshold: 1000 NGNs (6 decimals)
-    const ONE_THOUSAND_NGN = ethers.parseUnits("1000", 6);
+    // NGNs fee threshold: 500 NGNs (6 decimals)
+    const FIVE_HUNDRED = ethers.parseUnits("500", 6);
 
     const [usdcWei, usdtWei, ngnWei] = await Promise.all([
       usdcContract.balanceOf(safeAddress).catch(() => 0n),
@@ -872,14 +874,14 @@ app.post("/api/alias/link-name", async (req, res) => {
       ngnContract.balanceOf(safeAddress).catch(() => 0n),
     ]);
 
-    const hasUsdc = usdcWei >= ONE_DOLLAR;
-    const hasUsdt = usdtWei >= ONE_DOLLAR;
-    const hasNgn = ngnWei >= ONE_THOUSAND_NGN;
+    const hasUsdc = usdcWei >= POINT_FIVE;
+    const hasUsdt = usdtWei >= POINT_FIVE;
+    const hasNgn = ngnWei >= FIVE_HUNDRED;
 
     if (!hasUsdc && !hasUsdt && !hasNgn) {
       return res.status(400).json({
         message:
-          "Insufficient balance. You need at least 1 USDC, 1 USDT, or 1,000 NGNs in your wallet to register a name.",
+          "Insufficient balance. You need at least 0.5 USDC, 0.5 USDT, or 500 NGNs in your wallet to register a name.",
         lowBalance: true,
       });
     }
