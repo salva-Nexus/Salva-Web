@@ -74,109 +74,6 @@ const isTimelockReady = (ts) => {
   return Math.floor(Date.now() / 1000) >= ts;
 };
 
-// ── Registry proposal card ──────────────────────────────────────────────────
-const RegistryCard = ({
-  p,
-  i,
-  hasVoted,
-  loading,
-  onValidate,
-  onExecute,
-  onCancel,
-}) => {
-  const timelockReady = isTimelockReady(p.timeLockTimestamp);
-  const canExecute = p.isValidated && timelockReady;
-  const quorumReached = p.remainingValidation === 0 || p.isValidated;
-
-  return (
-    <motion.div
-      key={p._id || i}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: i * 0.06 }}
-      className="p-5 rounded-2xl border border-white/10 bg-white/5 space-y-4"
-    >
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
-        <div className="space-y-1 min-w-0">
-          <p className="font-black text-lg text-white truncate">
-            {p.registryName || p.nspace}
-          </p>
-          <p className="text-salvaGold font-black text-sm">{p.nspace}</p>
-          <p className="font-mono text-[10px] opacity-40 break-all">
-            {p.registry}
-          </p>
-          <span
-            className={`inline-block text-[10px] font-black uppercase px-2 py-0.5 rounded-lg ${p.isWallet ? "bg-blue-500/10 text-blue-400" : "bg-white/5 text-white/30"}`}
-          >
-            {p.isWallet ? "🔵 Crypto Wallet" : "⚙️ Non-Wallet Registry"}
-          </span>
-        </div>
-        <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
-          {p.remainingValidation !== null &&
-          p.remainingValidation !== undefined ? (
-            <span
-              className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg ${quorumReached ? "bg-green-500/10 text-green-400" : "bg-white/5 text-white/60"}`}
-            >
-              {quorumReached
-                ? "✓ QUORUM REACHED"
-                : `${p.remainingValidation} VOTE${p.remainingValidation !== 1 ? "S" : ""} REMAINING`}
-            </span>
-          ) : (
-            <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white/5 text-white/40">
-              READING VOTES...
-            </span>
-          )}
-          {p.isValidated && p.timeLockTimestamp && (
-            <TimelockCountdown timeLockTimestamp={p.timeLockTimestamp} />
-          )}
-          {p.isValidated && !p.timeLockTimestamp && (
-            <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-salvaGold/10 text-salvaGold">
-              ⏳ TIMELOCK STARTING...
-            </span>
-          )}
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {!quorumReached &&
-          (hasVoted ? (
-            <span className="px-4 py-2 rounded-xl bg-white/5 text-white/30 font-black text-[10px] uppercase">
-              ✓ Voted
-            </span>
-          ) : (
-            <button
-              onClick={() => onValidate(p)}
-              disabled={loading}
-              className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold hover:text-black transition-all disabled:opacity-40"
-            >
-              Validate
-            </button>
-          ))}
-        {quorumReached && (
-          <button
-            onClick={() => (canExecute ? onExecute(p) : null)}
-            disabled={loading || !canExecute}
-            title={
-              !canExecute
-                ? "48-hour security timelock must expire first"
-                : "Execute registry initialization"
-            }
-            className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase transition-all border ${canExecute ? "bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500 hover:text-white cursor-pointer" : "bg-white/5 border-white/10 text-white/30 cursor-not-allowed"} disabled:opacity-50`}
-          >
-            {canExecute ? "⚡ Execute" : "🔒 Locked"}
-          </button>
-        )}
-        <button
-          onClick={() => onCancel(p)}
-          disabled={loading}
-          className="px-4 py-2 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all disabled:opacity-40"
-        >
-          Cancel
-        </button>
-      </div>
-    </motion.div>
-  );
-};
-
 // ── Validator proposal card ─────────────────────────────────────────────────
 const ValidatorCard = ({
   p,
@@ -277,7 +174,6 @@ const ValidatorCard = ({
 // ── Main inner panel ────────────────────────────────────────────────────────
 const AdminPanelInner = ({ user, showMsg }) => {
   const [proposals, setProposals] = useState({
-    registryProposals: [],
     validatorProposals: [],
   });
   const [loading, setLoading] = useState(false);
@@ -316,14 +212,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const patchProposal = (updated) => {
     if (!updated) return;
     setProposals((prev) => {
-      if (updated.type === "registry") {
-        return {
-          ...prev,
-          registryProposals: prev.registryProposals.map((p) =>
-            p._id === updated._id ? { ...p, ...updated } : p,
-          ),
-        };
-      }
       return {
         ...prev,
         validatorProposals: prev.validatorProposals.map((p) =>
@@ -340,9 +228,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       setProposals({
-        registryProposals: Array.isArray(data.registryProposals)
-          ? data.registryProposals
-          : [],
         validatorProposals: Array.isArray(data.validatorProposals)
           ? data.validatorProposals
           : [],
@@ -413,10 +298,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const data = await res.json();
       if (!res.ok)
         throw new Error(data.message || "Failed to propose registry");
-      showMsg(`Registry deployed at ${data.cloneAddress} — proposal open!`);
+      showMsg(
+        data.addedToWalletRegistry
+          ? `Registry live at ${data.cloneAddress} — added to Salva!`
+          : `Registry initialized at ${data.cloneAddress} (not a wallet registry).`,
+      );
       setShowRegForm(false);
       setRegForm({ name: "", nspace: "@", isWallet: false });
-      await fetchProposals();
     });
   };
 
@@ -443,27 +331,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  const handleValidateRegistry = (proposal) => {
-    requestPin(async (privateKey) => {
-      const res = await fetch(`${SALVA_API_URL}/api/admin/validate-registry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          privateKey,
-          registry: proposal.registry,
-          safeAddress: user.safeAddress,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.message || "Failed to validate registry");
-      persistVote(proposal._id);
-      showMsg("Validation cast!");
-      if (data.proposal) patchProposal(data.proposal);
-      else await fetchProposals();
-    });
-  };
-
   const handleValidateValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/validate-validator`, {
@@ -485,24 +352,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     });
   };
 
-  const handleCancelRegistry = (proposal) => {
-    requestPin(async (privateKey) => {
-      const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-registry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          privateKey,
-          registry: proposal.registry,
-          safeAddress: user.safeAddress,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to cancel");
-      showMsg("Proposal cancelled and removed");
-      await fetchProposals();
-    });
-  };
-
   const handleCancelValidator = (proposal) => {
     requestPin(async (privateKey) => {
       const res = await fetch(`${SALVA_API_URL}/api/admin/cancel-validator`, {
@@ -517,31 +366,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to cancel");
       showMsg("Proposal cancelled and removed");
-      await fetchProposals();
-    });
-  };
-
-  const handleExecuteRegistry = (proposal) => {
-    requestPin(async (privateKey) => {
-      const res = await fetch(`${SALVA_API_URL}/api/admin/execute-registry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          privateKey,
-          registry: proposal.registry,
-          registryName: proposal.registryName || proposal.nspace,
-          nspace: proposal.nspace,
-          safeAddress: user.safeAddress,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok)
-        throw new Error(data.message || "Failed to execute registry");
-      showMsg(
-        proposal.isWallet
-          ? "Registry initialized and live on Salva!"
-          : "Registry initialized on-chain (not a wallet, not added to transfer list).",
-      );
       await fetchProposals();
     });
   };
@@ -724,7 +548,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   disabled={loading}
                   className="px-6 py-2 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
                 >
-                  {loading ? "Deploying & Proposing…" : "Deploy & Propose"}
+                  {loading ? "Deploying…" : "Deploy & Initialize"}
                 </button>
               </div>
             </div>
@@ -799,41 +623,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Registry Proposals */}
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
-          Registry Proposals
-        </p>
-        {fetchingProposals ? (
-          <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-          </div>
-        ) : proposals.registryProposals.length === 0 ? (
-          <div className="text-center py-8 opacity-20">
-            <p className="text-xs uppercase font-bold tracking-widest">
-              No active registry proposals
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {proposals.registryProposals.map((p, i) =>
-              p && p.registry ? (
-                <RegistryCard
-                  key={p._id || i}
-                  p={p}
-                  i={i}
-                  hasVoted={!!myVotes[p._id]}
-                  loading={loading}
-                  onValidate={handleValidateRegistry}
-                  onExecute={handleExecuteRegistry}
-                  onCancel={handleCancelRegistry}
-                />
-              ) : null,
-            )}
-          </div>
-        )}
-      </div>
 
       {/* Validator Proposals */}
       <div>

@@ -17,13 +17,10 @@ if (!MULTISIG_ADDRESS)
 console.log(`🔗 RelayService using MULTISIG: ${MULTISIG_ADDRESS}`);
 
 const MULTISIG_IFACE = new ethers.Interface([
-  "function deployAndProposeInit(string memory namespace) external returns (address _clone)",
+  "function deployAndInitRegistry(string memory namespace) external returns (address _clone)",
   "function proposeValidatorUpdate(address,bool) external returns (address,bool,uint32)",
-  "function validateRegistry(address) external returns (address,bytes16,uint32)",
   "function validateValidator(address) external returns (address,bool,uint32)",
-  "function cancelInit(address) external returns (bool)",
   "function cancelValidatorUpdate(address) external returns (bool)",
-  "function executeInit(address) external returns (bool)",
   "function executeUpdateValidator(address) external returns (bool)",
 ]);
 
@@ -318,18 +315,10 @@ module.exports = {
   sponsorLinkNameEth: (s, k, reg, nb, wa, token, sig) =>
     _sponsorLinkName(_executeViaSafeEth, s, k, reg, nb, wa, token, sig),
 
-  sponsorDeployAndProposeInitBase: (s, k, ns) =>
-    _callBase(s, k, "deployAndProposeInit", [ns]),
-  sponsorDeployAndProposeInitEth: (s, k, ns) =>
-    _callEth(s, k, "deployAndProposeInit", [ns]),
-  sponsorValidateRegistryEth: (s, k, r) =>
-    _callEth(s, k, "validateRegistry", [r]),
-  sponsorValidateRegistryBase: (s, k, r) =>
-    _callBase(s, k, "validateRegistry", [r]),
-  sponsorCancelInitEth: (s, k, r) => _callEth(s, k, "cancelInit", [r]),
-  sponsorCancelInitBase: (s, k, r) => _callBase(s, k, "cancelInit", [r]),
-  sponsorExecuteInitEth: (s, k, r) => _callEth(s, k, "executeInit", [r]),
-  sponsorExecuteInitBase: (s, k, r) => _callBase(s, k, "executeInit", [r]),
+  sponsorDeployAndInitRegistryBase: (s, k, ns) =>
+    _callBase(s, k, "deployAndInitRegistry", [ns]),
+  sponsorDeployAndInitRegistryEth: (s, k, ns) =>
+    _callEth(s, k, "deployAndInitRegistry", [ns]),
   sponsorProposeValidatorUpdateEth: (s, k, t, a) =>
     _callEth(s, k, "proposeValidatorUpdate", [t, a]),
   sponsorProposeValidatorUpdateBase: (s, k, t, a) =>

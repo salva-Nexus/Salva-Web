@@ -21,7 +21,6 @@ function cleanEnvAddr(raw) {
 
 // ─── Multisig read ABI ────────────────────────────────────────────────────────
 const MULTISIG_READ_ABI = [
-  "function _registryValidationCountRemains(address) view returns (uint256)",
   "function _validatorValidationCountRemains(address) view returns (uint256)",
 ];
 
@@ -82,19 +81,6 @@ async function waitForTx(txHash, maxRetries = 30, delayMs = 2000) {
     await sleep(delayMs);
   }
   return { success: false, receipt: null };
-}
-
-// ─── On-chain read helpers ────────────────────────────────────────────────────
-async function getRegistryRemaining(addr) {
-  try {
-    const remains = await getMultisig()._registryValidationCountRemains(
-      normalizeAddr(addr),
-    );
-    return Number(remains);
-  } catch (e) {
-    console.error("Registry read failed:", e.message);
-    return null;
-  }
 }
 
 async function getValidatorRemaining(addr) {
@@ -175,10 +161,7 @@ router.get("/proposals", async (req, res) => {
 
     for (const p of all) {
       try {
-        const remaining =
-          p.type === "registry"
-            ? await getRegistryRemaining(p.registry)
-            : await getValidatorRemaining(p.addr);
+        const remaining = await getValidatorRemaining(p.addr);
 
         if (remaining === null) continue;
 
@@ -191,19 +174,14 @@ router.get("/proposals", async (req, res) => {
     }
 
     res.json({
-      registryProposals: all.filter((p) => p.type === "registry"),
-      validatorProposals: all.filter((p) => p.type === "validator"),
+      registryProposals: [],
+      validatorProposals: all,
     });
   } catch (e) {
     res.status(500).json({ message: "Failed to fetch proposals" });
   }
 });
 
-// ─── PROPOSE REGISTRY ─────────────────────────────────────────────────────────
-// Calls deployAndProposeInit(namespace) on the MultiSig contract via the
-// caller's Safe. The MultiSig deploys a new registry clone atomically and
-// opens an initialization proposal. We parse the clone address from the
-// RegistryInitializationProposed event emitted in the receipt.
 router.post("/propose-registry", requireValidator, async (req, res) => {
   try {
     const {
@@ -217,270 +195,69 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
     if (!nspace?.startsWith("@"))
       return res.status(400).json({ message: "Namespace must start with '@'" });
 
-    // Only one active proposal per namespace
-    const existing = await Proposal.findOne({
-      type: "registry",
-      nspace: nspace.toLowerCase(),
-    });
-    if (existing)
-      return res
-        .status(409)
-        .json({ message: "A proposal for this namespace already exists" });
-
     const sponsorFn =
       chain === "base"
-        ? relay.sponsorDeployAndProposeInitBase
-        : relay.sponsorDeployAndProposeInitEth;
+        ? relay.sponsorDeployAndInitRegistryBase
+        : relay.sponsorDeployAndInitRegistryEth;
 
     console.log(
-      `📋 Proposing registry for namespace: ${nspace} (isWallet=${isWallet})`,
+      `📋 Deploying and initializing registry: ${nspace} (isWallet=${isWallet})`,
     );
 
-    // Execute deployAndProposeInit — deploys clone + opens proposal atomically
     const result = await sponsorFn(
       req.callerUser.safeAddress,
       privateKey,
       nspace,
     );
 
-    if (!result?.txHash) {
+    if (!result?.txHash)
       return res
         .status(500)
         .json({ message: "Transaction failed to broadcast" });
-    }
 
-    console.log(`✅ deployAndProposeInit tx confirmed: ${result.txHash}`);
+    console.log(`✅ deployAndInitRegistry tx confirmed: ${result.txHash}`);
 
-    // Parse the deployed clone address from the receipt event log
     const cloneAddress = parseCloneFromReceipt(result.receipt);
 
-    if (!cloneAddress) {
-      console.error("❌ Could not parse clone address from receipt logs");
-      console.error(
-        "   Receipt logs:",
-        JSON.stringify(result.receipt?.logs?.slice(0, 3), null, 2),
-      );
+    if (!cloneAddress)
       return res.status(500).json({
         message:
-          "Registry deployed on-chain but could not parse the clone address from the transaction logs. Check the tx on the explorer.",
+          "Registry deployed on-chain but could not parse the clone address from logs. Check the tx on the explorer.",
         txHash: result.txHash,
       });
+
+    console.log(`🏭 Registry initialized at: ${cloneAddress}`);
+
+    if (isWallet) {
+      await WalletRegistry.findOneAndUpdate(
+        { registryAddress: cloneAddress.toLowerCase() },
+        {
+          name: registryName || nspace,
+          nspace: nspace.toLowerCase(),
+          registryAddress: cloneAddress.toLowerCase(),
+          active: true,
+        },
+        { upsert: true, new: true },
+      );
+      console.log(`✅ Added to WalletRegistry: ${nspace} → ${cloneAddress}`);
+    } else {
+      console.log(
+        `✅ Registry initialized on-chain (isWallet=false, not added to WalletRegistry): ${nspace} → ${cloneAddress}`,
+      );
     }
 
-    console.log(`🏭 Clone deployed at: ${cloneAddress}`);
-
-    // Save proposal to DB
-    const proposal = await Proposal.create({
-      type: "registry",
-      registry: cloneAddress.toLowerCase(),
-      nspace: nspace.toLowerCase(),
-      registryName: registryName || nspace,
-      isWallet: !!isWallet,
-      remainingValidation: null,
-      isValidated: false,
-      timeLockTimestamp: null,
-    });
-
-    // Respond immediately — background work follows
     res.json({
       success: true,
       txHash: result.txHash,
       cloneAddress,
-      proposal,
+      addedToWalletRegistry: !!isWallet,
     });
-
-    // Background: sync remaining vote count + email all validators
-    try {
-      const remaining = await getRegistryRemaining(cloneAddress);
-      await Proposal.updateOne(
-        { _id: proposal._id },
-        { remainingValidation: remaining },
-      );
-
-      await notifyAllValidators("New Registry Proposal", {
-        type: "registry",
-        registryName: registryName || nspace,
-        nspace,
-        registry: cloneAddress,
-        isWallet: !!isWallet,
-      });
-
-      console.log(
-        `📊 Registry proposal synced — remaining votes: ${remaining}`,
-      );
-    } catch (err) {
-      console.error("❌ propose-registry background task error:", err.message);
-    }
   } catch (error) {
-    console.error("❌ propose-registry error:", error.message);
+    console.error("❌ deploy-registry error:", error.message);
     res.status(500).json({ message: error.message });
   }
 });
 
-// ─── VALIDATE REGISTRY ────────────────────────────────────────────────────────
-router.post("/validate-registry", requireValidator, async (req, res) => {
-  try {
-    const { privateKey, registry, chain = "base" } = req.body;
-    const cleanRegistry = normalizeAddr(registry);
-    if (!cleanRegistry)
-      return res.status(400).json({ message: "Invalid registry address" });
-
-    const sponsorFn =
-      chain === "base"
-        ? relay.sponsorValidateRegistryBase
-        : relay.sponsorValidateRegistryEth;
-
-    const result = await sponsorFn(
-      req.callerUser.safeAddress,
-      privateKey,
-      cleanRegistry,
-    );
-    res.json({ success: true, taskId: result.taskId });
-
-    waitForTx(result.taskId)
-      .then(async (status) => {
-        if (status.success) {
-          const remaining = await getRegistryRemaining(cleanRegistry);
-          const isValidated = remaining === 0;
-          await Proposal.findOneAndUpdate(
-            { type: "registry", registry: cleanRegistry.toLowerCase() },
-            {
-              remainingValidation: remaining,
-              isValidated,
-              timeLockTimestamp: isValidated
-                ? // Math.floor(Date.now() / 1000) + 24 * 60 * 60
-                  Math.floor(Date.now() / 1000) - 3600
-                : null,
-            },
-          );
-          console.log(
-            `✅ Registry validated — remaining=${remaining}${isValidated ? " (24h timelock started)" : ""}`,
-          );
-        }
-      })
-      .catch((err) =>
-        console.error("❌ validate-registry bg error:", err.message),
-      );
-  } catch (error) {
-    console.error("❌ validate-registry error:", error.message);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ─── CANCEL REGISTRY ──────────────────────────────────────────────────────────
-router.post("/cancel-registry", requireValidator, async (req, res) => {
-  try {
-    const { privateKey, registry, chain = "base" } = req.body;
-    const cleanRegistry = normalizeAddr(registry);
-    if (!cleanRegistry)
-      return res.status(400).json({ message: "Invalid registry address" });
-
-    const sponsorFn =
-      chain === "base"
-        ? relay.sponsorCancelInitBase
-        : relay.sponsorCancelInitEth;
-
-    const result = await sponsorFn(
-      req.callerUser.safeAddress,
-      privateKey,
-      cleanRegistry,
-    );
-    res.json({ success: true, taskId: result.taskId });
-
-    waitForTx(result.taskId)
-      .then(async (status) => {
-        if (status.success) {
-          await Proposal.deleteOne({
-            type: "registry",
-            registry: cleanRegistry.toLowerCase(),
-          });
-          console.log(`✅ Registry proposal cancelled: ${cleanRegistry}`);
-        }
-      })
-      .catch((err) =>
-        console.error("❌ cancel-registry bg error:", err.message),
-      );
-  } catch (error) {
-    console.error("❌ cancel-registry error:", error.message);
-    res.status(500).json({ message: error.message });
-  }
-});
-
-// ─── EXECUTE REGISTRY ─────────────────────────────────────────────────────────
-// After the timelock expires, executes the proposal on-chain.
-// If isWallet=true on the proposal, adds the registry to WalletRegistry so users
-// can resolve names and send to it.
-router.post("/execute-registry", requireValidator, async (req, res) => {
-  try {
-    const {
-      privateKey,
-      registry,
-      registryName,
-      nspace,
-      chain = "base",
-    } = req.body;
-    const cleanRegistry = normalizeAddr(registry);
-    if (!cleanRegistry)
-      return res.status(400).json({ message: "Invalid registry address" });
-
-    const proposal = await Proposal.findOne({
-      type: "registry",
-      registry: cleanRegistry.toLowerCase(),
-    });
-
-    const sponsorFn =
-      chain === "base"
-        ? relay.sponsorExecuteInitBase
-        : relay.sponsorExecuteInitEth;
-
-    const result = await sponsorFn(
-      req.callerUser.safeAddress,
-      privateKey,
-      cleanRegistry,
-    );
-    res.json({ success: true, taskId: result.taskId });
-
-    waitForTx(result.taskId)
-      .then(async (status) => {
-        if (status.success) {
-          await Proposal.deleteOne({
-            type: "registry",
-            registry: cleanRegistry.toLowerCase(),
-          });
-
-          const finalName = registryName || proposal?.registryName || nspace;
-          const finalNspace = nspace || proposal?.nspace || "";
-          const walletFlag = proposal?.isWallet ?? false;
-
-          if (walletFlag) {
-            await WalletRegistry.findOneAndUpdate(
-              { registryAddress: cleanRegistry.toLowerCase() },
-              {
-                name: finalName,
-                nspace: finalNspace,
-                registryAddress: cleanRegistry.toLowerCase(),
-                active: true,
-              },
-              { upsert: true, new: true },
-            );
-            console.log(
-              `✅ Registry executed + added to WalletRegistry: ${finalNspace} → ${cleanRegistry}`,
-            );
-          } else {
-            console.log(
-              `✅ Registry executed on-chain (isWallet=false, not added to WalletRegistry): ${finalNspace} → ${cleanRegistry}`,
-            );
-          }
-        }
-      })
-      .catch((err) =>
-        console.error("❌ execute-registry bg error:", err.message),
-      );
-  } catch (error) {
-    console.error("❌ execute-registry error:", error.message);
-    res.status(500).json({ message: error.message });
-  }
-});
 
 // ─── PROPOSE VALIDATOR ────────────────────────────────────────────────────────
 router.post("/propose-validator", requireValidator, async (req, res) => {
