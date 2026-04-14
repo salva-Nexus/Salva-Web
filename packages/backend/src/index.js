@@ -1687,15 +1687,20 @@ app.post("/api/transfer", async (req, res) => {
         queueEntry.errorMessage = "Failed to submit to relay";
         await queueEntry.save();
         await new Transaction({
-          fromAddress: safeAddress.toLowerCase(),
-          fromUsername: senderUser?.username || null,
-          toAddress: recipientAddress.toLowerCase(),
-          toUsername: recipientUser?.username || null,
+          fromAddress:              safeAddress.toLowerCase(),
+          fromUsername:             senderUser?.username || null,
+          fromNameAlias:            senderUser?.nameAlias || null,
+          toAddress:                recipientAddress.toLowerCase(),
+          toUsername:               recipientUser?.username || null,
+          toNameAlias:              recipientUser?.nameAlias || null,
+          senderDisplayIdentifier:  req.body.senderDisplayIdentifier || finalToInput,
           amount,
-          status: "failed",
-          taskId: null,
-          type: "transfer",
-          date: new Date(),
+          fee:                      feeHuman > 0 ? String(feeHuman) : null,
+          coin,
+          status:                   "failed",
+          taskId:                   null,
+          type:                     "transfer",
+          date:                     new Date(),
         }).save();
         return res
           .status(400)
@@ -1709,15 +1714,20 @@ app.post("/api/transfer", async (req, res) => {
       const taskStatus = await waitForTxReceipt(result.txHash);
 
       await new Transaction({
-        fromAddress: safeAddress.toLowerCase(),
-        fromUsername: senderUser?.username || null,
-        toAddress: recipientAddress.toLowerCase(),
-        toUsername: recipientUser?.username || null,
+        fromAddress:              safeAddress.toLowerCase(),
+        fromUsername:             senderUser?.username || null,
+        fromNameAlias:            senderUser?.nameAlias || null,
+        toAddress:                recipientAddress.toLowerCase(),
+        toUsername:               recipientUser?.username || null,
+        toNameAlias:              recipientUser?.nameAlias || null,
+        senderDisplayIdentifier:  req.body.senderDisplayIdentifier || finalToInput,
         amount,
-        status: taskStatus.success ? "successful" : "failed",
-        taskId: result.txHash,
-        type: "transfer",
-        date: new Date(),
+        fee:                      feeHuman > 0 ? String(feeHuman) : null,
+        coin,
+        status:                   taskStatus.success ? "successful" : "failed",
+        taskId:                   result.txHash,
+        type:                     "transfer",
+        date:                     new Date(),
       }).save();
 
       if (taskStatus.success) {
