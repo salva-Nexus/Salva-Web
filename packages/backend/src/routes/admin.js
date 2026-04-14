@@ -95,17 +95,10 @@ async function getValidatorRemaining(addr) {
   }
 }
 
-// ─── Parse clone address from receipt logs ────────────────────────────────────
-// RegistryInitializationProposed(address indexed clone, string namespace, bytes16 id)
-// topics[0] = event signature hash
-// topics[1] = abi-encoded indexed address (32 bytes, left-padded with zeros)
-// The address occupies the LAST 20 bytes (40 hex chars) of the 32-byte topic.
 function parseCloneFromReceipt(receipt) {
   if (!receipt?.logs?.length) return null;
 
-  const EVENT_SIG = ethers.id(
-    "RegistryInitializationProposed(address,string,bytes16)",
-  );
+  const EVENT_SIG = ethers.id("RegistryInitialized(address,string)");
 
   for (const log of receipt.logs) {
     if (
@@ -115,39 +108,14 @@ function parseCloneFromReceipt(receipt) {
       log.topics[1]
     ) {
       try {
-        // topics[1] is a 32-byte hex string like:
-        // "0x000000000000000000000000c6D4dcA16F1D904632871c52Fb4E6cdfb243F6C2"
-        // Strip the leading "0x" + 24 zero-padding chars, leaving 40 hex chars.
-        const raw = log.topics[1]; // "0x" + 64 hex chars
-        const addrHex = "0x" + raw.slice(raw.length - 40); // last 40 hex chars
+        const raw = log.topics[1];
+        const addrHex = "0x" + raw.slice(raw.length - 40);
         const cloneAddress = ethers.getAddress(addrHex);
-        console.log(`✅ Parsed clone address from event log: ${cloneAddress}`);
+        console.log(`✅ Parsed clone address from RegistryInitialized event: ${cloneAddress}`);
         return cloneAddress;
       } catch (e) {
-        console.error(
-          "Failed to parse clone address from topic:",
-          e.message,
-          "| raw topic:",
-          log.topics[1],
-        );
+        console.error("Failed to parse clone address from topic:", e.message, "| raw topic:", log.topics[1]);
       }
-    }
-  }
-
-  // Fallback: try ABI decoding the full log data if address wasn't indexed
-  for (const log of receipt.logs) {
-    try {
-      const iface = new ethers.Interface([
-        "event RegistryInitializationProposed(address clone, string namespace, bytes16 id)",
-      ]);
-      const parsed = iface.parseLog(log);
-      if (parsed && parsed.args.clone) {
-        const addr = ethers.getAddress(parsed.args.clone);
-        console.log(`✅ Parsed clone address via ABI decode: ${addr}`);
-        return addr;
-      }
-    } catch {
-      // not this log, keep trying
     }
   }
 

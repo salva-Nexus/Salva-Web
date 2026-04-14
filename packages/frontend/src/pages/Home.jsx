@@ -1067,7 +1067,7 @@ const Home = () => {
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { stat: "$1", label: "One-time name fee" },
+              { stat: "Direct", label: "Registry Link" },
               { stat: "₦0", label: "Gas cost to you" },
               { stat: "24/7", label: "Online" },
               { stat: "0", label: "Seed phrases" },
@@ -1133,7 +1133,7 @@ const Home = () => {
             },
             {
               q: "How much does it cost to register a name?",
-              a: "Registering a name costs $1 (paid in NGNs(1000 NGNs), USDT or USDC), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
+              a: "Registering a name costs $0.5 (paid in NGNs(500 NGNs), USDT or USDC), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
             },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
