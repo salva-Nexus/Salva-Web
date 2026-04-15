@@ -703,7 +703,9 @@ app.post(
 
       console.log("🚀 Generating Safe Wallet & Deploying...");
       const identityData = await generateAndDeploySalvaIdentity(
-        process.env.BASE_MAINNET_RPC_URL,
+        process.env.NODE_ENV === "production"
+          ? process.env.BASE_MAINNET_RPC_URL
+          : process.env.BASE_SEPOLIA_RPC_URL,
       );
 
       const hashedPassword = await bcrypt.hash(password, 10);

@@ -1,8 +1,6 @@
 // Salva-Digital-Tech/packages/backend/src/services/walletSigner.js
 const { ethers } = require("ethers");
 
-const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
-
 if (!rpcUrl) {
   console.error(
     "❌ No BASE_MAINNET_RPC_URL in .env",
@@ -11,11 +9,12 @@ if (!rpcUrl) {
 }
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
-// In ethers v6, passing { ensAddress: null } does NOT disable ENS lookups —
-// it triggers an internal branch that attempts ENS on unsupported networks and
-// throws UNSUPPORTED_OPERATION. The correct fix is to use StaticNetwork via
-// Network.from() which hard-disables ENS address resolution entirely.
-const network = new ethers.Network("base", 8453);
+const isDev = process.env.NODE_ENV === "development";
+const rpcUrl = isDev ? process.env.BASE_SEPOLIA_RPC_URL : process.env.BASE_MAINNET_RPC_URL;
+const chainId = isDev ? parseInt(process.env.CHAIN_ID_TESTNET) : parseInt(process.env.CHAIN_ID_MAINNET);
+const networkName = isDev ? "base-sepolia" : "base";
+
+const network = new ethers.Network(networkName, chainId);
 
 const provider = new ethers.JsonRpcProvider(rpcUrl, network, {
   staticNetwork: network, // Prevents ethers from fetching network info on every call
