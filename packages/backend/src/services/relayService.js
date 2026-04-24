@@ -8,7 +8,7 @@ function cleanEnvAddr(raw) {
   let s = raw.trim().replace(/^["']|["']$/g, "");
   const match = s.match(/(0x[0-9a-fA-F]{40})/);
   if (match) return match[1];
-  return s.trim() || null;
+  return s.trim() || null;//
 }
 
 const MULTISIG_ADDRESS = cleanEnvAddr(process.env.MULTISIG_CONTRACT_ADDRESS);
