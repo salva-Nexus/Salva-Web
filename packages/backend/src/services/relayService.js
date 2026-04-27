@@ -150,29 +150,18 @@ async function _executeViaSafeBase(
   });
   const signedSafeTx = await protocolKit.signTransaction(safeTransaction);
   const safeContract = new ethers.Contract(cleanSafe, SAFE_ABI, wallet);
-  console.log(
-    "Safe tx data:",
-    JSON.stringify(
-      {
-        to: signedSafeTx.data.to,
-        data: signedSafeTx.data.data,
-        value: signedSafeTx.data.value,
-        signatures: signedSafeTx.encodedSignatures(),
-      },
-      null,
-      2,
-    ),
-  );
+
+  // Use original values, not pulled back from signed object
   const tx = await safeContract.execTransaction(
-    signedSafeTx.data.to,
-    BigInt(signedSafeTx.data.value || "0"),
-    signedSafeTx.data.data,
-    Number(signedSafeTx.data.operation || 0),
-    BigInt(signedSafeTx.data.safeTxGas || "0"),
-    BigInt(signedSafeTx.data.baseGas || "0"),
-    BigInt(signedSafeTx.data.gasPrice || "0"),
-    signedSafeTx.data.gasToken || ethers.ZeroAddress,
-    signedSafeTx.data.refundReceiver || ethers.ZeroAddress,
+    cleanTarget, // ← use original
+    0n,
+    hexData, // ← use original
+    operation,
+    0n,
+    0n,
+    0n,
+    ethers.ZeroAddress,
+    ethers.ZeroAddress,
     signedSafeTx.encodedSignatures(),
     { gasLimit: 2_800_000 },
   );
