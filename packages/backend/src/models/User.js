@@ -1,13 +1,9 @@
-// Salva-Digital-Tech/packages/backend/src/models/User.js
 const mongoose = require("mongoose");
 
 const LinkedNameSchema = new mongoose.Schema(
   {
-    // The full welded name as stored on-chain, e.g. "charles@salva"
     name: { type: String, required: true },
-    // The wallet address this name points to, lowercase
     wallet: { type: String, required: true, lowercase: true },
-    // The registry contract address used for this link (lowercase)
     registryAddress: { type: String, required: true, lowercase: true },
   },
   { _id: false },
@@ -43,13 +39,9 @@ const UserSchema = new mongoose.Schema({
   accountLockedUntil: { type: Date, default: null },
   pinSetupCompleted: { type: Boolean, default: false },
   isValidator: { type: Boolean, default: false },
-
-  // Array of {name, wallet, registryAddress} objects — one per linked alias
+  isSeller: { type: Boolean, default: false },
   nameAliases: { type: [LinkedNameSchema], default: [] },
-
-  // LEGACY: keep for migration — single alias string. Will be null for new users.
   nameAlias: { type: String, default: null, sparse: true },
-
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

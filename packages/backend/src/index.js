@@ -2,6 +2,13 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../.env"),
 });
+function cleanEnvAddr(raw) {
+  if (!raw) return null;
+  let s = raw.trim().replace(/^["']|["']$/g, "");
+  const match = s.match(/(0x[0-9a-fA-F]{40})/);
+  if (match) return match[1];
+  return s.trim() || null;
+}
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
@@ -111,8 +118,8 @@ app.use(
   }),
 );
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
 // Manual MongoDB injection protection
 function sanitizeObject(obj) {
@@ -551,6 +558,29 @@ app.get("/api/fee-config", async (req, res) => {
   }
 });
 
+app.get("/api/registry-fee", async (req, res) => {
+  try {
+    const factoryAddr = cleanEnvAddr(process.env.REGISTRY_FACTORY);
+    if (!factoryAddr)
+      return res.status(500).json({ message: "REGISTRY_FACTORY not set" });
+    const FACTORY_ABI = [
+      "function getFee() external view returns (uint256 fee)",
+    ];
+    const factoryContract = new ethers.Contract(
+      factoryAddr,
+      FACTORY_ABI,
+      provider,
+    );
+    const feeWei = await retryRPCCall(() => factoryContract.getFee());
+    const feeHuman = parseFloat(ethers.formatUnits(feeWei, 6));
+    console.log(`💰 Registry link fee: ${feeHuman} NGNs`);
+    res.json({ fee: feeHuman, feeWei: feeWei.toString() });
+  } catch (error) {
+    console.error("❌ Failed to fetch registry fee:", error.message);
+    return handleError(error, res, "Failed to fetch registry fee");
+  }
+});
+
 // ===============================================
 // AUTH ROUTES
 // ===============================================
@@ -696,17 +726,35 @@ app.post(
     try {
       const { username, email, password } = req.body;
 
-      const existingUser = await User.findOne({ email });
-      if (existingUser) {
+      console.log(
+        `📝 Registration attempt: username="${username}" email="${email}"`,
+      );
+
+      // ── Check both email AND username before touching blockchain ──────────
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) {
+        console.log(`❌ Email already registered: ${email}`);
         return res.status(400).json({ message: "Email already registered" });
       }
 
-      console.log("🚀 Generating Safe Wallet & Deploying...");
-      const identityData = await generateAndDeploySalvaIdentity(
+      const existingUsername = await User.findOne({ username });
+      if (existingUsername) {
+        console.log(`❌ Username already taken: ${username}`);
+        return res.status(400).json({ message: "Username already taken" });
+      }
+
+      console.log(`✅ Username and email available — deploying Safe...`);
+
+      const rpcUrl =
         process.env.NODE_ENV === "production"
           ? process.env.BASE_MAINNET_RPC_URL
-          : process.env.BASE_SEPOLIA_RPC_URL,
-      );
+          : process.env.BASE_SEPOLIA_RPC_URL;
+
+      console.log(`🔗 Using RPC: ${rpcUrl}`);
+
+      const identityData = await generateAndDeploySalvaIdentity(rpcUrl);
+
+      console.log(`✅ Safe deployed: ${identityData.safeAddress}`);
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUser = new User({
@@ -718,10 +766,11 @@ app.post(
       });
 
       await newUser.save();
-      console.log("✅ User saved to database");
+      console.log(`✅ User saved: ${email}`);
 
       try {
         await sendWelcomeEmail(email, username);
+        console.log(`📧 Welcome email sent to: ${email}`);
       } catch (emailError) {
         console.error("❌ Welcome email error:", emailError.message);
       }
@@ -736,7 +785,7 @@ app.post(
         numberAlias: null,
       });
     } catch (error) {
-      console.error("❌ Registration failed:", error);
+      console.error("❌ Registration failed:", error.message);
       return handleError(error, res, "Registration failed");
     }
   },
@@ -766,6 +815,7 @@ app.post("/api/login", authLimiter, async (req, res) => {
       accountNumber: user.accountNumber,
       ownerPrivateKey: user.ownerPrivateKey,
       isValidator: user.isValidator || false,
+      isSeller: user.isSeller || false,
       nameAlias: user.nameAlias || null,
       numberAlias: user.numberAlias || null,
     });
@@ -786,6 +836,7 @@ app.get("/api/user/status/:email", async (req, res) => {
       isValidator: user.isValidator || false,
       nameAlias: user.nameAlias || null,
       numberAlias: user.numberAlias || null,
+      isSeller: user.isSeller || false,
     });
   } catch (error) {
     return handleError(error, res, "Failed to get user status");
@@ -848,51 +899,53 @@ app.post("/api/alias/link-name", async (req, res) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     // ── Balance gate ─────────────────────────────────────────────────────────
-    // Default: USDC. Fallback: USDT. Need at least 0.5 token (5e5 units, 6 decimals).
-    const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
-
-    // Change variable name to match the 0.5 value to avoid logic errors
-    const POINT_FIVE = ethers.parseUnits("0.5", 6);
-
-    const usdcAddr = process.env.USDC_CONTRACT_ADDRESS;
-    const usdtAddr = process.env.USDT_CONTRACT_ADDRESS;
     const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
-
-    if (!usdcAddr || !usdtAddr || !ngnAddr)
+    if (!ngnAddr)
       return res
         .status(500)
-        .json({ message: "Token contract addresses not configured" });
+        .json({ message: "NGN_TOKEN_ADDRESS not configured" });
 
-    const usdcContract = new ethers.Contract(usdcAddr, ERC20_ABI, provider);
-    const usdtContract = new ethers.Contract(usdtAddr, ERC20_ABI, provider);
-    const ngnContract = new ethers.Contract(ngnAddr, ERC20_ABI, provider);
-
-    // NGNs fee threshold: 500 NGNs (6 decimals)
-    const FIVE_HUNDRED = ethers.parseUnits("500", 6);
-
-    const [usdcWei, usdtWei, ngnWei] = await Promise.all([
-      usdcContract.balanceOf(safeAddress).catch(() => 0n),
-      usdtContract.balanceOf(safeAddress).catch(() => 0n),
-      ngnContract.balanceOf(safeAddress).catch(() => 0n),
-    ]);
-
-    const hasUsdc = usdcWei >= POINT_FIVE;
-    const hasUsdt = usdtWei >= POINT_FIVE;
-    const hasNgn = ngnWei >= FIVE_HUNDRED;
-
-    if (!hasUsdc && !hasUsdt && !hasNgn) {
-      return res.status(400).json({
-        message:
-          "Insufficient balance. You need at least 0.5 USDC, 0.5 USDT, or 500 NGNs in your wallet to register a name.",
-        lowBalance: true,
-      });
+    // Read live fee from RegistryFactory contract
+    let feeWei = 0n;
+    try {
+      const factoryAddr = cleanEnvAddr(process.env.REGISTRY_FACTORY);
+      if (factoryAddr) {
+        const FACTORY_ABI = [
+          "function getFee() external view returns (uint256 fee)",
+        ];
+        const factoryContract = new ethers.Contract(
+          factoryAddr,
+          FACTORY_ABI,
+          provider,
+        );
+        feeWei = await retryRPCCall(() => factoryContract.getFee());
+      }
+    } catch (e) {
+      console.error("⚠️ Could not read registry fee from contract:", e.message);
+      // proceed with feeWei = 0n — transaction will still work, just no balance gate
     }
 
-    // Priority: USDC (default) → USDT → NGNs
-    const feeTokenAddress = hasUsdc ? usdcAddr : hasUsdt ? usdtAddr : ngnAddr;
-    console.log(
-      `💰 Fee token selected: ${hasUsdc ? "USDC" : hasUsdt ? "USDT" : "NGNs"} (${feeTokenAddress})`,
-    );
+    const feeHuman = parseFloat(ethers.formatUnits(feeWei, 6));
+    console.log(`💰 Link name fee: ${feeHuman} NGNs`);
+
+    // Only gate if fee > 0
+    if (feeWei > 0n) {
+      const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+      const ngnContract = new ethers.Contract(ngnAddr, ERC20_ABI, provider);
+      const ngnWei = await ngnContract.balanceOf(safeAddress).catch(() => 0n);
+
+      if (ngnWei < feeWei) {
+        return res.status(400).json({
+          message: `Insufficient NGNs. You need ${feeHuman.toLocaleString()} NGNs to register a name. Top up your wallet and try again.`,
+          lowBalance: true,
+          requiredNgns: feeHuman,
+        });
+      }
+    }
+
+    // v2.1.0: fee token is always NGNs
+    const feeWeiStr = feeWei.toString(); // pass feeWei as string to frontend
+    console.log(`💰 Registry link fee: ${feeHuman} NGNs (feeWei=${feeWeiStr})`);
 
     // ── Underscore collision check ──────────────────────────────────────────
     if (pureName.includes("_")) {
@@ -959,7 +1012,7 @@ app.post("/api/alias/link-name", async (req, res) => {
       registryAddress,
       namespace,
       signature,
-      feeTokenAddress, // the token address the multicall will approve + registry will pull
+      feeWei: feeWei.toString(), // pass to execute-link so relay knows whether to approve
     });
   } catch (error) {
     console.error("❌ link-name prepare error:", error);
@@ -980,7 +1033,7 @@ app.post("/api/alias/execute-link", async (req, res) => {
       walletToLink,
       registryAddress,
       signature,
-      feeTokenAddress,
+      feeWei,
       userPrivateKey,
     } = req.body;
 
@@ -989,14 +1042,7 @@ app.post("/api/alias/execute-link", async (req, res) => {
       return res.status(400).json({ message: "Invalid safe address" });
     if (!userPrivateKey)
       return res.status(400).json({ message: "Private key required" });
-    if (
-      !pureName ||
-      !weldedName ||
-      !walletToLink ||
-      !registryAddress ||
-      !signature ||
-      !feeTokenAddress
-    )
+    if (!pureName || !weldedName || !walletToLink || !registryAddress || !signature)
       return res.status(400).json({ message: "Missing prepared link data" });
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
@@ -1009,7 +1055,7 @@ app.post("/api/alias/execute-link", async (req, res) => {
 
     console.log(`🔗 Executing link: "${weldedName}" → ${walletAddress}`);
     console.log(
-      `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeToken: ${feeTokenAddress}`,
+      `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || "0"}`,
     );
 
     const result = await sponsorLinkNameBase(
@@ -1018,7 +1064,7 @@ app.post("/api/alias/execute-link", async (req, res) => {
       registryAddress,
       nameBytes,
       walletAddress,
-      feeTokenAddress,
+      BigInt(feeWei || "0"),
       signature,
     );
 
@@ -1123,7 +1169,10 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     // Execute via the user's Safe — Safe is msg.sender on the registry
     // Backend wallet pays gas. No fee charged to the user.
     const Safe = require("@safe-global/protocol-kit").default;
-    const rpcUrl = process.env.BASE_MAINNET_RPC_URL;
+const rpcUrl =
+  process.env.NODE_ENV === "production"
+    ? process.env.BASE_MAINNET_RPC_URL
+    : process.env.BASE_SEPOLIA_RPC_URL;
 
     const protocolKit = await Safe.init({
       provider: rpcUrl,
@@ -1185,6 +1234,9 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     return handleError(error, res, "Failed to unlink name");
   }
 });
+
+const buyNgnsRoutes = require("./routes/buyNgns");
+app.use("/api/buy-ngns", buyNgnsRoutes);
 
 // ===============================================
 // CHECK NAME AVAILABILITY
@@ -1689,20 +1741,21 @@ app.post("/api/transfer", async (req, res) => {
         queueEntry.errorMessage = "Failed to submit to relay";
         await queueEntry.save();
         await new Transaction({
-          fromAddress:              safeAddress.toLowerCase(),
-          fromUsername:             senderUser?.username || null,
-          fromNameAlias:            senderUser?.nameAlias || null,
-          toAddress:                recipientAddress.toLowerCase(),
-          toUsername:               recipientUser?.username || null,
-          toNameAlias:              recipientUser?.nameAlias || null,
-          senderDisplayIdentifier:  req.body.senderDisplayIdentifier || finalToInput,
+          fromAddress: safeAddress.toLowerCase(),
+          fromUsername: senderUser?.username || null,
+          fromNameAlias: senderUser?.nameAlias || null,
+          toAddress: recipientAddress.toLowerCase(),
+          toUsername: recipientUser?.username || null,
+          toNameAlias: recipientUser?.nameAlias || null,
+          senderDisplayIdentifier:
+            req.body.senderDisplayIdentifier || finalToInput,
           amount,
-          fee:                      feeHuman > 0 ? String(feeHuman) : null,
+          fee: feeHuman > 0 ? String(feeHuman) : null,
           coin,
-          status:                   "failed",
-          taskId:                   null,
-          type:                     "transfer",
-          date:                     new Date(),
+          status: "failed",
+          taskId: null,
+          type: "transfer",
+          date: new Date(),
         }).save();
         return res
           .status(400)
@@ -1716,20 +1769,21 @@ app.post("/api/transfer", async (req, res) => {
       const taskStatus = await waitForTxReceipt(result.txHash);
 
       await new Transaction({
-        fromAddress:              safeAddress.toLowerCase(),
-        fromUsername:             senderUser?.username || null,
-        fromNameAlias:            senderUser?.nameAlias || null,
-        toAddress:                recipientAddress.toLowerCase(),
-        toUsername:               recipientUser?.username || null,
-        toNameAlias:              recipientUser?.nameAlias || null,
-        senderDisplayIdentifier:  req.body.senderDisplayIdentifier || finalToInput,
+        fromAddress: safeAddress.toLowerCase(),
+        fromUsername: senderUser?.username || null,
+        fromNameAlias: senderUser?.nameAlias || null,
+        toAddress: recipientAddress.toLowerCase(),
+        toUsername: recipientUser?.username || null,
+        toNameAlias: recipientUser?.nameAlias || null,
+        senderDisplayIdentifier:
+          req.body.senderDisplayIdentifier || finalToInput,
         amount,
-        fee:                      feeHuman > 0 ? String(feeHuman) : null,
+        fee: feeHuman > 0 ? String(feeHuman) : null,
         coin,
-        status:                   taskStatus.success ? "successful" : "failed",
-        taskId:                   result.txHash,
-        type:                     "transfer",
-        date:                     new Date(),
+        status: taskStatus.success ? "successful" : "failed",
+        taskId: result.txHash,
+        type: "transfer",
+        date: new Date(),
       }).save();
 
       if (taskStatus.success) {

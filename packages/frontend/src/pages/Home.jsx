@@ -37,11 +37,7 @@ const SEOMeta = () => {
     };
     setMeta(
       "description",
-      "Salva is the on-chain name service and payment protocol built on Base. Register a human-readable alias like charles@salva, hold NGNs stablecoin pegged 1:1 to the Nigerian Naira, and send money like a text — no wallet addresses, no gas fees, no seed phrases.",
-    );
-    setMeta(
-      "keywords",
-      "Salva, NGNs, Nigerian stablecoin, on-chain name service, SNS, Base blockchain, smart wallet, Account Abstraction, Safe wallet, Nigeria DeFi, naira stablecoin, blockchain payments Nigeria, send crypto with name, web3 wallet",
+      "Salva is the on-chain name service and payment protocol built on Base. Register a human-readable alias like charles@salva, hold NGNs stablecoin pegged 1:1 to the Nigerian Naira, and send money like a text.",
     );
     setMeta("og:title", "Salva — Send Money Like Sending a Text", true);
     setMeta(
@@ -50,14 +46,8 @@ const SEOMeta = () => {
       true,
     );
     setMeta("og:type", "website", true);
-    setMeta("og:url", "https://salva-nexus.org", true);
     setMeta("twitter:card", "summary_large_image");
     setMeta("twitter:site", "@salva_Nexus");
-    setMeta("twitter:title", "Salva — On-Chain Payment Infrastructure");
-    setMeta(
-      "twitter:description",
-      "Register your name on-chain. Hold NGNs stablecoin. Send money like a text — no addresses, no gas, no complexity. Built on Base.",
-    );
   }, []);
   return null;
 };
@@ -183,16 +173,6 @@ const Ticker = () => {
   );
 };
 
-// ─── Chain Badge ──────────────────────────────────────────────────────────────
-const ChainBadge = () => (
-  <div className="inline-flex items-center gap-3 bg-black/10 dark:bg-black/30 border border-salvaGold/30 rounded-full px-5 py-2.5 mb-10">
-    <span className="w-2 h-2 bg-salvaGold rounded-full animate-pulse" />
-    <span className="text-[10px] text-salvaGold font-black uppercase tracking-[0.3em]">
-      Live on Base Mainnet
-    </span>
-  </div>
-);
-
 // ─── Name Resolution Visual ───────────────────────────────────────────────────
 const NameResolutionVisual = () => {
   const [activeIdx, setActiveIdx] = useState(0);
@@ -229,7 +209,7 @@ const NameResolutionVisual = () => {
     <div className="relative bg-gray-50 dark:bg-gradient-to-br dark:from-[#0A0A0B] dark:via-zinc-900 dark:to-[#0A0A0B] rounded-3xl border border-gray-200 dark:border-salvaGold/20 overflow-hidden p-7 shadow-xl">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.06),transparent)]" />
       <p className="text-[10px] uppercase tracking-[0.35em] text-salvaGold font-black mb-5 opacity-70 flex items-center gap-2">
-        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse inline-block" />
+        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse inline-block" />{" "}
         Live Resolution Engine
       </p>
       <div className="space-y-2.5">
@@ -455,7 +435,6 @@ const ExploreFeature = ({
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-80px" });
   const fromLeft = index % 2 === 0;
-
   return (
     <section
       id={id}
@@ -488,7 +467,6 @@ const ExploreFeature = ({
         </div>
         {cta && <div className="pt-2">{cta}</div>}
       </motion.div>
-
       <motion.div
         initial={{ opacity: 0, x: fromLeft ? 50 : -50 }}
         animate={inView ? { opacity: 1, x: 0 } : {}}
@@ -662,19 +640,10 @@ const Home = () => {
           transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
           className="relative z-10 max-w-5xl mx-auto w-full"
         >
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.8 }}
-            className="flex justify-center mb-6"
-          >
-            <ChainBadge />
-          </motion.div>
-
           <motion.h1
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3, duration: 1, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ delay: 0.2, duration: 1, ease: [0.16, 1, 0.3, 1] }}
             className="text-[clamp(2.8rem,8vw,7rem)] font-black mb-6 tracking-tighter leading-[0.88] px-2"
           >
             ON-CHAIN PAYMENT
@@ -687,7 +656,7 @@ const Home = () => {
           <motion.p
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.48, duration: 0.9 }}
+            transition={{ delay: 0.35, duration: 0.9 }}
             className="text-lg sm:text-xl md:text-2xl opacity-60 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
           >
             Salva is the premier on-chain name service and financial protocol
@@ -696,7 +665,7 @@ const Home = () => {
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.62, duration: 0.8 }}
+            transition={{ delay: 0.48, duration: 0.8 }}
             className="text-xs opacity-30 mb-12 font-bold uppercase tracking-[0.35em]"
           >
             No seed phrases · No gas fees · No wallet addresses
@@ -705,7 +674,7 @@ const Home = () => {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.72, duration: 0.8 }}
+            transition={{ delay: 0.58, duration: 0.8 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16"
           >
             <button
@@ -713,6 +682,12 @@ const Home = () => {
               className="w-full sm:w-auto px-10 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/25 text-sm uppercase tracking-widest flex items-center justify-center gap-2"
             >
               Create Free Wallet <ArrowUpRight size={16} />
+            </button>
+            <button
+              onClick={() => navigate("/login")}
+              className="w-full sm:w-auto px-10 py-4 border border-black/15 dark:border-white/10 font-bold rounded-2xl hover:border-salvaGold/50 hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              Buy NGNs <ArrowUpRight size={16} />
             </button>
             <button
               onClick={() =>
@@ -730,7 +705,7 @@ const Home = () => {
           <motion.div
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.88, duration: 1 }}
+            transition={{ delay: 0.72, duration: 1 }}
             className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto"
           >
             {[
@@ -792,7 +767,6 @@ const Home = () => {
 
       {/* ── EXPLORE FEATURES ─────────────────────────────────────────────── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* 1. Name Service */}
         <ExploreFeature
           id="explore-name-service"
           index={0}
@@ -815,26 +789,15 @@ const Home = () => {
                 </strong>{" "}
                 The part after the @ tells you which wallet that name is linked
                 to. <em>charles@salva</em> and <em>charles@coinbase</em> are two
-                completely separate names — just like how someone can have the
-                same username on different platforms, but each one is distinct.
+                completely separate names.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
                   No look-alike scams.
                 </strong>{" "}
-                Salva is built so that similar-sounding names — like{" "}
-                <em>charles_okoronkwo</em> and <em>okoronkwo_charles</em> — are
-                treated as the same name. This means nobody can register a name
-                that looks just like yours to trick your contacts into sending
-                money to the wrong place.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
-                  Works across multiple wallets and apps.
-                </strong>{" "}
-                Your name can point to your Salva Wallet, your Coinbase Wallet,
-                your Trust Wallet, or any other compatible wallet. The name
-                travels with you — not with any specific app.
+                Salva is built so that similar-sounding names are treated as the
+                same name. This means nobody can register a name that looks just
+                like yours to trick your contacts.
               </p>
             </div>
           }
@@ -849,7 +812,6 @@ const Home = () => {
           }
         />
 
-        {/* 2. Smart Wallet */}
         <ExploreFeature
           id="explore-wallet"
           index={1}
@@ -857,7 +819,7 @@ const Home = () => {
           tag="Salva Smart Wallet"
           title="A Wallet That Feels Like a Banking App."
           headline="No seed phrase. No gas. No confusion."
-          description="Most crypto wallets require you to write down a 24-word recovery phrase, manage ETH for transaction fees, and handle raw wallet addresses. Salva Wallet throws all of that out. You sign up with your email, set a 4-digit PIN, and you're ready to send and receive money."
+          description="Most crypto wallets require you to write down a 24-word recovery phrase, manage ETH for transaction fees, and handle raw wallet addresses. Salva Wallet throws all of that out. You sign up with your email, set a 4-digit PIN, and you're ready."
           extendedContent={
             <div className="space-y-4">
               <p>
@@ -866,9 +828,7 @@ const Home = () => {
                 </strong>{" "}
                 Every time you make a transaction — sending NGNs, USDT, or USDC
                 — Salva covers the network fee for you. You never need to hold
-                ETH or worry about how much a transaction costs. It works
-                exactly like an internet banking app, where the bank handles the
-                behind-the-scenes infrastructure.
+                ETH or worry about how much a transaction costs.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
@@ -877,27 +837,14 @@ const Home = () => {
                 </strong>{" "}
                 Salva Wallet is built on Safe — the smart account technology
                 that has been protecting billions of dollars in institutional
-                funds for years. Every Salva account benefits from
-                enterprise-grade security out of the box, with no extra setup
-                required from you.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
-                  Hold multiple currencies in one place.
-                </strong>{" "}
-                Your wallet can hold NGNs (Nigerian Naira on-chain), USDT, and
-                USDC — all in the same account. Switch between them, send in
-                whichever currency your recipient prefers, and manage everything
-                from one simple screen.
+                funds for years.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
                   Only you can access your money.
                 </strong>{" "}
                 Your 4-digit PIN is the key to your account. Salva never stores
-                your key in a way that gives us access to your funds. Even if
-                something happened to Salva, your money stays yours. You can
-                always recover your account with your PIN.
+                your key in a way that gives us access to your funds.
               </p>
             </div>
           }
@@ -912,7 +859,6 @@ const Home = () => {
           }
         />
 
-        {/* 3. NGNs */}
         <ExploreFeature
           id="explore-ngns"
           index={2}
@@ -920,7 +866,7 @@ const Home = () => {
           tag="NGNs Stablecoin"
           title="Nigerian Naira. On the Blockchain."
           headline="1 NGNs = ₦1. Always."
-          description="NGNs is a digital version of the Nigerian Naira that lives on the blockchain. It holds its value — 1 NGNs is always worth exactly ₦1. That means you can send, save, and receive in Naira without touching volatile cryptocurrencies that go up and down unpredictably."
+          description="NGNs is a digital version of the Nigerian Naira that lives on the blockchain. It holds its value — 1 NGNs is always worth exactly ₦1. Send, save, and receive in Naira without touching volatile cryptocurrencies."
           extendedContent={
             <div className="space-y-4">
               <p>
@@ -928,62 +874,32 @@ const Home = () => {
                   Your money keeps its value.
                 </strong>{" "}
                 When you send ₦50,000, the recipient gets ₦50,000. There's no
-                exchange rate risk, no volatility, and no surprises. The value
-                is locked to the Naira, so what you send is exactly what arrives
-                — minus a small flat fee.
+                exchange rate risk, no volatility, and no surprises.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
                   Simple, predictable fees.
                 </strong>{" "}
-                Sending NGNs between wallets costs a flat ₦10 for amounts up to
-                ₦99,999, and ₦20 for amounts above ₦100,000. That's it. No
-                percentage cut, no hidden charges, no surprises. Small amounts
-                are completely free.
+                Sending NGNs costs a flat ₦10 for amounts up to ₦99,999, and ₦20
+                for amounts above ₦100,000. Small amounts are completely free.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
                   Every transaction is publicly visible and verifiable.
                 </strong>{" "}
                 Because NGNs lives on the blockchain, every transfer is
-                permanently recorded. Anyone can check the transaction history —
-                there's no private bank ledger, no back-office processing, no
-                waiting for settlement. Payments clear instantly and can be
-                confirmed by anyone.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
-                  Use it anywhere ERC-20 tokens are accepted.
-                </strong>{" "}
-                NGNs follows the same standard as USDT and USDC — meaning it
-                works with MetaMask, Coinbase Wallet, Trust Wallet, and any
-                other compatible wallet. Your Naira balance isn't locked inside
-                Salva.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
-                  Naira-to-NGNs top-up is coming.
-                </strong>{" "}
-                The ability to fund your wallet directly from a Nigerian bank
-                account — and cash out back to Naira — is the next feature being
-                built. The on-chain infrastructure is already live. The bank
-                bridge is coming.
+                permanently recorded. Payments clear instantly.
               </p>
             </div>
           }
           visual={<StablecoinVisual />}
           cta={
-            <div className="relative inline-block">
-              <button
-                disabled
-                className="inline-flex items-center gap-2 px-8 py-4 bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-black/30 dark:text-white/30 font-black rounded-2xl text-sm uppercase tracking-widest cursor-not-allowed"
-              >
-                Buy NGNs
-              </button>
-              <span className="absolute -top-2.5 -right-2.5 text-[9px] bg-salvaGold text-black font-black px-2 py-0.5 rounded-full uppercase tracking-widest">
-                Coming Soon
-              </span>
-            </div>
+            <button
+              onClick={() => navigate("/login")}
+              className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
+            >
+              Buy NGNs <ArrowUpRight size={15} />
+            </button>
           }
         />
       </div>
@@ -1018,7 +934,7 @@ const Home = () => {
             {
               n: "03",
               title: "Send & Receive",
-              desc: "Share your name with anyone who needs to pay you. When you want to pay someone, just type their name instead of a wallet address. That's the whole experience.",
+              desc: "Share your name with anyone who needs to pay you. When you want to pay someone, just type their name instead of a wallet address.",
             },
           ].map((step, i) => (
             <motion.div
@@ -1058,12 +974,9 @@ const Home = () => {
             <span className="text-salvaGold">at contract level.</span>
           </h2>
           <p className="text-base sm:text-lg opacity-60 max-w-2xl mx-auto leading-relaxed mb-10">
-            Salva is designed so that similar-looking names — like{" "}
-            <em>charles_okoronkwo</em> and <em>okoronkwo_charles</em> — are
-            treated as identical. Nobody can register a name that looks just
-            like yours to trick people into sending money to the wrong address.
-            This protection happens automatically, for every name, on every
-            transaction.
+            Salva is designed so that similar-looking names are treated as
+            identical. Nobody can register a name that looks just like yours to
+            trick people into sending money to the wrong address.
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
@@ -1113,27 +1026,27 @@ const Home = () => {
           {[
             {
               q: "What is a Salva name?",
-              a: "A Salva name is a short, human-readable address you register — like charles@salva or aisha@trustwallet. Instead of sharing a long wallet address (0x...) every time someone needs to pay you, you just share your name. Anyone on Salva can send money to that name, and it goes directly to your linked wallet. Think of it like a username, except it actually receives money.",
+              a: "A Salva name is a short, human-readable address you register — like charles@salva or aisha@trustwallet. Instead of sharing a long wallet address every time someone needs to pay you, you just share your name. Anyone on Salva can send money to that name, and it goes directly to your linked wallet.",
             },
             {
               q: "Can someone register a name that looks like mine to scam people?",
-              a: "No. Salva is specifically designed to prevent this. Names with similar words in a different order — like charles_okoronkwo and okoronkwo_charles — are treated as the same name. Only one person can hold each unique name combination, regardless of word order. This makes look-alike name squatting impossible.",
+              a: "No. Salva is specifically designed to prevent this. Names with similar words in a different order are treated as the same name. Only one person can hold each unique name combination, regardless of word order.",
             },
             {
               q: "Do I need to know anything about crypto to use Salva?",
-              a: "No. Salva is designed to feel like a regular banking or payments app. You sign up with your email, set a PIN, and you're ready. The wallet is created automatically, gas fees are covered for you, and you send money using names instead of addresses. You don't need to understand blockchain, manage private keys, or hold any cryptocurrency for fees.",
+              a: "No. Salva is designed to feel like a regular banking or payments app. You sign up with your email, set a PIN, and you're ready. The wallet is created automatically, gas fees are covered for you, and you send money using names instead of addresses.",
             },
             {
               q: "Is my money safe? Who controls it?",
-              a: "You do, entirely. Your Salva Wallet is a smart contract that only you control with your PIN. Salva cannot move your funds — we simply power the infrastructure. Your PIN is the only thing that authorizes transactions. Even if Salva's servers went offline, your money would still be in your wallet on the blockchain, accessible with your credentials.",
+              a: "You do, entirely. Your Salva Wallet is a smart contract that only you control with your PIN. Salva cannot move your funds — we simply power the infrastructure. Even if Salva's servers went offline, your money would still be in your wallet on the blockchain.",
             },
             {
               q: "What is NGNs and how is it different from regular crypto?",
-              a: "NGNs is a digital version of the Nigerian Naira. Unlike Bitcoin or ETH which fluctuate in price, NGNs is always worth exactly ₦1. This means you can save, send, and receive in Naira without worrying about your money losing value overnight. It's designed for everyday payments — the same way you'd use mobile money or a bank transfer, but running on blockchain rails.",
+              a: "NGNs is a digital version of the Nigerian Naira. Unlike Bitcoin or ETH which fluctuate in price, NGNs is always worth exactly ₦1. It's designed for everyday payments — the same way you'd use mobile money or a bank transfer, but running on blockchain rails.",
             },
             {
               q: "How much does it cost to register a name?",
-              a: "Registering a name costs $0.5 (paid in NGNs(500 NGNs), USDT or USDC), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
+              a: "Registering a name costs $0.5 (paid in NGNs — 500 NGNs), one time only. There are no yearly renewal fees, no expiry dates. Once you register a name, it's yours indefinitely.",
             },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
@@ -1264,7 +1177,7 @@ const Home = () => {
               </p>
               <div className="space-y-2.5">
                 <span className="block text-salvaGold font-bold opacity-80 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block animate-pulse" />
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block animate-pulse" />{" "}
                   Base Mainnet
                 </span>
               </div>
