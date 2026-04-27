@@ -2289,6 +2289,7 @@ app.post("/api/user/update-username", async (req, res) => {
 // ===============================================
 app.get("/api/stats", async (req, res) => {
   try {
+    await connectDB();
     const citizenCount = await User.countDocuments();
     let totalSupply = "0";
 
