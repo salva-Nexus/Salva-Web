@@ -141,8 +141,7 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        if (!data.safeAddress || !data.ownerPrivateKey)
-          throw new Error("Invalid server response");
+        if (!data.safeAddress) throw new Error("Invalid server response");
 
         const userData = {
           username: sanitizeInput(data.username),
