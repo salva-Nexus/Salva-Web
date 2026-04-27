@@ -320,8 +320,11 @@ async function connectDB() {
   if (connectionPromise) return connectionPromise;
   connectionPromise = mongoose
     .connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 30000,
+      connectTimeoutMS: 30000,
+      socketTimeoutMS: 30000,
       bufferCommands: true,
+      maxPoolSize: 1,
     })
     .then(() => {
       isConnected = true;
@@ -330,6 +333,8 @@ async function connectDB() {
     });
   return connectionPromise;
 }
+
+connectDB().catch((err) => console.error("❌ MongoDB Connection Failed:", err));
 
 connectDB().catch((err) => console.error("❌ MongoDB Connection Failed:", err));
 
