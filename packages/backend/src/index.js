@@ -193,13 +193,25 @@ app.use(
 );
 
 app.use("/api/admin", adminRoutes);
+// Ensure DB is connected before every API call
+app.use(async (req, res, next) => {
+  try {
+    await connectDB();
+    next();
+  } catch (err) {
+    console.error("DB connect middleware:", err.message);
+    res
+      .status(503)
+      .json({ message: "Service temporarily unavailable. Please retry." });
+  }
+});
 
 // ===============================================
 // SECURITY: Rate Limiters
 // ===============================================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "development" ? 100 : 100,
+  max: process.env.NODE_ENV === "development" ? 100 : 5,
   message: "Too many authentication attempts. Please try again in 15 minutes.",
   standardHeaders: true,
   legacyHeaders: false,
@@ -312,31 +324,60 @@ setInterval(
 );
 
 // Connect to MongoDB
-let isConnected = false;
-let connectionPromise = null;
-
-async function connectDB() {
-  if (isConnected) return;
-  if (connectionPromise) return connectionPromise;
-  connectionPromise = mongoose
-    .connect(process.env.MONGO_URI, {
-      serverSelectionTimeoutMS: 30000,
-      connectTimeoutMS: 30000,
-      socketTimeoutMS: 30000,
-      bufferCommands: true,
-      maxPoolSize: 1,
-    })
-    .then(() => {
-      isConnected = true;
-      connectionPromise = null;
-      console.log("🍃 MongoDB Connected");
-    });
-  return connectionPromise;
+// ── MongoDB global connection cache ──────────────────────
+if (!global._mongoConnection) {
+  global._mongoConnection = {
+    isConnected: false,
+    promise: null,
+  };
 }
 
-connectDB().catch((err) => console.error("❌ MongoDB Connection Failed:", err));
+async function connectDB() {
+  const cache = global._mongoConnection;
 
-connectDB().catch((err) => console.error("❌ MongoDB Connection Failed:", err));
+  if (cache.isConnected) return;
+  if (cache.promise) return cache.promise;
+
+  cache.promise = mongoose
+    .connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+      bufferCommands: false,
+      maxPoolSize: 5,
+    })
+    .then((conn) => {
+      cache.isConnected = true;
+      cache.promise = null;
+      console.log("🍃 MongoDB Connected");
+
+      conn.connection.on("disconnected", () => {
+        console.warn(
+          "⚠️  MongoDB disconnected — will reconnect on next request",
+        );
+        cache.isConnected = false;
+        cache.promise = null;
+      });
+
+      conn.connection.on("error", (err) => {
+        console.error("❌ MongoDB connection error:", err.message);
+        cache.isConnected = false;
+        cache.promise = null;
+      });
+    })
+    .catch((err) => {
+      console.error("❌ MongoDB Connection Failed:", err.message);
+      cache.isConnected = false;
+      cache.promise = null;
+      throw err;
+    });
+
+  return cache.promise;
+}
+
+connectDB().catch((err) =>
+  console.error("❌ Initial MongoDB connection attempt failed:", err.message),
+);
 
 // ===============================================
 // HELPERS
@@ -817,6 +858,7 @@ app.post(
 // ===============================================
 app.post("/api/login", authLimiter, async (req, res) => {
   try {
+    await connectDB();
     const email = sanitizeEmail(req.body.email);
     const { password } = req.body;
 
@@ -830,11 +872,13 @@ app.post("/api/login", authLimiter, async (req, res) => {
       return res.status(401).json({ message: "Invalid credentials" });
     }
 
+    const hasPinAlreadySet = !!user.transactionPin;
+
     res.json({
       username: user.username,
       safeAddress: user.safeAddress,
       accountNumber: user.accountNumber,
-      ownerPrivateKey: user.ownerPrivateKey,
+      ownerPrivateKey: hasPinAlreadySet ? null : user.ownerPrivateKey,
       isValidator: user.isValidator || false,
       isSeller: user.isSeller || false,
       nameAlias: user.nameAlias || null,
@@ -1063,7 +1107,13 @@ app.post("/api/alias/execute-link", async (req, res) => {
       return res.status(400).json({ message: "Invalid safe address" });
     if (!userPrivateKey)
       return res.status(400).json({ message: "Private key required" });
-    if (!pureName || !weldedName || !walletToLink || !registryAddress || !signature)
+    if (
+      !pureName ||
+      !weldedName ||
+      !walletToLink ||
+      !registryAddress ||
+      !signature
+    )
       return res.status(400).json({ message: "Missing prepared link data" });
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
@@ -1190,10 +1240,10 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     // Execute via the user's Safe — Safe is msg.sender on the registry
     // Backend wallet pays gas. No fee charged to the user.
     const Safe = require("@safe-global/protocol-kit").default;
-const rpcUrl =
-  process.env.NODE_ENV === "production"
-    ? process.env.BASE_MAINNET_RPC_URL
-    : process.env.BASE_SEPOLIA_RPC_URL;
+    const rpcUrl =
+      process.env.NODE_ENV === "production"
+        ? process.env.BASE_MAINNET_RPC_URL
+        : process.env.BASE_SEPOLIA_RPC_URL;
 
     const protocolKit = await Safe.init({
       provider: rpcUrl,

@@ -459,7 +459,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [nameCheckResult, setNameCheckResult] = useState(null);
   const [checking, setChecking] = useState(false);
   const [nameError, setNameError] = useState("");
-  const [linkStep, setLinkStep] = useState("form"); // form | reserved | confirm | pin | linking | success
+  const [linkStep, setLinkStep] = useState("form");
   const [reservedEmail, setReservedEmail] = useState("");
   const [reservedSubmitting, setReservedSubmitting] = useState(false);
   const [pinInput, setPinInput] = useState("");
@@ -469,9 +469,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [unlinkPinInput, setUnlinkPinInput] = useState("");
   const [unlinkPinStep, setUnlinkPinStep] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
-
-  // Fee is fetched ONCE — after name availability is confirmed
-  const [registryFee, setRegistryFee] = useState(null); // human NGNs or null
+  const [registryFee, setRegistryFee] = useState(null);
   const [feeLoading, setFeeLoading] = useState(false);
 
   const fetchLinkedNames = useCallback(async () => {
@@ -510,15 +508,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const handleCheckName = async () => {
     const err = validateNameLocally(nameInput);
-    if (err) {
-      setNameError(err);
-      return;
-    }
-    if (
-      !walletInput ||
-      !walletInput.startsWith("0x") ||
-      walletInput.length !== 42
-    ) {
+    if (err) { setNameError(err); return; }
+    if (!walletInput || !walletInput.startsWith("0x") || walletInput.length !== 42) {
       setNameError("Enter a valid 0x wallet address to link to");
       return;
     }
@@ -530,7 +521,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setNameError("");
     setChecking(true);
     setNameCheckResult(null);
-    setRegistryFee(null); // reset any previous fee
+    setRegistryFee(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
         method: "POST",
@@ -541,22 +532,12 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setNameError(data.message || "Check failed");
-        return;
-      }
+      if (!res.ok) { setNameError(data.message || "Check failed"); return; }
       setNameCheckResult(data);
 
-      if (data.reserved) {
-        setLinkStep("reserved");
-        return;
-      }
-      if (!data.available) {
-        setNameError("This name is already taken. Try another.");
-        return;
-      }
+      if (data.reserved) { setLinkStep("reserved"); return; }
+      if (!data.available) { setNameError("This name is already taken. Try another."); return; }
 
-      // Name is available — now fetch the fee ONCE
       setFeeLoading(true);
       try {
         const feeRes = await fetch(`${SALVA_API_URL}/api/registry-fee`);
@@ -583,16 +564,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       const res = await fetch(`${SALVA_API_URL}/api/alias/notify-reserved`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput,
-          requesterEmail: reservedEmail,
-        }),
+        body: JSON.stringify({ name: nameInput, requesterEmail: reservedEmail }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg("Your request has been sent to our team!");
-        resetLinkForm();
-      } else showMsg(data.message || "Failed to send", "error");
+      if (res.ok) { showMsg("Your request has been sent to our team!"); resetLinkForm(); }
+      else showMsg(data.message || "Failed to send", "error");
     } catch {
       showMsg("Network error", "error");
     } finally {
@@ -629,16 +605,10 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       });
       const prepData = await prepRes.json();
 
-      if (prepData.reserved) {
-        setLinkStep("reserved");
-        return;
-      }
+      if (prepData.reserved) { setLinkStep("reserved"); return; }
       if (prepData.lowBalance) {
-        // Backend says insufficient NGNs — redirect to buy
         showMsg(prepData.message || "Insufficient NGNs", "error");
-        setTimeout(() => {
-          onSwitchToBuy?.();
-        }, 1500);
+        setTimeout(() => { onSwitchToBuy?.(); }, 1500);
         setLinkStep("form");
         return;
       }
@@ -675,9 +645,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         const saved = JSON.parse(localStorage.getItem("salva_user") || "{}");
         saved.nameAlias = execData.alias?.name || saved.nameAlias;
         localStorage.setItem("salva_user", JSON.stringify(saved));
-      } catch {
-        /* ignore */
-      }
+      } catch { /* ignore */ }
     } catch (err) {
       showMsg(err.message || "Failed to link name", "error");
       setLinkStep("confirm");
@@ -740,12 +708,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const feeActive = registryFee !== null && registryFee > 0;
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-8"
-    >
-      {/* Linked Names */}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
           Your Linked Names
@@ -757,9 +720,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         ) : linkedNames.length === 0 ? (
           <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center">
             <p className="text-sm opacity-40 font-bold">No names linked yet.</p>
-            <p className="text-[10px] opacity-30 mt-1">
-              Link your first name below.
-            </p>
+            <p className="text-[10px] opacity-30 mt-1">Link your first name below.</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -775,20 +736,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   <div className="min-w-0">
                     <p
                       className="font-black text-salvaGold text-base truncate cursor-pointer"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.name);
-                        showMsg("Name copied!");
-                      }}
+                      onClick={() => { navigator.clipboard.writeText(alias.name); showMsg("Name copied!"); }}
                       title="Click to copy"
                     >
                       {alias.name}
                     </p>
                     <p
                       className="font-mono text-[10px] opacity-40 truncate mt-0.5 cursor-pointer"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.wallet);
-                        showMsg("Wallet address copied!");
-                      }}
+                      onClick={() => { navigator.clipboard.writeText(alias.wallet); showMsg("Wallet address copied!"); }}
                       title="Click to copy wallet"
                     >
                       {alias.wallet}
@@ -812,13 +767,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         )}
       </div>
 
-      {/* Register New Name */}
       <div>
         <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
           Register a New Name
         </p>
 
-        {/* ── FORM STEP ── */}
         {linkStep === "form" && (
           <div className="p-6 rounded-3xl border border-salvaGold/20 bg-salvaGold/5 space-y-4">
             <p className="text-xs font-black text-salvaGold uppercase tracking-widest">
@@ -833,9 +786,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 placeholder="yourname"
                 value={nameInput}
                 onChange={(e) => {
-                  setNameInput(
-                    e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""),
-                  );
+                  setNameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""));
                   setNameError("");
                 }}
                 maxLength={32}
@@ -845,8 +796,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <p className="text-[10px] text-salvaGold font-bold mt-1 ml-1">
                   Preview:{" "}
                   <span className="opacity-70">
-                    {nameInput}
-                    {selectedRegistry ? selectedRegistry.nspace : "@salva"}
+                    {nameInput}{selectedRegistry ? selectedRegistry.nspace : "@salva"}
                   </span>
                 </p>
               )}
@@ -859,10 +809,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 type="text"
                 placeholder="0x..."
                 value={walletInput}
-                onChange={(e) => {
-                  setWalletInput(e.target.value.trim());
-                  setNameError("");
-                }}
+                onChange={(e) => { setWalletInput(e.target.value.trim()); setNameError(""); }}
                 className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none font-mono text-sm text-black dark:text-white"
               />
               <p className="text-[10px] opacity-30 mt-1 ml-1">
@@ -876,41 +823,29 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               <RegistryDropdown
                 registries={registries}
                 value={selectedRegistry}
-                onChange={(reg) => {
-                  setSelectedRegistry(reg);
-                  setNameError("");
-                }}
+                onChange={(reg) => { setSelectedRegistry(reg); setNameError(""); }}
                 placeholder="Search wallet service…"
               />
             </div>
-            {nameError && (
-              <p className="text-xs text-red-400 font-bold">{nameError}</p>
-            )}
+            {nameError && <p className="text-xs text-red-400 font-bold">{nameError}</p>}
             <button
               onClick={handleCheckName}
-              disabled={
-                checking || !nameInput || !walletInput || !selectedRegistry
-              }
+              disabled={checking || !nameInput || !walletInput || !selectedRegistry}
               className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
             >
-              {checking && (
-                <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
+              {checking && <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
               {checking ? "Checking…" : "Check & Continue"}
             </button>
           </div>
         )}
 
-        {/* ── RESERVED STEP ── */}
         {linkStep === "reserved" && (
           <div className="p-6 rounded-3xl border border-yellow-500/30 bg-yellow-500/5 space-y-5">
             <div className="text-center">
               <span className="text-4xl mb-3 block">⚠️</span>
               <h3 className="text-xl font-black mb-2">Whitelisted Name</h3>
               <p className="text-sm opacity-70 leading-relaxed">
-                <strong className="text-salvaGold">{nameInput}</strong> is a
-                reserved name. Enter your email and we will reach out to verify
-                your eligibility.
+                <strong className="text-salvaGold">{nameInput}</strong> is a reserved name. Enter your email and we will reach out to verify your eligibility.
               </p>
             </div>
             <input
@@ -921,135 +856,73 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-yellow-500/30 focus:border-yellow-500 outline-none font-bold text-base text-black dark:text-white"
             />
             <div className="flex gap-3">
-              <button
-                onClick={resetLinkForm}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={handleSendReservedNotification}
-                disabled={reservedSubmitting || !reservedEmail}
-                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
-              >
+              <button onClick={resetLinkForm} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white">Go Back</button>
+              <button onClick={handleSendReservedNotification} disabled={reservedSubmitting || !reservedEmail} className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-bold text-sm hover:brightness-110 disabled:opacity-50">
                 {reservedSubmitting ? "Sending…" : "Send Request"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── CONFIRM STEP — shows fee ── */}
         {linkStep === "confirm" && nameCheckResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-6 rounded-3xl border border-green-500/30 bg-green-500/5 space-y-5"
-          >
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 rounded-3xl border border-green-500/30 bg-green-500/5 space-y-5">
             <div className="text-center">
               <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
                 <span className="text-2xl">✅</span>
               </div>
               <h3 className="text-xl font-black mb-2">Name Available!</h3>
               <div className="p-4 bg-salvaGold/10 border border-salvaGold/30 rounded-2xl">
-                <p className="text-2xl font-black text-salvaGold">
-                  {nameCheckResult.welded}
-                </p>
+                <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
               </div>
             </div>
-
             <div className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl space-y-2">
-              <p className="text-[10px] uppercase opacity-40 font-bold">
-                Links to wallet
-              </p>
-              <p className="font-mono text-xs break-all text-black dark:text-white">
-                {walletInput}
-              </p>
-              <p className="text-[10px] uppercase opacity-40 font-bold mt-2">
-                Via registry
-              </p>
-              <p className="text-xs font-bold text-salvaGold">
-                {selectedRegistry?.name}
-              </p>
+              <p className="text-[10px] uppercase opacity-40 font-bold">Links to wallet</p>
+              <p className="font-mono text-xs break-all text-black dark:text-white">{walletInput}</p>
+              <p className="text-[10px] uppercase opacity-40 font-bold mt-2">Via registry</p>
+              <p className="text-xs font-bold text-salvaGold">{selectedRegistry?.name}</p>
             </div>
-
-            {/* Fee section */}
             {feeLoading ? (
               <div className="flex items-center gap-3 p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/10">
                 <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-                <p className="text-xs text-salvaGold font-bold">
-                  Fetching registration fee…
-                </p>
+                <p className="text-xs text-salvaGold font-bold">Fetching registration fee…</p>
               </div>
             ) : feeActive ? (
               <div className="p-4 rounded-xl bg-salvaGold/10 border border-salvaGold/30 space-y-1">
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] uppercase font-black text-salvaGold tracking-widest">
-                    Registration Fee
-                  </p>
-                  <p className="font-black text-salvaGold text-lg">
-                    {registryFee?.toLocaleString()}{" "}
-                    <span className="text-xs">NGNs</span>
-                  </p>
+                  <p className="text-[10px] uppercase font-black text-salvaGold tracking-widest">Registration Fee</p>
+                  <p className="font-black text-salvaGold text-lg">{registryFee?.toLocaleString()} <span className="text-xs">NGNs</span></p>
                 </div>
-                <p className="text-[10px] opacity-50">
-                  This will be deducted from your NGNs balance on confirmation.
-                </p>
+                <p className="text-[10px] opacity-50">This will be deducted from your NGNs balance on confirmation.</p>
               </div>
             ) : (
               <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
                 <span className="text-green-400 text-sm">✦</span>
-                <p className="text-xs font-black text-green-400">
-                  Free Registration — no fee required
-                </p>
+                <p className="text-xs font-black text-green-400">Free Registration — no fee required</p>
               </div>
             )}
-
             <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-xl">
-              <p className="text-xs text-yellow-400 font-bold">
-                ⚠️ This is permanent — double-check the name and wallet address
-                before proceeding.
-              </p>
+              <p className="text-xs text-yellow-400 font-bold">⚠️ This is permanent — double-check the name and wallet address before proceeding.</p>
             </div>
-
             <div className="flex gap-3">
-              <button
-                onClick={resetLinkForm}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={() => {
-                  setLinkStep("pin");
-                  setPinInput("");
-                }}
-                disabled={feeLoading}
-                className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
-              >
+              <button onClick={resetLinkForm} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white">Go Back</button>
+              <button onClick={() => { setLinkStep("pin"); setPinInput(""); }} disabled={feeLoading} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50">
                 Confirm & Enter PIN
               </button>
             </div>
           </motion.div>
         )}
 
-        {/* ── PIN STEP ── */}
         {linkStep === "pin" && (
           <div className="p-6 rounded-3xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 space-y-5 text-center">
             <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto">
               <span className="text-2xl">🔐</span>
             </div>
-            <h3 className="text-xl font-black text-black dark:text-white">
-              Enter Transaction PIN
-            </h3>
-            <p className="text-sm opacity-60">
-              Verify identity to sign and broadcast on-chain
-            </p>
+            <h3 className="text-xl font-black text-black dark:text-white">Enter Transaction PIN</h3>
+            <p className="text-sm opacity-60">Verify identity to sign and broadcast on-chain</p>
             {feeActive && (
               <div className="flex items-center justify-center gap-2 p-2 rounded-xl bg-salvaGold/10">
                 <span className="text-salvaGold text-sm">₦</span>
-                <p className="text-xs font-bold text-salvaGold">
-                  {registryFee?.toLocaleString()} NGNs will be charged
-                </p>
+                <p className="text-xs font-bold text-salvaGold">{registryFee?.toLocaleString()} NGNs will be charged</p>
               </div>
             )}
             <input
@@ -1064,65 +937,31 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-black dark:text-white"
             />
             <div className="flex gap-3">
-              <button
-                onClick={() => setLinkStep("confirm")}
-                disabled={pinLoading}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleExecuteLink}
-                disabled={pinLoading || pinInput.length !== 4}
-                className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {pinLoading && (
-                  <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                )}
+              <button onClick={() => setLinkStep("confirm")} disabled={pinLoading} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white">Back</button>
+              <button onClick={handleExecuteLink} disabled={pinLoading || pinInput.length !== 4} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2">
+                {pinLoading && <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
                 {pinLoading ? "Signing…" : "Confirm"}
               </button>
             </div>
           </div>
         )}
 
-        {/* ── LINKING STEP ── */}
         {linkStep === "linking" && (
           <div className="p-12 rounded-3xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-center space-y-4">
             <div className="w-12 h-12 border-4 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin mx-auto" />
-            <p className="font-black text-lg text-black dark:text-white">
-              Linking on-chain…
-            </p>
-            <p className="text-xs opacity-40">
-              Broadcasting to Base. This may take 30–60 seconds.
-            </p>
+            <p className="font-black text-lg text-black dark:text-white">Linking on-chain…</p>
+            <p className="text-xs opacity-40">Broadcasting to Base. This may take 30–60 seconds.</p>
           </div>
         )}
 
-        {/* ── SUCCESS STEP ── */}
         {linkStep === "success" && (
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="p-8 rounded-3xl border border-green-500/30 bg-green-500/5 text-center space-y-4"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
-              className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto"
-            >
+          <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="p-8 rounded-3xl border border-green-500/30 bg-green-500/5 text-center space-y-4">
+            <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 300, delay: 0.1 }} className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto">
               <span className="text-3xl">🎉</span>
             </motion.div>
-            <h3 className="text-2xl font-black text-black dark:text-white">
-              Name Linked!
-            </h3>
-            <p className="text-sm opacity-60">
-              Your alias is now live on Base.
-            </p>
-            <button
-              onClick={resetLinkForm}
-              className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all"
-            >
+            <h3 className="text-2xl font-black text-black dark:text-white">Name Linked!</h3>
+            <p className="text-sm opacity-60">Your alias is now live on Base.</p>
+            <button onClick={resetLinkForm} className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all">
               Link Another Name
             </button>
           </motion.div>
@@ -1133,49 +972,16 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       <AnimatePresence>
         {showUnlinkConfirm && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => setShowUnlinkConfirm(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
+            <motion.div onClick={() => setShowUnlinkConfirm(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
               <div className="text-center">
                 <span className="text-4xl mb-4 block">⚠️</span>
-                <h3 className="text-xl font-black mb-2 text-black dark:text-white">
-                  Unlink Name?
-                </h3>
-                <p className="text-salvaGold font-black mb-2">
-                  {unlinkTarget.name}
-                </p>
-                <p className="text-sm opacity-60 mb-6">
-                  This removes the link on-chain. Someone else could claim this
-                  name after.
-                </p>
+                <h3 className="text-xl font-black mb-2 text-black dark:text-white">Unlink Name?</h3>
+                <p className="text-salvaGold font-black mb-2">{unlinkTarget.name}</p>
+                <p className="text-sm opacity-60 mb-6">This removes the link on-chain. Someone else could claim this name after.</p>
                 <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowUnlinkConfirm(false)}
-                    className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUnlinkConfirm(false);
-                      setUnlinkPinStep(true);
-                      setUnlinkPinInput("");
-                    }}
-                    className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110"
-                  >
-                    Yes, Unlink
-                  </button>
+                  <button onClick={() => setShowUnlinkConfirm(false)} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white">Cancel</button>
+                  <button onClick={() => { setShowUnlinkConfirm(false); setUnlinkPinStep(true); setUnlinkPinInput(""); }} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110">Yes, Unlink</button>
                 </div>
               </div>
             </motion.div>
@@ -1187,64 +993,27 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       <AnimatePresence>
         {unlinkPinStep && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => {
-                setUnlinkPinStep(false);
-                setUnlinkPinInput("");
-              }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl text-center"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
+            <motion.div onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl text-center" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
               <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-2xl">🔐</span>
               </div>
-              <h3 className="text-xl font-black mb-1 text-black dark:text-white">
-                Enter PIN to Unlink
-              </h3>
-              <p className="text-sm opacity-60 mb-5">
-                Confirm you are unlinking{" "}
-                <strong className="text-red-400">{unlinkTarget.name}</strong>
-              </p>
+              <h3 className="text-xl font-black mb-1 text-black dark:text-white">Enter PIN to Unlink</h3>
+              <p className="text-sm opacity-60 mb-5">Confirm you are unlinking <strong className="text-red-400">{unlinkTarget.name}</strong></p>
               <input
                 type="password"
                 inputMode="numeric"
                 maxLength="4"
                 value={unlinkPinInput}
-                onChange={(e) =>
-                  setUnlinkPinInput(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ""))}
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-black dark:text-white"
               />
               <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setUnlinkPinStep(false);
-                    setUnlinkPinInput("");
-                  }}
-                  disabled={unlinkLoading}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExecuteUnlink}
-                  disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {unlinkLoading && (
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  )}
+                <button onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} disabled={unlinkLoading} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white">Cancel</button>
+                <button onClick={handleExecuteUnlink} disabled={unlinkLoading || unlinkPinInput.length !== 4} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {unlinkLoading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                   {unlinkLoading ? "Unlinking…" : "Unlink"}
                 </button>
               </div>
@@ -1268,29 +1037,20 @@ const SellerMintPanel = ({ user, showMsg }) => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`);
       const data = await res.json();
       setRequests(data.requests || []);
-    } catch {
-      /* ignore */
-    } finally {
+    } catch { /* ignore */ } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchRequests();
-  }, []);
+  useEffect(() => { fetchRequests(); }, []);
 
-  // Poll when viewing a request
   useEffect(() => {
     if (!selected) return;
     const iv = setInterval(async () => {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`);
       const data = await res.json();
       const updated = (data.requests || []).find((r) => r._id === selected._id);
       if (updated) setSelected(updated);
@@ -1306,26 +1066,12 @@ const SellerMintPanel = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-message`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId: selected._id,
-          safeAddress: user.safeAddress,
-          text: replyText.trim(),
-          sender: "seller",
-        }),
+        body: JSON.stringify({ requestId: selected._id, safeAddress: user.safeAddress, text: replyText.trim(), sender: "seller" }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setSelected((prev) => ({
-          ...prev,
-          messages: [...(prev.messages || []), data.message],
-        }));
-        setReplyText("");
-      } else showMsg(data.message || "Failed", "error");
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setSending(false);
-    }
+      if (res.ok) { setSelected((prev) => ({ ...prev, messages: [...(prev.messages || []), data.message] })); setReplyText(""); }
+      else showMsg(data.message || "Failed", "error");
+    } catch { showMsg("Network error", "error"); } finally { setSending(false); }
   };
 
   const handleMinted = async () => {
@@ -1335,22 +1081,12 @@ const SellerMintPanel = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/mark-minted`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId: selected._id,
-          safeAddress: user.safeAddress,
-        }),
+        body: JSON.stringify({ requestId: selected._id, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg("Marked as minted!");
-        fetchRequests();
-        setSelected(null);
-      } else showMsg(data.message || "Failed", "error");
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setActioning(false);
-    }
+      if (res.ok) { showMsg("Marked as minted!"); fetchRequests(); setSelected(null); }
+      else showMsg(data.message || "Failed", "error");
+    } catch { showMsg("Network error", "error"); } finally { setActioning(false); }
   };
 
   const handleReject = async () => {
@@ -1360,146 +1096,60 @@ const SellerMintPanel = ({ user, showMsg }) => {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestId: selected._id,
-          safeAddress: user.safeAddress,
-        }),
+        body: JSON.stringify({ requestId: selected._id, safeAddress: user.safeAddress }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg("Request rejected");
-        fetchRequests();
-        setSelected(null);
-      } else showMsg(data.message || "Failed", "error");
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setActioning(false);
-    }
+      if (res.ok) { showMsg("Request rejected"); fetchRequests(); setSelected(null); }
+      else showMsg(data.message || "Failed", "error");
+    } catch { showMsg("Network error", "error"); } finally { setActioning(false); }
   };
 
   const statusColor = (s) =>
-    ({
-      pending: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
-      paid: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-      minted: "text-green-400 bg-green-500/10 border-green-500/20",
-      rejected: "text-red-400 bg-red-500/10 border-red-500/20",
-    })[s] || "text-gray-400";
+    ({ pending: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20", paid: "text-blue-400 bg-blue-500/10 border-blue-500/20", minted: "text-green-400 bg-green-500/10 border-green-500/20", rejected: "text-red-400 bg-red-500/10 border-red-500/20" })[s] || "text-gray-400";
 
   if (selected)
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="space-y-4"
-      >
-        <button
-          onClick={() => setSelected(null)}
-          className="text-xs opacity-50 hover:opacity-100 font-bold"
-        >
-          ← All Requests
-        </button>
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+        <button onClick={() => setSelected(null)} className="text-xs opacity-50 hover:opacity-100 font-bold">← All Requests</button>
         <div className="flex items-center justify-between">
           <div>
             <p className="font-black text-lg">{selected.username}</p>
             <p className="text-xs opacity-40 font-mono">{selected.userEmail}</p>
           </div>
-          <span
-            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor(selected.status)}`}
-          >
-            {selected.status}
-          </span>
+          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor(selected.status)}`}>{selected.status}</span>
         </div>
         <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/20 flex justify-between">
-          <div>
-            <p className="text-[10px] opacity-40">Requested</p>
-            <p className="font-black">
-              {(selected.amountNgn || 0).toLocaleString()} NGN
-            </p>
-          </div>
-          <div>
-            <p className="text-[10px] opacity-40">Fee</p>
-            <p className="font-black text-red-400">{selected.feeNgn} NGNs</p>
-          </div>
-          <div>
-            <p className="text-[10px] opacity-40">To Mint</p>
-            <p className="font-black text-salvaGold">
-              {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
-            </p>
-          </div>
+          <div><p className="text-[10px] opacity-40">Requested</p><p className="font-black">{(selected.amountNgn || 0).toLocaleString()} NGN</p></div>
+          <div><p className="text-[10px] opacity-40">Fee</p><p className="font-black text-red-400">{selected.feeNgn} NGNs</p></div>
+          <div><p className="text-[10px] opacity-40">To Mint</p><p className="font-black text-salvaGold">{(selected.mintAmountNgn || 0).toLocaleString()} NGNs</p></div>
         </div>
-        {/* Receipt */}
         {selected.receiptImageBase64 && (
           <div className="p-3 rounded-2xl border border-gray-200 dark:border-white/10">
-            <p className="text-[10px] uppercase font-black opacity-40 mb-2">
-              Payment Receipt
-            </p>
-            <img
-              src={selected.receiptImageBase64}
-              alt="Receipt"
-              className="max-h-48 rounded-xl object-contain"
-            />
+            <p className="text-[10px] uppercase font-black opacity-40 mb-2">Payment Receipt</p>
+            <img src={selected.receiptImageBase64} alt="Receipt" className="max-h-48 rounded-xl object-contain" />
           </div>
         )}
-        {/* Chat */}
         <div className="rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden">
           <div className="h-64 overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-white/5">
             {(selected.messages || []).map((msg, i) => (
-              <div
-                key={i}
-                className={`flex ${msg.sender === "seller" ? "justify-start" : "justify-end"}`}
-              >
-                <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === "seller" ? "bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10" : "bg-salvaGold text-black"}`}
-                >
+              <div key={i} className={`flex ${msg.sender === "seller" ? "justify-start" : "justify-end"}`}>
+                <div className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === "seller" ? "bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10" : "bg-salvaGold text-black"}`}>
                   {msg.text}
-                  {msg.imageUrl && (
-                    <img
-                      src={msg.imageUrl}
-                      alt=""
-                      className="mt-1 max-h-24 rounded-lg"
-                    />
-                  )}
+                  {msg.imageUrl && <img src={msg.imageUrl} alt="" className="mt-1 max-h-24 rounded-lg" />}
                 </div>
               </div>
             ))}
           </div>
           <div className="border-t border-gray-200 dark:border-white/10 p-2 flex gap-2">
-            <input
-              type="text"
-              placeholder="Reply to user…"
-              value={replyText}
-              onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendSellerMessage()}
-              className="flex-1 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-black dark:text-white"
-            />
-            <button
-              onClick={sendSellerMessage}
-              disabled={sending || !replyText.trim()}
-              className="px-3 py-2 bg-salvaGold text-black font-black rounded-xl text-xs disabled:opacity-50"
-            >
-              Send
-            </button>
+            <input type="text" placeholder="Reply to user…" value={replyText} onChange={(e) => setReplyText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendSellerMessage()} className="flex-1 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-black dark:text-white" />
+            <button onClick={sendSellerMessage} disabled={sending || !replyText.trim()} className="px-3 py-2 bg-salvaGold text-black font-black rounded-xl text-xs disabled:opacity-50">Send</button>
           </div>
         </div>
-        {/* Actions */}
         {selected.status === "paid" && (
           <div className="flex gap-3">
-            <button
-              onClick={handleReject}
-              disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-sm hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
-            >
-              Reject
-            </button>
-            <button
-              onClick={handleMinted}
-              disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {actioning && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
+            <button onClick={handleReject} disabled={actioning} className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-sm hover:bg-red-500 hover:text-white transition-all disabled:opacity-50">Reject</button>
+            <button onClick={handleMinted} disabled={actioning} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2">
+              {actioning && <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
               ✅ Mark as Minted
             </button>
           </div>
@@ -1508,58 +1158,27 @@ const SellerMintPanel = ({ user, showMsg }) => {
     );
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40">
-          Mint Requests
-        </p>
-        <button
-          onClick={fetchRequests}
-          disabled={loading}
-          className="text-[10px] uppercase font-black text-salvaGold hover:opacity-70 flex items-center gap-1"
-        >
-          {loading && (
-            <span className="w-3 h-3 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-          )}
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40">Mint Requests</p>
+        <button onClick={fetchRequests} disabled={loading} className="text-[10px] uppercase font-black text-salvaGold hover:opacity-70 flex items-center gap-1">
+          {loading && <span className="w-3 h-3 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />}
           Refresh
         </button>
       </div>
       {loading ? (
-        <div className="flex justify-center py-8">
-          <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-        </div>
+        <div className="flex justify-center py-8"><div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" /></div>
       ) : requests.length === 0 ? (
-        <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center">
-          <p className="text-sm opacity-40 font-bold">No requests yet.</p>
-        </div>
+        <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center"><p className="text-sm opacity-40 font-bold">No requests yet.</p></div>
       ) : (
         <div className="space-y-3">
           {requests.map((r) => (
-            <button
-              key={r._id}
-              onClick={() => setSelected(r)}
-              className="w-full p-4 rounded-2xl border border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
-            >
+            <button key={r._id} onClick={() => setSelected(r)} className="w-full p-4 rounded-2xl border border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left">
               <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-black text-sm truncate">{r.username}</p>
-                  <p className="text-xs opacity-40 font-mono truncate">
-                    {r.userEmail}
-                  </p>
-                </div>
+                <div className="min-w-0"><p className="font-black text-sm truncate">{r.username}</p><p className="text-xs opacity-40 font-mono truncate">{r.userEmail}</p></div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-black text-salvaGold text-sm">
-                    {(r.mintAmountNgn || 0).toLocaleString()} NGNs
-                  </p>
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase border mt-1 ${statusColor(r.status)}`}
-                  >
-                    {r.status}
-                  </span>
+                  <p className="font-black text-salvaGold text-sm">{(r.mintAmountNgn || 0).toLocaleString()} NGNs</p>
+                  <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase border mt-1 ${statusColor(r.status)}`}>{r.status}</span>
                 </div>
               </div>
             </button>
@@ -1592,11 +1211,7 @@ const Dashboard = () => {
   const [usdcBalance, setUsdcBalance] = useState("0.00");
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState({
-    show: false,
-    message: "",
-    type: "",
-  });
+  const [notification, setNotification] = useState({ show: false, message: "", type: "" });
   const [showBalance, setShowBalance] = useState(true);
   const [activeTab, setActiveTab] = useState("buy");
   const [registries, setRegistries] = useState([]);
@@ -1608,7 +1223,6 @@ const Dashboard = () => {
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
   const [transactionPin, setTransactionPin] = useState("");
   const [pinAttempts, setPinAttempts] = useState(0);
-  const [noPinWarning, setNoPinWarning] = useState(false);
   const [isAccountLocked, setIsAccountLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState("");
 
@@ -1620,8 +1234,7 @@ const Dashboard = () => {
   const [selectedCoin, setSelectedCoin] = useState("NGN");
 
   const showMsg = useCallback(
-    (msg, type = "success") =>
-      setNotification({ show: true, message: msg, type }),
+    (msg, type = "success") => setNotification({ show: true, message: msg, type }),
     [],
   );
   const closeNotif = useCallback(
@@ -1635,23 +1248,29 @@ const Dashboard = () => {
 
   const refreshUserStatus = useCallback(async (email, currentUser) => {
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`);
       if (!res.ok) return;
       const data = await res.json();
-      const updated = {
-        ...currentUser,
-        isValidator: data.isValidator,
-        nameAlias: data.nameAlias,
-        isSeller: data.isSeller,
-      };
+      const updated = { ...currentUser, isValidator: data.isValidator, nameAlias: data.nameAlias, isSeller: data.isSeller };
       localStorage.setItem("salva_user", JSON.stringify(updated));
       setUser(updated);
-    } catch {
-      /* silently ignore */
-    }
+    } catch { /* silently ignore */ }
   }, []);
+
+  // Check account lock status only (PIN warning removed — users must set PIN before reaching dashboard)
+  const checkAccountLockStatus = useCallback(async () => {
+    if (!user?.email) return;
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.isLocked) {
+        setIsAccountLocked(true);
+        const h = Math.ceil((new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60));
+        setLockMessage(`Account locked for ${h} more hour${h !== 1 ? "s" : ""}`);
+      }
+    } catch { /* ignore */ }
+  }, [user?.email]);
 
   useEffect(() => {
     if (!user?.safeAddress) return;
@@ -1660,12 +1279,12 @@ const Dashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.safeAddress, refreshUserStatus]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!user?.email) return;
-    checkAccountStatus();
+    checkAccountLockStatus();
     fetchMeta();
-  }, [user?.email]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.email, checkAccountLockStatus]);
 
   useEffect(() => {
     if (!user?.safeAddress) return;
@@ -1676,10 +1295,8 @@ const Dashboard = () => {
   useEffect(() => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
-      if (selectedCoin === "NGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(balance));
-      else if (selectedCoin === "USDT")
-        setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance));
+      if (selectedCoin === "NGN") setAmountError(!isNaN(amt) && amt > parseFloat(balance));
+      else if (selectedCoin === "USDT") setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance));
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance));
     } else {
       setAmountError(false);
@@ -1695,9 +1312,7 @@ const Dashboard = () => {
       setBalance(parseFloat(data.balance || 0).toFixed(2));
       setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
       setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
-    } catch {
-      /* keep existing */
-    }
+    } catch { /* keep existing */ }
   };
 
   const fetchMeta = async () => {
@@ -1715,37 +1330,13 @@ const Dashboard = () => {
     } catch {}
   };
 
-  const checkAccountStatus = async () => {
-    if (!user?.email) return;
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`,
-      );
-      const data = await res.json();
-      if (!data.hasPin) setNoPinWarning(true);
-      if (data.isLocked) {
-        setIsAccountLocked(true);
-        const h = Math.ceil(
-          (new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60),
-        );
-        setLockMessage(
-          `Account locked for ${h} more hour${h !== 1 ? "s" : ""}`,
-        );
-      }
-    } catch {}
-  };
-
   const computeFeePreview = (amount, coin) => {
     const amt = parseFloat(amount);
-    if (isNaN(amt) || !amount) {
-      setFeePreview({ feeNGN: 0, feeUsd: 0 });
-      return;
-    }
+    if (isNaN(amt) || !amount) { setFeePreview({ feeNGN: 0, feeUsd: 0 }); return; }
     if (coin === "NGN" && feeConfig) {
       let fee = 0;
       if (amt >= feeConfig.tier2Min) fee = feeConfig.tier2Fee;
-      else if (amt >= feeConfig.tier1Min && amt <= feeConfig.tier1Max)
-        fee = feeConfig.tier1Fee;
+      else if (amt >= feeConfig.tier1Min && amt <= feeConfig.tier1Max) fee = feeConfig.tier1Fee;
       setFeePreview({ feeNGN: fee, feeUsd: 0 });
     } else if (coin === "USDT" || coin === "USDC") {
       setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
@@ -1757,13 +1348,11 @@ const Dashboard = () => {
     const type = detectInputType(val);
     setInputType(type);
     if (type === "address") setSelectedRegistry(null);
-    else if (type === "name" && registries.length === 1)
-      setSelectedRegistry(registries[0]);
+    else if (type === "name" && registries.length === 1) setSelectedRegistry(registries[0]);
   };
 
   const handleTransferClick = () => {
     if (isAccountLocked) return showMsg(lockMessage, "error");
-    if (noPinWarning) return showMsg("Set your transaction PIN first", "error");
     setIsSendOpen(true);
   };
 
@@ -1778,11 +1367,9 @@ const Dashboard = () => {
   };
 
   const resolveAndConfirm = async () => {
-    if (!recipientInput || !transferAmount)
-      return showMsg("Fill all fields", "error");
+    if (!recipientInput || !transferAmount) return showMsg("Fill all fields", "error");
     const type = detectInputType(recipientInput);
-    if (type === "name" && !selectedRegistry)
-      return showMsg("Select a wallet service", "error");
+    if (type === "name" && !selectedRegistry) return showMsg("Select a wallet service", "error");
     setLoading(true);
     try {
       let resolvedAddress = null;
@@ -1793,37 +1380,23 @@ const Dashboard = () => {
         const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            input: recipientInput.trim(),
-            registryAddress: selectedRegistry.registryAddress,
-          }),
+          body: JSON.stringify({ input: recipientInput.trim(), registryAddress: selectedRegistry.registryAddress }),
         });
         const data = await res.json();
-        if (!res.ok || !data.resolvedAddress) {
-          showMsg(data.message || "Recipient not found", "error");
-          return;
-        }
+        if (!res.ok || !data.resolvedAddress) { showMsg(data.message || "Recipient not found", "error"); return; }
         resolvedAddress = data.resolvedAddress.toLowerCase();
         displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
       }
       setConfirmationData({
-        resolvedAddress,
-        displayIdentifier,
-        amount: transferAmount,
+        resolvedAddress, displayIdentifier, amount: transferAmount,
         registryAddress: selectedRegistry?.registryAddress || null,
         walletName: selectedRegistry?.name || null,
-        inputType: type,
-        rawInput: recipientInput.trim(),
-        feeNGN: feePreview.feeNGN,
-        feeUsd: feePreview.feeUsd,
-        coin: selectedCoin,
+        inputType: type, rawInput: recipientInput.trim(),
+        feeNGN: feePreview.feeNGN, feeUsd: feePreview.feeUsd, coin: selectedCoin,
       });
       setIsConfirmModalOpen(true);
-    } catch {
-      showMsg("Failed to resolve recipient", "error");
-    } finally {
-      setLoading(false);
-    }
+    } catch { showMsg("Failed to resolve recipient", "error"); }
+    finally { setLoading(false); }
   };
 
   const executeTransfer = async (privateKey, capturedData) => {
@@ -1837,13 +1410,10 @@ const Dashboard = () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userPrivateKey: privateKey,
-          safeAddress: user.safeAddress,
-          toInput: capturedData.rawInput,
-          amount: capturedData.amount,
+          userPrivateKey: privateKey, safeAddress: user.safeAddress,
+          toInput: capturedData.rawInput, amount: capturedData.amount,
           registryAddress: capturedData.registryAddress || null,
-          inputType: capturedData.inputType,
-          coin: capturedData.coin,
+          inputType: capturedData.inputType, coin: capturedData.coin,
           senderDisplayIdentifier: capturedData.displayIdentifier,
         }),
       });
@@ -1852,14 +1422,11 @@ const Dashboard = () => {
         showMsg("✅ Transfer Successful!");
         setTimeout(() => fetchBalance(user.safeAddress), 3500);
       } else showMsg(data.message || "Transfer failed", "error");
-    } catch {
-      showMsg("Network error — transfer may not have gone through", "error");
-    }
+    } catch { showMsg("Network error — transfer may not have gone through", "error"); }
   };
 
   const verifyPinAndProceed = async () => {
-    if (transactionPin.length !== 4)
-      return showMsg("PIN must be 4 digits", "error");
+    if (transactionPin.length !== 4) return showMsg("PIN must be 4 digits", "error");
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
@@ -1878,32 +1445,21 @@ const Dashboard = () => {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
         if (newAttempts >= 3) {
-          showMsg(
-            "Too many failed attempts — redirecting to settings",
-            "error",
-          );
+          showMsg("Too many failed attempts — redirecting to settings", "error");
           setLoading(false);
           setTimeout(() => navigate("/account-settings"), 2000);
         } else {
-          showMsg(
-            `Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} remaining`,
-            "error",
-          );
+          showMsg(`Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} remaining`, "error");
           setLoading(false);
         }
       }
-    } catch {
-      showMsg("Network error", "error");
-      setLoading(false);
-    }
+    } catch { showMsg("Network error", "error"); setLoading(false); }
   };
 
   if (!user)
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-        <div className="text-salvaGold font-black text-2xl animate-pulse">
-          LOADING...
-        </div>
+        <div className="text-salvaGold font-black text-2xl animate-pulse">LOADING...</div>
       </div>
     );
 
@@ -1915,12 +1471,7 @@ const Dashboard = () => {
   ];
 
   const showRegistryDropdown = inputType === "name";
-  const currentCoinBalance =
-    selectedCoin === "NGN"
-      ? balance
-      : selectedCoin === "USDT"
-        ? usdtBalance
-        : usdcBalance;
+  const currentCoinBalance = selectedCoin === "NGN" ? balance : selectedCoin === "USDT" ? usdtBalance : usdcBalance;
   const coinSymbol = selectedCoin === "NGN" ? "NGNs" : selectedCoin;
 
   return (
@@ -1939,43 +1490,32 @@ const Dashboard = () => {
         </header>
 
         <BalanceCard
-          balance={balance}
-          usdtBalance={usdtBalance}
-          usdcBalance={usdcBalance}
-          showBalance={showBalance}
-          onToggleVisibility={() => setShowBalance(!showBalance)}
+          balance={balance} usdtBalance={usdtBalance} usdcBalance={usdcBalance}
+          showBalance={showBalance} onToggleVisibility={() => setShowBalance(!showBalance)}
           onSend={handleTransferClick}
-          onReceive={() => {
-            navigator.clipboard.writeText(user.safeAddress);
-            showMsg("Wallet address copied!");
-          }}
+          onReceive={() => { navigator.clipboard.writeText(user.safeAddress); showMsg("Wallet address copied!"); }}
         />
 
         <div
-          onClick={() => {
-            navigator.clipboard.writeText(user.safeAddress);
-            showMsg("Wallet address copied!");
-          }}
+          onClick={() => { navigator.clipboard.writeText(user.safeAddress); showMsg("Wallet address copied!"); }}
           className="mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-salvaGold/30 transition-all"
         >
-          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">
-            Smart Wallet Address (Base)
-          </p>
+          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">Smart Wallet Address (Base)</p>
           <p className="font-mono text-[10px] sm:text-xs text-salvaGold font-medium break-all truncate">
-            {showBalance
-              ? user.safeAddress
-              : "0x••••••••••••••••••••••••••••••••••••••••"}
+            {showBalance ? user.safeAddress : "0x••••••••••••••••••••••••••••••••••••••••"}
           </p>
         </div>
 
-        <Link
-          to="/transactions"
-          className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
-        >
-          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">
-            View Transaction History →
-          </p>
+        <Link to="/transactions" className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center">
+          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">View Transaction History →</p>
         </Link>
+
+        {/* Account locked banner */}
+        {isAccountLocked && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl">
+            <p className="text-sm font-bold text-red-400">🔒 {lockMessage} — Transactions are disabled.</p>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-white/10 mb-8 gap-8 overflow-x-auto no-scrollbar">
@@ -1985,9 +1525,7 @@ const Dashboard = () => {
               data-tab={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-b-2 border-salvaGold text-salvaGold"
-                  : "opacity-40 hover:opacity-100"
+                activeTab === tab.id ? "border-b-2 border-salvaGold text-salvaGold" : "opacity-40 hover:opacity-100"
               }`}
             >
               {tab.label}
@@ -1995,258 +1533,91 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Buy NGNs */}
-        {/* Buy NGNs */}
         {activeTab === "buy" && (
-          <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center min-h-[300px] text-center py-16"
-          >
-            <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{
-                repeat: Infinity,
-                duration: 2.5,
-                ease: "easeInOut",
-              }}
-              className="w-20 h-20 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-salvaGold/20"
-            >
+          <motion.section initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center min-h-[300px] text-center py-16">
+            <motion.div animate={{ y: [0, -8, 0] }} transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }} className="w-20 h-20 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-salvaGold/20">
               <span className="text-3xl font-black text-salvaGold">₦</span>
             </motion.div>
             <h3 className="text-2xl font-black mb-3">Buy NGNs</h3>
-            <p className="opacity-50 text-sm mb-4 max-w-xs leading-relaxed">
-              Purchase Nigerian Naira stablecoin directly into your Salva wallet
-              via our OTC desk.
-            </p>
+            <p className="opacity-50 text-sm mb-4 max-w-xs leading-relaxed">Purchase Nigerian Naira stablecoin directly into your Salva wallet via our OTC desk.</p>
             <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-salvaGold/10 border border-salvaGold/20">
               <span className="text-salvaGold text-lg">₦</span>
-              <p className="text-xs font-black text-salvaGold uppercase tracking-widest">
-                Tap the ₦ button · bottom right
-              </p>
+              <p className="text-xs font-black text-salvaGold uppercase tracking-widest">Tap the ₦ button · bottom right</p>
             </div>
           </motion.section>
         )}
 
-        {/* Link a Name */}
         {activeTab === "names" && (
-          <LinkNameTab
-            user={user}
-            registries={registries}
-            showMsg={showMsg}
-            onSwitchToBuy={() => setActiveTab("buy")}
-          />
+          <LinkNameTab user={user} registries={registries} showMsg={showMsg} onSwitchToBuy={() => setActiveTab("buy")} />
         )}
 
-        {/* Admin Panel */}
-        {activeTab === "admin" && user.isValidator && (
-          <AdminPanel user={user} showMsg={showMsg} />
-        )}
-
-        {/* Mint Requests (Seller) */}
-        {activeTab === "seller" && user.isSeller && (
-          <SellerMintPanel user={user} showMsg={showMsg} />
-        )}
+        {activeTab === "admin" && user.isValidator && <AdminPanel user={user} showMsg={showMsg} />}
+        {activeTab === "seller" && user.isSeller && <SellerMintPanel user={user} showMsg={showMsg} />}
       </div>
-
-      {/* No PIN Warning */}
-      <AnimatePresence>
-        {noPinWarning && (
-          <motion.div
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            className="fixed right-0 top-1/2 -translate-y-1/2 z-50 bg-red-500 text-white p-6 rounded-l-3xl shadow-2xl max-w-sm"
-          >
-            <h4 className="font-black text-lg mb-2">
-              🔐 Transaction PIN Required
-            </h4>
-            <p className="text-sm mb-4">
-              Set a transaction PIN before sending.
-            </p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => navigate("/account-settings")}
-                className="flex-1 bg-white text-red-500 py-2 rounded-xl font-bold text-sm"
-              >
-                Go to Settings
-              </button>
-              <button
-                onClick={() => setNoPinWarning(false)}
-                className="px-4 bg-red-600 py-2 rounded-xl font-bold text-sm"
-              >
-                ✕
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Send Modal */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
-            <motion.div
-              onClick={() => !loading && setIsSendOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
+            <motion.div onClick={() => !loading && setIsSendOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
             <motion.div
               className="relative bg-white dark:bg-zinc-900 p-6 sm:p-12 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
+              initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1 text-black dark:text-white">
-                Send
-              </h3>
-              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-6">
-                Salva Secure Transfer
-              </p>
+              <h3 className="text-2xl sm:text-3xl font-black mb-1 text-black dark:text-white">Send</h3>
+              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-6">Salva Secure Transfer</p>
               <div className="mb-5">
-                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
-                  Select Token
-                </label>
+                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Select Token</label>
                 <div className="flex gap-2">
                   {["NGN", "USDT", "USDC"].map((coin) => (
-                    <button
-                      key={coin}
-                      onClick={() => {
-                        setSelectedCoin(coin);
-                        setTransferAmount("");
-                        setTransferAmountDisplay("");
-                        setFeePreview({ feeNGN: 0, feeUsd: 0 });
-                      }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 opacity-50 hover:opacity-80"}`}
-                    >
+                    <button key={coin} onClick={() => { setSelectedCoin(coin); setTransferAmount(""); setTransferAmountDisplay(""); setFeePreview({ feeNGN: 0, feeUsd: 0 }); }}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 opacity-50 hover:opacity-80"}`}>
                       {coin === "NGN" ? "NGNs" : coin}
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] opacity-30 mt-1.5">
-                  Balance:{" "}
-                  {showBalance ? formatNumber(currentCoinBalance) : "••••"}{" "}
-                  {coinSymbol}
-                </p>
+                <p className="text-[10px] opacity-30 mt-1.5">Balance: {showBalance ? formatNumber(currentCoinBalance) : "••••"} {coinSymbol}</p>
               </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  resolveAndConfirm();
-                }}
-                className="space-y-5"
-              >
+              <form onSubmit={(e) => { e.preventDefault(); resolveAndConfirm(); }} className="space-y-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase opacity-40 font-bold block">
-                    Recipient
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Name alias or 0x address"
-                    value={recipientInput}
-                    onChange={(e) => handleRecipientChange(e.target.value)}
-                    className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm text-black dark:text-white"
-                  />
+                  <label className="text-[10px] uppercase opacity-40 font-bold block">Recipient</label>
+                  <input required type="text" placeholder="Name alias or 0x address" value={recipientInput} onChange={(e) => handleRecipientChange(e.target.value)}
+                    className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm text-black dark:text-white" />
                   {inputType !== "empty" && (
-                    <p className="text-[10px] opacity-40 font-bold ml-1">
-                      {inputType === "address"
-                        ? "✓ Wallet address — sending directly"
-                        : "Name alias — select a wallet below"}
-                    </p>
+                    <p className="text-[10px] opacity-40 font-bold ml-1">{inputType === "address" ? "✓ Wallet address — sending directly" : "Name alias — select a wallet below"}</p>
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
-                        Select Wallet Service
-                      </label>
-                      <RegistryDropdown
-                        registries={registries}
-                        value={selectedRegistry}
-                        onChange={setSelectedRegistry}
-                        placeholder="Search wallet service…"
-                      />
+                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Select Wallet Service</label>
+                      <RegistryDropdown registries={registries} value={selectedRegistry} onChange={setSelectedRegistry} placeholder="Search wallet service…" />
                     </div>
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
-                    Amount ({coinSymbol})
-                  </label>
+                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">Amount ({coinSymbol})</label>
                   <div className="relative">
-                    <input
-                      required
-                      type="text"
-                      inputMode="decimal"
-                      value={transferAmountDisplay}
-                      onChange={(e) => {
-                        const fmt = formatAmountInput(e.target.value);
-                        setTransferAmountDisplay(fmt);
-                        const raw = fmt.replace(/,/g, "");
-                        setTransferAmount(raw);
-                        computeFeePreview(raw, selectedCoin);
-                      }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all text-black dark:text-white ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
-                    />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
-                      {coinSymbol}
-                    </span>
+                    <input required type="text" inputMode="decimal" value={transferAmountDisplay}
+                      onChange={(e) => { const fmt = formatAmountInput(e.target.value); setTransferAmountDisplay(fmt); const raw = fmt.replace(/,/g, ""); setTransferAmount(raw); computeFeePreview(raw, selectedCoin); }}
+                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all text-black dark:text-white ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`} />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">{coinSymbol}</span>
                   </div>
-                  {amountError && (
-                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">
-                      ⚠️ Insufficient balance
-                    </p>
+                  {amountError && <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">⚠️ Insufficient balance</p>}
+                  {selectedCoin === "NGN" && feePreview.feeNGN > 0 && transferAmount && !amountError && (
+                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                      <div className="flex justify-between"><span className="opacity-50 uppercase font-bold">Network Fee</span><span className="text-red-400 font-black">-{formatNumber(feePreview.feeNGN)} NGNs</span></div>
+                    </div>
                   )}
-                  {selectedCoin === "NGN" &&
-                    feePreview.feeNGN > 0 &&
-                    transferAmount &&
-                    !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="opacity-50 uppercase font-bold">
-                            Network Fee
-                          </span>
-                          <span className="text-red-400 font-black">
-                            -{formatNumber(feePreview.feeNGN)} NGNs
-                          </span>
-                        </div>
-                      </div>
-                    )}
-                  {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
-                    transferAmount &&
-                    !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
-                        <div className="flex justify-between">
-                          <span className="opacity-50 uppercase font-bold">
-                            Network Fee
-                          </span>
-                          <span
-                            className={
-                              feePreview.feeUsd > 0
-                                ? "text-red-400 font-black"
-                                : "text-green-400 font-black"
-                            }
-                          >
-                            {feePreview.feeUsd > 0
-                              ? `-${feePreview.feeUsd} ${selectedCoin}`
-                              : "Free"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
+                  {(selectedCoin === "USDT" || selectedCoin === "USDC") && transferAmount && !amountError && (
+                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                      <div className="flex justify-between"><span className="opacity-50 uppercase font-bold">Network Fee</span><span className={feePreview.feeUsd > 0 ? "text-red-400 font-black" : "text-green-400 font-black"}>{feePreview.feeUsd > 0 ? `-${feePreview.feeUsd} ${selectedCoin}` : "Free"}</span></div>
+                    </div>
+                  )}
                 </div>
-                <button
-                  disabled={loading || amountError || !recipientInput}
-                  type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${loading || amountError || !recipientInput ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
-                >
-                  {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  )}
+                <button disabled={loading || amountError || !recipientInput} type="submit"
+                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${loading || amountError || !recipientInput ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}>
+                  {loading && <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
                   {loading ? "PROCESSING…" : "REVIEW & SEND"}
                 </button>
               </form>
@@ -2259,91 +1630,35 @@ const Dashboard = () => {
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => setIsConfirmModalOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-lg border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
+            <motion.div onClick={() => setIsConfirmModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-lg border border-gray-200 dark:border-white/10 shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">⚠️</span>
-                </div>
-                <h3 className="text-xl font-black mb-1 text-black dark:text-white">
-                  Verify Recipient
-                </h3>
-                <p className="text-sm opacity-60">
-                  Double-check before sending. Blockchain transactions are
-                  irreversible.
-                </p>
+                <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4"><span className="text-3xl">⚠️</span></div>
+                <h3 className="text-xl font-black mb-1 text-black dark:text-white">Verify Recipient</h3>
+                <p className="text-sm opacity-60">Double-check before sending. Blockchain transactions are irreversible.</p>
               </div>
               <div className="space-y-3 mb-6">
                 <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
                   <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-sm sm:text-base text-salvaGold break-all leading-snug">
-                    {confirmationData.displayIdentifier}
-                  </p>
-                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
-                    {confirmationData.resolvedAddress}
-                  </p>
-                  {confirmationData.walletName && (
-                    <p className="text-[10px] opacity-50 mt-1 font-bold">
-                      via {confirmationData.walletName}
-                    </p>
-                  )}
-                  <p className="text-[10px] text-yellow-400 font-bold mt-2">
-                    ⚠️ Make sure this is the correct recipient
-                  </p>
+                  <p className="font-black text-sm sm:text-base text-salvaGold break-all leading-snug">{confirmationData.displayIdentifier}</p>
+                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">{confirmationData.resolvedAddress}</p>
+                  {confirmationData.walletName && <p className="text-[10px] opacity-50 mt-1 font-bold">via {confirmationData.walletName}</p>}
+                  <p className="text-[10px] text-yellow-400 font-bold mt-2">⚠️ Make sure this is the correct recipient</p>
                 </div>
                 <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
                   <p className="text-[10px] opacity-60 mb-1">You Send</p>
-                  <p className="font-black text-xl text-black dark:text-white">
-                    {formatNumber(confirmationData.amount)}{" "}
-                    <span className="text-salvaGold">
-                      {confirmationData.coin === "NGN"
-                        ? "NGNs"
-                        : confirmationData.coin}
-                    </span>
-                  </p>
+                  <p className="font-black text-xl text-black dark:text-white">{formatNumber(confirmationData.amount)} <span className="text-salvaGold">{confirmationData.coin === "NGN" ? "NGNs" : confirmationData.coin}</span></p>
                 </div>
-                {(confirmationData.feeNGN > 0 ||
-                  confirmationData.feeUsd > 0) && (
+                {(confirmationData.feeNGN > 0 || confirmationData.feeUsd > 0) && (
                   <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
-                    <p className="font-black text-base text-red-400">
-                      {confirmationData.feeNGN > 0
-                        ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
-                        : `-${confirmationData.feeUsd} ${confirmationData.coin}`}
-                    </p>
+                    <p className="font-black text-base text-red-400">{confirmationData.feeNGN > 0 ? `-${formatNumber(confirmationData.feeNGN)} NGNs` : `-${confirmationData.feeUsd} ${confirmationData.coin}`}</p>
                   </div>
                 )}
               </div>
               <div className="flex gap-3">
-                <button
-                  onClick={() => setIsConfirmModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white"
-                >
-                  Go Back
-                </button>
-                <button
-                  onClick={() => {
-                    setIsConfirmModalOpen(false);
-                    setIsPinModalOpen(true);
-                    setTransactionPin("");
-                    setPinAttempts(0);
-                  }}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
-                >
-                  Confirm & Sign
-                </button>
+                <button onClick={() => setIsConfirmModalOpen(false)} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white">Go Back</button>
+                <button onClick={() => { setIsConfirmModalOpen(false); setIsPinModalOpen(true); setTransactionPin(""); setPinAttempts(0); }} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all">Confirm & Sign</button>
               </div>
             </motion.div>
           </div>
@@ -2354,64 +1669,20 @@ const Dashboard = () => {
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => !loading && setIsPinModalOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
+            <motion.div onClick={() => !loading && setIsPinModalOpen(false)} className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">🔐</span>
-                </div>
-                <h3 className="text-2xl font-black mb-2 text-black dark:text-white">
-                  Enter Transaction PIN
-                </h3>
+                <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4"><span className="text-3xl">🔐</span></div>
+                <h3 className="text-2xl font-black mb-2 text-black dark:text-white">Enter Transaction PIN</h3>
                 <p className="text-sm opacity-60">Verify identity to proceed</p>
               </div>
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="\d{4}"
-                maxLength="4"
-                value={transactionPin}
-                onChange={(e) =>
-                  setTransactionPin(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="••••"
-                autoFocus
-                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-black dark:text-white"
-              />
-              {pinAttempts > 0 && (
-                <p className="text-xs text-red-500 text-center mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
-                  remaining
-                </p>
-              )}
+              <input type="password" inputMode="numeric" pattern="\d{4}" maxLength="4" value={transactionPin} onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ""))} placeholder="••••" autoFocus
+                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-black dark:text-white" />
+              {pinAttempts > 0 && <p className="text-xs text-red-500 text-center mb-4 font-bold">⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""} remaining</p>}
               <div className="flex gap-3">
-                <button
-                  onClick={() => setIsPinModalOpen(false)}
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={verifyPinAndProceed}
-                  disabled={loading || transactionPin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  )}
+                <button onClick={() => setIsPinModalOpen(false)} disabled={loading} className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white">Cancel</button>
+                <button onClick={verifyPinAndProceed} disabled={loading || transactionPin.length !== 4} className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {loading && <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
                   {loading ? "VERIFYING..." : "VERIFY"}
                 </button>
               </div>
@@ -2422,15 +1693,13 @@ const Dashboard = () => {
 
       {/* Notification */}
       <AnimatePresence>
-        {notification.show && (
-          <SalvaNotification notification={notification} onClose={closeNotif} />
-        )}
+        {notification.show && <SalvaNotification notification={notification} onClose={closeNotif} />}
       </AnimatePresence>
 
-      {/* ── Floating Buy NGNs Chat (user) — bottom-right ── */}
+      {/* Floating Buy NGNs Chat (user) */}
       {!user.isSeller && <SalvaNGNsChat user={user} />}
 
-      {/* ── Seller Mint Inbox — bottom-left, only for isSeller ── */}
+      {/* Seller Mint Inbox */}
       {user.isSeller && <SalvaSellerChat user={user} />}
     </div>
   );
