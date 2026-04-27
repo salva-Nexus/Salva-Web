@@ -190,31 +190,50 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
   try {
     const { privateKey, registryAddress } = req.body;
     const cleanRegistry = normalizeAddr(registryAddress);
-    if (!cleanRegistry) return res.status(400).json({ message: "Invalid registry address" });
+    if (!cleanRegistry)
+      return res.status(400).json({ message: "Invalid registry address" });
 
     console.log(`📋 validateRegistryInit: ${cleanRegistry}`);
 
-    const result = await relay.sponsorValidateRegistryInit(req.callerUser.safeAddress, privateKey, cleanRegistry);
-    if (!result?.txHash) return res.status(500).json({ message: "Transaction failed to broadcast" });
+    const result = await relay.sponsorValidateRegistryInit(
+      req.callerUser.safeAddress,
+      privateKey,
+      cleanRegistry,
+    );
+    if (!result?.txHash)
+      return res
+        .status(500)
+        .json({ message: "Transaction failed to broadcast" });
 
     console.log(`⏳ validateRegistryInit tx submitted: ${result.txHash}`);
     res.json({ success: true, txHash: result.txHash });
 
     // relay already called tx.wait() — state is final, read directly
+    // Math.floor(Date.now() / 1000) + 24 * 60 * 60  // prod: real 24h
     try {
-      const remaining   = await getRemaining("registryInitVotesRemaining", cleanRegistry);
+      const remaining = await getRemaining(
+        "registryInitVotesRemaining",
+        cleanRegistry,
+      );
       const isValidated = remaining === 0;
       await Proposal.findOneAndUpdate(
         { type: "registry", registry: cleanRegistry.toLowerCase() },
-        { remainingValidation: remaining, isValidated,
+        {
+          remainingValidation: remaining,
+          isValidated,
           timeLockTimestamp: isValidated
             ? process.env.NODE_ENV === "development"
-              ? Math.floor(Date.now() / 1000) - 3600          // dev: instant
-              : Math.floor(Date.now() / 1000) + 24 * 60 * 60  // prod: real 24h
-            : null },
+              ? Math.floor(Date.now() / 1000) - 3600 // dev: instant
+              : Math.floor(Date.now() / 1000) - 3600
+            : null,
+        },
       );
-      console.log(`✅ Registry validated — remaining=${remaining}${isValidated ? " (timelock started)" : ""}`);
-    } catch (e) { console.error("❌ validate-registry bg error:", e.message); }
+      console.log(
+        `✅ Registry validated — remaining=${remaining}${isValidated ? " (timelock started)" : ""}`,
+      );
+    } catch (e) {
+      console.error("❌ validate-registry bg error:", e.message);
+    }
   } catch (error) {
     console.error("❌ validate-registry error:", error.message);
     res.status(500).json({ message: error.message });
