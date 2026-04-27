@@ -150,6 +150,19 @@ async function _executeViaSafeBase(
   });
   const signedSafeTx = await protocolKit.signTransaction(safeTransaction);
   const safeContract = new ethers.Contract(cleanSafe, SAFE_ABI, wallet);
+  console.log(
+    "Safe tx data:",
+    JSON.stringify(
+      {
+        to: signedSafeTx.data.to,
+        data: signedSafeTx.data.data,
+        value: signedSafeTx.data.value,
+        signatures: signedSafeTx.encodedSignatures(),
+      },
+      null,
+      2,
+    ),
+  );
   const tx = await safeContract.execTransaction(
     signedSafeTx.data.to,
     BigInt(signedSafeTx.data.value || "0"),
