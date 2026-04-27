@@ -199,7 +199,7 @@ app.use("/api/admin", adminRoutes);
 // ===============================================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "development" ? 100 : 5,
+  max: process.env.NODE_ENV === "development" ? 100 : 100,
   message: "Too many authentication attempts. Please try again in 15 minutes.",
   standardHeaders: true,
   legacyHeaders: false,
