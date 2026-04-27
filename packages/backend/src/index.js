@@ -313,15 +313,22 @@ setInterval(
 
 // Connect to MongoDB
 let isConnected = false;
+let connectionPromise = null;
 
 async function connectDB() {
   if (isConnected) return;
-  await mongoose.connect(process.env.MONGO_URI, {
-    serverSelectionTimeoutMS: 10000,
-    bufferCommands: false,
-  });
-  isConnected = true;
-  console.log("🍃 MongoDB Connected");
+  if (connectionPromise) return connectionPromise;
+  connectionPromise = mongoose
+    .connect(process.env.MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      bufferCommands: true,
+    })
+    .then(() => {
+      isConnected = true;
+      connectionPromise = null;
+      console.log("🍃 MongoDB Connected");
+    });
+  return connectionPromise;
 }
 
 connectDB().catch((err) => console.error("❌ MongoDB Connection Failed:", err));
