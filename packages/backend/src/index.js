@@ -192,7 +192,6 @@ app.use(
   }),
 );
 
-app.use("/api/admin", adminRoutes);
 // Ensure DB is connected before every API call
 app.use(async (req, res, next) => {
   try {
@@ -205,6 +204,8 @@ app.use(async (req, res, next) => {
       .json({ message: "Service temporarily unavailable. Please retry." });
   }
 });
+
+app.use("/api/admin", adminRoutes);
 
 // ===============================================
 // SECURITY: Rate Limiters
