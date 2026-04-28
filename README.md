@@ -32,7 +32,7 @@
 - [Backend](#backend)
   - [Core Routes](#core-routes)
   - [Admin & MultiSig Relay](#admin--multisig-relay)
-  - [Buy/Sell NGNs OTC Desk](#buysell-ngns-otc-desk)
+  - [Buy/Sell NGNs](#buysell-ngns)
   - [Relay Service](#relay-service)
   - [Security](#security)
 - [Frontend](#frontend)
@@ -56,7 +56,7 @@ What this app does:
 - **Resolves name aliases** like `charles@salva` to wallet addresses on-chain via the Salva Singleton
 - **Signs name registration requests** with the backend ECDSA signer before the user's Safe executes them on-chain
 - **Provides a validator admin panel** for on-chain MultiSig governance (registry proposals, validator set, contract upgrades, pause/unpause)
-- **Operates a peer-to-peer OTC desk** via a WhatsApp-style persistent chat thread for users to buy and sell NGNs with verified sellers
+- **Manages NGNs issuance and redemption** through a treasury-operated chat interface — users request to buy or sell NGNs and the Salva treasury handles all minting and burning directly
 
 ---
 
@@ -70,7 +70,7 @@ What this app does:
 │   (landing)         (wallet UI)          (multisig ops)     │
 │                                                             │
 │   SalvaNGNsChat.jsx              SalvaSellerChat.jsx        │
-│   (user OTC widget)              (seller inbox widget)      │
+│   (user request widget)          (treasury mgmt inbox)      │
 └──────────────────────────────┬──────────────────────────────┘
                                │  HTTPS
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -78,7 +78,7 @@ What this app does:
 │                                                             │
 │  /api/*          — auth, balance, transfer, alias, stats    │
 │  /api/admin/*    — multisig relay (validators only)         │
-│  /api/buy-ngns/* — OTC desk (buy / sell NGNs)               │
+│  /api/buy-ngns/* — NGNs issuance & redemption               │
 │                                                             │
 │  relayService.js  — encodes + routes all Safe tx calls      │
 │  walletSigner.js  — backend EOA wallet (gas payer)          │
@@ -108,7 +108,7 @@ packages/
 │   │   ├── index.js               # Express app entry point
 │   │   ├── routes/
 │   │   │   ├── admin.js           # MultiSig governance routes
-│   │   │   └── buyNgns.js         # OTC buy/sell desk routes
+│   │   │   └── buyNgns.js         # NGNs issuance & redemption routes
 │   │   ├── services/
 │   │   │   ├── relayService.js    # Safe transaction relay
 │   │   │   ├── walletSigner.js    # Backend EOA wallet
@@ -136,8 +136,8 @@ packages/
         │   ├── Login.jsx
         │   └── Transactions.jsx
         ├── components/
-        │   ├── SalvaNGNsChat.jsx   # Floating buy/sell NGNs widget
-        │   ├── SalvaSellerChat.jsx # Seller inbox widget
+        │   ├── SalvaNGNsChat.jsx   # User-facing buy/sell request widget
+        │   ├── SalvaSellerChat.jsx # Treasury management inbox
         │   └── Stars.jsx
         └── config.js               # SALVA_API_URL
 ```
@@ -155,7 +155,6 @@ packages/
 | `POST` | `/api/auth/send-otp` | Sends a 6-digit OTP to email via Resend |
 | `POST` | `/api/auth/verify-otp` | Validates OTP with constant-time comparison |
 | `POST` | `/api/auth/reset-password` | Resets password after OTP verification |
-| `POST` | `/api/register` | Creates user + deploys a Safe smart account on Base |
 | `POST` | `/api/login` | Authenticates and returns user session data |
 
 **Wallet & Transfers**
@@ -167,7 +166,6 @@ packages/
 | `GET` | `/api/transactions/:address` | Fetches transaction history |
 | `GET` | `/api/registries` | Lists all active wallet registries for the send dropdown |
 | `GET` | `/api/fee-config` | Returns tier-based fee config for NGNs transfers |
-| `GET` | `/api/registry-fee` | Returns the live name registration fee from RegistryFactory |
 
 **Name Aliases**
 
@@ -221,25 +219,25 @@ proposeX()  →  validateX()  →  executeX()
 
 ---
 
-### Buy/Sell NGNs OTC Desk
+### Buy/Sell NGNs
 
-The OTC desk runs as a WhatsApp-style persistent thread per user, backed by the `MintRequest` MongoDB model. One thread per user is reused across purchases; completed or rejected requests simply append a new session to the existing thread.
+NGNs issuance and redemption are managed exclusively by the **Salva treasury**. There is no peer-to-peer component — a single authorized treasury account handles all minting and burning. The chat interface exists purely as the communication and verification layer between a user's request and the treasury's action.
 
-**Buy flow:**
+**Buy flow — user requests NGNs in exchange for fiat:**
 
-1. User initiates a purchase — backend returns bank transfer details and opens the thread (`/initiate`)
-2. User transfers fiat, then uploads a receipt to the thread (`/claim-paid`) — status moves to `paid`
-3. A verified seller sees the request in their `SalvaSellerChat` inbox, verifies the bank transfer, and calls `/confirm-mint`
-4. The backend wallet calls `ERC20.mint()` directly on the NGNs token contract — NGNs are credited to the user's Safe instantly
+1. User submits a purchase request with the amount they want (`/initiate`) — backend responds with the Salva bank account details and opens a persistent chat thread
+2. User makes the fiat bank transfer, then uploads their payment receipt to the thread (`/claim-paid`) — request status moves to `paid`
+3. The Salva treasury operator reviews the thread in their `SalvaSellerChat` inbox, verifies the bank transfer, and confirms mint (`/confirm-mint`)
+4. The backend wallet calls `ERC20.mint()` on the NGNs token contract — NGNs are credited to the user's Safe on-chain instantly
 
-**Sell flow:**
+**Sell flow — user redeems NGNs for fiat:**
 
-1. User enters sell amount and destination bank details (`/initiate-sell`)
-2. Backend wallet calls `ERC20.burn()` immediately — NGNs are destroyed on-chain before the seller does anything
-3. Seller sees the burned confirmation in their inbox and transfers fiat to the user's bank
-4. Seller marks the request complete (`/complete-sell`)
+1. User submits a sell request with the amount and their bank account details (`/initiate-sell`)
+2. The backend wallet calls `ERC20.burn()` immediately — NGNs are destroyed on-chain before any fiat moves
+3. The Salva treasury operator sees the burn confirmation in their inbox and sends the equivalent fiat to the user's bank account
+4. Treasury marks the request as complete (`/complete-sell`)
 
-Both flows support real-time in-thread text messaging and image sharing between user and seller via polling every 3 seconds.
+Both flows maintain a persistent per-user chat thread (one thread reused across all requests) that supports text messaging and image sharing between the user and the treasury operator. The thread is polled every 3 seconds when open.
 
 ---
 
@@ -278,15 +276,15 @@ For name linking with a non-zero fee, `_sponsorLinkName` builds a MultiSend bund
 
 **`Home.jsx`** — Public landing page with animated live demos for the Salva Naming Service, Smart Wallet, and NGNs stablecoin. Fetches live `userCount` and `totalMinted` stats. Includes an FAQ accordion and a support contact modal that composes a pre-filled email.
 
-**`Dashboard.jsx`** — The authenticated wallet interface. A swipeable balance card shows NGNs and USD balances separately. The send flow handles both address input and name resolution, supports NGNs / USDT / USDC, previews fees before confirmation, and gates execution behind a PIN modal. Tabs switch between Buy/Sell NGNs, Link a Name, Admin Panel (validators only), and Mint Requests (sellers only).
+**`Dashboard.jsx`** — The authenticated wallet interface. A swipeable balance card shows NGNs and USD balances separately. The send flow handles both address input and name resolution, supports NGNs / USDT / USDC, previews fees before confirmation, and gates execution behind a PIN modal. Tabs switch between Buy/Sell NGNs, Link a Name, Admin Panel (validators only), and Mint Requests (treasury only).
 
-**`AdminPanel.jsx`** — Validator-only governance interface. Renders all active proposals from `/api/admin/proposals` with live on-chain vote counts and real-time timelock countdowns. Every destructive action is gated behind a PIN modal that decrypts the validator's private key client-side before the request hits the backend.
+**`AdminPanel.jsx`** — Validator-only governance interface. Renders all active proposals from `/api/admin/proposals` with live on-chain vote counts and real-time timelock countdowns. Every action is gated behind a PIN modal that decrypts the validator's private key before the request hits the backend.
 
 ### Key Components
 
-**`SalvaNGNsChat.jsx`** — Floating bottom-right widget for regular users. Covers the full buy and sell NGNs cycle: amount entry with fee preview, bank detail collection (sell path), real-time chat thread with the seller, receipt upload, burn confirmation, and status tracking. Polls every 3 seconds when a thread is open.
+**`SalvaNGNsChat.jsx`** — Floating bottom-right widget visible to regular users. Handles the full buy and sell NGNs request cycle: amount entry with fee preview, bank detail collection for sell requests, real-time chat thread with the treasury, receipt upload for buy requests, and live status tracking. Polls every 3 seconds when a thread is open.
 
-**`SalvaSellerChat.jsx`** — Floating bottom-left widget for sellers. Lists all user threads sorted by latest activity with unread badges. Inside a thread, sellers see bank details, received receipts, the mint amount, and action buttons to confirm mint, reject, or mark a sell as complete. Polls the backend every 3–4 seconds.
+**`SalvaSellerChat.jsx`** — Floating bottom-left widget visible only to the Salva treasury account (`isSeller: true`). Lists all user request threads sorted by latest activity with unread badges. Inside a thread, the treasury operator can message the user, view uploaded payment receipts, confirm mint (buy requests), mark sell requests as complete, or reject invalid requests. Polls every 3–4 seconds.
 
 **`RegistryDropdown`** — Searchable dropdown used in both the send flow and the link-name flow for selecting which wallet service (namespace/registry) applies to the recipient or the name being registered.
 
@@ -314,46 +312,7 @@ Safe executes the inner call — Safe address is msg.sender
 Protocol contract sees the user's Safe as the caller
 ```
 
-This means from the protocol's perspective, the **user's Safe address is always `msg.sender`**. Name aliases are bound to the Safe. Ownership indexes are tied to the Safe. The backend wallet is invisible to the protocol — it only appears as the gas payer on the outer Safe transaction.
-
----
-
-## Environment Variables
-
-```env
-# Network
-BASE_MAINNET_RPC_URL=
-BASE_SEPOLIA_RPC_URL=
-NODE_ENV=production
-
-# Backend wallets
-BACKEND_PRIVATE_KEY=           # gas payer for all Safe relaying
-MANAGER_PRIVATE_KEY=           # used for NGNs mint and burn calls
-
-# Protocol contracts — MUST be mainnet proxy addresses
-MULTISIG_CONTRACT_ADDRESS=
-SALVA_SINGLETON=
-REGISTRY_FACTORY=
-REGISTRY_CONTRACT_ADDRESS=     # Singleton proxy used as universal name resolver
-
-# Token contracts
-NGN_TOKEN_ADDRESS=
-USDT_CONTRACT_ADDRESS=
-USDC_CONTRACT_ADDRESS=
-
-# OTC desk
-SELLER_ACCOUNT_NAME=
-SELLER_ACCOUNT_NUMBER=
-SELLER_BANK_NAME=
-TREASURY_CONTRACT_ADDRESS=
-
-# Infrastructure
-MONGO_URI=
-RESEND_API_KEY=
-PORT=3001
-```
-
-> ⚠️ All contract addresses must be **mainnet proxy addresses**. Using a testnet Singleton address on mainnet means `initializeRegistry` calls will reach an address with no contract code, causing a silent revert with no error message — a difficult bug to diagnose.
+From the protocol's perspective, the **user's Safe address is always `msg.sender`**. Name aliases are bound to the Safe. Ownership indexes are tied to the Safe. The backend wallet is invisible to the protocol — it only appears as the gas payer on the outer Safe transaction.
 
 ---
 
@@ -381,22 +340,6 @@ npm run dev
 ```
 
 The backend runs on port `3001` by default. Set `SALVA_API_URL=http://localhost:3001` in the frontend config for local development.
-
----
-
-## Deployment
-
-The backend is deployed on [Render](https://render.com) as a Node.js web service. The frontend is a static Vite/React build deployed on Render's static site hosting.
-
-A keep-alive ping fires every 10 minutes to `/api/stats` to prevent the service from spinning down on the Render free tier.
-
-**Deployment checklist:**
-
-- All contract addresses in env point to **Base Mainnet** — not testnet
-- `SALVA_SINGLETON` and `REGISTRY_FACTORY` are proxy addresses, not implementation addresses
-- The DB connection middleware is mounted **before** `/api/admin` in `index.js`
-- `NODE_ENV=production` is set so `BASE_MAINNET_RPC_URL` is selected in the relay service
-- `isProduction = true` in `index.js` so Helmet enables HSTS
 
 ---
 
