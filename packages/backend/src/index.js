@@ -37,6 +37,16 @@ const {
   sendEmailChangeConfirmation,
 } = require("./services/emailService");
 
+const {
+  processTransferRewards,
+  getTransferTier,
+  getOrCreateReferralCode,
+  redeemPoints,
+} = require("./services/rewardService");
+const UserPoints = require("./models/UserPoints");
+const PointLedger = require("./models/PointLedger");
+const { ReferralCode, ReferralUsage } = require("./models/ReferralCode");
+
 const { isReservedName } = require("./models/ReservedNames");
 const {
   isNameAlias,
@@ -289,6 +299,154 @@ function validatePin(pin) {
   return true;
 }
 
+// ══════════════════════════════════════════════════════════════════════════════
+// POINTS & REWARDS ROUTES
+// ══════════════════════════════════════════════════════════════════════════════
+
+// GET user points balance
+app.get("/api/points/:safeAddress", async (req, res) => {
+  try {
+    const addr = req.params.safeAddress.toLowerCase();
+    if (!ethers.isAddress(addr))
+      return res.status(400).json({ message: "Invalid address" });
+
+    const userPts = await UserPoints.findOne({ safeAddress: addr });
+    if (!userPts) {
+      return res.json({
+        totalPoints: 0,
+        lifetimePoints: 0,
+        redeemedPoints: 0,
+        freeTransferUsedToday: 0,
+      });
+    }
+
+    // Check if free transfer window expired (reset counter for display)
+    const now = new Date();
+    const windowExpired =
+      !userPts.freeTransferWindowStart ||
+      now - userPts.freeTransferWindowStart > 24 * 60 * 60 * 1000;
+
+    res.json({
+      totalPoints: userPts.totalPoints,
+      lifetimePoints: userPts.lifetimePoints,
+      redeemedPoints: userPts.redeemedPoints,
+      freeTransferUsedToday: windowExpired ? 0 : userPts.freeTransferUsedToday,
+    });
+  } catch (err) {
+    console.error("❌ GET /api/points error:", err.message);
+    return handleError(err, res, "Failed to fetch points");
+  }
+});
+
+// GET points ledger (audit log) for a user
+app.get("/api/points/ledger/:safeAddress", async (req, res) => {
+  try {
+    const addr = req.params.safeAddress.toLowerCase();
+    if (!ethers.isAddress(addr))
+      return res.status(400).json({ message: "Invalid address" });
+
+    const ledger = await PointLedger.find({ safeAddress: addr })
+      .sort({ createdAt: -1 })
+      .limit(50);
+
+    res.json({ ledger });
+  } catch (err) {
+    return handleError(err, res, "Failed to fetch ledger");
+  }
+});
+
+// GET or create referral code for a user
+app.get("/api/referral/code/:safeAddress", async (req, res) => {
+  try {
+    const addr = req.params.safeAddress.toLowerCase();
+    if (!ethers.isAddress(addr))
+      return res.status(400).json({ message: "Invalid address" });
+
+    const user = await User.findOne({ safeAddress: addr });
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const code = await getOrCreateReferralCode(addr, user.username);
+
+    // Fetch stats
+    const usage = await ReferralUsage.find({ referrerSafeAddress: addr });
+    const qualified = usage.filter((u) => u.bonusPaid).length;
+
+    res.json({
+      code,
+      totalReferrals: usage.length,
+      qualifiedReferrals: qualified,
+      shareUrl: `https://salva-nexus.org/login?ref=${code}`,
+    });
+  } catch (err) {
+    return handleError(err, res, "Failed to get referral code");
+  }
+});
+
+// POST — register a referral when a new user signs up with a code
+// Call this during /api/register (after user is saved) if referredByCode present.
+// This is called automatically inside /api/register below — no separate call needed.
+
+// POST — redeem points
+app.post("/api/points/redeem", async (req, res) => {
+  try {
+    const { safeAddress, pointsToRedeem } = req.body;
+    if (!safeAddress || !ethers.isAddress(safeAddress))
+      return res.status(400).json({ message: "Invalid safeAddress" });
+    if (!pointsToRedeem || isNaN(pointsToRedeem) || pointsToRedeem <= 0)
+      return res.status(400).json({ message: "Invalid points amount" });
+
+    const result = await redeemPoints(safeAddress, parseInt(pointsToRedeem));
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error("❌ POST /api/points/redeem error:", err.message);
+    return res.status(400).json({ message: err.message });
+  }
+});
+
+app.post("/api/points/validate-redemption", async (req, res) => {
+  try {
+    const { safeAddress, pointsToRedeem } = req.body;
+    if (!safeAddress || !ethers.isAddress(safeAddress))
+      return res.status(400).json({ message: "Invalid safeAddress" });
+
+    const points = parseInt(pointsToRedeem);
+    if (isNaN(points) || points <= 0)
+      return res.status(400).json({ message: "Invalid points amount" });
+
+    let config = await FeeConfig.findById("main");
+    if (!config) config = await FeeConfig.create({ _id: "main" });
+
+    const userPts = await UserPoints.findOne({
+      safeAddress: safeAddress.toLowerCase(),
+    });
+    if (!userPts || userPts.totalPoints < config.minRedemptionPoints)
+      return res.status(400).json({
+        message: `You need at least ${config.minRedemptionPoints} points to redeem`,
+        currentPoints: userPts?.totalPoints || 0,
+      });
+
+    if (points > userPts.totalPoints)
+      return res.status(400).json({
+        message: `Insufficient points. You have ${userPts.totalPoints}`,
+        currentPoints: userPts.totalPoints,
+      });
+
+    if (points < config.minRedemptionPoints)
+      return res.status(400).json({
+        message: `Minimum redemption is ${config.minRedemptionPoints} points`,
+      });
+
+    return res.json({
+      valid: true,
+      pointsToRedeem: points,
+      currentPoints: userPts.totalPoints,
+      equivalentNGN: points,
+    });
+  } catch (err) {
+    return handleError(err, res, "Failed to validate redemption");
+  }
+});
+
 // ===============================================
 // SECURITY: Error Handler
 // ===============================================
@@ -464,14 +622,16 @@ async function waitForTxReceipt(txHash, timeoutMs = 120_000) {
   }
 }
 
-async function retryRPCCall(fn, maxRetries = 3, delay = 1000) {
+async function retryRPCCall(fn, maxRetries = 3, baseDelay = 1500) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       return await fn();
     } catch (error) {
       if (i === maxRetries - 1) throw error;
-      console.log(`⚠️ RPC call failed, retrying (${i + 1}/${maxRetries})...`);
-      await new Promise((resolve) => setTimeout(resolve, delay * (i + 1)));
+      // Exponential backoff: 1.5s → 3s → 6s, prevents RPC flood
+      const wait = baseDelay * Math.pow(2, i);
+      console.log(`⚠️ RPC call failed, retrying (${i + 1}/${maxRetries}) in ${wait}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
 }
@@ -546,28 +706,26 @@ async function cleanupStaleQueueEntries() {
   }
 }
 
-// ===============================================
-// HELPER: Get fee for a given amount and coin type
-// NGN: tier-based fee in NGNs (from FeeConfig)
-// USDT/USDC: $0.015 flat for $5+, free below $5
-// Returns feeWei (BigInt) and feeHuman (number)
-// ===============================================
+// ── getFeeForAmount ────────────────────────────────────────────────────────────
+// Returns fee info for a given amount and coin.
+// NGN: uses new 3-tier system from FeeConfig.
+// USDT/USDC: flat $0.015 for >= $5.
 async function getFeeForAmount(amountHuman, coin = "NGN") {
   if (coin === "USDT" || coin === "USDC") {
     const amount = parseFloat(amountHuman);
     if (amount >= 5) {
-      // $0.015 fee — both USDT and USDC use 6 decimals
       const feeWei = ethers.parseUnits("0.015", 6);
       return { feeNGN: 0, feeUsd: 0.015, feeWei };
     }
     return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
   }
 
-  // NGN path
+  // NGN path — uses new tier system
   let config = await FeeConfig.findById("main");
   if (!config) config = await FeeConfig.create({ _id: "main" });
 
   const amount = parseFloat(amountHuman);
+
   if (amount >= config.tier2Min) {
     return {
       feeNGN: config.tier2Fee,
@@ -582,6 +740,7 @@ async function getFeeForAmount(amountHuman, coin = "NGN") {
       feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6),
     };
   }
+  // FREE tier
   return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
 }
 
@@ -789,24 +948,15 @@ app.post(
     try {
       const { username, email, password } = req.body;
 
-      console.log(
-        `📝 Registration attempt: username="${username}" email="${email}"`,
-      );
+      console.log(`📝 Registration attempt: username="${username}" email="${email}"`);
 
-      // ── Check both email AND username before touching blockchain ──────────
       const existingEmail = await User.findOne({ email });
-      if (existingEmail) {
-        console.log(`❌ Email already registered: ${email}`);
+      if (existingEmail)
         return res.status(400).json({ message: "Email already registered" });
-      }
 
       const existingUsername = await User.findOne({ username });
-      if (existingUsername) {
-        console.log(`❌ Username already taken: ${username}`);
+      if (existingUsername)
         return res.status(400).json({ message: "Username already taken" });
-      }
-
-      console.log(`✅ Username and email available — deploying Safe...`);
 
       const rpcUrl =
         process.env.NODE_ENV === "production"
@@ -814,9 +964,7 @@ app.post(
           : process.env.BASE_SEPOLIA_RPC_URL;
 
       console.log(`🔗 Using RPC: ${rpcUrl}`);
-
       const identityData = await generateAndDeploySalvaIdentity(rpcUrl);
-
       console.log(`✅ Safe deployed: ${identityData.safeAddress}`);
 
       const hashedPassword = await bcrypt.hash(password, 10);
@@ -830,6 +978,45 @@ app.post(
 
       await newUser.save();
       console.log(`✅ User saved: ${email}`);
+
+      // ── Auto-generate referral code for new user ──────────────────────────
+      try {
+        await getOrCreateReferralCode(
+          newUser.safeAddress.toLowerCase(),
+          newUser.username,
+        );
+        console.log(`🎟️ Referral code generated for: ${newUser.username}`);
+      } catch (refCodeErr) {
+        console.error("❌ Referral code generation error:", refCodeErr.message);
+      }
+
+      // ── Record if user signed up via someone else's referral code ──────────
+      const refCode = req.body.referredByCode?.trim().toUpperCase();
+      if (refCode) {
+        try {
+          const refDoc = await ReferralCode.findOne({ code: refCode });
+          if (
+            refDoc &&
+            refDoc.ownerSafeAddress !== newUser.safeAddress.toLowerCase()
+          ) {
+            await ReferralUsage.create({
+              referralCode: refCode,
+              referrerSafeAddress: refDoc.ownerSafeAddress,
+              referredSafeAddress: newUser.safeAddress.toLowerCase(),
+              referredUsername: newUser.username,
+            });
+            await ReferralCode.findOneAndUpdate(
+              { code: refCode },
+              { $inc: { totalReferrals: 1 } },
+            );
+            newUser.referredByCode = refCode;
+            await newUser.save();
+            console.log(`🔗 Referral: ${newUser.username} referred by ${refCode}`);
+          }
+        } catch (refErr) {
+          console.error("❌ Referral usage error:", refErr.message);
+        }
+      }
 
       try {
         await sendWelcomeEmail(email, username);
@@ -1584,6 +1771,14 @@ app.get("/api/alias/list/:safeAddress", async (req, res) => {
   }
 });
 
+app.get("/api/seller-info", (req, res) => {
+  res.json({
+    bankName: process.env.SELLER_BANK_NAME || "",
+    accountName: process.env.SELLER_ACCOUNT_NAME || "",
+    accountNumber: process.env.SELLER_ACCOUNT_NUMBER || "",
+  });
+});
+
 // ================================================================
 // ALIAS: GET status (kept for backward compat with existing dashboard code)
 // ================================================================
@@ -1676,7 +1871,7 @@ app.post("/api/transfer", async (req, res) => {
       amount,
       registryAddress,
       inputType,
-      coin = "NGN", // "NGN" | "USDT" | "USDC"
+      coin = "NGN",
     } = req.body;
 
     validateAmount(amount);
@@ -1687,7 +1882,7 @@ app.post("/api/transfer", async (req, res) => {
     let tokenAddress;
     if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
     else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
-    else tokenAddress = process.env.NGN_TOKEN_ADDRESS; // default NGN
+    else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
 
     if (!tokenAddress) {
       return res
@@ -1716,7 +1911,6 @@ app.post("/api/transfer", async (req, res) => {
         finalToInput = weldName(finalToInput, registryDoc.nspace);
         console.log(`🔗 Welded Recipient: ${finalToInput}`);
       }
-      // Resolution always uses REGISTRY_CONTRACT_ADDRESS from env (universal resolver)
       recipientAddress = await resolveToAddress(
         finalToInput,
         envRegistryAddress,
@@ -1737,7 +1931,7 @@ app.post("/api/transfer", async (req, res) => {
       provider,
     );
     const balanceWei = await tokenContract.balanceOf(safeAddress);
-    const decimals = 6; // NGN, USDT, USDC all 6 decimals
+    const decimals = 6;
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
     let actualAmountWei;
@@ -1798,7 +1992,6 @@ app.post("/api/transfer", async (req, res) => {
       queueEntry.updatedAt = new Date();
       await queueEntry.save();
 
-      // sponsorSafeTransfer accepts tokenAddress as 6th param — pass it for USDT/USDC
       const result = await sponsorSafeTransfer(
         safeAddress,
         userPrivateKey,
@@ -1864,6 +2057,7 @@ app.post("/api/transfer", async (req, res) => {
         await queueEntry.save();
         await applyCooldown(safeAddress, 20);
 
+        // ── Email notifications ────────────────────────────────────────────
         if (senderUser?.email) {
           try {
             await sendTransactionEmailToSender(
@@ -1890,6 +2084,31 @@ app.post("/api/transfer", async (req, res) => {
           }
         }
 
+        // ── Rewards (non-blocking — failure never breaks transfer) ─────────
+        let rewardResult = {
+          pointsAwarded: 0,
+          tier: "NONE",
+          rateLimitHit: false,
+          referralBonusPaid: false,
+        };
+        try {
+          rewardResult = await processTransferRewards({
+            fromAddress: safeAddress,
+            toAddress: recipientAddress,
+            amount,
+            coin,
+            txHash: result.txHash,
+            senderUser,
+            recipientUser,
+          });
+          console.log(
+            `⭐ Reward result: ${rewardResult.pointsAwarded} pts (${rewardResult.tier})` +
+              (rewardResult.referralBonusPaid ? " + referral bonus paid" : ""),
+          );
+        } catch (rewardErr) {
+          console.error("❌ Reward processing error:", rewardErr.message);
+        }
+
         return res.json({
           success: true,
           taskId: result.txHash,
@@ -1897,6 +2116,12 @@ app.post("/api/transfer", async (req, res) => {
           feeUsd,
           recipientReceives,
           coin,
+          reward: {
+            pointsAwarded: rewardResult.pointsAwarded,
+            tier: rewardResult.tier,
+            rateLimitHit: rewardResult.rateLimitHit || false,
+            referralBonusPaid: rewardResult.referralBonusPaid || false,
+          },
         });
       } else {
         queueEntry.status = "FAILED";
