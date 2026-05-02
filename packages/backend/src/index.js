@@ -800,7 +800,22 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
       { upsert: true, new: true },
     );
 
-    const data = await resend.emails.send({ /* same as before */ });
+    const data = await resend.emails.send({
+      from: "Salva <no-reply@salva-nexus.org>",
+      to: email,
+      subject: "Verify your Salva Account",
+      html: `
+        <div style="background: #0A0A0B; color: white; padding: 40px; font-family: sans-serif; border-radius: 20px;">
+          <h1 style="color: #D4AF37; margin-bottom: 20px;">SALVA</h1>
+          <p style="font-size: 16px;">Use the verification code below:</p>
+          <div style="background: #1A1A1B; padding: 20px; font-size: 32px; font-weight: bold; letter-spacing: 10px; text-align: center; color: #D4AF37; border: 1px solid #D4AF37; border-radius: 12px; margin: 20px 0;">
+            ${otp}
+          </div>
+          <p style="opacity: 0.5; font-size: 12px;">This code expires in 10 minutes.</p>
+        </div>
+      `,
+    });
+
     console.log("📧 OTP sent:", data.id);
     res.json({ message: "OTP sent successfully" });
   } catch (err) {
@@ -871,7 +886,7 @@ if (!otpRecord || new Date() > otpRecord.expires) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    delete await OtpStore.deleteOne({ email: sanitizedEmail });
+    await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
@@ -2364,7 +2379,7 @@ if (!otpRecord || new Date() > otpRecord.expires) {
     user.pinSetupCompleted = true;
     await user.save();
 
-    delete await OtpStore.deleteOne({ email: sanitizedEmail });
+    await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
@@ -2399,9 +2414,10 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
     const sanitizedOldEmail = sanitizeEmail(oldEmail);
     const sanitizedNewEmail = sanitizeEmail(newEmail);
 
-    if (!otpStore[sanitizedOldEmail] || !otpStore[sanitizedOldEmail].verified) {
-      return res.status(401).json({ message: "Please verify OTP first" });
-    }
+    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
+if (!otpRecord || new Date() > otpRecord.expires) {
+  return res.status(401).json({ message: "Please verify OTP first" });
+}
 
     const user = await User.findOne({ email: sanitizedOldEmail });
     if (!user) {
@@ -2419,7 +2435,8 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
     user.accountLockedUntil = lockoutTime;
     await user.save();
 
-    delete otpStore[sanitizedOldEmail];
+    await OtpStore.deleteOne({ email: sanitizedOldEmail });
+
 
     try {
       const accountNum =
@@ -2483,7 +2500,7 @@ if (!otpRecord || new Date() > otpRecord.expires) {
     user.accountLockedUntil = lockoutTime;
     await user.save();
 
-    delete await OtpStore.deleteOne({ email: sanitizedEmail });
+    await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
