@@ -235,73 +235,75 @@ async function processTransferRewards({
       }
 
       // 3. Mark first transfer done (for referral trigger)
-      const amountNum = parseFloat(amount);
-      let config = await FeeConfig.findById("main").session(session);
-      if (!config)
-        config = { referralQualifyingMin: 10000, referralBonusPoints: 20 };
+// 3. Referral bonus — check if this is the referred user's first qualifying transfer
+const amountNum = parseFloat(amount);
 
-      if (
-        !senderUser._firstTransferDone &&
-        amountNum >= config.referralQualifyingMin
-      ) {
-        // Check if this user was referred
-        const referralUsage = await ReferralUsage.findOne({
-          referredSafeAddress: fromAddress.toLowerCase(),
-          bonusPaid: false,
-        }).session(session);
+// Check if sender's first transfer is already done (on UserPoints, not User)
+const senderPts = await UserPoints.findOne({
+  safeAddress: fromAddress.toLowerCase(),
+}).session(session);
 
-        if (referralUsage) {
-          // Award bonus to referrer
-          const referrerPoints = await UserPoints.findOne({
-            safeAddress: referralUsage.referrerSafeAddress,
-          }).session(session);
+const firstTransferAlreadyDone = senderPts?.firstTransferDone === true;
 
-          // Upsert referrer (they may not have a UserPoints doc yet)
-          const referrerUser = await require("../models/User")
-            .findOne({ safeAddress: referralUsage.referrerSafeAddress })
-            .session(session);
+if (!firstTransferAlreadyDone) {
+  // Determine referral bonus based on transfer amount tiers
+  let referralBonus = 0;
+  if (amountNum >= 10000) referralBonus = 20;
+  else if (amountNum >= 5000) referralBonus = 10;
+  // < 5000 → 0, no referral bonus
 
-          if (referrerUser) {
-            await awardPoints(session, {
-              safeAddress: referralUsage.referrerSafeAddress,
-              username: referrerUser.username,
-              email: referrerUser.email,
-              points: config.referralBonusPoints,
-              reason: "REFERRAL_BONUS",
-              txHash,
-              relatedAddress: fromAddress,
-              amount: amountNum,
-            });
+  if (referralBonus > 0) {
+    // Check if this user was referred and bonus not yet paid
+    const referralUsage = await ReferralUsage.findOne({
+      referredSafeAddress: fromAddress.toLowerCase(),
+      bonusPaid: false,
+    }).session(session);
 
-            // Mark referral bonus as paid
-            await ReferralUsage.findOneAndUpdate(
-              { _id: referralUsage._id },
-              { $set: { bonusPaid: true, bonusPaidAt: new Date() } },
-              { session },
-            );
+    if (referralUsage) {
+      const referrerUser = await require("../models/User")
+        .findOne({ safeAddress: referralUsage.referrerSafeAddress })
+        .session(session);
 
-            // Update referral code stats
-            await ReferralCode.findOneAndUpdate(
-              { ownerSafeAddress: referralUsage.referrerSafeAddress },
-              { $inc: { qualifiedReferrals: 1 } },
-              { session },
-            );
+      if (referrerUser) {
+        await awardPoints(session, {
+          safeAddress: referralUsage.referrerSafeAddress,
+          username: referrerUser.username,
+          email: referrerUser.email,
+          points: referralBonus,
+          reason: "REFERRAL_BONUS",
+          txHash,
+          relatedAddress: fromAddress,
+          amount: amountNum,
+        });
 
-            referralBonusPaid = true;
-            console.log(
-              `🎁 Referral bonus: ${config.referralBonusPoints} pts → ${referrerUser.username}`,
-            );
-          }
-        }
-
-        // Mark user's first qualifying transfer done
-        await UserPoints.findOneAndUpdate(
-          { safeAddress: fromAddress.toLowerCase() },
-          { $set: { firstTransferDone: true } },
+        await ReferralUsage.findOneAndUpdate(
+          { _id: referralUsage._id },
+          { $set: { bonusPaid: true, bonusPaidAt: new Date() } },
           { session },
         );
+
+        await ReferralCode.findOneAndUpdate(
+          { ownerSafeAddress: referralUsage.referrerSafeAddress },
+          { $inc: { qualifiedReferrals: 1 } },
+          { session },
+        );
+
+        referralBonusPaid = true;
+        console.log(
+          `🎁 Referral bonus: ${referralBonus} pts → ${referrerUser.username} (referred user sent ₦${amountNum.toLocaleString()})`,
+        );
       }
-    });
+    }
+  }
+
+  // Mark first transfer done regardless — even if amount was too small,
+  // so we don't keep checking on every future transfer
+  await UserPoints.findOneAndUpdate(
+    { safeAddress: fromAddress.toLowerCase() },
+    { $set: { firstTransferDone: true } },
+    { session },
+  );
+}
 
     console.log(
       `⭐ Points awarded: ${pointsAwarded} (${tier}) to ${senderUser.username} | tx: ${txHash?.slice(0, 12)}`,
