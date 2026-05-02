@@ -992,31 +992,38 @@ app.post(
 
       // ── Record if user signed up via someone else's referral code ──────────
       const refCode = req.body.referredByCode?.trim().toUpperCase();
-      if (refCode) {
-        try {
-          const refDoc = await ReferralCode.findOne({ code: refCode });
-          if (
-            refDoc &&
-            refDoc.ownerSafeAddress !== newUser.safeAddress.toLowerCase()
-          ) {
-            await ReferralUsage.create({
-              referralCode: refCode,
-              referrerSafeAddress: refDoc.ownerSafeAddress,
-              referredSafeAddress: newUser.safeAddress.toLowerCase(),
-              referredUsername: newUser.username,
-            });
-            await ReferralCode.findOneAndUpdate(
-              { code: refCode },
-              { $inc: { totalReferrals: 1 } },
-            );
-            newUser.referredByCode = refCode;
-            await newUser.save();
-            console.log(`🔗 Referral: ${newUser.username} referred by ${refCode}`);
-          }
-        } catch (refErr) {
-          console.error("❌ Referral usage error:", refErr.message);
-        }
+if (refCode) {
+  try {
+    const refDoc = await ReferralCode.findOne({ code: refCode });
+    if (!refDoc) {
+      console.log(`⚠️ Referral code not found: ${refCode}`);
+    } else if (refDoc.ownerSafeAddress === newUser.safeAddress.toLowerCase()) {
+      console.log(`⚠️ User tried to refer themselves: ${refCode}`);
+    } else {
+      // Check not already referred
+      const alreadyReferred = await ReferralUsage.findOne({
+        referredSafeAddress: newUser.safeAddress.toLowerCase(),
+      });
+      if (!alreadyReferred) {
+        await ReferralUsage.create({
+          referralCode: refCode,
+          referrerSafeAddress: refDoc.ownerSafeAddress,
+          referredSafeAddress: newUser.safeAddress.toLowerCase(),
+          referredUsername: newUser.username,
+        });
+        await ReferralCode.findOneAndUpdate(
+          { code: refCode },
+          { $inc: { totalReferrals: 1 } },
+        );
+        newUser.referredByCode = refCode;
+        await newUser.save();
+        console.log(`🔗 Referral recorded: ${newUser.username} referred by ${refCode} (${refDoc.ownerSafeAddress})`);
       }
+    }
+  } catch (refErr) {
+    console.error("❌ Referral usage error:", refErr.message);
+  }
+}
 
       try {
         await sendWelcomeEmail(email, username);

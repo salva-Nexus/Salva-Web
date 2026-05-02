@@ -122,3 +122,5 @@ main().catch(err => {
   console.error("❌ Failed:", err.message);
   process.exit(1);
 });
+
+// node src/scripts/sync_models.js

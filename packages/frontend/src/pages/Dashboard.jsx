@@ -39,6 +39,7 @@ const BalanceSpinner = () => (
   </span>
 );
 
+
 // ── Searchable Registry Dropdown ───────────────────────────────────────────
 const RegistryDropdown = ({
   registries,

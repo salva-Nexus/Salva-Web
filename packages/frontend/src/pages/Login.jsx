@@ -2,7 +2,7 @@
 import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import FloatingCoin from "../components/FloatingCoin";
 import Stars from "../components/Stars";
@@ -21,6 +21,18 @@ const Login = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Read referral code from URL ?ref=CODE ──────────────────────────────────
+  const referredByCode = new URLSearchParams(location.search)
+    .get("ref")
+    ?.trim()
+    .toUpperCase() || null;
+
+  useEffect(() => {
+    // If there's a ref code, switch to register tab automatically
+    if (referredByCode) setIsLogin(false);
+  }, [referredByCode]);
 
   useEffect(() => {
     try {
@@ -29,10 +41,8 @@ const Login = () => {
         const userData = JSON.parse(savedUser);
         if (userData.safeAddress) {
           if (userData.ownerKey) {
-            // ownerKey present → PIN not yet set → go to set-pin
             navigate("/set-transaction-pin", { replace: true });
           } else {
-            // No ownerKey → PIN already set → go to dashboard
             navigate("/dashboard", { replace: true });
           }
           return;
@@ -98,7 +108,6 @@ const Login = () => {
     if (e) e.preventDefault();
     setLoading(true);
 
-    // Step 2 for registration: verify OTP before deploying wallet
     if (!isLogin && regStep === 2) {
       if (!/^\d{6}$/.test(otp)) {
         setLoading(false);
@@ -121,8 +130,6 @@ const Login = () => {
         setLoading(false);
         return showMsg("Verification error", "error");
       }
-
-      // OTP verified — now show deploying state and register
       showMsg("Code verified! Deploying your wallet...");
     }
 
@@ -132,7 +139,12 @@ const Login = () => {
         username: sanitizeInput(formData.username),
         email: sanitizeInput(formData.email),
         password: formData.password,
+        // ── Include referral code on register ───────────────────────────────
+        ...(!isLogin && referredByCode ? { referredByCode } : {}),
       };
+
+      console.log(`📝 ${isLogin ? "Login" : "Register"} — referredByCode: ${referredByCode || "none"}`);
+
       const response = await fetch(`${SALVA_API_URL}${endpoint}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +160,7 @@ const Login = () => {
           email: sanitizeInput(formData.email),
           safeAddress: data.safeAddress,
           accountNumber: data.accountNumber || null,
-          ownerKey: data.ownerPrivateKey, // temporary — deleted after PIN is set
+          ownerKey: data.ownerPrivateKey,
           isValidator: data.isValidator || false,
           nameAlias: data.nameAlias || null,
           numberAlias: data.numberAlias || null,
@@ -156,11 +168,9 @@ const Login = () => {
         localStorage.setItem("salva_user", JSON.stringify(userData));
 
         if (!isLogin) {
-          // NEW USER: Always go to set-pin first
           showMsg("Wallet Deployed! Setting up security...");
           setTimeout(() => navigate("/set-transaction-pin"), 1500);
         } else {
-          // RETURNING USER: Check if PIN is already set
           showMsg("Access Granted!");
           try {
             const pinStatusRes = await fetch(
@@ -168,17 +178,14 @@ const Login = () => {
             );
             const pinStatus = await pinStatusRes.json();
             if (!pinStatus.hasPin) {
-              // No PIN yet — go set it (ownerKey stays in storage for the set-pin page)
               setTimeout(() => navigate("/set-transaction-pin"), 1500);
             } else {
-              // PIN already set — remove plaintext ownerKey (encrypted in DB)
               const cleanUser = { ...userData };
               delete cleanUser.ownerKey;
               localStorage.setItem("salva_user", JSON.stringify(cleanUser));
               setTimeout(() => navigate("/dashboard"), 1500);
             }
           } catch {
-            // If PIN status check fails, assume PIN needs to be set
             setTimeout(() => navigate("/set-transaction-pin"), 1500);
           }
         }
@@ -187,7 +194,6 @@ const Login = () => {
       }
     } catch (err) {
       console.error("Auth error:", err);
-      // If registration fails after OTP (wallet deployment failed), clean up
       if (!isLogin) {
         localStorage.removeItem("salva_user");
         showMsg("Wallet deployment failed. Please try again.", "error");
@@ -246,6 +252,15 @@ const Login = () => {
               ? "Step 1: Account Details"
               : "Step 2: Email Verification"}
           </p>
+        )}
+        {/* Show referral badge if coming from a referral link */}
+        {!isLogin && referredByCode && (
+          <div className="mb-4 px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 flex items-center gap-2">
+            <span className="text-salvaGold text-sm">🎁</span>
+            <p className="text-xs font-black text-salvaGold">
+              Referred by: <span className="tracking-widest">{referredByCode}</span>
+            </p>
+          </div>
         )}
         {isLogin && <div className="mb-8" />}
 
