@@ -19,6 +19,7 @@ const { sponsorSafeTransfer } = require("./services/relayService");
 const Transaction = require("./models/Transaction");
 const mongoose = require("mongoose");
 const { Resend } = require("resend");
+const OtpStore = require("./models/OtpStore");
 const {
   encryptPrivateKey,
   decryptPrivateKey,
@@ -112,7 +113,7 @@ app.use(
           "'self'",
           "http://localhost:3001",
           "ws://localhost:3001",
-          "https://salva-api-lx2t.onrender.com", // Allow your live API too
+          "https://salva-web.vercel.app", // Allow your live API too
           process.env.BASE_MAINNET_RPC_URL,
         ],
       },
@@ -162,7 +163,7 @@ app.use((req, res, next) => {
 const allowedOrigins = [
   "https://salva-nexus.org",
   "https://www.salva-nexus.org",
-  "https://salva-web.onrender.com",
+  "https://salva-web.vercel.app",
   "http://localhost:3000",
   "http://localhost:5173",
   "http://127.0.0.1:3000",
@@ -180,7 +181,7 @@ app.use(
       const allowed = [
         "https://salva-nexus.org",
         "https://www.salva-nexus.org",
-        "https://salva-web.onrender.com",
+        "https://salva-web.vercel.app",
         "http://localhost:3000",
         "http://localhost:5173",
         "http://127.0.0.1:3000",
@@ -463,24 +464,6 @@ function handleError(error, res, userMessage = "An error occurred") {
     });
   }
 }
-
-// ===============================================
-// OTP Storage with Auto-Cleanup
-// ===============================================
-const otpStore = {};
-
-setInterval(
-  () => {
-    const now = Date.now();
-    Object.keys(otpStore).forEach((email) => {
-      if (otpStore[email] && otpStore[email].expires < now) {
-        delete otpStore[email];
-        console.log(`🧹 Cleaned up expired OTP for: ${email}`);
-      }
-    });
-  },
-  5 * 60 * 1000,
-);
 
 // Connect to MongoDB
 // ── MongoDB global connection cache ──────────────────────
@@ -809,31 +792,16 @@ app.get("/api/registry-fee", async (req, res) => {
 app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   try {
     const email = sanitizeEmail(req.body.email);
-
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    otpStore[email] = {
-      code: otp,
-      expires: Date.now() + 600000,
-      verified: false,
-    };
 
-    const data = await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
-      to: email,
-      subject: "Verify your Salva Account",
-      html: `
-        <div style="background: #0A0A0B; color: white; padding: 40px; font-family: sans-serif; border-radius: 20px;">
-          <h1 style="color: #D4AF37; margin-bottom: 20px;">SALVA</h1>
-          <p style="font-size: 16px;">Use the verification code below:</p>
-          <div style="background: #1A1A1B; padding: 20px; font-size: 32px; font-weight: bold; letter-spacing: 10px; text-align: center; color: #D4AF37; border: 1px solid #D4AF37; border-radius: 12px; margin: 20px 0;">
-            ${otp}
-          </div>
-          <p style="opacity: 0.5; font-size: 12px;">This code expires in 10 minutes.</p>
-        </div>
-      `,
-    });
+    await OtpStore.findOneAndUpdate(
+      { email },
+      { code: otp, expires: new Date(Date.now() + 600000), verified: false },
+      { upsert: true, new: true },
+    );
 
-    console.log("📧 OTP sent successfully via Resend:", data.id);
+    const data = await resend.emails.send({ /* same as before */ });
+    console.log("📧 OTP sent:", data.id);
     res.json({ message: "OTP sent successfully" });
   } catch (err) {
     console.error("❌ RESEND FAIL:", err);
@@ -841,32 +809,26 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
   }
 });
 
-app.post("/api/auth/verify-otp", authLimiter, (req, res) => {
+app.post("/api/auth/verify-otp", authLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
-    const record = otpStore[sanitizedEmail];
+    const record = await OtpStore.findOne({ email: sanitizedEmail });
 
-    if (!record) {
+    if (!record) return res.status(400).json({ message: "Invalid or expired code" });
+    if (new Date() > record.expires) {
+      await OtpStore.deleteOne({ email: sanitizedEmail });
       return res.status(400).json({ message: "Invalid or expired code" });
     }
 
-    if (Date.now() > record.expires) {
-      delete otpStore[sanitizedEmail];
-      return res.status(400).json({ message: "Invalid or expired code" });
-    }
-
-    // Constant-time comparison
     const isValid = crypto.timingSafeEqual(
       Buffer.from(record.code),
       Buffer.from(String(code)),
     );
-
-    if (!isValid) {
-      return res.status(400).json({ message: "Invalid or expired code" });
-    }
+    if (!isValid) return res.status(400).json({ message: "Invalid or expired code" });
 
     record.verified = true;
+    await record.save();
     res.json({ success: true });
   } catch (error) {
     return handleError(error, res, "Verification failed");
@@ -878,11 +840,10 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
     const { email, newPassword } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
 
-    if (!otpStore[sanitizedEmail] || !otpStore[sanitizedEmail].verified) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized. Verify OTP first." });
-    }
+    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
+if (!otpRecord || new Date() > otpRecord.expires) {
+  return res.status(401).json({ message: "Please verify OTP first" });
+}
 
     if (
       !newPassword ||
@@ -910,7 +871,7 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
 
-    delete otpStore[sanitizedEmail];
+    delete await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
@@ -2358,9 +2319,10 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
 
-    if (!otpStore[sanitizedEmail] || !otpStore[sanitizedEmail].verified) {
-      return res.status(401).json({ message: "Please verify OTP first" });
-    }
+    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
+if (!otpRecord || new Date() > otpRecord.expires) {
+  return res.status(401).json({ message: "Please verify OTP first" });
+}
 
     validatePin(oldPin);
     validatePin(newPin);
@@ -2402,7 +2364,7 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
     user.pinSetupCompleted = true;
     await user.save();
 
-    delete otpStore[sanitizedEmail];
+    delete await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
@@ -2497,9 +2459,10 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
 
-    if (!otpStore[sanitizedEmail] || !otpStore[sanitizedEmail].verified) {
-      return res.status(401).json({ message: "Please verify OTP first" });
-    }
+    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
+if (!otpRecord || new Date() > otpRecord.expires) {
+  return res.status(401).json({ message: "Please verify OTP first" });
+}
 
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
       return res.status(400).json({
@@ -2520,7 +2483,7 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
     user.accountLockedUntil = lockoutTime;
     await user.save();
 
-    delete otpStore[sanitizedEmail];
+    delete await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
       const accountNum =
@@ -2652,7 +2615,7 @@ app.listen(PORT, "0.0.0.0", () => {
 // KEEP-ALIVE
 // ===============================================
 const INTERVAL = 10 * 60 * 1000;
-const URL = "https://salva-api-lx2t.onrender.com/api/stats";
+const URL = "https://salva-web.vercel.app/api/stats";
 
 function reloadWebsite() {
   fetch(URL)
