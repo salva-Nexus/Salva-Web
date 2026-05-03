@@ -31,9 +31,7 @@ const ERC20_BURN_ABI = [
 ];
 
 function computeFee(amountNgn) {
-  if (amountNgn >= 100000) return 20;
-  if (amountNgn >= 2000) return 10;
-  return 0;
+  return Math.round(amountNgn * 0.005); // 0.5%
 }
 
 function getBackendSigner() {
