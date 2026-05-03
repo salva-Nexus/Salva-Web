@@ -576,7 +576,7 @@ const BalanceCard = ({
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
-                  NGNs Balance
+                  NGNs Balance <span className="opacity-50">· ERC20</span>
                 </p>
                 <span
                   className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
@@ -616,7 +616,7 @@ const BalanceCard = ({
             <div className="flex justify-between items-center mb-4">
               <div className="flex items-center gap-2">
                 <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
-                  USD Balance
+                  USD Balance <span className="opacity-50">· ERC20</span>
                 </p>
                 <span
                   className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
