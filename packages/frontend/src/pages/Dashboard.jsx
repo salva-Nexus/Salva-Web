@@ -2166,6 +2166,9 @@ useEffect(() => {
         ? (usdtBalance ?? "0.00")
         : (usdcBalance ?? "0.00");
   const coinSymbol = selectedCoin === "NGN" ? "NGNs" : selectedCoin;
+  const recipientNameError =
+    inputType === "name" &&
+    (/[A-Z]/.test(recipientInput) || /[01]/.test(recipientInput));
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
@@ -2430,13 +2433,18 @@ useEffect(() => {
                     placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
-                    className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-transparent focus:border-salvaGold transition-all outline-none font-bold text-sm text-black dark:text-white"
+                    className={`w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border transition-all outline-none font-bold text-sm text-black dark:text-white ${recipientNameError ? "border-red-500" : "border-transparent focus:border-salvaGold"}`}
                   />
                   {inputType !== "empty" && (
                     <p className="text-[10px] opacity-40 font-bold ml-1">
                       {inputType === "address"
                         ? "✓ Wallet address — sending directly"
                         : "Name alias — select a wallet below"}
+                    </p>
+                  )}
+                  {recipientNameError && (
+                    <p className="text-[10px] text-red-400 font-bold ml-1 animate-pulse">
+                      ⚠️ Name must be lowercase — no digits 0 or 1 allowed
                     </p>
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
@@ -2556,7 +2564,12 @@ useEffect(() => {
                 </div>
 
                 <button
-                  disabled={loading || amountError || !recipientInput}
+                  disabled={
+                    loading ||
+                    amountError ||
+                    !recipientInput ||
+                    recipientNameError
+                  }
                   type="submit"
                   className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${loading || amountError || !recipientInput ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
                 >

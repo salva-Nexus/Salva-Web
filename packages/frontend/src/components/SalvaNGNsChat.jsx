@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback, memo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SALVA_API_URL } from "../config";
 
-const MIN_REDEMPTION = 45;
+const MIN_REDEMPTION = 1000;
 
 const fmtInput = (raw) => {
   const d = raw.replace(/[^0-9.]/g, "");
