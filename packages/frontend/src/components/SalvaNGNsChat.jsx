@@ -13,9 +13,7 @@ const fmtInput = (raw) => {
 };
 
 function calcFee(amt) {
-  if (amt >= 10000) return 50;
-  if (amt >= 5000) return 25;
-  return 0;
+  return Math.round(amt * 0.005); // 0.5%
 }
 
 function RichText({ text }) {

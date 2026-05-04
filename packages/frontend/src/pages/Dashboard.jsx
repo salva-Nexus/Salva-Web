@@ -1900,7 +1900,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     const data = await res.json();
     setReferralCode(data);
   } catch { /* ignore */ }
-}, []);
+}, []); // 
 
   useEffect(() => {
     if (!user?.safeAddress) return;
