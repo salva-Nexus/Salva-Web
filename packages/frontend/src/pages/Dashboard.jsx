@@ -1863,22 +1863,22 @@ const Dashboard = () => {
     }
   }, [user?.email]);
 
-  const fetchBalance = useCallback(async (address) => {
-    if (!address) return;
-    setBalanceLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setBalance(parseFloat(data.balance || 0).toFixed(2));
-      setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
-      setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
-    } catch {
-      /* keep existing */
-    } finally {
-      setBalanceLoading(false);
-    }
-  }, []);
+const fetchBalance = useCallback(async (address, showSpinner = false) => {
+  if (!address) return;
+  if (showSpinner) setBalanceLoading(true);
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setBalance(parseFloat(data.balance || 0).toFixed(2));
+    setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
+    setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
+  } catch {
+    /* keep existing */
+  } finally {
+    if (showSpinner) setBalanceLoading(false);
+  }
+}, []);
 
   const fetchUserPoints = useCallback(async (address) => {
     if (!address) return;
@@ -1904,7 +1904,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user?.safeAddress) return;
-    fetchBalance(user.safeAddress);
+    fetchBalance(user.safeAddress, true);
     fetchUserPoints(user.safeAddress);
     fetchReferralCode(user.safeAddress);
     refreshUserStatus(user.email, user);
