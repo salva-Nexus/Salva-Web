@@ -152,8 +152,8 @@ router.get("/proposals", async (req, res) => {
       validatorProposals: all.filter((p) => p.type === "validator"),
       upgradeProposals: all.filter((p) => p.type === "upgrade"),
       signerUpdateProposals: all.filter((p) => p.type === "signerUpdate"),
-      baseRegistryImplProposals: all.filter(
-        (p) => p.type === "baseRegistryImplUpdate",
+      implUpdateProposals: all.filter(
+        (p) => p.type === "ImplUpdate",
       ),
       unpauseProposals: all.filter((p) => p.type === "unpause"),
     });
@@ -1069,7 +1069,7 @@ router.post("/cancel-signer-update", requireValidator, async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 router.post(
-  "/propose-base-registry-impl",
+  "/propose-impl-update",
   requireValidator,
   async (req, res) => {
     try {
@@ -1082,21 +1082,21 @@ router.post(
           .json({ message: "factoryProxy and newImplAddress required" });
 
       const existing = await Proposal.findOne({
-        type: "baseRegistryImplUpdate",
+        type: "ImplUpdate",
         newImpl: cleanNewImpl.toLowerCase(),
       });
       if (existing)
         return res
           .status(409)
           .json({
-            message: "BaseRegistry impl update proposal already exists",
+            message: "impl update proposal already exists",
           });
 
       console.log(
-        `📋 proposeBaseRegistryImplUpdate: ${cleanNewImpl} via factory=${cleanProxy}`,
+        `📋 proposeImplUpdate: ${cleanNewImpl} via factory=${cleanProxy}`,
       );
 
-      const result = await relay.sponsorProposeBaseRegistryImplUpdate(
+      const result = await relay.sponsorProposeImplUpdate(
         req.callerUser.safeAddress,
         privateKey,
         cleanProxy,
@@ -1108,7 +1108,7 @@ router.post(
           .json({ message: "Transaction failed to broadcast" });
 
       const proposal = await Proposal.create({
-        type: "baseRegistryImplUpdate",
+        type: "ImplUpdate",
         newImpl: cleanNewImpl.toLowerCase(),
         proxy: cleanProxy.toLowerCase(),
         remainingValidation: null,
@@ -1117,7 +1117,7 @@ router.post(
       });
 
       console.log(
-        `⏳ proposeBaseRegistryImplUpdate tx submitted: ${result.txHash}`,
+        `⏳ proposeImplUpdate tx submitted: ${result.txHash}`,
       );
       res.json({ success: true, txHash: result.txHash, proposal });
 
@@ -1126,7 +1126,7 @@ router.post(
           if (status.success) {
             await new Promise((r) => setTimeout(r, 3000));
             const remaining = await getRemaining(
-              "baseRegistryImplUpdateVotesRemaining",
+              "ImplUpdateVotesRemaining",
               cleanNewImpl,
             );
             await Proposal.updateOne(
@@ -1134,27 +1134,27 @@ router.post(
               { remainingValidation: remaining },
             );
             console.log(
-              `✅ BaseRegistry impl proposal synced — remaining=${remaining}`,
+              `✅ Impl update proposal synced — remaining=${remaining}`,
             );
           } else {
             await Proposal.deleteOne({ _id: proposal._id });
             console.error(
-              "❌ propose-base-registry-impl tx failed — proposal removed",
+              "❌ propose-impl-update tx failed — proposal removed",
             );
           }
         })
         .catch((e) =>
-          console.error("❌ propose-base-registry-impl bg error:", e.message),
+          console.error("❌ propose-impl-updare bg error:", e.message),
         );
     } catch (error) {
-      console.error("❌ propose-base-registry-impl error:", error.message);
+      console.error("❌ propose-impl -update error:", error.message);
       res.status(500).json({ message: error.message });
     }
   },
 );
 
 router.post(
-  "/validate-base-registry-impl",
+  "/validate-impl-update",
   requireValidator,
   async (req, res) => {
     try {
@@ -1163,9 +1163,9 @@ router.post(
       if (!cleanNewImpl)
         return res.status(400).json({ message: "Invalid newImpl address" });
 
-      console.log(`📋 validateBaseRegistryImplUpdate: ${cleanNewImpl}`);
+      console.log(`📋 validateImplUpdate: ${cleanNewImpl}`);
 
-      const result = await relay.sponsorValidateBaseRegistryImplUpdate(
+      const result = await relay.sponsorValidateImplUpdate(
         req.callerUser.safeAddress,
         privateKey,
         cleanNewImpl,
@@ -1176,20 +1176,20 @@ router.post(
           .json({ message: "Transaction failed to broadcast" });
 
       console.log(
-        `⏳ validateBaseRegistryImplUpdate tx submitted: ${result.txHash}`,
+        `⏳ validateImplUpdate tx submitted: ${result.txHash}`,
       );
       res.json({ success: true, txHash: result.txHash });
 
       // relay already called tx.wait() — state is final, read directly
       try {
         const remaining = await getRemaining(
-          "baseRegistryImplUpdateVotesRemaining",
+          "ImplUpdateVotesRemaining",
           cleanNewImpl,
         );
         const isValidated = remaining === 0;
         await Proposal.findOneAndUpdate(
           {
-            type: "baseRegistryImplUpdate",
+            type: "yImplUpdate",
             newImpl: cleanNewImpl.toLowerCase(),
           },
           {
@@ -1203,20 +1203,20 @@ router.post(
           },
         );
         console.log(
-          `✅ BaseRegistry impl validated — remaining=${remaining}${isValidated ? " (timelock started)" : ""}`,
+          `✅ impl update validated — remaining=${remaining}${isValidated ? " (timelock started)" : ""}`,
         );
       } catch (e) {
-        console.error("❌ validate-base-registry-impl bg error:", e.message);
+        console.error("❌ validate-impl-update bg error:", e.message);
       }
     } catch (error) {
-      console.error("❌ validate-base-registry-impl error:", error.message);
+      console.error("❌ validate-impl-update error:", error.message);
       res.status(500).json({ message: error.message });
     }
   },
 );
 
 router.post(
-  "/execute-base-registry-impl",
+  "/execute-impl-update",
   requireValidator,
   async (req, res) => {
     try {
@@ -1225,9 +1225,9 @@ router.post(
       if (!cleanNewImpl)
         return res.status(400).json({ message: "Invalid newImpl address" });
 
-      console.log(`📋 executeBaseRegistryImplUpdate: ${cleanNewImpl}`);
+      console.log(`📋 executeImplUpdate: ${cleanNewImpl}`);
 
-      const result = await relay.sponsorExecuteBaseRegistryImplUpdate(
+      const result = await relay.sponsorExecuteImplUpdate(
         req.callerUser.safeAddress,
         privateKey,
         cleanNewImpl,
@@ -1237,33 +1237,31 @@ router.post(
           .status(500)
           .json({ message: "Transaction failed to broadcast" });
 
-      console.log(
-        `⏳ executeBaseRegistryImplUpdate tx submitted: ${result.txHash}`,
-      );
+      console.log(`⏳ executeImplUpdate tx submitted: ${result.txHash}`);
       res.json({ success: true, txHash: result.txHash });
 
       waitForTx(result.txHash)
         .then(async (status) => {
           if (status.success) {
             await Proposal.deleteOne({
-              type: "baseRegistryImplUpdate",
+              type: "ImplUpdate",
               newImpl: cleanNewImpl.toLowerCase(),
             });
-            console.log(`✅ BaseRegistry impl updated: ${cleanNewImpl}`);
+            console.log(`✅ impl updated: ${cleanNewImpl}`);
           }
         })
         .catch((e) =>
-          console.error("❌ execute-base-registry-impl bg error:", e.message),
+          console.error("❌ execute-impl-update bg error:", e.message),
         );
     } catch (error) {
-      console.error("❌ execute-base-registry-impl error:", error.message);
+      console.error("❌ execute-impl-update error:", error.message);
       res.status(500).json({ message: error.message });
     }
   },
 );
 
 router.post(
-  "/cancel-base-registry-impl",
+  "/cancel-impl-update",
   requireValidator,
   async (req, res) => {
     try {
@@ -1272,9 +1270,9 @@ router.post(
       if (!cleanNewImpl)
         return res.status(400).json({ message: "Invalid newImpl address" });
 
-      console.log(`📋 cancelBaseRegistryImplUpdate: ${cleanNewImpl}`);
+      console.log(`📋 cancelImplUpdate: ${cleanNewImpl}`);
 
-      const result = await relay.sponsorCancelBaseRegistryImplUpdate(
+      const result = await relay.sponsorCancelImplUpdate(
         req.callerUser.safeAddress,
         privateKey,
         cleanNewImpl,
@@ -1284,28 +1282,26 @@ router.post(
           .status(500)
           .json({ message: "Transaction failed to broadcast" });
 
-      console.log(
-        `⏳ cancelBaseRegistryImplUpdate tx submitted: ${result.txHash}`,
-      );
+      console.log(`⏳ cancelImplUpdate tx submitted: ${result.txHash}`);
       res.json({ success: true, txHash: result.txHash });
 
       waitForTx(result.txHash)
         .then(async (status) => {
           if (status.success) {
             await Proposal.deleteOne({
-              type: "baseRegistryImplUpdate",
+              type: "ImplUpdate",
               newImpl: cleanNewImpl.toLowerCase(),
             });
             console.log(
-              `✅ BaseRegistry impl update cancelled: ${cleanNewImpl}`,
+              `✅ impl update cancelled: ${cleanNewImpl}`,
             );
           }
         })
         .catch((e) =>
-          console.error("❌ cancel-base-registry-impl bg error:", e.message),
+          console.error("❌ cancel-impl-update bg error:", e.message),
         );
     } catch (error) {
-      console.error("❌ cancel-base-registry-impl error:", error.message);
+      console.error("❌ cancel-impl-update error:", error.message);
       res.status(500).json({ message: error.message });
     }
   },

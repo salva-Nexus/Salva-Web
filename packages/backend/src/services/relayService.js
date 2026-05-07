@@ -44,10 +44,10 @@ const MULTISIG_IFACE = new ethers.Interface([
   "function cancelSignerUpdate(address newSigner) external returns (bool)",
 
   // ── BaseRegistry Impl Update
-  "function proposeBaseRegistryImplUpdate(address proxy, address newImpl) external returns (address, uint256)",
-  "function validateBaseRegistryImplUpdate(address newImpl) external returns (bool, uint256)",
-  "function executeBaseRegistryImplUpdate(address newImpl) external returns (bool)",
-  "function cancelBaseRegistryImplUpdate(address newImpl) external returns (bool)",
+  "function proposeImplUpdate(address proxy, address newImpl) external returns (address, uint256)",
+  "function validateImplUpdate(address newImpl) external returns (bool, uint256)",
+  "function executeImplUpdate(address newImpl) external returns (bool)",
+  "function cancelImplUpdate(address newImpl) external returns (bool)",
 
   // ── Factory Fee (immediate)
   "function updateFactoryFee(address proxy, uint256 newFee) external returns (bool)",
@@ -377,13 +377,13 @@ module.exports = {
 
   // ── BaseRegistry impl update
   sponsorProposeBaseRegistryImplUpdate: (s, k, proxy, newImpl) =>
-    _callBase(s, k, "proposeBaseRegistryImplUpdate", [proxy, newImpl]),
+    _callBase(s, k, "proposeImplUpdate", [proxy, newImpl]),
   sponsorValidateBaseRegistryImplUpdate: (s, k, newImpl) =>
-    _callBase(s, k, "validateBaseRegistryImplUpdate", [newImpl]),
+    _callBase(s, k, "validateImplUpdate", [newImpl]),
   sponsorExecuteBaseRegistryImplUpdate: (s, k, newImpl) =>
-    _callBase(s, k, "executeBaseRegistryImplUpdate", [newImpl]),
+    _callBase(s, k, "executeImplUpdate", [newImpl]),
   sponsorCancelBaseRegistryImplUpdate: (s, k, newImpl) =>
-    _callBase(s, k, "cancelBaseRegistryImplUpdate", [newImpl]),
+    _callBase(s, k, "cancelImplUpdate", [newImpl]),
 
   // ── Factory fee
   sponsorUpdateFactoryFee: (s, k, proxy, newFee) =>

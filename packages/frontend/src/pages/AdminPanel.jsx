@@ -177,7 +177,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     validatorProposals: [],
     upgradeProposals: [],
     signerUpdateProposals: [],
-    baseRegistryImplProposals: [],
+    implUpdateProposals: [],
     unpauseProposals: [],
   });
   const [loading, setLoading] = useState(false);
@@ -248,8 +248,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
         signerUpdateProposals: Array.isArray(data.signerUpdateProposals)
           ? data.signerUpdateProposals
           : [],
-        baseRegistryImplProposals: Array.isArray(data.baseRegistryImplProposals)
-          ? data.baseRegistryImplProposals
+        implUpdateProposals: Array.isArray(data.implUpdateProposals)
+          ? data.implUpdateProposals
           : [],
         unpauseProposals: Array.isArray(data.unpauseProposals)
           ? data.unpauseProposals
@@ -322,7 +322,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
     proposals.validatorProposals.length +
     proposals.upgradeProposals.length +
     proposals.signerUpdateProposals.length +
-    proposals.baseRegistryImplProposals.length +
+    proposals.implUpdateProposals.length +
     proposals.unpauseProposals.length;
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1296,13 +1296,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
         />
       </div>
 
-      {proposals.baseRegistryImplProposals.length > 0 && (
+      {proposals.implUpdateProposals.length > 0 && (
         <div>
           <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
             Active Impl Update Proposals
           </p>
           <div className="space-y-3">
-            {proposals.baseRegistryImplProposals.map((p, i) => (
+            {proposals.implUpdateProposals.map((p, i) => (
               <ProposalCard key={p._id || i}>
                 <div className="space-y-1">
                   <StatusBadge label="Impl Update" color="gold" />
