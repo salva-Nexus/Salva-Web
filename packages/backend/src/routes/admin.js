@@ -1144,10 +1144,10 @@ router.post(
           }
         })
         .catch((e) =>
-          console.error("❌ propose-impl-updare bg error:", e.message),
+          console.error("❌ propose-impl-update bg error:", e.message),
         );
     } catch (error) {
-      console.error("❌ propose-impl -update error:", error.message);
+      console.error("❌ propose-impl-update error:", error.message);
       res.status(500).json({ message: error.message });
     }
   },
@@ -1189,7 +1189,7 @@ router.post(
         const isValidated = remaining === 0;
         await Proposal.findOneAndUpdate(
           {
-            type: "yImplUpdate",
+            type: "ImplUpdate",
             newImpl: cleanNewImpl.toLowerCase(),
           },
           {
