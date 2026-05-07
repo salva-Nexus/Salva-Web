@@ -1286,10 +1286,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
           disabled={loading || !cancelForms.impl}
           onClick={() =>
             requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-base-registry-impl", {
+              await callAdmin(pk, "cancel-impl-update", {
                 newImplAddress: cancelForms.impl,
               });
-              showMsg("Registry impl proposal cancelled.");
+              showMsg("Impl proposal cancelled.");
               setCancel("impl", "");
             })
           }
@@ -1320,7 +1320,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                       disabled={loading}
                       onClick={() =>
                         requestPin(async (pk) => {
-                          await callAdmin(pk, "validate-base-registry-impl", {
+                          await callAdmin(pk, "validate-impl-update", {
                             newImplAddress: p.newImpl,
                           });
                           showMsg("Vote cast!");
@@ -1339,7 +1339,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                     }
                     onClick={() =>
                       requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-base-registry-impl", {
+                        await callAdmin(pk, "execute-impl-update", {
                           newImplAddress: p.newImpl,
                         });
                         showMsg("Impl updated!");
@@ -1352,7 +1352,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                     disabled={loading}
                     onClick={() =>
                       requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-base-registry-impl", {
+                        await callAdmin(pk, "cancel-impl-update", {
                           newImplAddress: p.newImpl,
                         });
                         showMsg("Cancelled.");
