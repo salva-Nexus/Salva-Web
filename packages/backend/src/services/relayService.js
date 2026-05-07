@@ -376,7 +376,7 @@ module.exports = {
     _callBase(s, k, "cancelSignerUpdate", [newSigner]),
 
   // ── BaseRegistry impl update
-  sponsorProposeBaseRegistryImplUpdate: (s, k, proxy, newImpl) =>
+  sponsorProposeImplUpdate: (s, k, proxy, newImpl) =>
     _callBase(s, k, "proposeImplUpdate", [proxy, newImpl]),
   sponsorValidateBaseRegistryImplUpdate: (s, k, newImpl) =>
     _callBase(s, k, "validateImplUpdate", [newImpl]),
