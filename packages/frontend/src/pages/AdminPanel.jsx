@@ -1251,7 +1251,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
           disabled={loading || !implForm.proxy || !implForm.newImpl}
           onClick={() =>
             requestPin(async (pk) => {
-              await callAdmin(pk, "propose-base-registry-impl", {
+              await callAdmin(pk, "propose-impl-update", {
                 factoryProxy: implForm.proxy,
                 newImplAddress: implForm.newImpl,
               });
