@@ -378,11 +378,11 @@ module.exports = {
   // ── BaseRegistry impl update
   sponsorProposeImplUpdate: (s, k, proxy, newImpl) =>
     _callBase(s, k, "proposeImplUpdate", [proxy, newImpl]),
-  sponsorValidateBaseRegistryImplUpdate: (s, k, newImpl) =>
+  sponsorValidateImplUpdate: (s, k, newImpl) =>
     _callBase(s, k, "validateImplUpdate", [newImpl]),
-  sponsorExecuteBaseRegistryImplUpdate: (s, k, newImpl) =>
+  sponsorExecuteImplUpdate: (s, k, newImpl) =>
     _callBase(s, k, "executeImplUpdate", [newImpl]),
-  sponsorCancelBaseRegistryImplUpdate: (s, k, newImpl) =>
+  sponsorCancelImplUpdate: (s, k, newImpl) =>
     _callBase(s, k, "cancelImplUpdate", [newImpl]),
 
   // ── Factory fee
