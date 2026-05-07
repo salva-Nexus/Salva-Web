@@ -10,7 +10,7 @@ const ProposalSchema = new mongoose.Schema({
       "validator",
       "upgrade",
       "signerUpdate",
-      "baseRegistryImplUpdate",
+      "ImplUpdate",
       "unpause",
     ],
     required: true,

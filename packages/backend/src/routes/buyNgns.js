@@ -585,7 +585,7 @@ router.post("/initiate-sell", async (req, res) => {
     const sellMsg = {
       sender: "user",
       isBurned: true,
-      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Sepolia${redemptionLine}`,
+      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet${redemptionLine}`,
       createdAt: new Date(),
     };
 

@@ -400,7 +400,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
             icon: "🔑",
             color: "purple-400",
           },
-          { id: "impl", label: "Registry Impl", icon: "📦", color: "teal-400" },
+          { id: "impl", label: "Impl Update", icon: "📦", color: "teal-400" },
           { id: "fee", label: "Factory Fee", icon: "💰", color: "green-400" },
           {
             id: "pause",
@@ -1212,7 +1212,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
       <SectionHeader
         icon="📦"
         subtitle="RegistryFactory"
-        title="BaseRegistry Implementation"
+        title="Implementation Update"
       />
       <p className="text-sm opacity-50">
         Updates the logic implementation address used for future BaseRegistry
@@ -1234,7 +1234,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
               mono
             />
           </Field>
-          <Field label="New BaseRegistry Implementation">
+          <Field label="New Implementation Update">
             <Input
               placeholder="0x…"
               value={implForm.newImpl}
@@ -1265,7 +1265,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
       {/* Standalone Cancel */}
       <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
         <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel a Registry Impl Proposal
+          Cancel an Impl Update Proposal
         </p>
         <p className="text-[10px] opacity-50">
           Enter the new implementation address of the proposal to cancel it

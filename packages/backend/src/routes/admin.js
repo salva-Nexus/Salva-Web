@@ -43,7 +43,7 @@ const MULTISIG_READ_ABI = [
   "function validatorUpdateVotesRemaining(address target) view returns (uint256)",
   "function upgradeVotesRemaining(address newImpl) view returns (uint256)",
   "function signerUpdateVotesRemaining(address newSigner) view returns (uint256)",
-  "function baseRegistryImplUpdateVotesRemaining(address newImpl) view returns (uint256)",
+  "function ImplUpdateVotesRemaining(address newImpl) view returns (uint256)",
   "function unpauseVotesRemaining(address proxy) view returns (uint256)",
 ];
 
@@ -129,9 +129,9 @@ router.get("/proposals", async (req, res) => {
             "signerUpdateVotesRemaining",
             p.newImpl,
           );
-        else if (p.type === "baseRegistryImplUpdate" && p.newImpl)
+        else if (p.type === "ImplUpdate" && p.newImpl)
           remaining = await getRemaining(
-            "baseRegistryImplUpdateVotesRemaining",
+            "ImplUpdateVotesRemaining",
             p.newImpl,
           );
         else if (p.type === "unpause" && p.proxy)
