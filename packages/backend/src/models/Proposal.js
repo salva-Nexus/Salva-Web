@@ -2,7 +2,7 @@
 const mongoose = require("mongoose");
 
 const ProposalSchema = new mongoose.Schema({
-  // "registry" | "validator" | "upgrade" | "signerUpdate" | "baseRegistryImplUpdate" | "unpause"
+  // "registry" | "validator" | "upgrade" | "signerUpdate" | "ImplUpdate" | "unpause"
   type: {
     type: String,
     enum: [
@@ -26,8 +26,8 @@ const ProposalSchema = new mongoose.Schema({
   addr: { type: String, lowercase: true, default: null },
   action: { type: Boolean, default: null }, // true = add, false = remove
 
-  // ── Upgrade / signerUpdate / baseRegistryImplUpdate fields ───────────────
-  // newImpl stores: newImpl for upgrade/baseRegistryImplUpdate, newSigner for signerUpdate
+  // ── Upgrade / signerUpdate / ImplUpdate fields ───────────────
+  // newImpl stores: newImpl for upgrade/ImplUpdate, newSigner for signerUpdate
   newImpl: { type: String, lowercase: true, default: null },
   proxy: { type: String, lowercase: true, default: null },
   isMultisig: { type: Boolean, default: false },
