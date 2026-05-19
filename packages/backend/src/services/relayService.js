@@ -1,4 +1,3 @@
-// Salva-Digital-Tech/packages/backend/src/services/relayService.js
 const { ethers } = require("ethers");
 const { wallet, provider } = require("./walletSigner");
 const Safe = require("@safe-global/protocol-kit").default;
@@ -17,7 +16,7 @@ if (!MULTISIG_ADDRESS)
   throw new Error("FATAL: MULTISIG_CONTRACT_ADDRESS env var is not set.");
 console.log(`🔗 RelayService using MULTISIG: ${MULTISIG_ADDRESS}`);
 
-// ─── MultiSig ABI — all functions exposed to the admin panel ─────────────────
+// ─── MultiSig ABI ─────────────────────────────────────────────────────────────
 const MULTISIG_IFACE = new ethers.Interface([
   // ── Registry
   "function proposeInitRegistry(string memory namespace_, address singleton, address factory) external returns (address, bytes31, uint256)",
@@ -73,7 +72,24 @@ const SAFE_ABI = [
   "function getOwners() public view returns (address[])",
 ];
 
-// ─── Core Safe execution helpers ─────────────────────────────────────────────
+// ─── Interface declarations for pool operations ───────────────────────────────
+const ERC20_IFACE = new ethers.Interface([
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+]);
+
+const POOL_IFACE = new ethers.Interface([
+  "function swapExactNGNAmountForToken(address _receiver, address _swapTokenOut, address _ngnToken, uint256 _ngnAmountIn) external returns (bool)",
+  "function swapExactTokenAmountForNGN(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _tokenAmountIn) external returns (bool)",
+  "function swapForExactTokenAmount(address _receiver, address _swapTokenOut, address _ngnTokenIn, uint256 _tokenAmountOut) external returns (bool)",
+  "function swapForExactNGNAmount(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)",
+]);
+
+const FACTORY_IFACE = new ethers.Interface([
+  "function deployPool() external returns (address pool)",
+]);
+
+// ─── Core Safe execution helpers ──────────────────────────────────────────────
 
 async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
   const normalizedSafe = ethers.getAddress(
@@ -132,6 +148,7 @@ async function _executeViaSafeBase(
     process.env.NODE_ENV === "production"
       ? process.env.BASE_MAINNET_RPC_URL
       : process.env.BASE_SEPOLIA_RPC_URL;
+
   const cleanSafe = ethers.getAddress(cleanEnvAddr(safeAddress) || safeAddress);
   const cleanTarget = ethers.getAddress(cleanEnvAddr(target) || target);
   const hexData = typeof data === "string" ? data : ethers.hexlify(data);
@@ -145,17 +162,28 @@ async function _executeViaSafeBase(
     signer: ownerKey,
     safeAddress: cleanSafe,
   });
+
   const safeTransaction = await protocolKit.createTransaction({
     transactions: [{ to: cleanTarget, data: hexData, value: "0", operation }],
   });
+
   const signedSafeTx = await protocolKit.signTransaction(safeTransaction);
   const safeContract = new ethers.Contract(cleanSafe, SAFE_ABI, wallet);
-  console.log("Safe tx data:", JSON.stringify({
-  to: signedSafeTx.data.to,
-  data: signedSafeTx.data.data,
-  value: signedSafeTx.data.value,
-  signatures: signedSafeTx.encodedSignatures()
-}, null, 2));
+
+  console.log(
+    "Safe tx data:",
+    JSON.stringify(
+      {
+        to: signedSafeTx.data.to,
+        data: signedSafeTx.data.data,
+        value: signedSafeTx.data.value,
+        signatures: signedSafeTx.encodedSignatures(),
+      },
+      null,
+      2,
+    ),
+  );
+
   const tx = await safeContract.execTransaction(
     signedSafeTx.data.to,
     BigInt(signedSafeTx.data.value || "0"),
@@ -169,6 +197,7 @@ async function _executeViaSafeBase(
     signedSafeTx.encodedSignatures(),
     { gasLimit: 2_800_000 },
   );
+
   const receipt = await tx.wait();
   console.log(`✅ Safe tx confirmed: ${tx.hash}`);
   return { taskId: tx.hash, txHash: tx.hash, receipt };
@@ -210,7 +239,16 @@ function _encodeMultiSendTx(operation, to, value, data) {
   return buf;
 }
 
-// ─── Transfer ─────────────────────────────────────────────────────────────────
+const MULTISEND_ADDRESS = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
+
+function _buildMultiSendCalldata(encodedTxs) {
+  const payload = ethers.concat(encodedTxs);
+  return new ethers.Interface([
+    "function multiSend(bytes memory transactions) public payable",
+  ]).encodeFunctionData("multiSend", [payload]);
+}
+
+// ─── Transfer (existing — unchanged) ─────────────────────────────────────────
 
 async function _sponsorTransfer(
   execFn,
@@ -225,7 +263,7 @@ async function _sponsorTransfer(
   const TOKEN =
     cleanEnvAddr(tokenAddress) || cleanEnvAddr(process.env.NGN_TOKEN_ADDRESS);
   const TREASURY = cleanEnvAddr(process.env.TREASURY_CONTRACT_ADDRESS);
-  const MULTISEND = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
+
   if (fee > 0n) {
     const tx1 = iface.encodeFunctionData("transfer", [recipient, amount]);
     const tx2 = iface.encodeFunctionData("transfer", [TREASURY, fee]);
@@ -236,8 +274,9 @@ async function _sponsorTransfer(
     const data = new ethers.Interface([
       "function multiSend(bytes)",
     ]).encodeFunctionData("multiSend", [multiSendData]);
-    return execFn(safeAddress, ownerKey, MULTISEND, data, 1);
+    return execFn(safeAddress, ownerKey, MULTISEND_ADDRESS, data, 1);
   }
+
   return execFn(
     safeAddress,
     ownerKey,
@@ -247,11 +286,7 @@ async function _sponsorTransfer(
   );
 }
 
-// ─── Name Link ────────────────────────────────────────────────────────────────
-// v2.1.0: link(bytes _name, address _wallet, bytes signature)
-// No _feeToken param. Fee handled separately via approve before link.
-// If feeWei > 0: multicall approve(NGNs → registry, feeWei) + link
-// If feeWei = 0: direct link call only — no approve needed
+// ─── Name Link (existing — unchanged) ────────────────────────────────────────
 
 async function _sponsorLinkName(
   execFn,
@@ -263,7 +298,6 @@ async function _sponsorLinkName(
   feeWei,
   signature,
 ) {
-  const MULTISEND = "0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526";
   const cleanRegistry = ethers.getAddress(
     cleanEnvAddr(registryAddress) || registryAddress,
   );
@@ -301,22 +335,158 @@ async function _sponsorLinkName(
       `🔗 Name link multicall: Safe=${safeAddress} | Registry=${cleanRegistry} | Wallet=${cleanWallet}`,
     );
 
-    const multiSendPayload = ethers.concat([
+    const multiSendCalldata = _buildMultiSendCalldata([
       _encodeMultiSendTx(0, ngnAddr, 0n, approveCalldata),
       _encodeMultiSendTx(0, cleanRegistry, 0n, linkCalldata),
     ]);
-    const multiSendCalldata = new ethers.Interface([
-      "function multiSend(bytes memory transactions) public payable",
-    ]).encodeFunctionData("multiSend", [multiSendPayload]);
-
-    return execFn(safeAddress, ownerKey, MULTISEND, multiSendCalldata, 1);
+    return execFn(
+      safeAddress,
+      ownerKey,
+      MULTISEND_ADDRESS,
+      multiSendCalldata,
+      1,
+    );
   }
 
-  // fee == 0 — direct link, no approve needed
   console.log(
     `🔗 Name link (free): Safe=${safeAddress} | Registry=${cleanRegistry} | Wallet=${cleanWallet}`,
   );
   return execFn(safeAddress, ownerKey, cleanRegistry, linkCalldata, 0);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// POOL RELAY FUNCTIONS (new)
+// Every function uses _executeViaSafeBase — msg.sender = user's Safe.
+// Backend wallet (wallet) pays gas. User signs the Safe tx with their key.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ── Deploy pool clone via PoolFactory ─────────────────────────────────────────
+// msg.sender of deployPool() = user's Safe → Safe becomes pool DEPLOYER
+async function _sponsorDeployPool(safeAddress, ownerKey, factoryAddress) {
+  const cleanFactory = ethers.getAddress(
+    cleanEnvAddr(factoryAddress) || factoryAddress,
+  );
+  const deployCalldata = FACTORY_IFACE.encodeFunctionData("deployPool", []);
+  console.log(`🏭 DeployPool: Safe=${safeAddress} → Factory=${cleanFactory}`);
+  return _executeViaSafeBase(
+    safeAddress,
+    ownerKey,
+    cleanFactory,
+    deployCalldata,
+    0,
+  );
+}
+
+// ── NGNs payment from user Safe → any address (subscription fee to treasury) ──
+// Simple ERC20.transfer via user's Safe. Backend pays gas.
+async function _sponsorNGNsPayment(
+  safeAddress,
+  ownerKey,
+  toAddress,
+  amountWei,
+) {
+  const ngnAddr = cleanEnvAddr(process.env.NGN_TOKEN_ADDRESS);
+  if (!ngnAddr) throw new Error("NGN_TOKEN_ADDRESS not configured");
+
+  const cleanTo = ethers.getAddress(cleanEnvAddr(toAddress) || toAddress);
+  const calldata = ERC20_IFACE.encodeFunctionData("transfer", [
+    cleanTo,
+    amountWei,
+  ]);
+
+  console.log(
+    `💸 NGNs subscription payment: Safe=${safeAddress} → ${cleanTo} (${ethers.formatUnits(amountWei, 6)} NGNs)`,
+  );
+  return _executeViaSafeBase(safeAddress, ownerKey, ngnAddr, calldata, 0);
+}
+
+// ── Approve pool to spend type(uint256).max of a token (trust flow) ───────────
+// Called once when user chooses to trust a pool.
+// After this, swaps skip the approve step entirely.
+async function _sponsorApproveMax(
+  safeAddress,
+  ownerKey,
+  tokenAddress,
+  poolAddress,
+) {
+  const cleanToken = ethers.getAddress(
+    cleanEnvAddr(tokenAddress) || tokenAddress,
+  );
+  const cleanPool = ethers.getAddress(cleanEnvAddr(poolAddress) || poolAddress);
+  const calldata = ERC20_IFACE.encodeFunctionData("approve", [
+    cleanPool,
+    ethers.MaxUint256,
+  ]);
+
+  console.log(
+    `🔓 ApproveMax (trust): Safe=${safeAddress} Token=${cleanToken} Pool=${cleanPool}`,
+  );
+  return _executeViaSafeBase(safeAddress, ownerKey, cleanToken, calldata, 0);
+}
+
+// ── Approve exact amount + swap in one MultiSend (non-trusted path) ───────────
+// tx1: ERC20.approve(pool, exactAmountWei)
+// tx2: pool.swapXxx(...)
+// Both called as msg.sender = user's Safe via delegatecall MultiSend
+async function _sponsorApproveAndSwap(
+  safeAddress,
+  ownerKey,
+  tokenAddress, // token the user is spending (NGNs or stable)
+  poolAddress,
+  approveAmountWei, // bigint — exact amount to approve (not max)
+  swapCalldata, // already-encoded pool function calldata
+) {
+  const cleanToken = ethers.getAddress(
+    cleanEnvAddr(tokenAddress) || tokenAddress,
+  );
+  const cleanPool = ethers.getAddress(cleanEnvAddr(poolAddress) || poolAddress);
+
+  const approveCalldata = ERC20_IFACE.encodeFunctionData("approve", [
+    cleanPool,
+    approveAmountWei,
+  ]);
+
+  const multiSendCalldata = _buildMultiSendCalldata([
+    _encodeMultiSendTx(0, cleanToken, 0n, approveCalldata),
+    _encodeMultiSendTx(0, cleanPool, 0n, swapCalldata),
+  ]);
+
+  console.log(
+    `🔄 ApproveAndSwap (not trusted): Safe=${safeAddress} Token=${cleanToken} Pool=${cleanPool}`,
+  );
+  return _executeViaSafeBase(
+    safeAddress,
+    ownerKey,
+    MULTISEND_ADDRESS,
+    multiSendCalldata,
+    1,
+  );
+}
+
+// ── Swap only — no approve (trusted path) ────────────────────────────────────
+// User already approved max in a prior tx. Single Safe tx.
+async function _sponsorSwapOnly(
+  safeAddress,
+  ownerKey,
+  poolAddress,
+  swapCalldata,
+) {
+  const cleanPool = ethers.getAddress(cleanEnvAddr(poolAddress) || poolAddress);
+  console.log(`🔄 SwapOnly (trusted): Safe=${safeAddress} Pool=${cleanPool}`);
+  return _executeViaSafeBase(safeAddress, ownerKey, cleanPool, swapCalldata, 0);
+}
+
+// ── Build swap calldata for any of the 4 pool swap functions ─────────────────
+// All 4 functions share the same param order in SalvaPool:
+//   (address receiver, address tokenA, address tokenB, uint256 amount)
+// receiver is always the user's Safe (they receive the output).
+function _buildSwapCalldata(fnName, receiver, tokenA, tokenB, amountBn) {
+  return POOL_IFACE.encodeFunctionData(fnName, [
+    ethers.getAddress(receiver),
+    ethers.getAddress(tokenA),
+    ethers.getAddress(tokenB),
+    amountBn,
+  ]);
 }
 
 // ─── Exports ──────────────────────────────────────────────────────────────────
@@ -325,17 +495,17 @@ module.exports = {
   _executeViaSafeBase,
   _executeViaSafe,
 
-  // ── Transfers
+  // ── Transfers (existing)
   sponsorSafeTransfer: (s, k, r, a, f, t) =>
     _sponsorTransfer(_executeViaSafeBase, s, k, r, a, f, t),
   sponsorSafeTransferBase: (s, k, r, a, f, t) =>
     _sponsorTransfer(_executeViaSafeBase, s, k, r, a, f, t),
 
-  // ── Name link — uses _executeViaSafeBase (same as transfer, proven to work)
+  // ── Name link (existing)
   sponsorLinkNameBase: (s, k, reg, nb, wa, feeWei, sig) =>
     _sponsorLinkName(_executeViaSafeBase, s, k, reg, nb, wa, feeWei, sig),
 
-  // ── Registry
+  // ── Registry (existing)
   sponsorProposeInitRegistry: (s, k, ns, singleton, factory) =>
     _callBase(s, k, "proposeInitRegistry", [ns, singleton, factory]),
   sponsorValidateRegistryInit: (s, k, registry) =>
@@ -345,7 +515,7 @@ module.exports = {
   sponsorCancelRegistryInit: (s, k, registry) =>
     _callBase(s, k, "cancelRegistryInit", [registry]),
 
-  // ── Validator
+  // ── Validator (existing)
   sponsorProposeValidatorUpdate: (s, k, target, action) =>
     _callBase(s, k, "proposeValidatorUpdate", [target, action]),
   sponsorValidateValidatorUpdate: (s, k, target) =>
@@ -355,7 +525,7 @@ module.exports = {
   sponsorCancelValidatorUpdate: (s, k, target) =>
     _callBase(s, k, "cancelValidatorUpdate", [target]),
 
-  // ── Upgrade
+  // ── Upgrade (existing)
   sponsorProposeUpgrade: (s, k, proxy, newImpl, isMultisig) =>
     _callBase(s, k, "proposeUpgrade", [proxy, newImpl, isMultisig]),
   sponsorValidateUpgrade: (s, k, newImpl) =>
@@ -365,7 +535,7 @@ module.exports = {
   sponsorCancelUpgrade: (s, k, newImpl) =>
     _callBase(s, k, "cancelUpgrade", [newImpl]),
 
-  // ── Signer update
+  // ── Signer update (existing)
   sponsorProposeSignerUpdate: (s, k, proxy, newSigner) =>
     _callBase(s, k, "proposeSignerUpdate", [proxy, newSigner]),
   sponsorValidateSignerUpdate: (s, k, newSigner) =>
@@ -375,7 +545,7 @@ module.exports = {
   sponsorCancelSignerUpdate: (s, k, newSigner) =>
     _callBase(s, k, "cancelSignerUpdate", [newSigner]),
 
-  // ── BaseRegistry impl update
+  // ── BaseRegistry impl update (existing)
   sponsorProposeImplUpdate: (s, k, proxy, newImpl) =>
     _callBase(s, k, "proposeImplUpdate", [proxy, newImpl]),
   sponsorValidateImplUpdate: (s, k, newImpl) =>
@@ -385,11 +555,11 @@ module.exports = {
   sponsorCancelImplUpdate: (s, k, newImpl) =>
     _callBase(s, k, "cancelImplUpdate", [newImpl]),
 
-  // ── Factory fee
+  // ── Factory fee (existing)
   sponsorUpdateFactoryFee: (s, k, proxy, newFee) =>
     _callBase(s, k, "updateFactoryFee", [proxy, newFee]),
 
-  // ── Pause / Unpause
+  // ── Pause / Unpause (existing)
   sponsorPauseState: (s, k, proxy, mark) =>
     _callBase(s, k, "pauseState", [proxy, mark]),
   sponsorProposeUnpause: (s, k, proxy, mark) =>
@@ -401,15 +571,15 @@ module.exports = {
   sponsorCancelUnpause: (s, k, proxy) =>
     _callBase(s, k, "cancelUnpause", [proxy]),
 
-  // ── Withdraw
+  // ── Withdraw (existing)
   sponsorWithdrawFromSingleton: (s, k, singleton, token, receiver) =>
     _callBase(s, k, "withdrawFromSingleton", [singleton, token, receiver]),
 
-  // ── Recovery
+  // ── Recovery (existing)
   sponsorUpdateRecovery: (s, k, account, action) =>
     _callBase(s, k, "updateRecovery", [account, action]),
 
-  // ── Legacy aliases
+  // ── Legacy aliases (existing)
   sponsorDeployAndInitRegistryBase: (s, k, ns) =>
     _callBase(s, k, "proposeInitRegistry", [
       ns,
@@ -424,4 +594,43 @@ module.exports = {
     _callBase(s, k, "cancelValidatorUpdate", [t]),
   sponsorExecuteUpdateValidatorBase: (s, k, t) =>
     _callBase(s, k, "executeValidatorUpdate", [t]),
+
+  // ── Pool operations (new) ────────────────────────────────────────────────────
+
+  // Deploy a new SalvaPool clone — msg.sender of deployPool() = user's Safe
+  sponsorDeployPool: (safeAddress, ownerKey, factoryAddress) =>
+    _sponsorDeployPool(safeAddress, ownerKey, factoryAddress),
+
+  // Subscription payment: user Safe transfers NGNs → treasury
+  sponsorNGNsPayment: (safeAddress, ownerKey, toAddress, amountWei) =>
+    _sponsorNGNsPayment(safeAddress, ownerKey, toAddress, amountWei),
+
+  // Trust pool: user Safe calls ERC20.approve(pool, type(uint256).max)
+  sponsorApproveMax: (safeAddress, ownerKey, tokenAddress, poolAddress) =>
+    _sponsorApproveMax(safeAddress, ownerKey, tokenAddress, poolAddress),
+
+  // Untrusted swap: MultiSend approve(exact) + swap in one Safe tx
+  sponsorApproveAndSwap: (
+    safeAddress,
+    ownerKey,
+    tokenAddress,
+    poolAddress,
+    approveAmountWei,
+    swapCalldata,
+  ) =>
+    _sponsorApproveAndSwap(
+      safeAddress,
+      ownerKey,
+      tokenAddress,
+      poolAddress,
+      approveAmountWei,
+      swapCalldata,
+    ),
+
+  // Trusted swap: single Safe tx calling swap directly (approve already done)
+  sponsorSwapOnly: (safeAddress, ownerKey, poolAddress, swapCalldata) =>
+    _sponsorSwapOnly(safeAddress, ownerKey, poolAddress, swapCalldata),
+
+  // Build encoded swap calldata to pass into sponsorApproveAndSwap / sponsorSwapOnly
+  buildSwapCalldata: _buildSwapCalldata,
 };

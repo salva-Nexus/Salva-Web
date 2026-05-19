@@ -38,16 +38,6 @@ const {
   sendEmailChangeConfirmation,
 } = require("./services/emailService");
 
-const {
-  processTransferRewards,
-  getTransferTier,
-  getOrCreateReferralCode,
-  redeemPoints,
-} = require("./services/rewardService");
-const UserPoints = require("./models/UserPoints");
-const PointLedger = require("./models/PointLedger");
-const { ReferralCode, ReferralUsage } = require("./models/ReferralCode");
-
 const { isReservedName } = require("./models/ReservedNames");
 const {
   isNameAlias,
@@ -304,149 +294,6 @@ function validatePin(pin) {
 // POINTS & REWARDS ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
-// GET user points balance
-app.get("/api/points/:safeAddress", async (req, res) => {
-  try {
-    const addr = req.params.safeAddress.toLowerCase();
-    if (!ethers.isAddress(addr))
-      return res.status(400).json({ message: "Invalid address" });
-
-    const userPts = await UserPoints.findOne({ safeAddress: addr });
-    if (!userPts) {
-      return res.json({
-        totalPoints: 0,
-        lifetimePoints: 0,
-        redeemedPoints: 0,
-        freeTransferUsedToday: 0,
-      });
-    }
-
-    // Check if free transfer window expired (reset counter for display)
-    const now = new Date();
-    const windowExpired =
-      !userPts.freeTransferWindowStart ||
-      now - userPts.freeTransferWindowStart > 24 * 60 * 60 * 1000;
-
-    res.json({
-      totalPoints: userPts.totalPoints,
-      lifetimePoints: userPts.lifetimePoints,
-      redeemedPoints: userPts.redeemedPoints,
-      freeTransferUsedToday: windowExpired ? 0 : userPts.freeTransferUsedToday,
-    });
-  } catch (err) {
-    console.error("❌ GET /api/points error:", err.message);
-    return handleError(err, res, "Failed to fetch points");
-  }
-});
-
-// GET points ledger (audit log) for a user
-app.get("/api/points/ledger/:safeAddress", async (req, res) => {
-  try {
-    const addr = req.params.safeAddress.toLowerCase();
-    if (!ethers.isAddress(addr))
-      return res.status(400).json({ message: "Invalid address" });
-
-    const ledger = await PointLedger.find({ safeAddress: addr })
-      .sort({ createdAt: -1 })
-      .limit(50);
-
-    res.json({ ledger });
-  } catch (err) {
-    return handleError(err, res, "Failed to fetch ledger");
-  }
-});
-
-// GET or create referral code for a user
-app.get("/api/referral/code/:safeAddress", async (req, res) => {
-  try {
-    const addr = req.params.safeAddress.toLowerCase();
-    if (!ethers.isAddress(addr))
-      return res.status(400).json({ message: "Invalid address" });
-
-    const user = await User.findOne({ safeAddress: addr });
-    if (!user) return res.status(404).json({ message: "User not found" });
-
-    const code = await getOrCreateReferralCode(addr, user.username);
-
-    // Fetch stats
-    const usage = await ReferralUsage.find({ referrerSafeAddress: addr });
-    const qualified = usage.filter((u) => u.bonusPaid).length;
-
-    res.json({
-      code,
-      totalReferrals: usage.length,
-      qualifiedReferrals: qualified,
-      shareUrl: `https://salva-nexus.org/login?ref=${code}`,
-    });
-  } catch (err) {
-    return handleError(err, res, "Failed to get referral code");
-  }
-});
-
-// POST — register a referral when a new user signs up with a code
-// Call this during /api/register (after user is saved) if referredByCode present.
-// This is called automatically inside /api/register below — no separate call needed.
-
-// POST — redeem points
-app.post("/api/points/redeem", async (req, res) => {
-  try {
-    const { safeAddress, pointsToRedeem } = req.body;
-    if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: "Invalid safeAddress" });
-    if (!pointsToRedeem || isNaN(pointsToRedeem) || pointsToRedeem <= 0)
-      return res.status(400).json({ message: "Invalid points amount" });
-
-    const result = await redeemPoints(safeAddress, parseInt(pointsToRedeem));
-    res.json({ success: true, ...result });
-  } catch (err) {
-    console.error("❌ POST /api/points/redeem error:", err.message);
-    return res.status(400).json({ message: err.message });
-  }
-});
-
-app.post("/api/points/validate-redemption", async (req, res) => {
-  try {
-    const { safeAddress, pointsToRedeem } = req.body;
-    if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: "Invalid safeAddress" });
-
-    const points = parseInt(pointsToRedeem);
-    if (isNaN(points) || points <= 0)
-      return res.status(400).json({ message: "Invalid points amount" });
-
-    let config = await FeeConfig.findById("main");
-    if (!config) config = await FeeConfig.create({ _id: "main" });
-
-    const userPts = await UserPoints.findOne({
-      safeAddress: safeAddress.toLowerCase(),
-    });
-    if (!userPts || userPts.totalPoints < config.minRedemptionPoints)
-      return res.status(400).json({
-        message: `You need at least ${config.minRedemptionPoints} points to redeem`,
-        currentPoints: userPts?.totalPoints || 0,
-      });
-
-    if (points > userPts.totalPoints)
-      return res.status(400).json({
-        message: `Insufficient points. You have ${userPts.totalPoints}`,
-        currentPoints: userPts.totalPoints,
-      });
-
-    if (points < config.minRedemptionPoints)
-      return res.status(400).json({
-        message: `Minimum redemption is ${config.minRedemptionPoints} points`,
-      });
-
-    return res.json({
-      valid: true,
-      pointsToRedeem: points,
-      currentPoints: userPts.totalPoints,
-      equivalentNGN: points,
-    });
-  } catch (err) {
-    return handleError(err, res, "Failed to validate redemption");
-  }
-});
 
 // ===============================================
 // SECURITY: Error Handler
@@ -492,6 +339,27 @@ async function connectDB() {
       cache.isConnected = true;
       cache.promise = null;
       console.log("🍃 MongoDB Connected");
+
+      // Sync FeeConfig immediately after connection is confirmed
+      FeeConfig.findOneAndUpdate(
+        { _id: "main" },
+        {
+          $set: {
+            tier0Max: 999,
+            tier0Fee: 0,
+            tier1Min: 1000,
+            tier1Max: 9999,
+            tier1Fee: 10,
+            tier2Min: 10000,
+            tier2Fee: 20,
+            usdTierFee: 0.015,
+            usdTierMin: 5,
+          },
+        },
+        { upsert: true },
+      )
+        .then(() => console.log("✅ FeeConfig synced"))
+        .catch((e) => console.error("❌ FeeConfig sync failed:", e.message));
 
       conn.connection.on("disconnected", () => {
         console.warn(
@@ -703,7 +571,7 @@ async function getFeeForAmount(amountHuman, coin = "NGN") {
     return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
   }
 
-  // NGN path — uses new tier system
+  // NGN and CNGN path
   let config = await FeeConfig.findById("main");
   if (!config) config = await FeeConfig.create({ _id: "main" });
 
@@ -723,7 +591,7 @@ async function getFeeForAmount(amountHuman, coin = "NGN") {
       feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6),
     };
   }
-  // FREE tier
+  // FREE tier (< 1,000)
   return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
 }
 
@@ -752,6 +620,8 @@ app.get("/api/fee-config", async (req, res) => {
       config = await FeeConfig.create({ _id: "main" });
     }
     res.json({
+      tier0Max: config.tier0Max,
+      tier0Fee: config.tier0Fee,
       tier1Min: config.tier1Min,
       tier1Max: config.tier1Max,
       tier1Fee: config.tier1Fee,
@@ -855,10 +725,10 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
     const { email, newPassword } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
-if (!otpRecord || new Date() > otpRecord.expires) {
-  return res.status(401).json({ message: "Please verify OTP first" });
-}
+    const otpRecord = await OtpStore.findOne({ email: sanitizedOldEmail, verified: true });
+    if (!otpRecord || new Date() > otpRecord.expires) {
+      return res.status(401).json({ message: "Please verify OTP first" });
+    }
 
     if (
       !newPassword ||
@@ -954,52 +824,6 @@ app.post(
 
       await newUser.save();
       console.log(`✅ User saved: ${email}`);
-
-      // ── Auto-generate referral code for new user ──────────────────────────
-      try {
-        await getOrCreateReferralCode(
-          newUser.safeAddress.toLowerCase(),
-          newUser.username,
-        );
-        console.log(`🎟️ Referral code generated for: ${newUser.username}`);
-      } catch (refCodeErr) {
-        console.error("❌ Referral code generation error:", refCodeErr.message);
-      }
-
-      // ── Record if user signed up via someone else's referral code ──────────
-      const refCode = req.body.referredByCode?.trim().toUpperCase();
-if (refCode) {
-  try {
-    const refDoc = await ReferralCode.findOne({ code: refCode });
-    if (!refDoc) {
-      console.log(`⚠️ Referral code not found: ${refCode}`);
-    } else if (refDoc.ownerSafeAddress === newUser.safeAddress.toLowerCase()) {
-      console.log(`⚠️ User tried to refer themselves: ${refCode}`);
-    } else {
-      // Check not already referred
-      const alreadyReferred = await ReferralUsage.findOne({
-        referredSafeAddress: newUser.safeAddress.toLowerCase(),
-      });
-      if (!alreadyReferred) {
-        await ReferralUsage.create({
-          referralCode: refCode,
-          referrerSafeAddress: refDoc.ownerSafeAddress,
-          referredSafeAddress: newUser.safeAddress.toLowerCase(),
-          referredUsername: newUser.username,
-        });
-        await ReferralCode.findOneAndUpdate(
-          { code: refCode },
-          { $inc: { totalReferrals: 1 } },
-        );
-        newUser.referredByCode = refCode;
-        await newUser.save();
-        console.log(`🔗 Referral recorded: ${newUser.username} referred by ${refCode} (${refDoc.ownerSafeAddress})`);
-      }
-    }
-  } catch (refErr) {
-    console.error("❌ Referral usage error:", refErr.message);
-  }
-}
 
       try {
         await sendWelcomeEmail(email, username);
@@ -1480,6 +1304,11 @@ app.post("/api/alias/unlink-name", async (req, res) => {
 const buyNgnsRoutes = require("./routes/buyNgns");
 app.use("/api/buy-ngns", buyNgnsRoutes);
 
+const poolRoutes = require("./routes/pool");
+app.use("/api/pool", poolRoutes);
+
+app.use("/api/sync-incoming", require("./routes/syncIncoming"));
+
 // ===============================================
 // CHECK NAME AVAILABILITY
 // ===============================================
@@ -1694,38 +1523,45 @@ app.get("/api/balance/:address", async (req, res) => {
 
     const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
-    const ngnContract = new ethers.Contract(
-      process.env.NGN_TOKEN_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
-    const usdtContract = new ethers.Contract(
-      process.env.USDT_CONTRACT_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
-    const usdcContract = new ethers.Contract(
-      process.env.USDC_CONTRACT_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
+const ngnContract = new ethers.Contract(
+  process.env.NGN_TOKEN_ADDRESS,
+  ERC20_ABI,
+  provider,
+);
+const cNgnContract = new ethers.Contract(
+  process.env.CNGN_CONTRACT_ADDRESS,
+  ERC20_ABI,
+  provider,
+);
+const usdtContract = new ethers.Contract(
+  process.env.USDT_CONTRACT_ADDRESS,
+  ERC20_ABI,
+  provider,
+);
+const usdcContract = new ethers.Contract(
+  process.env.USDC_CONTRACT_ADDRESS,
+  ERC20_ABI,
+  provider,
+);
 
-    const [ngnWei, usdtWei, usdcWei] = await Promise.all([
-      retryRPCCall(() => ngnContract.balanceOf(address)).catch(() => 0n),
-      retryRPCCall(() => usdtContract.balanceOf(address)).catch(() => 0n),
-      retryRPCCall(() => usdcContract.balanceOf(address)).catch(() => 0n),
-    ]);
+const [ngnWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
+  retryRPCCall(() => ngnContract.balanceOf(address)).catch(() => 0n),
+  retryRPCCall(() => cNgnContract.balanceOf(address)).catch(() => 0n),
+  retryRPCCall(() => usdtContract.balanceOf(address)).catch(() => 0n),
+  retryRPCCall(() => usdcContract.balanceOf(address)).catch(() => 0n),
+]);
 
-    res.json({
-      balance: ethers.formatUnits(ngnWei, 6), // NGNs (6 decimals)
-      usdtBalance: ethers.formatUnits(usdtWei, 6), // USDT (6 decimals)
-      usdcBalance: ethers.formatUnits(usdcWei, 6), // USDC (6 decimals)
+res.json({
+      balance: ethers.formatUnits(ngnWei, 6),
+      cNgnBalance: ethers.formatUnits(cNgnWei, 6),
+      usdtBalance: ethers.formatUnits(usdtWei, 6),
+      usdcBalance: ethers.formatUnits(usdcWei, 6),
     });
   } catch (error) {
     console.error("❌ Balance Fetch Failed:", error.message);
     res
       .status(200)
-      .json({ balance: "0.00", usdtBalance: "0.00", usdcBalance: "0.00" });
+      .json({ balance: "0.00", cNgnBalance: "0.00", usdtBalance: "0.00", usdcBalance: "0.00" });
   }
 });
 
@@ -1863,9 +1699,10 @@ app.post("/api/transfer", async (req, res) => {
 
     // Determine token contract address from env based on coin
     let tokenAddress;
-    if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
-    else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
-    else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
+if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
+else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
+else if (coin === "CNGN") tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
+else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
 
     if (!tokenAddress) {
       return res
@@ -1921,7 +1758,7 @@ app.post("/api/transfer", async (req, res) => {
     let actualFeeWei;
     let recipientReceives;
 
-    const feeHuman = coin === "NGN" ? feeNGN : feeUsd;
+const feeHuman = (coin === "NGN" || coin === "CNGN") ? feeNGN : feeUsd;
 
     if (feeHuman === 0) {
       actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
@@ -1938,7 +1775,7 @@ app.post("/api/transfer", async (req, res) => {
           .status(400)
           .json({ message: "Amount too small to cover fee" });
       actualAmountWei = ethers.parseUnits(
-        recipientReceives.toString(),
+        recipientReceives.toFixed(6),
         decimals,
       );
       actualFeeWei = feeWei;
@@ -2049,6 +1886,7 @@ app.post("/api/transfer", async (req, res) => {
               finalToInput,
               amount,
               "successful",
+              coin
             );
           } catch (e) {
             console.error("❌ Sender email error:", e.message);
@@ -2061,35 +1899,11 @@ app.post("/api/transfer", async (req, res) => {
               recipientUser.username,
               safeAddress,
               amount,
+              coin
             );
           } catch (e) {
             console.error("❌ Recipient email error:", e.message);
           }
-        }
-
-        // ── Rewards (non-blocking — failure never breaks transfer) ─────────
-        let rewardResult = {
-          pointsAwarded: 0,
-          tier: "NONE",
-          rateLimitHit: false,
-          referralBonusPaid: false,
-        };
-        try {
-          rewardResult = await processTransferRewards({
-            fromAddress: safeAddress,
-            toAddress: recipientAddress,
-            amount,
-            coin,
-            txHash: result.txHash,
-            senderUser,
-            recipientUser,
-          });
-          console.log(
-            `⭐ Reward result: ${rewardResult.pointsAwarded} pts (${rewardResult.tier})` +
-              (rewardResult.referralBonusPaid ? " + referral bonus paid" : ""),
-          );
-        } catch (rewardErr) {
-          console.error("❌ Reward processing error:", rewardErr.message);
         }
 
         return res.json({
@@ -2099,12 +1913,6 @@ app.post("/api/transfer", async (req, res) => {
           feeUsd,
           recipientReceives,
           coin,
-          reward: {
-            pointsAwarded: rewardResult.pointsAwarded,
-            tier: rewardResult.tier,
-            rateLimitHit: rewardResult.rateLimitHit || false,
-            referralBonusPaid: rewardResult.referralBonusPaid || false,
-          },
         });
       } else {
         queueEntry.status = "FAILED";
@@ -2119,6 +1927,29 @@ app.post("/api/transfer", async (req, res) => {
       queueEntry.status = "FAILED";
       queueEntry.errorMessage = error.message;
       await queueEntry.save();
+
+      // Write a failed Transaction so it appears in history
+      try {
+        await new Transaction({
+          fromAddress: safeAddress.toLowerCase(),
+          fromUsername: senderUser?.username || null,
+          fromNameAlias: senderUser?.nameAlias || null,
+          toAddress: recipientAddress.toLowerCase(),
+          toUsername: recipientUser?.username || null,
+          toNameAlias: recipientUser?.nameAlias || null,
+          senderDisplayIdentifier: req.body.senderDisplayIdentifier || finalToInput,
+          amount,
+          fee: null,
+          coin,
+          status: "failed",
+          taskId: null,
+          type: "transfer",
+          date: new Date(),
+        }).save();
+      } catch (txSaveErr) {
+        console.error("❌ Failed to save failed transaction record:", txSaveErr.message);
+      }
+
       throw error;
     }
   } catch (error) {
@@ -2159,11 +1990,34 @@ app.get("/api/transactions/:address", async (req, res) => {
       return res.status(400).json({ message: "Invalid address format" });
     }
 
+    // Pull completed transactions
     const transactions = await Transaction.find({
       $or: [{ fromAddress: address }, { toAddress: address }],
     })
       .sort({ date: -1 })
       .limit(50);
+
+    // Pull active queue entries — PENDING and SENDING show as pending in history
+    const queueEntries = await TransactionQueue.find({
+      walletAddress: address,
+      status: { $in: ["PENDING", "SENDING"] },
+    }).sort({ createdAt: -1 });
+
+    // Convert queue entries to transaction-shaped objects
+    const pendingTxs = queueEntries.map((q) => ({
+      _id: q._id,
+      fromAddress: address,
+      toAddress: q.payload?.recipientAddress || null,
+      amount: q.payload?.amount || "0",
+      coin: q.payload?.coin || "NGN",
+      status: "pending",
+      displayType: "pending",
+      displayPartner: q.payload?.toInput || q.payload?.recipientAddress || "—",
+      date: q.createdAt,
+      taskId: q.txHash || null,
+      fee: null,
+      isPending: true,
+    }));
 
     const formatted = transactions.map((tx) => {
       const isFromMe = tx.fromAddress?.toLowerCase() === address;
@@ -2192,7 +2046,16 @@ app.get("/api/transactions/:address", async (req, res) => {
     });
 
     const visible = formatted.filter((tx) => tx.displayType !== "hidden");
-    res.json(visible);
+
+    // Merge pending queue entries at the top, dedup by txHash if confirmed
+    const confirmedHashes = new Set(
+      visible.map((tx) => tx.taskId).filter(Boolean),
+    );
+    const filteredPending = pendingTxs.filter(
+      (p) => !p.taskId || !confirmedHashes.has(p.taskId),
+    );
+
+    res.json([...filteredPending, ...visible]);
   } catch (error) {
     console.error("❌ History Fetch Error:", error);
     return handleError(error, res, "Failed to fetch transactions");
@@ -2334,10 +2197,13 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
-if (!otpRecord || new Date() > otpRecord.expires) {
-  return res.status(401).json({ message: "Please verify OTP first" });
-}
+    const otpRecord = await OtpStore.findOne({
+      email: sanitizedOldEmail,
+      verified: true,
+    });
+    if (!otpRecord || new Date() > otpRecord.expires) {
+      return res.status(401).json({ message: "Please verify OTP first" });
+    }
 
     validatePin(oldPin);
     validatePin(newPin);
@@ -2414,10 +2280,13 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
     const sanitizedOldEmail = sanitizeEmail(oldEmail);
     const sanitizedNewEmail = sanitizeEmail(newEmail);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
-if (!otpRecord || new Date() > otpRecord.expires) {
-  return res.status(401).json({ message: "Please verify OTP first" });
-}
+    const otpRecord = await OtpStore.findOne({
+      email: sanitizedOldEmail,
+      verified: true,
+    });
+    if (!otpRecord || new Date() > otpRecord.expires) {
+      return res.status(401).json({ message: "Please verify OTP first" });
+    }
 
     const user = await User.findOne({ email: sanitizedOldEmail });
     if (!user) {
@@ -2476,10 +2345,10 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedEmail, verified: true });
-if (!otpRecord || new Date() > otpRecord.expires) {
-  return res.status(401).json({ message: "Please verify OTP first" });
-}
+    const otpRecord = await OtpStore.findOne({ email: sanitizedOldEmail, verified: true });
+    if (!otpRecord || new Date() > otpRecord.expires) {
+      return res.status(401).json({ message: "Please verify OTP first" });
+    }
 
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
       return res.status(400).json({

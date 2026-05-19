@@ -243,6 +243,7 @@ const SalvaSellerChat = ({ user }) => {
   const [minting, setMinting] = useState(false);
   const [mintError, setMintError] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  const [completingSell, setCompletingSell] = useState(false);
 
   const chatEndRef = useRef(null);
   const chatContainerRef = useRef(null);
@@ -267,7 +268,9 @@ const SalvaSellerChat = ({ user }) => {
   const fetchBadge = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/unread-count?safeAddress=${user.safeAddress}`);
+      const res = await fetch(
+        `${SALVA_API_URL}/api/buy-ngns/unread-count?safeAddress=${user.safeAddress}`,
+      );
       const d = await res.json();
       setTotalUnread((p) => (p !== d.unreadCount ? d.unreadCount : p));
     } catch { /* ignore */ }
@@ -401,8 +404,8 @@ const SalvaSellerChat = ({ user }) => {
       });
       const d = await res.json();
       if (res.ok) { setShowConfirm(false); await fetchChat(); await fetchList(); }
-      else { setMintError(d.message || "Mint failed"); setShowConfirm(false); }
-    } catch (err) { setMintError(err.message || "Network error"); setShowConfirm(false); }
+      else { setMintError("Mint failed"); setShowConfirm(false); }
+    } catch (err) { setMintError("Connection error. Try again."); setShowConfirm(false); }
     setMinting(false);
   };
 
@@ -452,89 +455,402 @@ const SalvaSellerChat = ({ user }) => {
     <>
       <AnimatePresence>
         {showConfirm && (
-          <ConfirmModal request={selected} onConfirm={handleConfirmMint} onClose={() => setShowConfirm(false)} loading={minting} />
+          <ConfirmModal
+            request={selected}
+            onConfirm={handleConfirmMint}
+            onClose={() => setShowConfirm(false)}
+            loading={minting}
+          />
         )}
       </AnimatePresence>
 
-      <motion.div initial={{ opacity: 0, scale: 0.92, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.92, y: 20 }}
-        style={{ position: "fixed", bottom: "24px", left: "24px", zIndex: 9000, width: "380px", maxWidth: "calc(100vw - 2rem)" }}>
-        <div style={{ height: "580px", background: "#0d0d0e", border: "1px solid rgba(212,175,55,0.18)", borderRadius: "22px", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)" }}>
-
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.92, y: 20 }}
+        style={{
+          position: "fixed",
+          bottom: "24px",
+          left: "24px",
+          zIndex: 9000,
+          width: "380px",
+          maxWidth: "calc(100vw - 2rem)",
+        }}
+      >
+        <div
+          style={{
+            height: "580px",
+            background: "#0d0d0e",
+            border: "1px solid rgba(212,175,55,0.18)",
+            borderRadius: "22px",
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow:
+              "0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)",
+          }}
+        >
           {/* HEADER */}
-          <div style={{ background: "linear-gradient(135deg, #1a1500, #111100)", borderBottom: "1px solid rgba(212,175,55,0.2)", padding: "13px 16px", display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+          <div
+            style={{
+              background: "linear-gradient(135deg, #1a1500, #111100)",
+              borderBottom: "1px solid rgba(212,175,55,0.2)",
+              padding: "13px 16px",
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexShrink: 0,
+            }}
+          >
             {view === "chat" && (
-              <button onClick={() => { setView("list"); setSelected(null); setMessages([]); setMintError(""); }}
-                style={{ background: "none", border: "none", color: "rgba(212,175,55,0.6)", fontSize: "18px", cursor: "pointer", padding: "2px 6px 2px 0", lineHeight: 1, flexShrink: 0 }}>←</button>
+              <button
+                onClick={() => {
+                  setView("list");
+                  setSelected(null);
+                  setMessages([]);
+                  setMintError("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "rgba(212,175,55,0.6)",
+                  fontSize: "18px",
+                  cursor: "pointer",
+                  padding: "2px 6px 2px 0",
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}
+              >
+                ←
+              </button>
             )}
-            <div style={{ width: "34px", height: "34px", borderRadius: "9px", flexShrink: 0, background: "linear-gradient(135deg, #D4AF37, #b8941e)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: "14px", color: "#000", fontWeight: "900" }}>₦</span>
+            <div
+              style={{
+                width: "34px",
+                height: "34px",
+                borderRadius: "9px",
+                flexShrink: 0,
+                background: "linear-gradient(135deg, #D4AF37, #b8941e)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <span
+                style={{ fontSize: "14px", color: "#000", fontWeight: "900" }}
+              >
+                ₦
+              </span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               {view === "list" ? (
                 <>
-                  <p style={{ color: "#f5f0e8", fontSize: "13px", fontWeight: "900", margin: 0 }}>NGNs Requests</p>
-                  <p style={{ color: "rgba(212,175,55,0.5)", fontSize: "10px", margin: 0 }}>{requests.length} conversation{requests.length !== 1 ? "s" : ""}</p>
+                  <p
+                    style={{
+                      color: "#f5f0e8",
+                      fontSize: "13px",
+                      fontWeight: "900",
+                      margin: 0,
+                    }}
+                  >
+                    NGNs Requests
+                  </p>
+                  <p
+                    style={{
+                      color: "rgba(212,175,55,0.5)",
+                      fontSize: "10px",
+                      margin: 0,
+                    }}
+                  >
+                    {requests.length} conversation
+                    {requests.length !== 1 ? "s" : ""}
+                  </p>
                 </>
               ) : (
                 <>
-                  <p style={{ color: "#f5f0e8", fontSize: "13px", fontWeight: "900", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selected?.username}</p>
-                  <p style={{ color: "rgba(212,175,55,0.5)", fontSize: "10px", margin: 0 }}>{selected?.userEmail}</p>
+                  <p
+                    style={{
+                      color: "#f5f0e8",
+                      fontSize: "13px",
+                      fontWeight: "900",
+                      margin: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {selected?.username}
+                  </p>
+                  <p
+                    style={{
+                      color: "rgba(212,175,55,0.5)",
+                      fontSize: "10px",
+                      margin: 0,
+                    }}
+                  >
+                    {selected?.userEmail}
+                  </p>
                 </>
               )}
             </div>
-            {view === "chat" && selected?.status && <StatusBadge status={selected.status} />}
-            <button onClick={() => { setView("closed"); setSelected(null); setMessages([]); }}
-              style={{ width: "26px", height: "26px", borderRadius: "50%", background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", color: "rgba(255,255,255,0.4)", fontSize: "15px", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>×</button>
+            {view === "chat" && selected?.status && (
+              <StatusBadge status={selected.status} />
+            )}
+            <button
+              onClick={() => {
+                setView("closed");
+                setSelected(null);
+                setMessages([]);
+              }}
+              style={{
+                width: "26px",
+                height: "26px",
+                borderRadius: "50%",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.1)",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.4)",
+                fontSize: "15px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              ×
+            </button>
           </div>
 
           {/* ── LIST VIEW ── */}
           {view === "list" && (
             <div style={{ flex: 1, overflowY: "auto", background: "#0a0a0b" }}>
               {requests.length === 0 ? (
-                <div style={{ height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "10px", padding: "60px 20px" }}>
+                <div
+                  style={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "10px",
+                    padding: "60px 20px",
+                  }}
+                >
                   <span style={{ fontSize: "32px", opacity: 0.3 }}>₦</span>
-                  <p style={{ color: "rgba(212,175,55,0.4)", fontSize: "12px", margin: 0, fontWeight: "700" }}>No requests yet</p>
-                  <p style={{ color: "rgba(255,255,255,0.2)", fontSize: "10px", margin: 0 }}>Buy/sell requests will appear here</p>
+                  <p
+                    style={{
+                      color: "rgba(212,175,55,0.4)",
+                      fontSize: "12px",
+                      margin: 0,
+                      fontWeight: "700",
+                    }}
+                  >
+                    No requests yet
+                  </p>
+                  <p
+                    style={{
+                      color: "rgba(255,255,255,0.2)",
+                      fontSize: "10px",
+                      margin: 0,
+                    }}
+                  >
+                    Buy/sell requests will appear here
+                  </p>
                 </div>
               ) : (
                 requests.map((req) => {
                   const lastMsg = req.messages?.[req.messages.length - 1];
-                  const isUnread = !req.sellerRead && req.status !== "minted" && req.status !== "burned" && req.status !== "sell_completed";
+                  const isUnread =
+                    !req.sellerRead &&
+                    req.status !== "minted" &&
+                    req.status !== "burned" &&
+                    req.status !== "sell_completed";
                   const isPaid = req.status === "paid";
                   const isSell = req.type === "sell";
-                  const hasRedeem = req.pointsRedemption?.requested && req.pointsRedemption?.pointsToRedeem > 0;
+                  const hasRedeem =
+                    req.pointsRedemption?.requested &&
+                    req.pointsRedemption?.pointsToRedeem > 0;
                   return (
-                    <button key={req._id} onClick={() => openRequest(req)}
-                      style={{ width: "100%", padding: "12px 14px", background: isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none", border: "none", borderBottom: "1px solid rgba(255,255,255,0.04)", textAlign: "left", cursor: "pointer", transition: "background 0.15s" }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(212,175,55,0.07)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none")}
+                    <button
+                      key={req._id}
+                      onClick={() => openRequest(req)}
+                      style={{
+                        width: "100%",
+                        padding: "12px 14px",
+                        background:
+                          isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none",
+                        border: "none",
+                        borderBottom: "1px solid rgba(255,255,255,0.04)",
+                        textAlign: "left",
+                        cursor: "pointer",
+                        transition: "background 0.15s",
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background =
+                          "rgba(212,175,55,0.07)")
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background =
+                          isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none")
+                      }
                     >
-                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                        <div style={{ width: "40px", height: "40px", borderRadius: "11px", flexShrink: 0, background: isSell ? "rgba(239,68,68,0.15)" : isPaid ? "rgba(212,175,55,0.2)" : "rgba(255,255,255,0.06)", border: `1px solid ${isSell ? "rgba(239,68,68,0.35)" : isPaid ? "rgba(212,175,55,0.4)" : "rgba(255,255,255,0.08)"}`, display: "flex", alignItems: "center", justifyContent: "center", color: isSell ? "#ef4444" : isPaid ? "#D4AF37" : "rgba(255,255,255,0.4)", fontWeight: "900", fontSize: "15px" }}>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "40px",
+                            height: "40px",
+                            borderRadius: "11px",
+                            flexShrink: 0,
+                            background: isSell
+                              ? "rgba(239,68,68,0.15)"
+                              : isPaid
+                                ? "rgba(212,175,55,0.2)"
+                                : "rgba(255,255,255,0.06)",
+                            border: `1px solid ${isSell ? "rgba(239,68,68,0.35)" : isPaid ? "rgba(212,175,55,0.4)" : "rgba(255,255,255,0.08)"}`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: isSell
+                              ? "#ef4444"
+                              : isPaid
+                                ? "#D4AF37"
+                                : "rgba(255,255,255,0.4)",
+                            fontWeight: "900",
+                            fontSize: "15px",
+                          }}
+                        >
                           {req.username?.charAt(0)?.toUpperCase() || "?"}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "2px" }}>
-                            <p style={{ color: isUnread ? "#f5f0e8" : "rgba(255,255,255,0.7)", fontSize: "13px", fontWeight: isUnread ? "700" : "500", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{req.username}</p>
-                            <p style={{ color: "rgba(255,255,255,0.25)", fontSize: "9px", margin: 0, flexShrink: 0, marginLeft: "8px" }}>
-                              {new Date(req.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "baseline",
+                              marginBottom: "2px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                color: isUnread
+                                  ? "#f5f0e8"
+                                  : "rgba(255,255,255,0.7)",
+                                fontSize: "13px",
+                                fontWeight: isUnread ? "700" : "500",
+                                margin: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1,
+                              }}
+                            >
+                              {req.username}
+                            </p>
+                            <p
+                              style={{
+                                color: "rgba(255,255,255,0.25)",
+                                fontSize: "9px",
+                                margin: 0,
+                                flexShrink: 0,
+                                marginLeft: "8px",
+                              }}
+                            >
+                              {new Date(req.updatedAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
                             </p>
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "6px", marginBottom: "4px" }}>
-                            <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "11px", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-                              {lastMsg?.isReceipt ? "📎 Receipt uploaded" : lastMsg?.isBurned ? "🔥 Sell request" : lastMsg?.text?.replace(/\*\*/g, "")?.slice(0, 45) || "No messages"}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: "6px",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            <p
+                              style={{
+                                color: "rgba(255,255,255,0.35)",
+                                fontSize: "11px",
+                                margin: 0,
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                                flex: 1,
+                              }}
+                            >
+                              {lastMsg?.isReceipt
+                                ? "📎 Receipt uploaded"
+                                : lastMsg?.isBurned
+                                  ? "🔥 Sell request"
+                                  : lastMsg?.text
+                                      ?.replace(/\*\*/g, "")
+                                      ?.slice(0, 45) || "No messages"}
                             </p>
-                            <div style={{ display: "flex", alignItems: "center", gap: "5px", flexShrink: 0 }}>
-                              <span style={{ color: isSell ? "#ef4444" : "#D4AF37", fontSize: "10px", fontWeight: "700" }}>₦{(req.amountNgn || 0).toLocaleString()}</span>
-                              {isUnread && <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#D4AF37", display: "inline-block", boxShadow: "0 0 6px rgba(212,175,55,0.6)" }} />}
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "5px",
+                                flexShrink: 0,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: isSell ? "#ef4444" : "#D4AF37",
+                                  fontSize: "10px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                ₦{(req.amountNgn || 0).toLocaleString()}
+                              </span>
+                              {isUnread && (
+                                <span
+                                  style={{
+                                    width: "8px",
+                                    height: "8px",
+                                    borderRadius: "50%",
+                                    background: "#D4AF37",
+                                    display: "inline-block",
+                                    boxShadow: "0 0 6px rgba(212,175,55,0.6)",
+                                  }}
+                                />
+                              )}
                             </div>
                           </div>
-                          <div style={{ display: "flex", gap: "4px", alignItems: "center", flexWrap: "wrap" }}>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "4px",
+                              alignItems: "center",
+                              flexWrap: "wrap",
+                            }}
+                          >
                             <TypeBadge type={req.type} />
                             <StatusBadge status={req.status} />
                             {hasRedeem && (
-                              <span style={{ padding: "1px 5px", borderRadius: "5px", background: "rgba(168,85,247,0.15)", border: "1px solid rgba(168,85,247,0.3)", color: "#a855f7", fontSize: "8px", fontWeight: "700" }}>
-                                ⭐ {req.pointsRedemption.pointsToRedeem.toLocaleString()} pts
+                              <span
+                                style={{
+                                  padding: "1px 5px",
+                                  borderRadius: "5px",
+                                  background: "rgba(168,85,247,0.15)",
+                                  border: "1px solid rgba(168,85,247,0.3)",
+                                  color: "#a855f7",
+                                  fontSize: "8px",
+                                  fontWeight: "700",
+                                }}
+                              >
+                                ⭐{" "}
+                                {req.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
+                                pts
                               </span>
                             )}
                           </div>
@@ -551,89 +867,368 @@ const SalvaSellerChat = ({ user }) => {
           {view === "chat" && selected && (
             <>
               {/* Summary bar */}
-              <div style={{ padding: "8px 14px", background: "rgba(212,175,55,0.05)", borderBottom: "1px solid rgba(212,175,55,0.1)", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                {selected.type === "sell" && selected.status !== "sell_completed" ? (
+              <div
+                style={{
+                  padding: "8px 14px",
+                  background: "rgba(212,175,55,0.05)",
+                  borderBottom: "1px solid rgba(212,175,55,0.1)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  flexShrink: 0,
+                }}
+              >
+                {selected.type === "sell" &&
+                selected.status !== "sell_completed" ? (
                   <>
-                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "10px" }}>Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs burned</span>
-                    <span style={{ color: "#ef4444", fontWeight: "900", fontSize: "12px" }}>Pay: ₦{(selected.amountNgn || 0).toLocaleString()}</span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: "10px",
+                      }}
+                    >
+                      Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs
+                      burned
+                    </span>
+                    <span
+                      style={{
+                        color: "#ef4444",
+                        fontWeight: "900",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Pay: ₦{(selected.amountNgn || 0).toLocaleString()}
+                    </span>
                   </>
                 ) : selected.type !== "sell" ? (
                   <>
-                    <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "10px" }}>Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee: {selected.feeNgn} NGNs</span>
-                    <span style={{ color: "#D4AF37", fontWeight: "900", fontSize: "12px" }}>Mint: {(selected.mintAmountNgn || 0).toLocaleString()} NGNs</span>
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: "10px",
+                      }}
+                    >
+                      Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee:{" "}
+                      {selected.feeNgn} NGNs
+                    </span>
+                    <span
+                      style={{
+                        color: "#D4AF37",
+                        fontWeight: "900",
+                        fontSize: "12px",
+                      }}
+                    >
+                      Mint: {(selected.mintAmountNgn || 0).toLocaleString()}{" "}
+                      NGNs
+                    </span>
                   </>
                 ) : null}
               </div>
 
               {/* ── SELL: Bank payout details with copy buttons ── */}
-              {selected.type === "sell" && selected.status !== "sell_completed" && selected.bankDetails?.accountNumber && (
-                <div style={{ padding: "8px 14px", background: "rgba(239,68,68,0.05)", borderBottom: "1px solid rgba(239,68,68,0.1)", flexShrink: 0 }}>
-                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 6px", fontWeight: "700" }}>Payout Details</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
-                    {[
-                      { label: "Bank", value: selected.bankDetails.bankName },
-                      { label: "Account Name", value: selected.bankDetails.accountName },
-                      { label: "Account Number", value: selected.bankDetails.accountNumber },
-                    ].map(({ label, value }) => (
-                      <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px" }}>
-                        <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "10px", flexShrink: 0 }}>{label}</span>
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", minWidth: 0 }}>
-                          <span style={{ color: "#f5f0e8", fontSize: "11px", fontWeight: "700", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</span>
-                          {value && <CopyBtn value={value} />}
+              {selected.type === "sell" &&
+                selected.status !== "sell_completed" &&
+                selected.bankDetails?.accountNumber && (
+                  <div
+                    style={{
+                      padding: "8px 14px",
+                      background: "rgba(239,68,68,0.05)",
+                      borderBottom: "1px solid rgba(239,68,68,0.1)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <p
+                      style={{
+                        color: "rgba(255,255,255,0.4)",
+                        fontSize: "9px",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.1em",
+                        margin: "0 0 6px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      Payout Details
+                    </p>
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "5px",
+                      }}
+                    >
+                      {[
+                        { label: "Bank", value: selected.bankDetails.bankName },
+                        {
+                          label: "Account Name",
+                          value: selected.bankDetails.accountName,
+                        },
+                        {
+                          label: "Account Number",
+                          value: selected.bankDetails.accountNumber,
+                        },
+                      ].map(({ label, value }) => (
+                        <div
+                          key={label}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span
+                            style={{
+                              color: "rgba(255,255,255,0.35)",
+                              fontSize: "10px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {label}
+                          </span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "6px",
+                              minWidth: 0,
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: "#f5f0e8",
+                                fontSize: "11px",
+                                fontWeight: "700",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              {value}
+                            </span>
+                            {value && <CopyBtn value={value} />}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* ── SELL: Points redemption panel ── */}
               {selected.type === "sell" && hasRedemption && (
-                <div style={{ padding: "8px 14px", background: "rgba(168,85,247,0.06)", borderBottom: "1px solid rgba(168,85,247,0.2)", flexShrink: 0 }}>
-                  <p style={{ color: "#a855f7", fontSize: "9px", textTransform: "uppercase", letterSpacing: "0.1em", margin: "0 0 5px", fontWeight: "700" }}>⭐ Points Redemption</p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "10px" }}>Points redeemed</span>
-                      <span style={{ color: "#a855f7", fontWeight: "700", fontSize: "11px" }}>{selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts</span>
+                <div
+                  style={{
+                    padding: "8px 14px",
+                    background: "rgba(168,85,247,0.06)",
+                    borderBottom: "1px solid rgba(168,85,247,0.2)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <p
+                    style={{
+                      color: "#a855f7",
+                      fontSize: "9px",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      margin: "0 0 5px",
+                      fontWeight: "700",
+                    }}
+                  >
+                    ⭐ Points Redemption
+                  </p>
+                  <div
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "3px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,0.45)",
+                          fontSize: "10px",
+                        }}
+                      >
+                        Points redeemed
+                      </span>
+                      <span
+                        style={{
+                          color: "#a855f7",
+                          fontWeight: "700",
+                          fontSize: "11px",
+                        }}
+                      >
+                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
+                        pts
+                      </span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "10px" }}>Extra payout</span>
-                      <span style={{ color: "#a855f7", fontWeight: "700", fontSize: "11px" }}>+₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()}</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,0.45)",
+                          fontSize: "10px",
+                        }}
+                      >
+                        Extra payout
+                      </span>
+                      <span
+                        style={{
+                          color: "#a855f7",
+                          fontWeight: "700",
+                          fontSize: "11px",
+                        }}
+                      >
+                        +₦
+                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}
+                      </span>
                     </div>
-                    <div style={{ display: "flex", justifyContent: "space-between", paddingTop: "4px", borderTop: "1px solid rgba(168,85,247,0.15)", marginTop: "2px" }}>
-                      <span style={{ color: "rgba(255,255,255,0.6)", fontSize: "10px", fontWeight: "700" }}>TOTAL to pay user</span>
-                      <span style={{ color: "#22c55e", fontWeight: "900", fontSize: "13px" }}>₦{((selected.amountNgn || 0) + (selected.pointsRedemption.pointsToRedeem || 0)).toLocaleString()}</span>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        paddingTop: "4px",
+                        borderTop: "1px solid rgba(168,85,247,0.15)",
+                        marginTop: "2px",
+                      }}
+                    >
+                      <span
+                        style={{
+                          color: "rgba(255,255,255,0.6)",
+                          fontSize: "10px",
+                          fontWeight: "700",
+                        }}
+                      >
+                        TOTAL to pay user
+                      </span>
+                      <span
+                        style={{
+                          color: "#22c55e",
+                          fontWeight: "900",
+                          fontSize: "13px",
+                        }}
+                      >
+                        ₦
+                        {(
+                          (selected.amountNgn || 0) +
+                          (selected.pointsRedemption.pointsToRedeem || 0)
+                        ).toLocaleString()}
+                      </span>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Messages */}
-              <div ref={chatContainerRef}
-                onScroll={(e) => { const el = e.currentTarget; isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
-                style={{ flex: 1, overflowY: "auto", padding: "12px 12px 8px", background: "#0a0a0b", display: "flex", flexDirection: "column", gap: "7px" }}>
-                {messages.map((msg, i) => <SellerBubble key={msg._id || i} msg={msg} />)}
+              <div
+                ref={chatContainerRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  isNearBottom.current =
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                }}
+                style={{
+                  flex: 1,
+                  overflowY: "auto",
+                  padding: "12px 12px 8px",
+                  background: "#0a0a0b",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "7px",
+                }}
+              >
+                {messages.map((msg, i) => (
+                  <SellerBubble key={msg._id || i} msg={msg} />
+                ))}
                 <div ref={chatEndRef} />
               </div>
 
               {/* Error */}
               {mintError && (
-                <div style={{ padding: "8px 14px", background: "rgba(239,68,68,0.1)", borderTop: "1px solid rgba(239,68,68,0.2)" }}>
-                  <p style={{ color: "#ef4444", fontSize: "11px", margin: 0 }}>❌ {mintError}</p>
+                <div
+                  style={{
+                    padding: "10px 14px",
+                    background: "rgba(239,68,68,0.1)",
+                    borderTop: "1px solid rgba(239,68,68,0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                  }}
+                >
+                  <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+                  <p
+                    style={{
+                      color: "#ef4444",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      margin: 0,
+                    }}
+                  >
+                    Mint failed. Please try again.
+                  </p>
                 </div>
               )}
 
               {/* BUY: Confirm mint when paid */}
               {canMint && (
-                <div style={{ padding: "10px 12px", background: "#0d0d0e", borderTop: "1px solid rgba(212,175,55,0.1)", display: "flex", gap: "8px", flexShrink: 0 }}>
-                  <button onClick={handleReject} disabled={rejecting}
-                    style={{ flex: 1, padding: "10px", borderRadius: "10px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.25)", color: "#ef4444", fontSize: "11px", fontWeight: "700", cursor: "pointer" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.18)")}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "rgba(239,68,68,0.1)")}>
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    background: "#0d0d0e",
+                    borderTop: "1px solid rgba(212,175,55,0.1)",
+                    display: "flex",
+                    gap: "8px",
+                    flexShrink: 0,
+                  }}
+                >
+                  <button
+                    onClick={handleReject}
+                    disabled={rejecting}
+                    style={{
+                      flex: 1,
+                      padding: "10px",
+                      borderRadius: "10px",
+                      background: "rgba(239,68,68,0.1)",
+                      border: "1px solid rgba(239,68,68,0.25)",
+                      color: "#ef4444",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background =
+                        "rgba(239,68,68,0.18)")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.currentTarget.style.background = "rgba(239,68,68,0.1)")
+                    }
+                  >
                     {rejecting ? "…" : "❌ Reject"}
                   </button>
-                  <button onClick={() => setShowConfirm(true)}
-                    style={{ flex: 2, padding: "10px", borderRadius: "10px", background: "linear-gradient(135deg, #22c55e, #16a34a)", border: "none", color: "#fff", fontSize: "12px", fontWeight: "900", cursor: "pointer", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>
+                  <button
+                    onClick={() => setShowConfirm(true)}
+                    style={{
+                      flex: 2,
+                      padding: "10px",
+                      borderRadius: "10px",
+                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
+                      border: "none",
+                      color: "#fff",
+                      fontSize: "12px",
+                      fontWeight: "900",
+                      cursor: "pointer",
+                      boxShadow: "0 0 14px rgba(34,197,94,0.3)",
+                    }}
+                  >
                     ✅ Confirm Payment & Mint
                   </button>
                 </div>
@@ -641,41 +1236,143 @@ const SalvaSellerChat = ({ user }) => {
 
               {/* SELL: Burn confirmed — seller needs to pay user */}
               {isSellPaid && (
-                <div style={{ padding: "10px 12px", background: "#0d0d0e", borderTop: "1px solid rgba(239,68,68,0.15)", flexShrink: 0 }}>
-                  <div style={{ padding: "10px 12px", borderRadius: "10px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", marginBottom: "8px" }}>
-                    <p style={{ color: "#ef4444", fontSize: "11px", fontWeight: "700", margin: "0 0 4px" }}>
-                      🔥 NGNs burned on-chain. Send ₦{((selected.amountNgn || 0) + (hasRedemption ? selected.pointsRedemption.pointsToRedeem : 0)).toLocaleString()} to user's bank account above.
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    background: "#0d0d0e",
+                    borderTop: "1px solid rgba(239,68,68,0.15)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "10px",
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <p
+                      style={{
+                        color: "#ef4444",
+                        fontSize: "11px",
+                        fontWeight: "700",
+                        margin: "0 0 4px",
+                      }}
+                    >
+                      🔥 NGNs burned on-chain. Send ₦
+                      {(
+                        (selected.amountNgn || 0) +
+                        (hasRedemption
+                          ? selected.pointsRedemption.pointsToRedeem
+                          : 0)
+                      ).toLocaleString()}{" "}
+                      to user's bank account above.
                     </p>
                     {hasRedemption && (
-                      <p style={{ color: "#a855f7", fontSize: "10px", margin: 0 }}>
-                        Includes ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()} points redemption payout.
+                      <p
+                        style={{
+                          color: "#a855f7",
+                          fontSize: "10px",
+                          margin: 0,
+                        }}
+                      >
+                        Includes ₦
+                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
+                        points redemption payout.
                       </p>
                     )}
                   </div>
                   <button
                     onClick={async () => {
-                      if (!selected?._id) return;
+                      if (!selected?._id || completingSell) return;
+                      setCompletingSell(true);
                       try {
-                        await fetch(`${SALVA_API_URL}/api/buy-ngns/complete-sell`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ requestId: selected._id, safeAddress: user.safeAddress }),
-                        });
+                        await fetch(
+                          `${SALVA_API_URL}/api/buy-ngns/complete-sell`,
+                          {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              requestId: selected._id,
+                              safeAddress: user.safeAddress,
+                            }),
+                          },
+                        );
                         await fetchChat();
                         await fetchList();
-                      } catch { /* ignore */ }
+                      } catch {
+                        /* ignore */
+                      }
+                      setCompletingSell(false);
                     }}
-                    style={{ width: "100%", padding: "11px", borderRadius: "10px", background: "linear-gradient(135deg, #22c55e, #16a34a)", border: "none", color: "#fff", fontSize: "13px", fontWeight: "900", cursor: "pointer", boxShadow: "0 0 14px rgba(34,197,94,0.3)" }}>
-                    ✅ SENT — Mark as Complete
+                    disabled={completingSell}
+                    style={{
+                      width: "100%",
+                      padding: "11px",
+                      borderRadius: "10px",
+                      background: completingSell
+                        ? "rgba(34,197,94,0.4)"
+                        : "linear-gradient(135deg, #22c55e, #16a34a)",
+                      border: "none",
+                      color: "#fff",
+                      fontSize: "13px",
+                      fontWeight: "900",
+                      cursor: completingSell ? "wait" : "pointer",
+                      boxShadow: completingSell
+                        ? "none"
+                        : "0 0 14px rgba(34,197,94,0.3)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: "6px",
+                    }}
+                  >
+                    {completingSell && (
+                      <span
+                        style={{
+                          width: "12px",
+                          height: "12px",
+                          border: "2px solid rgba(255,255,255,0.3)",
+                          borderTopColor: "#fff",
+                          borderRadius: "50%",
+                          display: "inline-block",
+                          animation: "spin 0.6s linear infinite",
+                        }}
+                      />
+                    )}
+                    {completingSell
+                      ? "Completing…"
+                      : "✅ SENT — Mark as Complete"}
                   </button>
                 </div>
               )}
 
               {/* Reject when pending */}
               {selected?.status === "pending" && (
-                <div style={{ padding: "8px 12px", background: "#0d0d0e", borderTop: "1px solid rgba(255,255,255,0.05)", flexShrink: 0 }}>
-                  <button onClick={handleReject} disabled={rejecting}
-                    style={{ width: "100%", padding: "9px", borderRadius: "10px", background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", color: "rgba(239,68,68,0.7)", fontSize: "11px", cursor: "pointer" }}>
+                <div
+                  style={{
+                    padding: "8px 12px",
+                    background: "#0d0d0e",
+                    borderTop: "1px solid rgba(255,255,255,0.05)",
+                    flexShrink: 0,
+                  }}
+                >
+                  <button
+                    onClick={handleReject}
+                    disabled={rejecting}
+                    style={{
+                      width: "100%",
+                      padding: "9px",
+                      borderRadius: "10px",
+                      background: "rgba(239,68,68,0.08)",
+                      border: "1px solid rgba(239,68,68,0.2)",
+                      color: "rgba(239,68,68,0.7)",
+                      fontSize: "11px",
+                      cursor: "pointer",
+                    }}
+                  >
                     {rejecting ? "Rejecting…" : "Cancel / Reject Request"}
                   </button>
                 </div>
@@ -683,7 +1380,11 @@ const SalvaSellerChat = ({ user }) => {
 
               {/* Input */}
               {["pending", "paid"].includes(selected?.status) && (
-                <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
+                <MessageInput
+                  onSend={handleSend}
+                  onImage={handleSendImage}
+                  disabled={sending}
+                />
               )}
             </>
           )}

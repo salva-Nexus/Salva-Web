@@ -5,9 +5,6 @@ const { ethers } = require("ethers");
 const { Resend } = require("resend");
 const User = require("../models/User");
 const MintRequest = require("../models/MintRequest");
-const UserPoints = require("../models/UserPoints");
-const PointLedger = require("../models/PointLedger");
-const mongoose = require("mongoose");
 
 let Transaction;
 try {
@@ -17,7 +14,7 @@ try {
 }
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-console.log("🚀 BUY NGNs ROUTES INITIALIZED (v3.0.1 — points redemption)");
+console.log("🚀 BUY NGNs ROUTES INITIALIZED (v3.1.0)");
 
 const ERC20_MINT_ABI = [
   "function mint(address to, uint256 amount) external",
@@ -45,22 +42,258 @@ function getBackendSigner() {
   return new ethers.Wallet(pk, provider);
 }
 
-async function notifySellers(subject, html) {
+// ── Email helpers ──────────────────────────────────────────────────────────
+
+function emailBase(bodyHtml) {
+  return `
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#0A0A0B;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0A0A0B;padding:40px 16px;">
+    <tr><td align="center">
+      <table width="100%" style="max-width:520px;background:#111113;border:1px solid #1f1f22;border-radius:20px;overflow:hidden;">
+        <!-- Gold top bar -->
+        <tr><td style="height:4px;background:linear-gradient(90deg,transparent,#D4AF37,transparent);"></td></tr>
+        <!-- Logo -->
+        <tr><td style="padding:32px 36px 0;">
+          <p style="margin:0;font-size:26px;font-weight:900;letter-spacing:0.12em;color:#D4AF37;">SALVA</p>
+          <p style="margin:4px 0 0;font-size:10px;color:#555;letter-spacing:0.3em;text-transform:uppercase;">Digital Finance · Base Network</p>
+        </td></tr>
+        <!-- Body -->
+        <tr><td style="padding:28px 36px 36px;">
+          ${bodyHtml}
+        </td></tr>
+        <!-- Footer -->
+        <tr><td style="padding:0 36px 28px;border-top:1px solid #1f1f22;">
+          <p style="margin:20px 0 0;font-size:11px;color:#444;line-height:1.6;">
+            This is an automated message from <span style="color:#D4AF37;">Salva</span>. Do not reply to this email.<br>
+            © ${new Date().getFullYear()} Salva Digital Tech · <a href="https://salva-nexus.org" style="color:#D4AF37;text-decoration:none;">salva-nexus.org</a>
+          </p>
+        </td></tr>
+        <!-- Gold bottom bar -->
+        <tr><td style="height:3px;background:linear-gradient(90deg,transparent,#D4AF37,transparent);"></td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+}
+
+function statBadge(label, value, color = "#D4AF37") {
+  return `
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #1f1f22;border-radius:12px;margin:8px 0;">
+    <tr>
+      <td style="padding:14px 18px;">
+        <p style="margin:0;font-size:10px;color:#555;text-transform:uppercase;letter-spacing:0.25em;">${label}</p>
+        <p style="margin:4px 0 0;font-size:18px;font-weight:900;color:${color};">${value}</p>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function txHashBlock(hash) {
+  if (!hash) return "";
+  return `
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #1f1f22;border-radius:12px;margin:8px 0;">
+    <tr><td style="padding:14px 18px;">
+      <p style="margin:0;font-size:10px;color:#555;text-transform:uppercase;letter-spacing:0.25em;">Transaction Hash</p>
+      <p style="margin:4px 0 0;font-size:11px;font-family:monospace;color:#D4AF37;word-break:break-all;">${hash}</p>
+    </td></tr>
+  </table>`;
+}
+
+function ctaButton(label, href, color = "#D4AF37") {
+  return `
+  <table cellpadding="0" cellspacing="0" style="margin:20px 0 0;">
+    <tr><td style="background:${color};border-radius:10px;">
+      <a href="${href}" style="display:block;padding:14px 28px;font-size:12px;font-weight:900;color:#000;text-decoration:none;text-transform:uppercase;letter-spacing:0.15em;">${label}</a>
+    </td></tr>
+  </table>`;
+}
+
+async function sendEmail(to, subject, bodyHtml) {
+  if (!to) return;
+  try {
+    await resend.emails.send({
+      from: "SALVA <no-reply@salva-nexus.org>",
+      to,
+      subject,
+      html: emailBase(bodyHtml),
+    });
+    console.log(`📧 Email sent → ${to} | ${subject}`);
+  } catch (e) {
+    console.error(`❌ Email failed (${to}):`, e.message);
+  }
+}
+
+async function notifySellers(subject, bodyHtml) {
   const sellers = await User.find({ isSeller: true }).select("email username");
   for (const s of sellers) {
     if (!s.email) continue;
-    try {
-      await resend.emails.send({
-        from: "SALVA <no-reply@salva-nexus.org>",
-        to: s.email,
-        subject,
-        html,
-      });
-      console.log(`📧 Seller notified: ${s.email}`);
-    } catch (e) {
-      console.error(`❌ Seller email failed (${s.email}):`, e.message);
-    }
+    await sendEmail(s.email, subject, bodyHtml);
   }
+}
+
+// ── BUY emails ─────────────────────────────────────────────────────────────
+
+function buyInitiatedUserEmail(username, amount, feeNgn, mintAmount, bankName, acctName, acctNum) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#fff;">Buy Request Initiated</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your NGNs purchase request has been received.</p>
+  ${statBadge("You Pay", `₦${parseFloat(amount).toLocaleString()}`)}
+  ${feeNgn > 0 ? statBadge("Platform Fee", `${feeNgn.toLocaleString()} NGNs`, "#ef4444") : ""}
+  ${statBadge("You Will Receive", `${parseFloat(mintAmount).toLocaleString()} NGNs`, "#22c55e")}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #D4AF37;border-radius:12px;margin:16px 0;">
+    <tr><td style="padding:16px 18px;">
+      <p style="margin:0;font-size:10px;color:#D4AF37;text-transform:uppercase;letter-spacing:0.25em;font-weight:900;">Payment Instructions</p>
+      <p style="margin:10px 0 0;font-size:13px;color:#fff;">Transfer exactly <strong style="color:#D4AF37;">₦${parseFloat(amount).toLocaleString()}</strong> to:</p>
+      <p style="margin:8px 0 0;font-size:13px;color:#ccc;">🏦 <strong>${bankName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">👤 <strong>${acctName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">🔢 <strong>${acctNum}</strong></p>
+    </td></tr>
+  </table>
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">After making the transfer, upload your receipt in the Salva app and tap <strong style="color:#fff;">"I Have Paid"</strong>. Our team will verify and mint your NGNs typically within 30 minutes.</p>
+  ${ctaButton("Open Salva App", "https://salva-nexus.org")}`;
+}
+
+function buyInitiatedSellerEmail(username, amount, feeNgn, mintAmount) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#fff;">New Buy Request</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;"><strong style="color:#fff;">${username}</strong> wants to purchase NGNs.</p>
+  ${statBadge("Amount Requested", `₦${parseFloat(amount).toLocaleString()}`)}
+  ${feeNgn > 0 ? statBadge("Fee", `${feeNgn.toLocaleString()} NGNs`, "#ef4444") : ""}
+  ${statBadge("Amount to Mint", `${parseFloat(mintAmount).toLocaleString()} NGNs`, "#22c55e")}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">The user has been sent payment instructions. Once they upload a receipt, verify the bank transfer and confirm the mint in your Salva dashboard.</p>
+  ${ctaButton("Open Mint Requests", "https://salva-nexus.org/dashboard")}`;
+}
+
+function buyMintedUserEmail(username, mintAmount, txHash) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#22c55e;">NGNs Minted Successfully!</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your NGNs have been minted and sent to your wallet.</p>
+  ${statBadge("Amount Minted", `${parseFloat(mintAmount).toLocaleString()} NGNs`, "#22c55e")}
+  ${statBadge("Network", "Base Mainnet", "#3b82f6")}
+  ${txHashBlock(txHash)}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">Your NGNs are now available in your Salva wallet. You can use them for transfers, swaps, and more.</p>
+  ${ctaButton("View My Wallet", "https://salva-nexus.org/dashboard")}`;
+}
+
+function buyMintedSellerEmail(username, mintAmount, txHash) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#22c55e;">Mint Confirmed</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">You successfully minted NGNs for <strong style="color:#fff;">${username}</strong>.</p>
+  ${statBadge("Amount Minted", `${parseFloat(mintAmount).toLocaleString()} NGNs`, "#22c55e")}
+  ${txHashBlock(txHash)}`;
+}
+
+function buyRejectedUserEmail(username, amount, reason) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#ef4444;">Purchase Request Rejected</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, unfortunately your NGNs purchase could not be completed.</p>
+  ${statBadge("Amount Requested", `₦${parseFloat(amount).toLocaleString()}`)}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #ef4444;border-radius:12px;margin:8px 0;">
+    <tr><td style="padding:14px 18px;">
+      <p style="margin:0;font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:0.25em;">Reason</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#ccc;">${reason || "Payment could not be verified."}</p>
+    </td></tr>
+  </table>
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">If you believe this is an error or you have already made the transfer, please contact support or initiate a new request in the app.</p>
+  ${ctaButton("Try Again", "https://salva-nexus.org/dashboard")}`;
+}
+
+function buyRejectedSellerEmail(username, amount) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#ef4444;">Request Rejected</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">You rejected the buy request from <strong style="color:#fff;">${username}</strong>.</p>
+  ${statBadge("Amount", `₦${parseFloat(amount).toLocaleString()}`)}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;">The user has been notified.</p>`;
+}
+
+// ── SELL emails ────────────────────────────────────────────────────────────
+
+function sellInitiatedUserEmail(username, amount, txHash, bankName, acctName, acctNum) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#fff;">Sell Request Initiated</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your NGNs have been burned and your sell request is being processed.</p>
+  ${statBadge("NGNs Burned", `${parseFloat(amount).toLocaleString()} NGNs`, "#ef4444")}
+  ${statBadge("You Will Receive", `₦${parseFloat(amount).toLocaleString()}`, "#22c55e")}
+  ${statBadge("Network", "Base Mainnet", "#3b82f6")}
+  ${txHashBlock(txHash)}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #D4AF37;border-radius:12px;margin:16px 0;">
+    <tr><td style="padding:16px 18px;">
+      <p style="margin:0;font-size:10px;color:#D4AF37;text-transform:uppercase;letter-spacing:0.25em;font-weight:900;">Your Bank Details</p>
+      <p style="margin:10px 0 0;font-size:13px;color:#ccc;">🏦 <strong>${bankName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">👤 <strong>${acctName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">🔢 <strong>${acctNum}</strong></p>
+    </td></tr>
+  </table>
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">Our team will verify your details and transfer the funds to your bank account. This typically takes 30–60 minutes during business hours.</p>`;
+}
+
+function sellInitiatedSellerEmail(username, amount, txHash, bankName, acctName, acctNum) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#fff;">New Sell Request</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;"><strong style="color:#fff;">${username}</strong> has burned NGNs and wants a bank payout.</p>
+  ${statBadge("NGNs Burned", `${parseFloat(amount).toLocaleString()} NGNs`, "#ef4444")}
+  ${statBadge("Amount to Pay User", `₦${parseFloat(amount).toLocaleString()}`, "#22c55e")}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #D4AF37;border-radius:12px;margin:16px 0;">
+    <tr><td style="padding:16px 18px;">
+      <p style="margin:0;font-size:10px;color:#D4AF37;text-transform:uppercase;letter-spacing:0.25em;font-weight:900;">User Bank Details</p>
+      <p style="margin:10px 0 0;font-size:13px;color:#ccc;">🏦 <strong>${bankName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">👤 <strong>${acctName}</strong></p>
+      <p style="margin:4px 0;font-size:13px;color:#ccc;">🔢 <strong>${acctNum}</strong></p>
+    </td></tr>
+  </table>
+  ${txHashBlock(txHash)}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">The burn is confirmed on-chain. Send the naira payout and mark as complete in your dashboard.</p>
+  ${ctaButton("Open Mint Requests", "https://salva-nexus.org/dashboard")}`;
+}
+
+function sellCompletedUserEmail(username, amount, bankName, acctNum) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#22c55e;">Payout Sent!</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your naira payout has been sent to your bank account.</p>
+  ${statBadge("Amount Sent", `₦${parseFloat(amount).toLocaleString()}`, "#22c55e")}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #1f1f22;border-radius:12px;margin:8px 0;">
+    <tr><td style="padding:14px 18px;">
+      <p style="margin:0;font-size:10px;color:#555;text-transform:uppercase;letter-spacing:0.25em;">Sent To</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#ccc;">🏦 ${bankName} · 🔢 ${acctNum}</p>
+    </td></tr>
+  </table>
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">Funds typically appear in your account within minutes. If you have not received the transfer within 2 hours, please contact support.</p>
+  ${ctaButton("View Dashboard", "https://salva-nexus.org/dashboard")}`;
+}
+
+function sellCompletedSellerEmail(username, amount) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#22c55e;">Sell Completed</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">You marked the sell request from <strong style="color:#fff;">${username}</strong> as complete.</p>
+  ${statBadge("Amount Paid", `₦${parseFloat(amount).toLocaleString()}`, "#22c55e")}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;">The user has been notified that their payout was sent.</p>`;
+}
+
+function sellRejectedUserEmail(username, amount, reason) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#ef4444;">Sell Request Issue</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, there was an issue with your sell request.</p>
+  ${statBadge("NGNs Burned", `${parseFloat(amount).toLocaleString()} NGNs`, "#ef4444")}
+  <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #ef4444;border-radius:12px;margin:8px 0;">
+    <tr><td style="padding:14px 18px;">
+      <p style="margin:0;font-size:10px;color:#ef4444;text-transform:uppercase;letter-spacing:0.25em;">Note</p>
+      <p style="margin:6px 0 0;font-size:13px;color:#ccc;">${reason || "Your request could not be processed."}</p>
+    </td></tr>
+  </table>
+  <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">Please contact Salva support immediately referencing your burn transaction so we can resolve this for you.</p>
+  ${ctaButton("Contact Support", "https://salva-nexus.org")}`;
+}
+
+function sellRejectedSellerEmail(username, amount) {
+  return `
+  <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#ef4444;">Sell Request Rejected</h2>
+  <p style="margin:0 0 20px;font-size:13px;color:#888;">You rejected the sell request from <strong style="color:#fff;">${username}</strong>.</p>
+  ${statBadge("NGNs Burned", `${parseFloat(amount).toLocaleString()} NGNs`, "#ef4444")}
+  <p style="font-size:12px;color:#666;margin:16px 0 0;">The user has been notified. Ensure any outstanding balance is resolved manually if funds were received.</p>`;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -95,13 +328,6 @@ router.post("/initiate", async (req, res) => {
       createdAt: new Date(),
     };
 
-    const notifyEmail = `<div style="background:#0A0A0B;color:white;padding:32px;font-family:sans-serif;border-radius:16px;max-width:480px;">
-      <h1 style="color:#D4AF37;margin:0 0 20px;font-size:24px;">SALVA</h1>
-      <p><b>${user.username}</b> wants to buy <b style="color:#D4AF37;">₦${amount.toLocaleString()}</b></p>
-      <p>To mint: <b style="color:#22c55e;">${mintAmount.toLocaleString()} NGNs</b>${feeNgn ? ` (fee: ${feeNgn})` : ""}</p>
-      <p style="color:#666;font-size:11px;">Open Salva dashboard → Mint Requests</p>
-    </div>`;
-
     let mintRequest = await MintRequest.findOne({
       userSafeAddress: safeAddress.toLowerCase(),
     }).sort({ createdAt: -1 });
@@ -125,35 +351,33 @@ router.post("/initiate", async (req, res) => {
       mintRequest.updatedAt = new Date();
       mintRequest.messages.push(bankMsg);
       await mintRequest.save();
-
-      console.log(`✅ MintRequest ${mintRequest._id} reused for new purchase`);
-      notifySellers(`[SALVA] 🛒 New Request — ₦${amount.toLocaleString()} — ${user.username}`, notifyEmail).catch(() => {});
-
-      return res.json({
-        success: true,
-        requestId: mintRequest._id,
+    } else {
+      mintRequest = await MintRequest.create({
+        userSafeAddress: safeAddress.toLowerCase(),
+        userEmail: user.email,
+        username: user.username,
         amountNgn: amount,
         feeNgn,
-        mintAmount,
-        bankDetails: { accountName: acctName, accountNumber: acctNum, bankName },
-        messages: mintRequest.messages,
+        mintAmountNgn: mintAmount,
+        status: "pending",
+        sellerRead: false,
+        messages: [bankMsg],
       });
     }
 
-    mintRequest = await MintRequest.create({
-      userSafeAddress: safeAddress.toLowerCase(),
-      userEmail: user.email,
-      username: user.username,
-      amountNgn: amount,
-      feeNgn,
-      mintAmountNgn: mintAmount,
-      status: "pending",
-      sellerRead: false,
-      messages: [bankMsg],
-    });
+    console.log(`✅ MintRequest ${mintRequest._id} created/reused for buy`);
 
-    console.log(`✅ MintRequest ${mintRequest._id} created (new thread)`);
-    notifySellers(`[SALVA] 🛒 New Request — ₦${amount.toLocaleString()} — ${user.username}`, notifyEmail).catch(() => {});
+    // Emails — non-blocking
+    sendEmail(
+      user.email,
+      `[SALVA] Buy Request — ₦${amount.toLocaleString()} NGNs`,
+      buyInitiatedUserEmail(user.username, amount, feeNgn, mintAmount, bankName, acctName, acctNum),
+    ).catch(() => {});
+
+    notifySellers(
+      `[SALVA] 🛒 New Buy Request — ₦${amount.toLocaleString()} — ${user.username}`,
+      buyInitiatedSellerEmail(user.username, amount, feeNgn, mintAmount),
+    ).catch(() => {});
 
     return res.json({
       success: true,
@@ -205,14 +429,14 @@ router.post("/claim-paid", async (req, res) => {
 
     console.log(`✅ MintRequest ${requestId} → PAID`);
 
+    // Notify sellers that receipt was uploaded (plain text seller body)
     notifySellers(
-      `[SALVA] 📸 Receipt — ${mintRequest.username} — ₦${mintRequest.amountNgn.toLocaleString()}`,
-      `<div style="background:#0A0A0B;color:white;padding:32px;font-family:sans-serif;border-radius:16px;max-width:480px;">
-        <h1 style="color:#D4AF37;margin:0 0 20px;font-size:24px;">SALVA</h1>
-        <p><b>${mintRequest.username}</b> uploaded a payment receipt.</p>
-        <p>Verify bank transfer then confirm in Salva dashboard.</p>
-        <p style="color:#22c55e;font-size:18px;font-weight:700;">Mint: ${mintRequest.mintAmountNgn.toLocaleString()} NGNs</p>
-      </div>`,
+      `[SALVA] 📸 Receipt Uploaded — ${mintRequest.username} — ₦${mintRequest.amountNgn.toLocaleString()}`,
+      `<h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#fff;">Receipt Uploaded</h2>
+       <p style="margin:0 0 20px;font-size:13px;color:#888;"><strong style="color:#fff;">${mintRequest.username}</strong> has uploaded their payment receipt.</p>
+       ${statBadge("To Mint", `${mintRequest.mintAmountNgn.toLocaleString()} NGNs`, "#22c55e")}
+       <p style="font-size:12px;color:#666;margin:16px 0 0;">Verify the bank transfer in your dashboard and confirm the mint.</p>
+       ${ctaButton("Review Receipt", "https://salva-nexus.org/dashboard")}`,
     ).catch(() => {});
 
     return res.json({ success: true, status: "paid" });
@@ -331,6 +555,19 @@ router.post("/confirm-mint", async (req, res) => {
       }
     }
 
+    // Emails — non-blocking
+    sendEmail(
+      mintRequest.userEmail,
+      `[SALVA] ✅ ${mintRequest.mintAmountNgn.toLocaleString()} NGNs Minted to Your Wallet`,
+      buyMintedUserEmail(mintRequest.username, mintRequest.mintAmountNgn, tx.hash),
+    ).catch(() => {});
+
+    sendEmail(
+      seller.email,
+      `[SALVA] ✅ Mint Confirmed — ${mintRequest.username}`,
+      buyMintedSellerEmail(mintRequest.username, mintRequest.mintAmountNgn, tx.hash),
+    ).catch(() => {});
+
     return res.json({ success: true, status: "minted", txHash: tx.hash });
   } catch (err) {
     console.error("❌ confirm-mint:", err.message);
@@ -355,14 +592,41 @@ router.post("/reject", async (req, res) => {
     if (!["pending", "paid", "burned"].includes(mintRequest.status))
       return res.status(400).json({ message: "Cannot reject at this stage" });
 
+    const rejectReason = reason?.trim() || "Payment could not be verified. Contact support if you believe this is an error.";
+
     mintRequest.status = "rejected";
     mintRequest.messages.push({
       sender: "seller",
-      text: reason?.trim() || "❌ Payment could not be verified. Contact support if you believe this is an error.",
+      text: `❌ ${rejectReason}`,
       createdAt: new Date(),
     });
     mintRequest.updatedAt = new Date();
     await mintRequest.save();
+
+    // Determine email type based on request type
+    const isSell = mintRequest.type === "sell";
+
+    // User email
+    sendEmail(
+      mintRequest.userEmail,
+      isSell
+        ? `[SALVA] ❌ Sell Request Issue — Action Required`
+        : `[SALVA] ❌ Purchase Request Rejected`,
+      isSell
+        ? sellRejectedUserEmail(mintRequest.username, mintRequest.amountNgn, rejectReason)
+        : buyRejectedUserEmail(mintRequest.username, mintRequest.amountNgn, rejectReason),
+    ).catch(() => {});
+
+    // Seller confirmation email
+    sendEmail(
+      seller.email,
+      isSell
+        ? `[SALVA] Sell Request Rejected — ${mintRequest.username}`
+        : `[SALVA] Buy Request Rejected — ${mintRequest.username}`,
+      isSell
+        ? sellRejectedSellerEmail(mintRequest.username, mintRequest.amountNgn)
+        : buyRejectedSellerEmail(mintRequest.username, mintRequest.amountNgn),
+    ).catch(() => {});
 
     return res.json({ success: true, status: "rejected" });
   } catch (err) {
@@ -448,11 +712,10 @@ router.get("/unread-count", async (req, res) => {
 
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/buy-ngns/initiate-sell
-// EXACT original logic — only addition is points redemption block
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/initiate-sell", async (req, res) => {
   try {
-    const { safeAddress, amountNgn, bankName, accountNumber, accountName, pointsRedemption } = req.body;
+    const { safeAddress, amountNgn, bankName, accountNumber, accountName } = req.body;
     console.log(`🔥 initiate-sell: safeAddress=${safeAddress} amount=${amountNgn}`);
 
     if (!safeAddress || !safeAddress.startsWith("0x"))
@@ -468,24 +731,6 @@ router.post("/initiate-sell", async (req, res) => {
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // ── Points redemption validation (new) ────────────────────────────────
-    let validatedRedemption = null;
-    if (pointsRedemption?.requested && pointsRedemption.pointsToRedeem > 0) {
-      const pts = parseInt(pointsRedemption.pointsToRedeem);
-      if (pts < 1000) {
-        return res.status(400).json({ message: "Minimum redemption is 2,000 points" });
-      }
-      const userPts = await UserPoints.findOne({ safeAddress: safeAddress.toLowerCase() });
-      if (!userPts || userPts.totalPoints < pts) {
-        return res.status(400).json({
-          message: `Insufficient points. You have ${userPts?.totalPoints || 0} pts.`,
-        });
-      }
-      validatedRedemption = { requested: true, pointsToRedeem: pts, equivalentNGN: pts };
-      console.log(`⭐ Redemption validated: ${pts} pts`);
-    }
-
-    // ── Check NGNs balance (ORIGINAL — no changes) ────────────────────────
     const ngnTokenAddress = process.env.NGN_TOKEN_ADDRESS;
     if (!ngnTokenAddress) throw new Error("NGN_TOKEN_ADDRESS not set in .env");
 
@@ -502,7 +747,6 @@ router.post("/initiate-sell", async (req, res) => {
       });
     }
 
-    // Block if active request exists
     const existing = await MintRequest.findOne({
       userSafeAddress: safeAddress.toLowerCase(),
       status: { $in: ["pending", "paid", "minting"] },
@@ -511,7 +755,6 @@ router.post("/initiate-sell", async (req, res) => {
       return res.status(409).json({ message: "You already have an active request.", requestId: existing._id });
     }
 
-    // ── Burn NGNs on-chain (ORIGINAL — no changes) ────────────────────────
     const burnAmt = ethers.parseUnits(amount.toString(), decimals);
     console.log(`🔥 Calling burn(${safeAddress}, ${burnAmt}) on ${ngnTokenAddress}`);
     const tx = await ngnToken.burn(safeAddress.toLowerCase(), burnAmt);
@@ -521,40 +764,6 @@ router.post("/initiate-sell", async (req, res) => {
     if (receipt.status !== 1) throw new Error("Burn transaction reverted");
     console.log(`✅ Burn confirmed: ${tx.hash}`);
 
-    // ── Deduct points AFTER burn confirms (new — non-fatal) ───────────────
-    if (validatedRedemption) {
-      const session = await mongoose.startSession();
-      try {
-        await session.withTransaction(async () => {
-          await UserPoints.findOneAndUpdate(
-            { safeAddress: safeAddress.toLowerCase() },
-            {
-              $inc: { totalPoints: -validatedRedemption.pointsToRedeem, redeemedPoints: validatedRedemption.pointsToRedeem },
-              $set: { updatedAt: new Date() },
-            },
-            { session },
-          );
-          await PointLedger.create([{
-            safeAddress: safeAddress.toLowerCase(),
-            username: user.username,
-            points: -validatedRedemption.pointsToRedeem,
-            reason: "REDEMPTION",
-            txHash: tx.hash,
-            amount,
-            metadata: { sellAmountNgn: amount, pointsRedeemed: validatedRedemption.pointsToRedeem, equivalentNGN: validatedRedemption.equivalentNGN },
-            createdAt: new Date(),
-          }], { session });
-        });
-        console.log(`⭐ ${validatedRedemption.pointsToRedeem} pts deducted from ${user.username}`);
-      } catch (ptErr) {
-        console.error("❌ Points deduction error (non-fatal):", ptErr.message);
-        validatedRedemption = { ...validatedRedemption, deductionError: ptErr.message };
-      } finally {
-        await session.endSession();
-      }
-    }
-
-    // ── Save to transaction history (ORIGINAL) ────────────────────────────
     if (Transaction) {
       try {
         await Transaction.create({
@@ -575,21 +784,13 @@ router.post("/initiate-sell", async (req, res) => {
       }
     }
 
-    // ── Build sell message (ORIGINAL + redemption line) ───────────────────
-    let redemptionLine = "";
-    if (validatedRedemption && !validatedRedemption.deductionError) {
-      const total = amount + validatedRedemption.equivalentNGN;
-      redemptionLine = `\n\n⭐ **Points Redeemed:** ${validatedRedemption.pointsToRedeem.toLocaleString()} pts → +₦${validatedRedemption.equivalentNGN.toLocaleString()} extra\n💰 **Total to pay user: ₦${total.toLocaleString()}**`;
-    }
-
     const sellMsg = {
       sender: "user",
       isBurned: true,
-      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet${redemptionLine}`,
+      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet`,
       createdAt: new Date(),
     };
 
-    // ── Reuse or create thread (ORIGINAL logic) ───────────────────────────
     let mintRequest = await MintRequest.findOne({
       userSafeAddress: safeAddress.toLowerCase(),
     }).sort({ createdAt: -1 });
@@ -601,7 +802,6 @@ router.post("/initiate-sell", async (req, res) => {
       mintRequest.feeNgn = 0;
       mintRequest.mintAmountNgn = amount;
       mintRequest.bankDetails = { bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountName: accountName.trim() };
-      mintRequest.pointsRedemption = validatedRedemption || { requested: false };
       mintRequest.receiptImageBase64 = null;
       mintRequest.sellerRead = false;
       mintRequest.txHash = tx.hash;
@@ -618,7 +818,6 @@ router.post("/initiate-sell", async (req, res) => {
         feeNgn: 0,
         mintAmountNgn: amount,
         bankDetails: { bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountName: accountName.trim() },
-        pointsRedemption: validatedRedemption || { requested: false },
         status: "paid",
         sellerRead: false,
         txHash: tx.hash,
@@ -628,21 +827,16 @@ router.post("/initiate-sell", async (req, res) => {
 
     console.log(`✅ Sell request ${mintRequest._id} created`);
 
-    // ── Notify sellers (ORIGINAL + redemption info) ───────────────────────
-    const totalPayout = amount + (validatedRedemption?.equivalentNGN || 0);
-    const redemptionHtml = validatedRedemption
-      ? `<p>⭐ Pts redeemed: <b>${validatedRedemption.pointsToRedeem.toLocaleString()}</b> → pay ₦${totalPayout.toLocaleString()} total</p>`
-      : `<p>Send <b style="color:#22c55e;">₦${amount.toLocaleString()}</b> to user.</p>`;
+    // Emails — non-blocking
+    sendEmail(
+      user.email,
+      `[SALVA] Sell Request — ${amount.toLocaleString()} NGNs Burned`,
+      sellInitiatedUserEmail(user.username, amount, tx.hash, bankName.trim(), accountName.trim(), accountNumber.trim()),
+    ).catch(() => {});
 
     notifySellers(
-      `[SALVA] 💸 Sell — ₦${amount.toLocaleString()} — ${user.username}${validatedRedemption ? " + pts" : ""}`,
-      `<div style="background:#0A0A0B;color:white;padding:32px;font-family:sans-serif;border-radius:16px;max-width:480px;">
-        <h1 style="color:#D4AF37;margin:0 0 20px;font-size:24px;">SALVA</h1>
-        <p><b>${user.username}</b> sold <b style="color:#ef4444;">₦${amount.toLocaleString()} NGNs</b> — burned ✅</p>
-        ${redemptionHtml}
-        <p>🏦 ${bankName} · 👤 ${accountName} · 🔢 ${accountNumber}</p>
-        <p style="color:#666;font-size:11px;">TX: ${tx.hash}</p>
-      </div>`,
+      `[SALVA] 💸 New Sell Request — ₦${amount.toLocaleString()} — ${user.username}`,
+      sellInitiatedSellerEmail(user.username, amount, tx.hash, bankName.trim(), accountName.trim(), accountNumber.trim()),
     ).catch(() => {});
 
     return res.json({
@@ -650,7 +844,6 @@ router.post("/initiate-sell", async (req, res) => {
       requestId: mintRequest._id,
       txHash: tx.hash,
       messages: mintRequest.messages,
-      pointsDeducted: validatedRedemption?.pointsToRedeem || 0,
     });
   } catch (err) {
     console.error("❌ initiate-sell:", err.message);
@@ -692,7 +885,7 @@ router.post("/send-image", async (req, res) => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// POST /api/buy-ngns/complete-sell
+// POST /api/buy-ngns/complete-sell  (seller only)
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/complete-sell", async (req, res) => {
   try {
@@ -705,8 +898,7 @@ router.post("/complete-sell", async (req, res) => {
     if (mintRequest.status !== "paid" || mintRequest.type !== "sell")
       return res.status(400).json({ message: "Cannot complete at this stage" });
 
-    const totalPaid = (mintRequest.amountNgn || 0) +
-      (mintRequest.pointsRedemption?.requested ? (mintRequest.pointsRedemption.equivalentNGN || 0) : 0);
+    const totalPaid = mintRequest.amountNgn || 0;
 
     mintRequest.status = "sell_completed";
     mintRequest.messages.push({
@@ -717,9 +909,119 @@ router.post("/complete-sell", async (req, res) => {
     mintRequest.updatedAt = new Date();
     await mintRequest.save();
 
+    const bankName = mintRequest.bankDetails?.bankName || "";
+    const acctNum = mintRequest.bankDetails?.accountNumber || "";
+
+    // Emails — non-blocking
+    sendEmail(
+      mintRequest.userEmail,
+      `[SALVA] ✅ Payout of ₦${totalPaid.toLocaleString()} Sent`,
+      sellCompletedUserEmail(mintRequest.username, totalPaid, bankName, acctNum),
+    ).catch(() => {});
+
+    sendEmail(
+      seller.email,
+      `[SALVA] Sell Completed — ${mintRequest.username}`,
+      sellCompletedSellerEmail(mintRequest.username, totalPaid),
+    ).catch(() => {});
+
     return res.json({ success: true, status: "sell_completed" });
   } catch (err) {
     res.status(500).json({ message: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// POST /api/buy-ngns/mark-minted  (seller only — forwards to confirm-mint logic)
+// The frontend SellerMintPanel calls /mark-minted; this keeps it working.
+// ══════════════════════════════════════════════════════════════════════════════
+router.post("/mark-minted", async (req, res) => {
+  req.url = "/confirm-mint";
+  // Re-use confirm-mint by duplicating the handler inline
+  try {
+    const { requestId, safeAddress } = req.body;
+    console.log(`🪙 mark-minted (→confirm-mint): ${requestId} seller=${safeAddress}`);
+
+    if (!requestId || !safeAddress)
+      return res.status(400).json({ message: "requestId and safeAddress required" });
+
+    const seller = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    if (!seller?.isSeller) return res.status(403).json({ message: "Not authorized" });
+
+    const mintRequest = await MintRequest.findById(requestId);
+    if (!mintRequest) return res.status(404).json({ message: "Not found" });
+    if (mintRequest.status !== "paid")
+      return res.status(400).json({ message: `Cannot mint — status is '${mintRequest.status}'` });
+
+    mintRequest.status = "minting";
+    await mintRequest.save();
+
+    const ngnTokenAddress = process.env.NGN_TOKEN_ADDRESS;
+    if (!ngnTokenAddress) throw new Error("NGN_TOKEN_ADDRESS not set in .env");
+
+    const signer = getBackendSigner();
+    const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
+    const decimals = await ngnToken.decimals();
+    const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
+
+    const tx = await ngnToken.mint(mintRequest.userSafeAddress, mintAmt);
+    const receipt = await tx.wait();
+    if (receipt.status !== 1) throw new Error("Mint transaction reverted");
+    console.log(`✅ mark-minted confirmed: ${tx.hash}`);
+
+    const successMsg = {
+      sender: "seller",
+      isMinted: true,
+      text: `🎉 **${mintRequest.mintAmountNgn.toLocaleString()} NGNs** minted to your wallet!\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet`,
+      createdAt: new Date(),
+    };
+
+    mintRequest.status = "minted";
+    mintRequest.txHash = tx.hash;
+    mintRequest.mintedAt = new Date();
+    mintRequest.sellerRead = true;
+    mintRequest.messages.push(successMsg);
+    mintRequest.updatedAt = new Date();
+    await mintRequest.save();
+
+    if (Transaction) {
+      try {
+        await Transaction.create({
+          fromAddress: ngnTokenAddress,
+          toAddress: mintRequest.userSafeAddress,
+          fromUsername: "Salva Mint",
+          toUsername: mintRequest.username,
+          amount: mintRequest.mintAmountNgn,
+          coin: "NGN",
+          status: "successful",
+          taskId: tx.hash,
+          fee: mintRequest.feeNgn || 0,
+          date: new Date(),
+        });
+      } catch (txErr) {
+        console.error("⚠️ Tx history save failed:", txErr.message);
+      }
+    }
+
+    sendEmail(
+      mintRequest.userEmail,
+      `[SALVA] ✅ ${mintRequest.mintAmountNgn.toLocaleString()} NGNs Minted to Your Wallet`,
+      buyMintedUserEmail(mintRequest.username, mintRequest.mintAmountNgn, tx.hash),
+    ).catch(() => {});
+
+    sendEmail(
+      seller.email,
+      `[SALVA] ✅ Mint Confirmed — ${mintRequest.username}`,
+      buyMintedSellerEmail(mintRequest.username, mintRequest.mintAmountNgn, tx.hash),
+    ).catch(() => {});
+
+    return res.json({ success: true, status: "minted", txHash: tx.hash });
+  } catch (err) {
+    console.error("❌ mark-minted:", err.message);
+    try {
+      await MintRequest.findByIdAndUpdate(req.body.requestId, { status: "paid" });
+    } catch { /* ignore */ }
+    res.status(500).json({ message: err.message || "Mint failed — please try again" });
   }
 });
 

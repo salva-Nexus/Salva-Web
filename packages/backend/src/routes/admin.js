@@ -261,7 +261,7 @@ router.post("/propose-registry", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ propose-registry bg error:", e.message));
   } catch (error) {
     console.error("❌ propose-registry error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Proposal failed. Please try again." });
   }
 });
 
@@ -315,7 +315,7 @@ router.post("/validate-registry", requireValidator, async (req, res) => {
     }
   } catch (error) {
     console.error("❌ validate-registry error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to validate registry init" });
   }
 });
 
@@ -374,7 +374,7 @@ router.post("/execute-registry", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ execute-registry bg error:", e.message));
   } catch (error) {
     console.error("❌ execute-registry error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to execute registry init" });
   }
 });
 
@@ -413,7 +413,7 @@ router.post("/cancel-registry", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ cancel-registry bg error:", e.message));
   } catch (error) {
     console.error("❌ cancel-registry error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to cancel registry init" });
   }
 });
 
@@ -488,7 +488,7 @@ router.post("/propose-validator", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ propose-validator bg error:", e.message));
   } catch (error) {
     console.error("❌ propose-validator error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to propose validate update" });
   }
 });
 
@@ -541,7 +541,7 @@ router.post("/validate-validator", requireValidator, async (req, res) => {
     }
   } catch (error) {
     console.error("❌ validate-validator error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to validate validator update" });
   }
 });
 
@@ -590,7 +590,7 @@ router.post("/execute-validator", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ execute-validator bg error:", e.message));
   } catch (error) {
     console.error("❌ execute-validator error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to execute validator upgrade" });
   }
 });
 
@@ -629,7 +629,7 @@ router.post("/cancel-validator", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ cancel-validator bg error:", e.message));
   } catch (error) {
     console.error("❌ cancel-validator error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to cancel validator update" });
   }
 });
 
@@ -713,7 +713,7 @@ router.post("/propose-upgrade", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ propose-upgrade bg error:", e.message));
   } catch (error) {
     console.error("❌ propose-upgrade error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to propose upgrade" });
   }
 });
 
@@ -766,7 +766,7 @@ router.post("/validate-upgrade", requireValidator, async (req, res) => {
     }
   } catch (error) {
     console.error("❌ validate-upgrade error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to validate upgrade" });
   }
 });
 
@@ -805,7 +805,7 @@ router.post("/execute-upgrade", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ execute-upgrade bg error:", e.message));
   } catch (error) {
     console.error("❌ execute-upgrade error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to execute upgrade" });
   }
 });
 
@@ -844,7 +844,7 @@ router.post("/cancel-upgrade", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ cancel-upgrade bg error:", e.message));
   } catch (error) {
     console.error("❌ cancel-upgrade error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to cancel upgrade"});
   }
 });
 
@@ -925,7 +925,7 @@ router.post("/propose-signer-update", requireValidator, async (req, res) => {
       );
   } catch (error) {
     console.error("❌ propose-signer-update error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to propose signer update" });
   }
 });
 
@@ -978,7 +978,7 @@ router.post("/validate-signer-update", requireValidator, async (req, res) => {
     }
   } catch (error) {
     console.error("❌ validate-signer-update error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to validate signer update" });
   }
 });
 
@@ -1019,7 +1019,7 @@ router.post("/execute-signer-update", requireValidator, async (req, res) => {
       );
   } catch (error) {
     console.error("❌ execute-signer-update error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to execute signer update" });
   }
 });
 
@@ -1060,7 +1060,7 @@ router.post("/cancel-signer-update", requireValidator, async (req, res) => {
       );
   } catch (error) {
     console.error("❌ cancel-signer-update error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to cancel signer update" });
   }
 });
 
@@ -1148,7 +1148,7 @@ router.post(
         );
     } catch (error) {
       console.error("❌ propose-impl-update error:", error.message);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Failed to propose impl update" });
     }
   },
 );
@@ -1210,7 +1210,7 @@ router.post(
       }
     } catch (error) {
       console.error("❌ validate-impl-update error:", error.message);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Failed to validate impl update" });
     }
   },
 );
@@ -1255,7 +1255,7 @@ router.post(
         );
     } catch (error) {
       console.error("❌ execute-impl-update error:", error.message);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Failed to execute impl update" });
     }
   },
 );
@@ -1302,7 +1302,7 @@ router.post(
         );
     } catch (error) {
       console.error("❌ cancel-impl-update error:", error.message);
-      res.status(500).json({ message: error.message });
+      res.status(500).json({ message: "Failed to cancel impl update" });
     }
   },
 );
@@ -1338,7 +1338,7 @@ router.post("/update-factory-fee", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: result.txHash });
   } catch (error) {
     console.error("❌ update-factory-fee error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to update factory fee" });
   }
 });
 
@@ -1374,7 +1374,7 @@ router.post("/pause-state", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: result.txHash });
   } catch (error) {
     console.error("❌ pause-state error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to pause state" });
   }
 });
 
@@ -1444,7 +1444,7 @@ router.post("/propose-unpause", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ propose-unpause bg error:", e.message));
   } catch (error) {
     console.error("❌ propose-unpause error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Proposal failed. Please try again." });
   }
 });
 
@@ -1494,7 +1494,7 @@ router.post("/validate-unpause", requireValidator, async (req, res) => {
     }
   } catch (error) {
     console.error("❌ validate-unpause error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to validate un pause" });
   }
 });
 
@@ -1533,7 +1533,7 @@ router.post("/execute-unpause", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ execute-unpause bg error:", e.message));
   } catch (error) {
     console.error("❌ execute-unpause error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to execute un pause" });
   }
 });
 
@@ -1572,7 +1572,7 @@ router.post("/cancel-unpause", requireValidator, async (req, res) => {
       .catch((e) => console.error("❌ cancel-unpause bg error:", e.message));
   } catch (error) {
     console.error("❌ cancel-unpause error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to cancel un pause proposal" });
   }
 });
 
@@ -1615,7 +1615,7 @@ router.post("/withdraw", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: result.txHash });
   } catch (error) {
     console.error("❌ withdraw error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Withdraw Failed" });
   }
 });
 
@@ -1649,7 +1649,7 @@ router.post("/update-recovery", requireValidator, async (req, res) => {
     res.json({ success: true, txHash: result.txHash });
   } catch (error) {
     console.error("❌ update-recovery error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Update Recovery Failed" });
   }
 });
 
@@ -1705,6 +1705,6 @@ router.post("/emergency-add-validator", requireValidator, async (req, res) => {
     res.json({ success: true, message: `${cleanTarget} added as validator` });
   } catch (error) {
     console.error("❌ emergency-add-validator error:", error.message);
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ message: "Failed to add validator" });
   }
 });

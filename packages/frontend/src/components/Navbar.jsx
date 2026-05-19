@@ -4,23 +4,21 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings } from "lucide-react";
 
-const Navbar = () => {
+const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainId }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [darkMode, setDarkMode] = useState(() => {
-    const saved = localStorage.getItem("theme");
-    return saved !== null ? JSON.parse(saved) : true;
-  });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showSettingsMenu, setShowSettingsMenu] = useState(false);
+  const [showL1Menu, setShowL1Menu] = useState(false);
   const settingsRef = useRef(null);
+  const l1Ref = useRef(null);
+  const isL1Page = location.pathname === "/l1";
 
   useEffect(() => {
     const savedUser = localStorage.getItem("salva_user");
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
-        // Only require username + safeAddress. ownerKey presence (mid-onboarding) is fine.
         if (user.username && user.safeAddress) {
           setIsLoggedIn(true);
         } else {
@@ -37,18 +35,24 @@ const Navbar = () => {
   }, [location]);
 
   useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-    localStorage.setItem("theme", JSON.stringify(darkMode));
-  }, [darkMode]);
+    // Always enforce dark mode — toggle removed
+    document.documentElement.classList.add("dark");
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (settingsRef.current && !settingsRef.current.contains(event.target)) {
         setShowSettingsMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (l1Ref.current && !l1Ref.current.contains(event.target)) {
+        setShowL1Menu(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -62,14 +66,13 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="fixed top-0 w-full z-50 px-2 sm:px-4 py-1 flex justify-between items-center backdrop-blur-md border-b border-gray-200/10 dark:border-white/5">
-      {/* ── Logo ─────────────────────────────────────────────────────────── */}
+    <nav className="fixed top-0 w-full z-50 px-2 sm:px-4 py-1 flex justify-between items-center backdrop-blur-md border-b border-white/5">
+      {/* ── Logo ── */}
       <Link
         to="/"
-        className="flex items-center gap-0 text-decoration-none select-none"
+        className="flex items-center gap-0 select-none"
         style={{ textDecoration: "none" }}
       >
-        {/* Logo image — kept at 72px for a clean feel */}
         <img
           src="/salva-logo.png"
           alt="Salva"
@@ -81,19 +84,13 @@ const Navbar = () => {
             flexShrink: 0,
           }}
         />
-        {/*
-          SALVA wordmark — bumped from text-1.5xl to text-2xl and
-          shifted left to sit right beside the logo tail.
-          The absolute offset is tuned so the S of SALVA overlaps
-          the right edge of the logo making it visually larger.
-        */}
         <span
-          className="font-black tracking-tighter text-black dark:text-white"
+          className="font-black tracking-tighter text-white"
           style={{
-            fontSize: "1.45rem" /* ~23px — clearly readable in preview */,
+            fontSize: "1.45rem",
             lineHeight: 1,
             position: "relative",
-            left: "-14px" /* pull left into the logo's breathing room */,
+            left: "-14px",
             letterSpacing: "-0.04em",
           }}
         >
@@ -101,12 +98,83 @@ const Navbar = () => {
         </span>
       </Link>
 
-      {/* ── Right side ───────────────────────────────────────────────────── */}
+      {/* ── Right side ── */}
+
+      {/* ── L1 Connect Wallet (only on /l1) ── */}
+        {isL1Page && (
+          <div className="relative" ref={l1Ref}>
+            {!l1Account ? (
+              <motion.button
+                onClick={onL1Connect}
+                disabled={l1Connecting}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all disabled:opacity-50"
+                style={{ background: "#D4AF37", color: "#000" }}
+              >
+                {l1Connecting ? (
+                  <span className="w-3 h-3 border-2 border-black/25 border-t-black rounded-full animate-spin" />
+                ) : null}
+                {l1Connecting ? "Connecting…" : "Connect Wallet"}
+              </motion.button>
+            ) : (
+              <motion.button
+                onClick={() => setShowL1Menu((o) => !o)}
+                whileHover={{ scale: 1.02 }}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.04] hover:border-yellow-500/30 transition-all"
+              >
+                <span
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ background: l1ChainId === 1 || l1ChainId === 11155111 ? "#D4AF37" : "#f97316" }}
+                />
+                <span className="font-mono font-black text-[11px] text-white">
+                  {l1Account.slice(0, 6)}…{l1Account.slice(-4)}
+                </span>
+                <svg className={`w-3 h-3 text-white/25 transition-transform ${showL1Menu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                </svg>
+              </motion.button>
+            )}
+
+            <AnimatePresence>
+              {showL1Menu && l1Account && (
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 mt-2 w-64 bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
+                >
+                  <div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #D4AF37, transparent)" }} />
+                  <div className="p-4 flex flex-col gap-2">
+                    <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+                      <p className="text-[9px] uppercase font-black text-white/25 tracking-widest mb-1">L1 Wallet</p>
+                      <p className="font-mono text-[11px] break-all leading-relaxed" style={{ color: "#D4AF37" }}>{l1Account}</p>
+                    </div>
+                    {l1ChainId !== 1 && l1ChainId !== 11155111 && (
+                      <div className="p-2.5 rounded-xl bg-orange-500/[0.07] border border-orange-500/20">
+                        <p className="text-[10px] font-black text-orange-400">⚠ Not on Ethereum</p>
+                        <p className="text-[10px] text-white/30 mt-0.5">Switch to Ethereum Mainnet in your wallet.</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => { setShowL1Menu(false); onL1Disconnect(); }}
+                      className="w-full py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] text-red-400 font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+        
       <div className="flex items-center gap-6 sm:gap-8">
         {!isLoggedIn ? (
           <Link
             to="/login"
-            className="text-xs font-bold uppercase tracking-[0.2em] text-black dark:text-white opacity-60 hover:opacity-100 transition-opacity"
+            className="text-xs font-bold uppercase tracking-[0.2em] text-white opacity-60 hover:opacity-100 transition-opacity"
           >
             Login
           </Link>
@@ -116,10 +184,10 @@ const Navbar = () => {
               onClick={() => setShowSettingsMenu(!showSettingsMenu)}
               whileHover={{ scale: 1.1 }}
               whileTap={{ scale: 0.95 }}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              className="p-2 rounded-full hover:bg-white/5 transition-colors"
               aria-label="Settings"
             >
-              <Settings className="w-5 h-5 text-black dark:text-white opacity-60 hover:opacity-100" />
+              <Settings className="w-5 h-5 text-white opacity-60 hover:opacity-100" />
             </motion.button>
 
             <AnimatePresence>
@@ -129,12 +197,12 @@ const Navbar = () => {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -10, scale: 0.95 }}
                   transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-2 w-48 bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden"
+                  className="absolute right-0 mt-2 w-48 bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
                 >
                   <Link
                     to="/account-settings"
                     onClick={() => setShowSettingsMenu(false)}
-                    className="block px-4 py-3 text-sm font-bold text-black dark:text-white hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+                    className="block px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
                   >
                     Account Settings
                   </Link>
@@ -143,7 +211,7 @@ const Navbar = () => {
                       setShowSettingsMenu(false);
                       handleLogout();
                     }}
-                    className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-gray-200 dark:border-white/10"
+                    className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-white/10"
                   >
                     Logout
                   </button>
@@ -152,146 +220,6 @@ const Navbar = () => {
             </AnimatePresence>
           </div>
         )}
-
-        {/* ── Dark / Light toggle ─────────────────────────────────────── */}
-        <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-white/10">
-          <span className="text-[10px] uppercase tracking-widest opacity-40 font-black hidden sm:block text-black dark:text-white">
-            {darkMode ? "Dark" : "Light"}
-          </span>
-
-          <motion.button
-            onClick={() => setDarkMode(!darkMode)}
-            aria-label="Toggle Theme"
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-            className="relative w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300"
-          >
-            <motion.svg
-              width="28"
-              height="28"
-              viewBox="0 0 24 24"
-              fill="none"
-              animate={{ rotate: darkMode ? 0 : 180 }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            >
-              <motion.circle
-                cx="12"
-                cy="12"
-                animate={{
-                  r: darkMode ? 4 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                x="11"
-                y="1"
-                width="2"
-                rx="1"
-                animate={{
-                  height: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  y: darkMode ? 20 : 18,
-                  height: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                x="11"
-                width="2"
-                rx="1"
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                y="11"
-                x="1"
-                height="2"
-                rx="1"
-                animate={{
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  x: darkMode ? 20 : 18,
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                y="11"
-                height="2"
-                rx="1"
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  x: darkMode ? 17.5 : 16.5,
-                  y: darkMode ? 4.3 : 3.5,
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                height="2"
-                rx="1"
-                transform="rotate(45 19 5)"
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  x: darkMode ? 3.5 : 2.5,
-                  y: darkMode ? 4.3 : 3.5,
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                height="2"
-                rx="1"
-                transform="rotate(-45 5 5)"
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  x: darkMode ? 17.5 : 16.5,
-                  y: darkMode ? 17.7 : 16.5,
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                height="2"
-                rx="1"
-                transform="rotate(-45 19 19)"
-                transition={{ duration: 0.3 }}
-              />
-              <motion.rect
-                animate={{
-                  x: darkMode ? 3.5 : 2.5,
-                  y: darkMode ? 17.7 : 16.5,
-                  width: darkMode ? 3 : 5,
-                  fill: darkMode ? "#ffffff" : "#000000",
-                }}
-                height="2"
-                rx="1"
-                transform="rotate(45 5 19)"
-                transition={{ duration: 0.3 }}
-              />
-            </motion.svg>
-            {darkMode && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute inset-0 rounded-full"
-                style={{
-                  boxShadow:
-                    "0 0 20px rgba(255,255,255,0.4), 0 0 40px rgba(255,255,255,0.2)",
-                  filter: "blur(8px)",
-                  zIndex: -1,
-                }}
-              />
-            )}
-          </motion.button>
-        </div>
       </div>
     </nav>
   );

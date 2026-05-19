@@ -1,12 +1,15 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
 import { SALVA_API_URL } from "../config";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence, useAnimation } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link, useNavigate } from "react-router-dom";
 import Stars from "../components/Stars";
 import AdminPanel from "./AdminPanel";
 import SalvaNGNsChat from "../components/SalvaNGNsChat";
 import SalvaSellerChat from "../components/SalvaSellerChat";
+import DeployPool from "./DeployPool";
+import SwapTab from "./SwapTab";
+import { QRCodeSVG } from "qrcode.react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatNumber = (num) =>
@@ -22,8 +25,6 @@ const formatAmountInput = (raw) => {
   return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
 };
 
-
-
 function detectInputType(val) {
   const t = val.trim();
   if (!t) return "empty";
@@ -31,14 +32,155 @@ function detectInputType(val) {
   return "name";
 }
 
+// ── QR Scanner Modal ───────────────────────────────────────────────────────
+const QRScannerModal = ({ onScan, onClose }) => {
+  const hasScanned = useRef(false);
+  const scannerInstanceRef = useRef(null);
+  const isStarted = useRef(false);
+
+  useEffect(() => {
+    let scanner;
+
+    const startScanner = async () => {
+      try {
+        const { Html5Qrcode } = await import("html5-qrcode");
+        scanner = new Html5Qrcode("qr-scanner-container", { verbose: false });
+        scannerInstanceRef.current = scanner;
+
+        await scanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 15,
+            qrbox: { width: 200, height: 200 },
+            aspectRatio: 1.333,
+            disableFlip: false,
+          },
+          (decodedText) => {
+            if (hasScanned.current) return;
+            hasScanned.current = true;
+            const clean = decodedText
+              .replace(/^ethereum:/i, "")
+              .split("?")[0]
+              .trim();
+            onScan(clean);
+            scanner.stop().catch(() => {});
+          },
+          () => {},
+        );
+
+        isStarted.current = true;
+
+        setTimeout(() => {
+          const video = document.querySelector("#qr-scanner-container video");
+          if (video) {
+            video.style.width = "100%";
+            video.style.height = "100%";
+            video.style.objectFit = "cover";
+            video.style.position = "absolute";
+            video.style.top = "0";
+            video.style.left = "0";
+          }
+          const canvases = document.querySelectorAll(
+            "#qr-scanner-container canvas",
+          );
+          canvases.forEach((c) => {
+            if (!c.id.includes("qr")) c.style.display = "none";
+          });
+          const shadedRegion = document.querySelector("#qr-shaded-region");
+          if (shadedRegion) shadedRegion.style.display = "none";
+        }, 500);
+      } catch (err) {
+        console.error("Scanner start error:", err);
+      }
+    };
+
+    startScanner();
+
+    return () => {
+      if (scannerInstanceRef.current && isStarted.current) {
+        scannerInstanceRef.current.stop().catch(() => {});
+      }
+    };
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center px-0 sm:px-4">
+      <motion.div
+        onClick={onClose}
+        className="absolute inset-0 bg-black/95 backdrop-blur-md"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+      />
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
+        initial={{ y: "100%" }}
+        animate={{ y: 0 }}
+        exit={{ y: "100%" }}
+        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      >
+        <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
+
+        <div className="text-center mb-5">
+          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
+            Scan to Pay
+          </p>
+          <h3 className="text-xl font-black text-white">Scan Wallet QR</h3>
+          <p className="text-xs text-white/30 mt-1">
+            Hold the QR code steady in front of the camera
+          </p>
+        </div>
+
+        <div
+          className="relative rounded-2xl overflow-hidden mb-5 border border-white/10 bg-black"
+          style={{ height: "260px" }}
+        >
+          <div
+            id="qr-scanner-container"
+            style={{
+              width: "100%",
+              height: "100%",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          />
+          <div className="absolute inset-0 pointer-events-none z-10">
+            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-salvaGold rounded-tl-lg" />
+            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-salvaGold rounded-tr-lg" />
+            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-salvaGold rounded-bl-lg" />
+            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-salvaGold rounded-br-lg" />
+          </div>
+          <motion.div
+            className="absolute left-4 right-4 h-0.5 bg-salvaGold/60 z-10 pointer-events-none"
+            style={{ boxShadow: "0 0 8px #D4AF37" }}
+            animate={{ top: ["20%", "80%", "20%"] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+          />
+        </div>
+
+        <p className="text-[10px] text-white/25 text-center mb-4 font-bold">
+          💡 Keep the QR 15–30cm from camera · good lighting helps
+        </p>
+
+        <button
+          onClick={onClose}
+          className="w-full py-3.5 rounded-2xl border border-white/10 font-bold text-white/50 hover:text-white hover:border-white/20 transition-all text-sm uppercase tracking-widest"
+        >
+          Cancel
+        </button>
+      </motion.div>
+    </div>
+  );
+};
+
 // ── Balance Spinner ────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
-  <span className="inline-flex items-center gap-2">
-    <span className="w-6 h-6 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
-    <span className="text-base opacity-40 font-bold">Loading…</span>
+  <span className="inline-flex items-center gap-1.5">
+    <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
+    <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
-
 
 // ── Searchable Registry Dropdown ───────────────────────────────────────────
 const RegistryDropdown = ({
@@ -98,7 +240,7 @@ const RegistryDropdown = ({
               ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
               : value
                 ? "border-salvaGold/40 bg-salvaGold/5"
-                : "border-gray-200 dark:border-white/10 bg-white dark:bg-black/40 hover:border-salvaGold/40"
+                : "border-white/10 bg-white/5 hover:border-salvaGold/40"
           }`}
       >
         {value ? (
@@ -109,7 +251,9 @@ const RegistryDropdown = ({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate">{value.name}</p>
+              <p className="font-black text-sm truncate text-white">
+                {value.name}
+              </p>
               <p className="text-[10px] opacity-40 font-mono truncate">
                 {value.nspace}
               </p>
@@ -173,10 +317,10 @@ const RegistryDropdown = ({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-[200] top-full mt-2 w-full bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden"
+            className="absolute z-[200] bottom-full mb-2 w-full bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           >
-            <div className="p-3 border-b border-gray-100 dark:border-white/5">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 dark:bg-white/5">
+            <div className="p-3 border-b border-white/5">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
                 <svg
                   className="w-3.5 h-3.5 opacity-40 flex-shrink-0"
                   fill="none"
@@ -196,7 +340,7 @@ const RegistryDropdown = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Type to search…"
-                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:opacity-30"
+                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:opacity-30 text-white"
                 />
                 {query && (
                   <button
@@ -230,7 +374,9 @@ const RegistryDropdown = ({
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm">{reg.name}</p>
+                      <p className="font-black text-sm text-white">
+                        {reg.name}
+                      </p>
                       <p className="text-[10px] font-mono opacity-40">
                         {reg.nspace}
                       </p>
@@ -279,7 +425,7 @@ const SalvaNotification = ({ notification, onClose }) => {
         onClick={onClose}
       />
       <motion.div
-        className="relative w-full max-w-xs bg-white dark:bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl"
+        className="relative w-full max-w-xs bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl"
         initial={{ opacity: 0, scale: 0.85, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.85, y: 20 }}
@@ -296,7 +442,7 @@ const SalvaNotification = ({ notification, onClose }) => {
               {cfg.icon}
             </span>
           </div>
-          <p className="font-black text-sm leading-relaxed mb-6 text-black dark:text-white">
+          <p className="font-black text-sm leading-relaxed mb-6 text-white">
             {notification.message}
           </p>
           <button
@@ -312,216 +458,10 @@ const SalvaNotification = ({ notification, onClose }) => {
   );
 };
 
-// ── Points Banner ──────────────────────────────────────────────────────────
-const PointsBanner = ({ userPoints, onViewLedger }) => (
-  <motion.div
-    initial={{ opacity: 0, y: -8 }}
-    animate={{ opacity: 1, y: 0 }}
-    className="mb-4 p-4 rounded-2xl bg-gradient-to-r from-salvaGold/10 via-yellow-400/5 to-transparent border border-salvaGold/20 flex items-center justify-between cursor-pointer hover:border-salvaGold/40 transition-all"
-    onClick={onViewLedger}
-  >
-    <div className="flex items-center gap-3">
-      <div className="w-9 h-9 rounded-xl bg-salvaGold/20 flex items-center justify-center flex-shrink-0">
-        <span className="text-salvaGold font-black text-base">⭐</span>
-      </div>
-      <div>
-        <p className="text-[9px] uppercase tracking-widest opacity-40 font-bold">
-          Salva Points
-        </p>
-        {userPoints === null ? (
-          <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="w-3 h-3 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block" />
-            <span className="text-[10px] opacity-40">Loading…</span>
-          </div>
-        ) : (
-          <p className="text-lg font-black text-salvaGold leading-tight">
-            {(userPoints.totalPoints || 0).toLocaleString()}
-            <span className="text-[10px] opacity-50 font-bold ml-1">pts</span>
-          </p>
-        )}
-      </div>
-    </div>
-    <div className="text-right">
-      <p className="text-[9px] uppercase tracking-widest opacity-30 font-bold">
-        Lifetime
-      </p>
-      <p className="text-xs font-black opacity-60">
-        {userPoints === null
-          ? "—"
-          : (userPoints.lifetimePoints || 0).toLocaleString()}
-      </p>
-      <p className="text-[8px] opacity-30 mt-0.5">tap for history</p>
-    </div>
-  </motion.div>
-);
-
-// ── Points Ledger Modal ────────────────────────────────────────────────────
-const PointsLedgerModal = ({ safeAddress, userPoints, onClose }) => {
-  const [ledger, setLedger] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchLedger = async () => {
-      try {
-        const res = await fetch(
-          `${SALVA_API_URL}/api/points/ledger/${safeAddress}`,
-        );
-        const data = await res.json();
-        setLedger(data.ledger || []);
-      } catch {
-        setLedger([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchLedger();
-  }, [safeAddress]);
-
-  const reasonLabel = {
-    TRANSFER_TIER_FREE: "Free Transfer",
-    TRANSFER_TIER_MID: "Mid Transfer",
-    TRANSFER_TIER_HIGH: "High Transfer",
-    REFERRAL_BONUS: "Referral Bonus",
-    REDEMPTION: "Redeemed",
-  };
-
-  const reasonColor = {
-    TRANSFER_TIER_FREE: "text-green-400",
-    TRANSFER_TIER_MID: "text-blue-400",
-    TRANSFER_TIER_HIGH: "text-salvaGold",
-    REFERRAL_BONUS: "text-purple-400",
-    REDEMPTION: "text-red-400",
-  };
-
-  return (
-    <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
-      <motion.div
-        onClick={onClose}
-        className="absolute inset-0 bg-black/90 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      />
-      <motion.div
-        onClick={(e) => e.stopPropagation()}
-        className="relative bg-white dark:bg-zinc-900 p-6 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl max-h-[85vh] flex flex-col"
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      >
-        <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-5 sm:hidden" />
-        <div className="flex items-center justify-between mb-5">
-          <div>
-            <h3 className="text-xl font-black text-black dark:text-white">
-              Points History
-            </h3>
-            <p className="text-[10px] opacity-40 uppercase tracking-widest font-bold">
-              {(userPoints?.totalPoints || 0).toLocaleString()} pts available
-            </p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center opacity-50 hover:opacity-100 text-black dark:text-white"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Summary row */}
-        <div className="grid grid-cols-3 gap-2 mb-4">
-          {[
-            {
-              label: "Total",
-              value: userPoints?.totalPoints || 0,
-              color: "text-salvaGold",
-            },
-            {
-              label: "Lifetime",
-              value: userPoints?.lifetimePoints || 0,
-              color: "text-white",
-            },
-            {
-              label: "Redeemed",
-              value: userPoints?.redeemedPoints || 0,
-              color: "text-red-400",
-            },
-          ].map((s) => (
-            <div
-              key={s.label}
-              className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 text-center"
-            >
-              <p className={`font-black text-lg ${s.color}`}>
-                {s.value.toLocaleString()}
-              </p>
-              <p className="text-[9px] opacity-40 font-bold uppercase">
-                {s.label}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Ledger list */}
-        <div className="flex-1 overflow-y-auto space-y-2 pr-1">
-          {loading ? (
-            <div className="flex justify-center py-8">
-              <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-            </div>
-          ) : ledger.length === 0 ? (
-            <div className="text-center py-10">
-              <span className="text-3xl mb-3 block">⭐</span>
-              <p className="text-sm opacity-40 font-bold">
-                No points history yet. Make a transfer to earn your first
-                points!
-              </p>
-            </div>
-          ) : (
-            ledger.map((entry, i) => (
-              <motion.div
-                key={entry._id || i}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.03 }}
-                className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5"
-              >
-                <div className="min-w-0">
-                  <p
-                    className={`text-xs font-black ${reasonColor[entry.reason] || "text-white"}`}
-                  >
-                    {reasonLabel[entry.reason] || entry.reason}
-                  </p>
-                  {entry.amount && (
-                    <p className="text-[10px] opacity-40">
-                      ₦{parseFloat(entry.amount).toLocaleString()} transfer
-                    </p>
-                  )}
-                  <p className="text-[9px] opacity-30">
-                    {new Date(entry.createdAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-                <p
-                  className={`font-black text-base flex-shrink-0 ${entry.points > 0 ? "text-green-400" : "text-red-400"}`}
-                >
-                  {entry.points > 0 ? "+" : ""}
-                  {entry.points} pts
-                </p>
-              </motion.div>
-            ))
-          )}
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// ── Swipeable Balance Card ─────────────────────────────────────────────────
+// ── Dual Balance Card ─────────────────────────────────────────────────────────
 const BalanceCard = ({
   balance,
+  cNgnBalance,
   usdtBalance,
   usdcBalance,
   showBalance,
@@ -530,149 +470,110 @@ const BalanceCard = ({
   onSend,
   onReceive,
 }) => {
-  const [activePanel, setActivePanel] = useState(0);
-  const controls = useAnimation();
-
-  const goTo = (panel) => {
-    setActivePanel(panel);
-    controls.start({
-      x: panel === 0 ? "0%" : "-50%",
-      transition: { type: "spring", stiffness: 300, damping: 30 },
-    });
-  };
-
-  const handleDragEnd = (_, info) => {
-    const offset = info.offset.x;
-    const velocity = info.velocity.x;
-    if ((offset < -50 || velocity < -300) && activePanel === 0) goTo(1);
-    else if ((offset > 50 || velocity > 300) && activePanel === 1) goTo(0);
-    else goTo(activePanel);
-  };
-
+  const totalNgn = (
+    parseFloat(balance || 0) + parseFloat(cNgnBalance || 0)
+  ).toFixed(2);
   const totalUsd = (
     parseFloat(usdtBalance || 0) + parseFloat(usdcBalance || 0)
   ).toFixed(2);
-
-  const renderBalance = (val) => {
-    if (balanceLoading) return <BalanceSpinner />;
-    if (!showBalance) return "••••••.••";
-    return formatNumber(val ?? "0.00");
-  };
+  const MASK = "••••••";
 
   return (
-    <div className="rounded-3xl overflow-hidden bg-gray-100 dark:bg-black border border-white/5 shadow-2xl mb-8">
-      <div className="relative overflow-hidden">
-        <motion.div
-          className="flex"
-          style={{ width: "200%" }}
-          drag="x"
-          dragElastic={0.02}
-          onDragEnd={handleDragEnd}
-          animate={controls}
-          initial={{ x: "0%" }}
-        >
-          {/* NGNs Panel */}
-          <div className="p-6 sm:p-10" style={{ width: "50%" }}>
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
-                  NGNs Balance <span className="opacity-50">· ERC20</span>
-                </p>
-                <span
-                  className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
-                  onClick={() => goTo(1)}
-                >
-                  swipe → USD
-                </span>
-              </div>
-              <button
-                onClick={onToggleVisibility}
-                className="hover:scale-110 transition-transform p-2"
-              >
-                {showBalance ? "👁" : "👁‍🗨"}
-              </button>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-3 overflow-hidden min-h-[56px] items-start justify-center">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none whitespace-nowrap">
-                {renderBalance(balance)}
-              </h1>
-              {!balanceLoading && (
-                <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">
-                  NGNs
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2 mt-4">
-              <div className="w-5 h-1.5 bg-salvaGold rounded-full" />
-              <div
-                className="w-1.5 h-1.5 bg-white/20 rounded-full cursor-pointer"
-                onClick={() => goTo(1)}
+    <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
+      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+      <div className="grid grid-cols-2 divide-x divide-white/[0.06]">
+        {/* NGN — LEFT */}
+        <div className="p-5 sm:p-7">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <motion.span
+                animate={{ opacity: [1, 0.3, 1] }}
+                transition={{ repeat: Infinity, duration: 2.5 }}
+                className="w-1.5 h-1.5 rounded-full bg-salvaGold block"
               />
+              <p className="text-[9px] uppercase tracking-[0.35em] text-white/30 font-black">
+                NGNs
+              </p>
             </div>
+            <button
+              onClick={onToggleVisibility}
+              className="text-white/25 hover:text-white/60 transition-colors text-sm leading-none"
+            >
+              {showBalance ? "👁" : "👁‍🗨"}
+            </button>
           </div>
-
-          {/* USD Panel */}
-          <div className="p-6 sm:p-10" style={{ width: "50%" }}>
-            <div className="flex justify-between items-center mb-4">
-              <div className="flex items-center gap-2">
-                <p className="uppercase text-[10px] sm:text-xs opacity-40 font-bold tracking-widest">
-                  USD Balance <span className="opacity-50">· ERC20</span>
-                </p>
-                <span
-                  className="text-[10px] text-salvaGold/60 font-bold cursor-pointer"
-                  onClick={() => goTo(0)}
-                >
-                  ← NGNs
+          <div className="min-h-[42px] flex items-baseline gap-1.5 flex-wrap">
+            {balanceLoading ? (
+              <BalanceSpinner />
+            ) : (
+              <>
+                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight break-all leading-none">
+                  {showBalance ? formatNumber(totalNgn) : MASK}
                 </span>
-              </div>
-              <button
-                onClick={onToggleVisibility}
-                className="hover:scale-110 transition-transform p-2"
-              >
-                {showBalance ? "👁" : "👁‍🗨"}
-              </button>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-3 overflow-hidden min-h-[56px] items-start justify-center">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-black tracking-tighter leading-none whitespace-nowrap">
-                {renderBalance(totalUsd)}
-              </h1>
-              {!balanceLoading && (
-                <span className="text-salvaGold text-xl sm:text-2xl font-black mt-1 sm:mt-0">
+                <span className="text-salvaGold text-xs font-black flex-shrink-0">
+                  NGN
+                </span>
+              </>
+            )}
+          </div>
+          {!balanceLoading && (
+            <p className="text-[9px] text-white/20 font-mono mt-2 truncate">
+              {showBalance
+                ? `${formatNumber(balance)} NGNs · ${formatNumber(cNgnBalance)} cNGN`
+                : "•••• NGNs · •••• cNGN"}
+            </p>
+          )}
+        </div>
+
+        {/* USD — RIGHT */}
+        <div className="p-5 sm:p-7">
+          <div className="flex items-center gap-1.5 mb-3">
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
+              className="w-1.5 h-1.5 rounded-full bg-green-400 block"
+            />
+            <p className="text-[9px] uppercase tracking-[0.35em] text-white/30 font-black">
+              USD
+            </p>
+          </div>
+          <div className="min-h-[42px] flex items-baseline gap-1.5 flex-wrap">
+            {balanceLoading ? (
+              <BalanceSpinner />
+            ) : (
+              <>
+                <span className="text-2xl sm:text-3xl font-black text-white tracking-tight break-all leading-none">
+                  {showBalance ? formatNumber(totalUsd) : MASK}
+                </span>
+                <span className="text-green-400 text-xs font-black flex-shrink-0">
                   USD
                 </span>
-              )}
-            </div>
-            <div className="mt-2">
-              {balanceLoading ? null : (
-                <p className="text-[10px] opacity-40 font-mono">
-                  USDT: {showBalance ? formatNumber(usdtBalance) : "••••"}
-                  &nbsp;·&nbsp;USDC:{" "}
-                  {showBalance ? formatNumber(usdcBalance) : "••••"}
-                </p>
-              )}
-            </div>
-            <div className="flex gap-2 mt-3">
-              <div
-                className="w-1.5 h-1.5 bg-white/20 rounded-full cursor-pointer"
-                onClick={() => goTo(0)}
-              />
-              <div className="w-5 h-1.5 bg-salvaGold rounded-full" />
-            </div>
+              </>
+            )}
           </div>
-        </motion.div>
+          {!balanceLoading && (
+            <p className="text-[9px] text-white/20 font-mono mt-2 truncate">
+              {showBalance
+                ? `${formatNumber(usdtBalance)} USDT · ${formatNumber(usdcBalance)} USDC`
+                : "•••• USDT · •••• USDC"}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 px-6 sm:px-10 pb-6 sm:pb-10">
+
+      {/* action buttons */}
+      <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pt-1 pb-5 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-salvaGold hover:bg-yellow-600 transition-colors text-black font-black py-4 rounded-2xl shadow-lg shadow-salvaGold/20 text-sm sm:text-base"
+          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
         >
-          SEND
+          <span className="text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-salvaGold/30 hover:bg-white/5 transition-all py-4 rounded-2xl font-bold text-sm sm:text-base"
+          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-3.5 rounded-2xl text-sm uppercase tracking-widest flex items-center justify-center gap-2"
         >
-          RECEIVE
+          <span className="text-base leading-none">↓</span> Receive
         </button>
       </div>
     </div>
@@ -684,7 +585,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [linkedNames, setLinkedNames] = useState([]);
   const [loadingNames, setLoadingNames] = useState(true);
   const [nameInput, setNameInput] = useState("");
-  const [walletInput, setWalletInput] = useState("");
+  const [walletInput, setWalletInput] = useState(() => {
+    const pre = window.__salva_pool_prefill || "";
+    window.__salva_pool_prefill = null;
+    return pre;
+  });
   const [selectedRegistry, setSelectedRegistry] = useState(null);
   const [nameCheckResult, setNameCheckResult] = useState(null);
   const [checking, setChecking] = useState(false);
@@ -705,9 +610,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const fetchLinkedNames = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/alias/list/${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/alias/list/${user.safeAddress}`);
       const data = await res.json();
       setLinkedNames(data.aliases || []);
     } catch {
@@ -717,20 +620,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     }
   }, [user?.safeAddress]);
 
-  useEffect(() => {
-    fetchLinkedNames();
-  }, [fetchLinkedNames]);
+  useEffect(() => { fetchLinkedNames(); }, [fetchLinkedNames]);
 
   const validateNameLocally = (val) => {
     if (!val) return "Name is required";
-    if (val.includes("0") || val.includes("1"))
-      return "Digits 0 and 1 are not allowed";
-    if (!/^[a-z2-9_]+$/.test(val))
-      return "Only lowercase a–z, digits 2–9, one underscore";
-    if ((val.match(/_/g) || []).length > 1)
-      return "Only one underscore allowed";
-    if (val.startsWith("_") || val.endsWith("_"))
-      return "Cannot start or end with underscore";
+    if (val.includes("0") || val.includes("1")) return "Digits 0 and 1 are not allowed";
+    if (!/^[a-z2-9_]+$/.test(val)) return "Only lowercase a–z, digits 2–9, one underscore";
+    if ((val.match(/_/g) || []).length > 1) return "Only one underscore allowed";
+    if (val.startsWith("_") || val.endsWith("_")) return "Cannot start or end with underscore";
     if (val.length > 32) return "Max 32 characters";
     if (val.length < 2) return "At least 2 characters required";
     return "";
@@ -738,65 +635,30 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const handleCheckName = async () => {
     const err = validateNameLocally(nameInput);
-    if (err) {
-      setNameError(err);
-      return;
+    if (err) { setNameError(err); return; }
+    if (!walletInput || !walletInput.startsWith("0x") || walletInput.length !== 42) {
+      setNameError("Enter a valid 0x wallet address to link to"); return;
     }
-    if (
-      !walletInput ||
-      !walletInput.startsWith("0x") ||
-      walletInput.length !== 42
-    ) {
-      setNameError("Enter a valid 0x wallet address to link to");
-      return;
-    }
-    if (!selectedRegistry) {
-      setNameError("Select which wallet service this name belongs to");
-      return;
-    }
-    setNameError("");
-    setChecking(true);
-    setNameCheckResult(null);
-    setRegistryFee(null);
+    if (!selectedRegistry) { setNameError("Select which wallet service this name belongs to"); return; }
+    setNameError(""); setChecking(true); setNameCheckResult(null); setRegistryFee(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput,
-          registryAddress: selectedRegistry.registryAddress,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameInput, registryAddress: selectedRegistry.registryAddress }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        setNameError(data.message || "Check failed");
-        return;
-      }
+      if (!res.ok) { setNameError(data.message || "Check failed"); return; }
       setNameCheckResult(data);
-      if (data.reserved) {
-        setLinkStep("reserved");
-        return;
-      }
-      if (!data.available) {
-        setNameError("This name is already taken. Try another.");
-        return;
-      }
+      if (data.reserved) { setLinkStep("reserved"); return; }
+      if (!data.available) { setNameError("This name is already taken. Try another."); return; }
       setFeeLoading(true);
       try {
         const feeRes = await fetch(`${SALVA_API_URL}/api/registry-fee`);
         const feeData = await feeRes.json();
         setRegistryFee(feeRes.ok ? (feeData.fee ?? 0) : 0);
-      } catch {
-        setRegistryFee(0);
-      } finally {
-        setFeeLoading(false);
-      }
+      } catch { setRegistryFee(0); } finally { setFeeLoading(false); }
       setLinkStep("confirm");
-    } catch {
-      setNameError("Network error. Please try again.");
-    } finally {
-      setChecking(false);
-    }
+    } catch { setNameError("Network error. Please try again."); } finally { setChecking(false); }
   };
 
   const handleSendReservedNotification = async () => {
@@ -804,23 +666,13 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setReservedSubmitting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/notify-reserved`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: nameInput,
-          requesterEmail: reservedEmail,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nameInput, requesterEmail: reservedEmail }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg("Your request has been sent to our team!");
-        resetLinkForm();
-      } else showMsg(data.message || "Failed to send", "error");
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setReservedSubmitting(false);
-    }
+      if (res.ok) { showMsg("Your request has been sent to our team!"); resetLinkForm(); }
+      else showMsg(data.message || "Failed to send", "error");
+    } catch { showMsg("Network error", "error"); } finally { setReservedSubmitting(false); }
   };
 
   const handleExecuteLink = async () => {
@@ -828,80 +680,33 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setPinLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: pinInput }),
       });
       const pinData = await pinRes.json();
-      if (!pinRes.ok) {
-        showMsg(pinData.message || "Invalid PIN", "error");
-        setPinLoading(false);
-        return;
-      }
+      if (!pinRes.ok) { showMsg(pinData.message || "Invalid PIN", "error"); setPinLoading(false); return; }
       setLinkStep("linking");
       const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          safeAddress: user.safeAddress,
-          name: nameInput,
-          walletToLink: walletInput,
-          registryAddress: selectedRegistry.registryAddress,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ safeAddress: user.safeAddress, name: nameInput, walletToLink: walletInput, registryAddress: selectedRegistry.registryAddress }),
       });
       const prepData = await prepRes.json();
-      if (prepData.reserved) {
-        setLinkStep("reserved");
-        return;
-      }
-      if (prepData.lowBalance) {
-        showMsg(prepData.message || "Insufficient NGNs", "error");
-        setTimeout(() => {
-          onSwitchToBuy?.();
-        }, 1500);
-        setLinkStep("form");
-        return;
-      }
-      if (!prepRes.ok) {
-        showMsg(prepData.message || "Preparation failed", "error");
-        setLinkStep("confirm");
-        return;
-      }
+      if (prepData.reserved) { setLinkStep("reserved"); return; }
+      if (prepData.lowBalance) { showMsg(prepData.message || "Insufficient NGNs", "error"); setTimeout(() => onSwitchToBuy?.(), 1500); setLinkStep("form"); return; }
+      if (!prepRes.ok) { showMsg(prepData.message || "Preparation failed", "error"); setLinkStep("confirm"); return; }
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          safeAddress: user.safeAddress,
-          pureName: prepData.pureName,
-          weldedName: prepData.weldedName,
-          walletToLink: prepData.walletToLink,
-          registryAddress: prepData.registryAddress,
-          signature: prepData.signature,
-          feeWei: prepData.feeWei,
-          userPrivateKey: pinData.privateKey,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ safeAddress: user.safeAddress, pureName: prepData.pureName, weldedName: prepData.weldedName, walletToLink: prepData.walletToLink, registryAddress: prepData.registryAddress, signature: prepData.signature, feeWei: prepData.feeWei, userPrivateKey: pinData.privateKey }),
       });
       const execData = await execRes.json();
-      if (!execRes.ok) {
-        showMsg(execData.message || "Linking failed", "error");
-        setLinkStep("confirm");
-        return;
+      if (!execRes.ok) { showMsg(execData.message || "Linking failed", "error"); setLinkStep("confirm"); return; }
+      if (walletInput && execData.alias?.name) {
+        fetch(`${SALVA_API_URL}/api/pool/set-name`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ poolAddress: walletInput, ownerSafeAddress: user.safeAddress, poolName: execData.alias.name }) }).catch(() => {});
       }
       setLinkStep("success");
       await fetchLinkedNames();
-      try {
-        const saved = JSON.parse(localStorage.getItem("salva_user") || "{}");
-        saved.nameAlias = execData.alias?.name || saved.nameAlias;
-        localStorage.setItem("salva_user", JSON.stringify(saved));
-      } catch {
-        /* ignore */
-      }
-    } catch (err) {
-      showMsg(err.message || "Failed to link name", "error");
-      setLinkStep("confirm");
-    } finally {
-      setPinLoading(false);
-    }
+      try { const saved = JSON.parse(localStorage.getItem("salva_user") || "{}"); saved.nameAlias = execData.alias?.name || saved.nameAlias; localStorage.setItem("salva_user", JSON.stringify(saved)); } catch { /* ignore */ }
+    } catch (err) { showMsg(err.message || "Failed to link name", "error"); setLinkStep("confirm"); } finally { setPinLoading(false); }
   };
 
   const handleExecuteUnlink = async () => {
@@ -909,435 +714,335 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setUnlinkLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: unlinkPinInput }),
       });
       const pinData = await pinRes.json();
-      if (!pinRes.ok) {
-        showMsg(pinData.message || "Invalid PIN", "error");
-        setUnlinkLoading(false);
-        return;
-      }
+      if (!pinRes.ok) { showMsg(pinData.message || "Invalid PIN", "error"); setUnlinkLoading(false); return; }
       const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          safeAddress: user.safeAddress,
-          weldedName: unlinkTarget.name,
-          registryAddress: unlinkTarget.registryAddress,
-          userPrivateKey: pinData.privateKey,
-        }),
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ safeAddress: user.safeAddress, weldedName: unlinkTarget.name, registryAddress: unlinkTarget.registryAddress, userPrivateKey: pinData.privateKey }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg(`"${unlinkTarget.name}" unlinked successfully!`);
-        setUnlinkPinStep(false);
-        setUnlinkTarget(null);
-        await fetchLinkedNames();
-      } else showMsg(data.message || "Unlink failed", "error");
-    } catch {
-      showMsg("Network error during unlink", "error");
-    } finally {
-      setUnlinkLoading(false);
-    }
+      if (res.ok) { showMsg(`"${unlinkTarget.name}" unlinked successfully!`); setUnlinkPinStep(false); setUnlinkTarget(null); await fetchLinkedNames(); }
+      else showMsg(data.message || "Unlink failed", "error");
+    } catch { showMsg("Network error during unlink", "error"); } finally { setUnlinkLoading(false); }
   };
 
   const resetLinkForm = () => {
-    setLinkStep("form");
-    setNameInput("");
-    setWalletInput("");
-    setNameError("");
-    setNameCheckResult(null);
-    setPinInput("");
-    setSelectedRegistry(null);
-    setRegistryFee(null);
-    setReservedEmail("");
+    setLinkStep("form"); setNameInput(""); setWalletInput(""); setNameError("");
+    setNameCheckResult(null); setPinInput(""); setSelectedRegistry(null);
+    setRegistryFee(null); setReservedEmail("");
   };
 
   const feeActive = registryFee !== null && registryFee > 0;
+  const darkInput = "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/20 transition-all";
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-8"
-    >
-      {/* Linked names list */}
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+
+      {/* ── Linked Names ── */}
       <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
-          Your Linked Names
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/30">Your Linked Names</p>
+          <button onClick={fetchLinkedNames} className="text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors">
+            Refresh
+          </button>
+        </div>
+
         {loadingNames ? (
-          <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+          <div className="flex justify-center py-10">
+            <div className="w-7 h-7 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
           </div>
         ) : linkedNames.length === 0 ? (
-          <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center">
-            <p className="text-sm opacity-40 font-bold">No names linked yet.</p>
+          <div className="relative overflow-hidden p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
+            <div className="w-10 h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-3">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-5 h-5 text-salvaGold/60">
+                <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+              </svg>
+            </div>
+            <p className="text-sm font-black text-white/30">No names linked yet</p>
+            <p className="text-[10px] text-white/20 mt-1">Register a name below to get started</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {linkedNames.map((alias, i) => (
               <motion.div
                 key={alias.name + i}
-                initial={{ opacity: 0, y: 8 }}
+                initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.06 }}
-                className="p-4 rounded-2xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all"
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/25 hover:bg-salvaGold/[0.03] transition-all"
               >
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
+                    <span className="text-salvaGold text-xs font-black">{alias.name.charAt(0).toUpperCase()}</span>
+                  </div>
                   <div className="min-w-0">
                     <p
-                      className="font-black text-salvaGold text-base truncate cursor-pointer"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.name);
-                        showMsg("Name copied!");
-                      }}
+                      className="font-black text-salvaGold text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() => { navigator.clipboard.writeText(alias.name); showMsg("Name copied!"); }}
                       title="Click to copy"
                     >
                       {alias.name}
                     </p>
                     <p
-                      className="font-mono text-[10px] opacity-40 truncate mt-0.5 cursor-pointer"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.wallet);
-                        showMsg("Wallet address copied!");
-                      }}
+                      className="font-mono text-[10px] text-white/25 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
+                      onClick={() => { navigator.clipboard.writeText(alias.wallet); showMsg("Wallet address copied!"); }}
                       title="Click to copy wallet"
                     >
-                      {alias.wallet}
+                      {alias.wallet.slice(0, 10)}…{alias.wallet.slice(-8)}
                     </p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setUnlinkTarget(alias);
-                      setShowUnlinkConfirm(true);
-                      setUnlinkPinInput("");
-                      setUnlinkPinStep(false);
-                    }}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
-                  >
-                    Unlink
-                  </button>
                 </div>
+                <button
+                  onClick={() => { setUnlinkTarget(alias); setShowUnlinkConfirm(true); setUnlinkPinInput(""); setUnlinkPinStep(false); }}
+                  className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
+                >
+                  Unlink
+                </button>
               </motion.div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Register new name */}
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-4">
-          Register a New Name
-        </p>
+      {/* ── Divider ── */}
+      <div className="relative flex items-center">
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+        <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/20">Register New</span>
+        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+      </div>
 
-        {linkStep === "form" && (
-          <div className="p-6 rounded-3xl border border-salvaGold/20 bg-salvaGold/5 space-y-4">
-            <p className="text-xs font-black text-salvaGold uppercase tracking-widest">
-              Link Name to Address
-            </p>
-            <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
-                Name (lowercase a–z, 2–9, one _ max, no 0 or 1)
-              </label>
+      {/* ── FORM ── */}
+      {linkStep === "form" && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+          {/* Name input */}
+          <div>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-black block mb-2">Name</label>
+            <div className="relative">
               <input
                 type="text"
                 placeholder="yourname"
                 value={nameInput}
-                onChange={(e) => {
-                  setNameInput(
-                    e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""),
-                  );
-                  setNameError("");
-                }}
+                onChange={(e) => { setNameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, "")); setNameError(""); }}
                 maxLength={32}
-                className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none font-bold text-base text-black dark:text-white"
+                className={darkInput}
               />
-              {nameInput && (
-                <p className="text-[10px] text-salvaGold font-bold mt-1 ml-1">
-                  Preview:{" "}
-                  <span className="opacity-70">
-                    {nameInput}
-                    {selectedRegistry ? selectedRegistry.nspace : "@salva"}
-                  </span>
+              {nameInput && selectedRegistry && (
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                  <span className="text-salvaGold/50 text-[10px] font-black">{selectedRegistry.nspace}</span>
+                </div>
+              )}
+            </div>
+            {nameInput && (
+              <div className="mt-2 px-3 py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
+                <p className="text-[10px] text-salvaGold font-black">
+                  {nameInput}{selectedRegistry ? selectedRegistry.nspace : "@salva"}
                 </p>
-              )}
-            </div>
-            <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold block mb-1">
-                Wallet Address to Link This Name To
-              </label>
-              <input
-                type="text"
-                placeholder="0x..."
-                value={walletInput}
-                onChange={(e) => {
-                  setWalletInput(e.target.value.trim());
-                  setNameError("");
-                }}
-                className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none font-mono text-sm text-black dark:text-white"
-              />
-            </div>
-            <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
-                Which Wallet Service Does This Address Belong To?
-              </label>
-              <RegistryDropdown
-                registries={registries}
-                value={selectedRegistry}
-                onChange={(reg) => {
-                  setSelectedRegistry(reg);
-                  setNameError("");
-                }}
-                placeholder="Search wallet service…"
-              />
-            </div>
-            {nameError && (
-              <p className="text-xs text-red-400 font-bold">{nameError}</p>
+              </div>
             )}
-            <button
-              onClick={handleCheckName}
-              disabled={
-                checking || !nameInput || !walletInput || !selectedRegistry
-              }
-              className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2"
-            >
-              {checking && (
-                <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
-              {checking ? "Checking…" : "Check & Continue"}
-            </button>
           </div>
-        )}
 
-        {linkStep === "reserved" && (
-          <div className="p-6 rounded-3xl border border-yellow-500/30 bg-yellow-500/5 space-y-5">
-            <div className="text-center">
-              <span className="text-4xl mb-3 block">⚠️</span>
-              <h3 className="text-xl font-black mb-2">Whitelisted Name</h3>
-              <p className="text-sm opacity-70 leading-relaxed">
-                <strong className="text-salvaGold">{nameInput}</strong> is a
-                reserved name.
+          {/* Wallet input */}
+          <div>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-black block mb-2">Wallet Address</label>
+            <input
+              type="text"
+              placeholder="0x…"
+              value={walletInput}
+              onChange={(e) => { setWalletInput(e.target.value.trim()); setNameError(""); }}
+              className={`${darkInput} font-mono text-xs`}
+            />
+          </div>
+
+          {/* Registry dropdown */}
+          <div>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-black block mb-2">Wallet Service</label>
+            <RegistryDropdown
+              registries={registries}
+              value={selectedRegistry}
+              onChange={(reg) => { setSelectedRegistry(reg); setNameError(""); }}
+              placeholder="Select wallet service…"
+            />
+          </div>
+
+          {nameError && (
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+              <span className="text-red-400 text-xs flex-shrink-0">⚠</span>
+              <p className="text-xs text-red-400 font-bold">{nameError}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleCheckName}
+            disabled={checking || !nameInput || !walletInput || !selectedRegistry}
+            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
+          >
+            {checking && <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
+            {checking ? "Checking…" : "Check Availability"}
+          </button>
+        </motion.div>
+      )}
+
+      {/* ── RESERVED ── */}
+      {linkStep === "reserved" && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className="p-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 space-y-5"
+        >
+          <div className="flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-yellow-500/15 border border-yellow-500/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-lg">⭐</span>
+            </div>
+            <div>
+              <p className="font-black text-white text-sm">Reserved Name</p>
+              <p className="text-[11px] text-white/40 mt-0.5 leading-relaxed">
+                <span className="text-salvaGold font-black">{nameInput}</span> is reserved. Share your email and we'll reach out about eligibility.
               </p>
             </div>
-            <input
-              type="email"
-              placeholder="your@email.com"
-              value={reservedEmail}
-              onChange={(e) => setReservedEmail(e.target.value)}
-              className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-yellow-500/30 focus:border-yellow-500 outline-none font-bold text-base text-black dark:text-white"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={resetLinkForm}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={handleSendReservedNotification}
-                disabled={reservedSubmitting || !reservedEmail}
-                className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
-              >
-                {reservedSubmitting ? "Sending…" : "Send Request"}
-              </button>
-            </div>
           </div>
-        )}
-
-        {linkStep === "confirm" && nameCheckResult && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-6 rounded-3xl border border-green-500/30 bg-green-500/5 space-y-5"
-          >
-            <div className="text-center">
-              <div className="w-14 h-14 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                <span className="text-2xl">✅</span>
-              </div>
-              <h3 className="text-xl font-black mb-2">Name Available!</h3>
-              <div className="p-4 bg-salvaGold/10 border border-salvaGold/30 rounded-2xl">
-                <p className="text-2xl font-black text-salvaGold">
-                  {nameCheckResult.welded}
-                </p>
-              </div>
-            </div>
-            {feeLoading ? (
-              <div className="flex items-center gap-3 p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/10">
-                <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-                <p className="text-xs text-salvaGold font-bold">
-                  Fetching registration fee…
-                </p>
-              </div>
-            ) : feeActive ? (
-              <div className="p-4 rounded-xl bg-salvaGold/10 border border-salvaGold/30 space-y-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] uppercase font-black text-salvaGold tracking-widest">
-                    Registration Fee
-                  </p>
-                  <p className="font-black text-salvaGold text-lg">
-                    {registryFee?.toLocaleString()}{" "}
-                    <span className="text-xs">NGNs</span>
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-green-500/10 border border-green-500/20">
-                <span className="text-green-400 text-sm">✦</span>
-                <p className="text-xs font-black text-green-400">
-                  Free Registration — no fee required
-                </p>
-              </div>
-            )}
-            <div className="flex gap-3">
-              <button
-                onClick={resetLinkForm}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
-              >
-                Go Back
-              </button>
-              <button
-                onClick={() => {
-                  setLinkStep("pin");
-                  setPinInput("");
-                }}
-                disabled={feeLoading}
-                className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
-              >
-                Confirm & Enter PIN
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-        {linkStep === "pin" && (
-          <div className="p-6 rounded-3xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 space-y-5 text-center">
-            <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-2xl">🔐</span>
-            </div>
-            <h3 className="text-xl font-black text-black dark:text-white">
-              Enter Transaction PIN
-            </h3>
-            <input
-              type="password"
-              inputMode="numeric"
-              pattern="\d{4}"
-              maxLength="4"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
-              placeholder="••••"
-              autoFocus
-              className="w-full p-4 rounded-xl bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-black dark:text-white"
-            />
-            <div className="flex gap-3">
-              <button
-                onClick={() => setLinkStep("confirm")}
-                disabled={pinLoading}
-                className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-              >
-                Back
-              </button>
-              <button
-                onClick={handleExecuteLink}
-                disabled={pinLoading || pinInput.length !== 4}
-                className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {pinLoading && (
-                  <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                )}
-                {pinLoading ? "Signing…" : "Confirm"}
-              </button>
-            </div>
-          </div>
-        )}
-
-        {linkStep === "linking" && (
-          <div className="p-12 rounded-3xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-center space-y-4">
-            <div className="w-12 h-12 border-4 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin mx-auto" />
-            <p className="font-black text-lg text-black dark:text-white">
-              Linking on-chain…
-            </p>
-            <p className="text-xs opacity-40">
-              Broadcasting to Base. This may take 30–60 seconds.
-            </p>
-          </div>
-        )}
-
-        {linkStep === "success" && (
-          <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="p-8 rounded-3xl border border-green-500/30 bg-green-500/5 text-center space-y-4"
-          >
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", stiffness: 300, delay: 0.1 }}
-              className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto"
-            >
-              <span className="text-3xl">🎉</span>
-            </motion.div>
-            <h3 className="text-2xl font-black text-black dark:text-white">
-              Name Linked!
-            </h3>
-            <button
-              onClick={resetLinkForm}
-              className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all"
-            >
-              Link Another Name
+          <input type="email" placeholder="your@email.com" value={reservedEmail} onChange={(e) => setReservedEmail(e.target.value)} className={darkInput} />
+          <div className="flex gap-3">
+            <button onClick={resetLinkForm} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all">Back</button>
+            <button onClick={handleSendReservedNotification} disabled={reservedSubmitting || !reservedEmail} className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all">
+              {reservedSubmitting ? "Sending…" : "Send Request"}
             </button>
-          </motion.div>
-        )}
-      </div>
+          </div>
+        </motion.div>
+      )}
 
-      {/* Unlink Confirm Modal */}
+      {/* ── CONFIRM ── */}
+      {linkStep === "confirm" && nameCheckResult && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+          {/* Name badge */}
+          <div className="p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
+            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">Name Available</p>
+            <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
+          </div>
+
+          {/* Fee */}
+          {feeLoading ? (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+              <p className="text-xs text-white/40 font-bold">Fetching fee…</p>
+            </div>
+          ) : feeActive ? (
+            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400 block" />
+                <p className="text-[10px] uppercase font-black text-white/30 tracking-widest">Registration Fee</p>
+              </div>
+              <p className="font-black text-white text-sm">{registryFee?.toLocaleString()} <span className="text-salvaGold text-xs">NGNs</span></p>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
+              <span className="text-green-400 text-sm flex-shrink-0">✦</span>
+              <p className="text-xs font-black text-green-400">Free Registration — no fee required</p>
+            </div>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button onClick={resetLinkForm} className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all">Back</button>
+            <button
+              onClick={() => { setLinkStep("pin"); setPinInput(""); }}
+              disabled={feeLoading}
+              className="flex-2 flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
+            >
+              Continue →
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── PIN ── */}
+      {linkStep === "pin" && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
+        >
+          <div className="w-12 h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
+            <span className="text-xl">🔐</span>
+          </div>
+          <div>
+            <p className="font-black text-white text-lg">Transaction PIN</p>
+            <p className="text-[11px] text-white/30 mt-1">Authorise the on-chain name link</p>
+          </div>
+          <input
+            type="password" inputMode="numeric" pattern="\d{4}" maxLength="4"
+            value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+            placeholder="••••" autoFocus
+            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
+          />
+          <div className="flex gap-3">
+            <button onClick={() => setLinkStep("confirm")} disabled={pinLoading} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Back</button>
+            <button
+              onClick={handleExecuteLink}
+              disabled={pinLoading || pinInput.length !== 4}
+              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+            >
+              {pinLoading && <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
+              {pinLoading ? "Signing…" : "Confirm"}
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* ── LINKING ── */}
+      {linkStep === "linking" && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
+        >
+          <div className="relative w-14 h-14 mx-auto">
+            <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
+            <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
+              <span className="text-salvaGold text-sm font-black">₦</span>
+            </div>
+          </div>
+          <p className="font-black text-white">Linking on-chain…</p>
+          <p className="text-xs text-white/25">Broadcasting to Base · 30–60 seconds</p>
+        </motion.div>
+      )}
+
+      {/* ── SUCCESS ── */}
+      {linkStep === "success" && (
+        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+          className="py-12 px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-5"
+        >
+          <motion.div
+            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            transition={{ type: "spring", stiffness: 280, delay: 0.1 }}
+            className="w-16 h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
+          >
+            <span className="text-3xl">✓</span>
+          </motion.div>
+          <div>
+            <p className="text-xl font-black text-white">Name Linked</p>
+            <p className="text-[11px] text-white/30 mt-1">Your name is now live on Base</p>
+          </div>
+          <button onClick={resetLinkForm} className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-sm">
+            Link Another Name
+          </button>
+        </motion.div>
+      )}
+
+      {/* ── UNLINK CONFIRM MODAL ── */}
       <AnimatePresence>
         {showUnlinkConfirm && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => setShowUnlinkConfirm(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="text-center">
-                <span className="text-4xl mb-4 block">⚠️</span>
-                <h3 className="text-xl font-black mb-2 text-black dark:text-white">
-                  Unlink Name?
-                </h3>
-                <p className="text-salvaGold font-black mb-2">
-                  {unlinkTarget.name}
-                </p>
-                <p className="text-sm opacity-60 mb-6">
-                  This removes the link on-chain.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowUnlinkConfirm(false)}
-                    className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUnlinkConfirm(false);
-                      setUnlinkPinStep(true);
-                      setUnlinkPinInput("");
-                    }}
-                    className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110"
-                  >
-                    Yes, Unlink
-                  </button>
+            <motion.div onClick={() => setShowUnlinkConfirm(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+              <div className="text-center space-y-3">
+                <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                  <span className="text-xl">⚠️</span>
+                </div>
+                <p className="font-black text-white text-lg">Unlink Name?</p>
+                <p className="text-salvaGold font-black">{unlinkTarget.name}</p>
+                <p className="text-sm text-white/40">This removes the on-chain link and cannot be undone.</p>
+                <div className="flex gap-3 pt-2">
+                  <button onClick={() => setShowUnlinkConfirm(false)} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Cancel</button>
+                  <button onClick={() => { setShowUnlinkConfirm(false); setUnlinkPinStep(true); setUnlinkPinInput(""); }} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 transition-all">Unlink</button>
                 </div>
               </div>
             </motion.div>
@@ -1345,69 +1050,30 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         )}
       </AnimatePresence>
 
-      {/* Unlink PIN Modal */}
+      {/* ── UNLINK PIN MODAL ── */}
       <AnimatePresence>
         {unlinkPinStep && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => {
-                setUnlinkPinStep(false);
-                setUnlinkPinInput("");
-              }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl text-center"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="w-14 h-14 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🔐</span>
+            <motion.div onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+              <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                <span className="text-xl">🔐</span>
               </div>
-              <h3 className="text-xl font-black mb-1 text-black dark:text-white">
-                Enter PIN to Unlink
-              </h3>
-              <p className="text-sm opacity-60 mb-5">
-                Confirm unlinking{" "}
-                <strong className="text-red-400">{unlinkTarget.name}</strong>
-              </p>
+              <div>
+                <p className="font-black text-white text-lg">Enter PIN</p>
+                <p className="text-[11px] text-white/40 mt-1">Confirm unlinking <span className="text-red-400 font-black">{unlinkTarget.name}</span></p>
+              </div>
               <input
-                type="password"
-                inputMode="numeric"
-                maxLength="4"
-                value={unlinkPinInput}
-                onChange={(e) =>
-                  setUnlinkPinInput(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="••••"
-                autoFocus
-                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-black dark:text-white"
+                type="password" inputMode="numeric" maxLength="4"
+                value={unlinkPinInput} onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ""))}
+                placeholder="••••" autoFocus
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
               />
               <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setUnlinkPinStep(false);
-                    setUnlinkPinInput("");
-                  }}
-                  disabled={unlinkLoading}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold text-sm text-black dark:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExecuteUnlink}
-                  disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-bold text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {unlinkLoading && (
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  )}
-                  {unlinkLoading ? "Unlinking…" : "Unlink"}
+                <button onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} disabled={unlinkLoading} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Cancel</button>
+                <button onClick={handleExecuteUnlink} disabled={unlinkLoading || unlinkPinInput.length !== 4} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
+                  {unlinkLoading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                  {unlinkLoading ? "Unlinking…" : "Confirm"}
                 </button>
               </div>
             </motion.div>
@@ -1545,7 +1211,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
       paid: "text-blue-400 bg-blue-500/10 border-blue-500/20",
       minted: "text-green-400 bg-green-500/10 border-green-500/20",
       rejected: "text-red-400 bg-red-500/10 border-red-500/20",
-    })[s] || "text-gray-400";
+    })[s] || "text-white/40";
 
   if (selected)
     return (
@@ -1556,14 +1222,16 @@ const SellerMintPanel = ({ user, showMsg }) => {
       >
         <button
           onClick={() => setSelected(null)}
-          className="text-xs opacity-50 hover:opacity-100 font-bold"
+          className="text-xs text-white/40 hover:text-white font-bold transition-colors"
         >
           ← All Requests
         </button>
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-black text-lg">{selected.username}</p>
-            <p className="text-xs opacity-40 font-mono">{selected.userEmail}</p>
+            <p className="font-black text-lg text-white">{selected.username}</p>
+            <p className="text-xs text-white/30 font-mono">
+              {selected.userEmail}
+            </p>
           </div>
           <span
             className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor(selected.status)}`}
@@ -1573,45 +1241,25 @@ const SellerMintPanel = ({ user, showMsg }) => {
         </div>
         <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/20 flex justify-between">
           <div>
-            <p className="text-[10px] opacity-40">Requested</p>
-            <p className="font-black">
+            <p className="text-[10px] text-white/30">Requested</p>
+            <p className="font-black text-white">
               {(selected.amountNgn || 0).toLocaleString()} NGN
             </p>
           </div>
           <div>
-            <p className="text-[10px] opacity-40">Fee</p>
+            <p className="text-[10px] text-white/30">Fee</p>
             <p className="font-black text-red-400">{selected.feeNgn} NGNs</p>
           </div>
           <div>
-            <p className="text-[10px] opacity-40">To Mint</p>
+            <p className="text-[10px] text-white/30">To Mint</p>
             <p className="font-black text-salvaGold">
               {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
             </p>
           </div>
         </div>
-        {/* Points redemption info in chat — shown if present */}
-        {selected.pointsRedemption?.requested && (
-          <div className="p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30">
-            <p className="text-[10px] uppercase font-black text-purple-400 mb-1">
-              ⭐ Points Redemption Requested
-            </p>
-            <p className="text-sm font-bold text-white">
-              {selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts →
-              ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
-              additional payout
-            </p>
-            <p className="text-[10px] opacity-50 mt-1">
-              Total to pay user: ₦
-              {(
-                (selected.amountNgn || 0) +
-                (selected.pointsRedemption.pointsToRedeem || 0)
-              ).toLocaleString()}
-            </p>
-          </div>
-        )}
         {selected.receiptImageBase64 && (
-          <div className="p-3 rounded-2xl border border-gray-200 dark:border-white/10">
-            <p className="text-[10px] uppercase font-black opacity-40 mb-2">
+          <div className="p-3 rounded-2xl border border-white/10">
+            <p className="text-[10px] uppercase font-black text-white/30 mb-2">
               Payment Receipt
             </p>
             <img
@@ -1621,15 +1269,15 @@ const SellerMintPanel = ({ user, showMsg }) => {
             />
           </div>
         )}
-        <div className="rounded-2xl border border-gray-200 dark:border-white/10 overflow-hidden">
-          <div className="h-64 overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-white/5">
+        <div className="rounded-2xl border border-white/10 overflow-hidden">
+          <div className="h-64 overflow-y-auto p-3 space-y-2 bg-white/[0.02]">
             {(selected.messages || []).map((msg, i) => (
               <div
                 key={i}
                 className={`flex ${msg.sender === "seller" ? "justify-start" : "justify-end"}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === "seller" ? "bg-white dark:bg-black/40 border border-gray-200 dark:border-white/10" : "bg-salvaGold text-black"}`}
+                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === "seller" ? "bg-white/5 border border-white/10 text-white" : "bg-salvaGold text-black"}`}
                 >
                   {msg.text}
                   {msg.imageUrl && (
@@ -1643,14 +1291,14 @@ const SellerMintPanel = ({ user, showMsg }) => {
               </div>
             ))}
           </div>
-          <div className="border-t border-gray-200 dark:border-white/10 p-2 flex gap-2">
+          <div className="border-t border-white/10 p-2 flex gap-2">
             <input
               type="text"
               placeholder="Reply to user…"
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendSellerMessage()}
-              className="flex-1 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-black dark:text-white"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-white placeholder:text-white/20"
             />
             <button
               onClick={sendSellerMessage}
@@ -1692,7 +1340,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
       className="space-y-4"
     >
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40">
+        <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/30">
           Mint Requests
         </p>
         <button
@@ -1712,7 +1360,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
         </div>
       ) : requests.length === 0 ? (
         <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center">
-          <p className="text-sm opacity-40 font-bold">No requests yet.</p>
+          <p className="text-sm text-white/30 font-bold">No requests yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1720,19 +1368,16 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               key={r._id}
               onClick={() => setSelected(r)}
-              className="w-full p-4 rounded-2xl border border-gray-200 dark:border-white/5 bg-white dark:bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
+              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-black text-sm truncate">{r.username}</p>
-                  <p className="text-xs opacity-40 font-mono truncate">
+                  <p className="font-black text-sm truncate text-white">
+                    {r.username}
+                  </p>
+                  <p className="text-xs text-white/30 font-mono truncate">
                     {r.userEmail}
                   </p>
-                  {r.pointsRedemption?.requested && (
-                    <p className="text-[9px] text-purple-400 font-bold mt-0.5">
-                      ⭐ +{r.pointsRedemption.pointsToRedeem} pts redemption
-                    </p>
-                  )}
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="font-black text-salvaGold text-sm">
@@ -1772,21 +1417,42 @@ const Dashboard = () => {
     }
   });
 
-  const [balance, setBalance] = useState(null); // null = loading
+  const [balance, setBalance] = useState(null);
+  const [cNgnBalance, setCNgnBalance] = useState(null);
   const [usdtBalance, setUsdtBalance] = useState(null);
   const [usdcBalance, setUsdcBalance] = useState(null);
   const [balanceLoading, setBalanceLoading] = useState(true);
-  const [userPoints, setUserPoints] = useState(null); // null = loading
-  const [showLedger, setShowLedger] = useState(false);
-  const [referralCode, setReferralCode] = useState(null);
   const [isSendOpen, setIsSendOpen] = useState(false);
+  const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [isScanOpen, setIsScanOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({
     show: false,
     message: "",
     type: "",
   });
-  const [showBalance, setShowBalance] = useState(true);
+
+  const [showBalance, setShowBalance] = useState(() => {
+    try {
+      const saved = localStorage.getItem("salva_show_balance");
+      return saved === null ? true : saved === "true";
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleShowBalance = useCallback(() => {
+    setShowBalance((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem("salva_show_balance", String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
   const [activeTab, setActiveTab] = useState("buy");
   const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
@@ -1799,7 +1465,6 @@ const Dashboard = () => {
   const [pinAttempts, setPinAttempts] = useState(0);
   const [isAccountLocked, setIsAccountLocked] = useState(false);
   const [lockMessage, setLockMessage] = useState("");
-
   const [recipientInput, setRecipientInput] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
@@ -1863,58 +1528,38 @@ const Dashboard = () => {
     }
   }, [user?.email]);
 
-const fetchBalance = useCallback(async (address, showSpinner = false) => {
-  if (!address) return;
-  if (showSpinner) setBalanceLoading(true);
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setBalance(parseFloat(data.balance || 0).toFixed(2));
-    setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
-    setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
-  } catch {
-    /* keep existing */
-  } finally {
-    if (showSpinner) setBalanceLoading(false);
-  }
-}, []);
-
-  const fetchUserPoints = useCallback(async (address) => {
+  const fetchBalance = useCallback(async (address, showSpinner = false) => {
     if (!address) return;
+    if (showSpinner) setBalanceLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/points/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
       if (!res.ok) return;
       const data = await res.json();
-      setUserPoints(data);
+      setBalance(parseFloat(data.balance || 0).toFixed(2));
+      setCNgnBalance(parseFloat(data.cNgnBalance || 0).toFixed(2));
+      setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
+      setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
+    } catch {
+      /* keep existing */
+    } finally {
+      if (showSpinner) setBalanceLoading(false);
+    }
+  }, []);
+
+  const syncIncoming = useCallback(async (address) => {
+    if (!address) return;
+    try {
+      await fetch(`${SALVA_API_URL}/api/sync-incoming/${address}`);
     } catch {
       /* silently ignore */
     }
   }, []);
 
-  const fetchReferralCode = useCallback(async (address) => {
-  if (!address) return;
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/referral/code/${address}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setReferralCode(data);
-  } catch { /* ignore */ }
-}, []); // 
-
   useEffect(() => {
     if (!user?.safeAddress) return;
     fetchBalance(user.safeAddress, true);
-    fetchUserPoints(user.safeAddress);
-    fetchReferralCode(user.safeAddress);
     refreshUserStatus(user.email, user);
-  }, [
-    user?.safeAddress,
-    refreshUserStatus,
-    fetchBalance,
-    fetchUserPoints,
-    fetchReferralCode,
-  ]);
+  }, [user?.safeAddress, refreshUserStatus, fetchBalance]);
 
   useEffect(() => {
     if (!user?.email) return;
@@ -1922,27 +1567,30 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     fetchMeta();
   }, [user?.email, checkAccountLockStatus]);
 
-useEffect(() => {
-  if (!user?.safeAddress) return;
-  const tick = () => {
-    if (document.visibilityState === "visible") {
-      fetchBalance(user.safeAddress);
-      fetchUserPoints(user.safeAddress);
-    }
-  };
-  const iv = setInterval(tick, 45000); // 45s instead of 30s
-  document.addEventListener("visibilitychange", tick);
-  return () => {
-    clearInterval(iv);
-    document.removeEventListener("visibilitychange", tick);
-  };
-}, [user?.safeAddress, fetchBalance, fetchUserPoints]);
+  useEffect(() => {
+    if (!user?.safeAddress) return;
+    syncIncoming(user.safeAddress);
+    const tick = () => {
+      if (document.visibilityState === "visible") {
+        fetchBalance(user.safeAddress);
+        syncIncoming(user.safeAddress);
+      }
+    };
+    const iv = setInterval(tick, 45000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", tick);
+    };
+  }, [user?.safeAddress, fetchBalance]);
 
   useEffect(() => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
       if (selectedCoin === "NGN")
         setAmountError(!isNaN(amt) && amt > parseFloat(balance ?? "0"));
+      else if (selectedCoin === "CNGN")
+        setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? "0"));
       else if (selectedCoin === "USDT")
         setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? "0"));
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? "0"));
@@ -1966,25 +1614,25 @@ useEffect(() => {
     } catch {}
   };
 
-  const computeFeePreview = (amount, coin) => {
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || !amount) {
-      setFeePreview({ feeNGN: 0, feeUsd: 0 });
-      return;
-    }
-    if (coin === "NGN" && feeConfig) {
-      let fee = 0;
-      if (amt >= (feeConfig.tier2Min ?? 10000)) fee = feeConfig.tier2Fee ?? 50;
-      else if (
-        amt >= (feeConfig.tier1Min ?? 5000) &&
-        amt <= (feeConfig.tier1Max ?? 9999)
-      )
-        fee = feeConfig.tier1Fee ?? 25;
-      setFeePreview({ feeNGN: fee, feeUsd: 0 });
-    } else if (coin === "USDT" || coin === "USDC") {
-      setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
-    }
-  };
+const computeFeePreview = (amount, coin) => {
+  const amt = parseFloat(amount);
+  if (isNaN(amt) || !amount) {
+    setFeePreview({ feeNGN: 0, feeUsd: 0 });
+    return;
+  }
+  if ((coin === "NGN" || coin === "CNGN") && feeConfig) {
+    let fee = 0;
+    if (amt >= (feeConfig.tier2Min ?? 10000)) fee = feeConfig.tier2Fee ?? 20;
+    else if (
+      amt >= (feeConfig.tier1Min ?? 1000) &&
+      amt <= (feeConfig.tier1Max ?? 9999)
+    )
+      fee = feeConfig.tier1Fee ?? 10;
+    setFeePreview({ feeNGN: fee, feeUsd: 0 });
+  } else if (coin === "USDT" || coin === "USDC") {
+    setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
+  }
+};
 
   const handleRecipientChange = (val) => {
     setRecipientInput(val);
@@ -2033,7 +1681,7 @@ useEffect(() => {
         });
         const data = await res.json();
         if (!res.ok || !data.resolvedAddress) {
-          showMsg(data.message || "Recipient not found", "error");
+          showMsg("Recipient not found. Check the name or address.", "error");
           return;
         }
         resolvedAddress = data.resolvedAddress.toLowerCase();
@@ -2053,7 +1701,10 @@ useEffect(() => {
       });
       setIsConfirmModalOpen(true);
     } catch {
-      showMsg("Failed to resolve recipient", "error");
+      showMsg(
+        "Could not find that recipient. Double-check and try again.",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -2082,22 +1733,13 @@ useEffect(() => {
       });
       const data = await res.json();
       if (res.ok) {
-        // Points feedback message
-        const rewardMsg =
-          data.reward?.pointsAwarded > 0
-            ? `✅ Transfer Successful! +${data.reward.pointsAwarded} pts earned (${data.reward.tier} tier)`
-            : data.reward?.rateLimitHit
-              ? "✅ Transfer Successful! (Daily free transfer limit reached — no points today)"
-              : "✅ Transfer Successful!";
-        showMsg(rewardMsg);
-        // Refresh balance + points
+        showMsg("✅ Transfer Successful!");
         setTimeout(() => {
           fetchBalance(user.safeAddress);
-          fetchUserPoints(user.safeAddress);
         }, 3500);
-      } else showMsg(data.message || "Transfer failed", "error");
+      } else showMsg("Transaction failed. Please try again.", "error");
     } catch {
-      showMsg("Network error — transfer may not have gone through", "error");
+      showMsg("Connection error. Check your network and try again.", "error");
     }
   };
 
@@ -2144,221 +1786,382 @@ useEffect(() => {
 
   if (!user)
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-        <div className="text-salvaGold font-black text-2xl animate-pulse">
-          LOADING...
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
+        <motion.div
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+          className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]"
+        >
+          Salva
+        </motion.div>
       </div>
     );
 
   const tabs = [
-    { id: "buy", label: "Buy/Sell NGNs" },
+    { id: "buy", label: "Buy / Sell NGNs" },
+    { id: "swap", label: "Swap" },
+    { id: "deploy", label: "Deploy Pool" },
     { id: "names", label: "Link a Name" },
-    ...(user.isValidator ? [{ id: "admin", label: "Admin Panel" }] : []),
+    ...(user.isValidator ? [{ id: "admin", label: "Admin" }] : []),
     ...(user.isSeller ? [{ id: "seller", label: "Mint Requests" }] : []),
   ];
+
+  // ── Icon map for the Bybit-style grid nav ─────────────────────────────────
+  const TAB_ICONS = {
+    buy: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <text
+          x="12"
+          y="17"
+          textAnchor="middle"
+          fontSize="16"
+          fontWeight="700"
+          stroke="none"
+          fill="currentColor"
+          fontFamily="sans-serif"
+        >
+          ₦
+        </text>
+      </svg>
+    ),
+    swap: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M7 16V4m0 0L4 7m3-3 3 3" />
+        <path d="M17 8v12m0 0 3-3m-3 3-3-3" />
+      </svg>
+    ),
+    deploy: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <rect x="2" y="7" width="20" height="14" rx="2" />
+        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+        <line x1="12" y1="12" x2="12" y2="16" />
+        <line x1="10" y1="14" x2="14" y2="14" />
+      </svg>
+    ),
+    names: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        {/* Tag/label shape with a dot hole — universally means "name label" */}
+        <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
+        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+    admin: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+        <polyline points="9 12 11 14 15 10" />
+      </svg>
+    ),
+    seller: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        <circle cx="9" cy="10" r="0.5" fill="currentColor" />
+        <circle cx="12" cy="10" r="0.5" fill="currentColor" />
+        <circle cx="15" cy="10" r="0.5" fill="currentColor" />
+      </svg>
+    ),
+  };
+
+  const TAB_SHORT_LABELS = {
+    buy: "Buy / Sell",
+    swap: "Swap",
+    deploy: "Deploy Pool",
+    names: "Link Name",
+    admin: "Admin",
+    seller: "Requests",
+  };
 
   const showRegistryDropdown = inputType === "name";
   const currentCoinBalance =
     selectedCoin === "NGN"
       ? (balance ?? "0.00")
-      : selectedCoin === "USDT"
-        ? (usdtBalance ?? "0.00")
-        : (usdcBalance ?? "0.00");
-  const coinSymbol = selectedCoin === "NGN" ? "NGNs" : selectedCoin;
+      : selectedCoin === "CNGN"
+        ? (cNgnBalance ?? "0.00")
+        : selectedCoin === "USDT"
+          ? (usdtBalance ?? "0.00")
+          : (usdcBalance ?? "0.00");
+  const coinSymbol =
+    selectedCoin === "NGN"
+      ? "NGNs"
+      : selectedCoin === "CNGN"
+        ? "cNGN"
+        : selectedCoin;
   const recipientNameError =
     inputType === "name" &&
     (/[A-Z]/.test(recipientInput) || /[01]/.test(recipientInput));
+  const darkInput =
+    "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/20 transition-all";
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
       <Stars />
-      <div className="max-w-4xl mx-auto relative z-10">
-        {/* Header */}
-        <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-6">
+      <div className="max-w-2xl mx-auto relative z-10">
+        {/* ── Header ── */}
+        <header className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-salvaGold font-bold">
-              Salva Citizen{user.isValidator ? " · Validator" : ""}
+            <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+              {user.isValidator ? "Salva Validator" : "Salva Citizen"}
             </p>
-            <h2 className="text-3xl sm:text-4xl font-black truncate max-w-[220px] sm:max-w-none">
+            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
-            </h2>
+            </h1>
           </div>
         </header>
-
-        {/* ── Points Banner ── */}
-        <PointsBanner
-          userPoints={userPoints}
-          onViewLedger={() => setShowLedger(true)}
-        />
 
         {/* ── Balance Card ── */}
         <BalanceCard
           balance={balance ?? "0.00"}
+          cNgnBalance={cNgnBalance ?? "0.00"}
           usdtBalance={usdtBalance ?? "0.00"}
           usdcBalance={usdcBalance ?? "0.00"}
           showBalance={showBalance}
           balanceLoading={balanceLoading}
-          onToggleVisibility={() => setShowBalance(!showBalance)}
+          onToggleVisibility={toggleShowBalance}
           onSend={handleTransferClick}
-          onReceive={() => {
-            navigator.clipboard.writeText(user.safeAddress);
-            showMsg("Wallet address copied!");
-          }}
+          onReceive={() => setIsReceiveOpen(true)}
         />
 
-        {/* Wallet address */}
+        {/* ── Wallet address chip ── */}
         <div
           onClick={() => {
             navigator.clipboard.writeText(user.safeAddress);
             showMsg("Wallet address copied!");
           }}
-          className="mb-4 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 cursor-pointer hover:border-salvaGold/30 transition-all"
+          className="mb-4 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
         >
-          <p className="text-[10px] uppercase opacity-40 font-bold mb-1 tracking-widest">
-            Smart Wallet Address (Base)
-          </p>
-          <p className="font-mono text-[10px] sm:text-xs text-salvaGold font-medium break-all truncate">
-            {showBalance
-              ? user.safeAddress
-              : "0x••••••••••••••••••••••••••••••••••••••••"}
-          </p>
+          <div className="w-7 h-7 rounded-lg bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-salvaGold text-[10px]">⛓</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] uppercase tracking-[0.35em] text-white/25 font-black">
+              Smart Wallet · Base
+            </p>
+            <p className="font-mono text-[10px] text-salvaGold/60 truncate mt-0.5">
+              {showBalance
+                ? user.safeAddress
+                : "0x••••••••••••••••••••••••••••••••••••••••"}
+            </p>
+          </div>
+          <span className="text-[10px] text-white/20 flex-shrink-0">Copy</span>
         </div>
 
-        {/* ── Referral Code ── */}
-        {referralCode && (
-          <motion.div
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-salvaGold/20"
-          >
-            <p className="text-[10px] uppercase opacity-40 font-bold mb-2 tracking-widest">
-              Your Referral Code
-            </p>
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-black text-salvaGold text-xl tracking-widest">
-                {referralCode.code}
-              </p>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(referralCode.shareUrl);
-                  showMsg("Referral link copied!");
-                }}
-                className="px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 text-salvaGold font-black text-xs uppercase tracking-widest hover:bg-salvaGold/20 transition-all"
-              >
-                Copy Link
-              </button>
-            </div>
-            <p className="text-[10px] opacity-40 mt-2 font-mono truncate">
-              {referralCode.shareUrl}
-            </p>
-            <div className="flex gap-4 mt-3">
-              <div>
-                <p className="text-[9px] uppercase opacity-30 font-bold">
-                  Total Referrals
-                </p>
-                <p className="font-black text-sm">
-                  {referralCode.totalReferrals}
-                </p>
-              </div>
-              <div>
-                <p className="text-[9px] uppercase opacity-30 font-bold">
-                  Qualified
-                </p>
-                <p className="font-black text-sm text-salvaGold">
-                  {referralCode.qualifiedReferrals}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {/* Transaction history link */}
+        {/* ── Transaction History link ── */}
         <Link
           to="/transactions"
-          className="block mb-8 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-white/5 hover:border-salvaGold/30 transition-all text-center"
+          className="flex items-center justify-between mb-6 px-4 py-3.5 bg-white/[0.03] rounded-2xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
         >
-          <p className="text-xs font-black uppercase tracking-widest text-salvaGold">
-            View Transaction History →
-          </p>
+          <div className="flex items-center gap-3">
+            <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
+              <span className="text-white/40 text-xs">↗</span>
+            </div>
+            <p className="text-xs font-black uppercase tracking-widest text-white/50 group-hover:text-white transition-colors">
+              Transaction History
+            </p>
+          </div>
+          <span className="text-salvaGold text-sm group-hover:translate-x-0.5 transition-transform">
+            →
+          </span>
         </Link>
 
-        {/* Account locked banner */}
+        {/* ── Account locked banner ── */}
         {isAccountLocked && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-2xl">
+          <div className="mb-5 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
             <p className="text-sm font-bold text-red-400">
               🔒 {lockMessage} — Transactions are disabled.
             </p>
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex border-b border-white/10 mb-8 gap-8 overflow-x-auto no-scrollbar">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              data-tab={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`pb-2 text-[10px] uppercase tracking-widest font-black transition-all whitespace-nowrap ${
-                activeTab === tab.id
-                  ? "border-b-2 border-salvaGold text-salvaGold"
-                  : "opacity-40 hover:opacity-100"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Tab content */}
-        {activeTab === "buy" && (
-          <motion.section
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center min-h-[300px] text-center py-16"
-          >
-            <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{
-                repeat: Infinity,
-                duration: 2.5,
-                ease: "easeInOut",
-              }}
-              className="w-20 h-20 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-salvaGold/20"
-            >
-              <span className="text-3xl font-black text-salvaGold">₦</span>
-            </motion.div>
-            <h3 className="text-2xl font-black mb-3">Buy / Sell NGNs</h3>
-            <p className="opacity-50 text-sm mb-4 max-w-xs leading-relaxed">
-              Purchase or sell Nigerian Naira stablecoin via our OTC desk.
-            </p>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-salvaGold/10 border border-salvaGold/20">
-              <span className="text-salvaGold text-lg">₦</span>
-              <p className="text-xs font-black text-salvaGold uppercase tracking-widest">
-                Tap the ₦ button · bottom right
-              </p>
+        {/* ══ BYBIT-STYLE ICON GRID NAV ══════════════════════════════════════ */}
+        <div className="mb-7">
+          {/* ── Top separator ── */}
+          <div className="relative flex items-center mb-6">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
+            <div className="mx-3 flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/60 block" />
+              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
             </div>
-          </motion.section>
-        )}
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
+          </div>
+          <div
+            className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? "grid-cols-4" : tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}
+          >
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  data-tab={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex flex-col items-center gap-2 group focus:outline-none"
+                >
+                  {/* Circle icon */}
+                  <div
+                    className={`
+                      relative w-14 h-14 rounded-full flex items-center justify-center
+                      transition-all duration-200 active:scale-95
+                      ${
+                        isActive
+                          ? "bg-[#1C1C1E] ring-2 ring-salvaGold shadow-[0_0_18px_rgba(212,175,55,0.18)]"
+                          : "bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]"
+                      }
+                    `}
+                  >
+                    <span
+                      className={`w-[22px] h-[22px] transition-colors duration-200 ${
+                        isActive
+                          ? "text-salvaGold"
+                          : "text-white/40 group-hover:text-white/65"
+                      }`}
+                    >
+                      {TAB_ICONS[tab.id]}
+                    </span>
+                    {/* Active indicator dot beneath circle */}
+                    {isActive && (
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-salvaGold" />
+                    )}
+                  </div>
+                  {/* Short label */}
+                  <span
+                    className={`
+                      text-[9px] font-black uppercase tracking-[0.1em] leading-tight
+                      text-center max-w-[64px] break-words transition-colors duration-200
+                      ${
+                        isActive
+                          ? "text-salvaGold"
+                          : "text-white/28 group-hover:text-white/50"
+                      }
+                    `}
+                  >
+                    {TAB_SHORT_LABELS[tab.id] || tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {/* ── Bottom separator ── */}
+          <div className="relative flex items-center mt-6">
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+            <div className="mx-3 flex items-center gap-1.5">
+              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/40 block" />
+              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
+            </div>
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+          </div>
+        </div>
+        {/* ══ END ICON GRID NAV ══════════════════════════════════════════════ */}
 
-        {activeTab === "names" && (
-          <LinkNameTab
-            user={user}
-            registries={registries}
-            showMsg={showMsg}
-            onSwitchToBuy={() => setActiveTab("buy")}
-          />
-        )}
+        {/* ── Tab content ── */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.2 }}
+          >
+            {activeTab === "buy" && (
+              <div className="flex flex-col items-center justify-center min-h-[280px] text-center py-12">
+                <motion.div
+                  animate={{ y: [0, -6, 0] }}
+                  transition={{
+                    repeat: Infinity,
+                    duration: 3,
+                    ease: "easeInOut",
+                  }}
+                  className="w-16 h-16 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                >
+                  <span className="text-2xl font-black text-salvaGold">₦</span>
+                </motion.div>
+                <h3 className="text-xl font-black mb-2">Buy / Sell NGNs</h3>
+                <p className="text-white/40 text-sm mb-5 max-w-xs leading-relaxed">
+                  Purchase or sell Nigerian Naira stablecoin via our OTC desk.
+                </p>
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-salvaGold/10 border border-salvaGold/20">
+                  <span className="text-salvaGold">₦</span>
+                  <p className="text-[10px] font-black text-salvaGold uppercase tracking-widest">
+                    Tap the ₦ button · bottom right
+                  </p>
+                </div>
+              </div>
+            )}
 
-        {activeTab === "admin" && user.isValidator && (
-          <AdminPanel user={user} showMsg={showMsg} />
-        )}
-        {activeTab === "seller" && user.isSeller && (
-          <SellerMintPanel user={user} showMsg={showMsg} />
-        )}
+            {activeTab === "names" && (
+              <LinkNameTab
+                user={user}
+                registries={registries}
+                showMsg={showMsg}
+                onSwitchToBuy={() => setActiveTab("buy")}
+              />
+            )}
+
+            {activeTab === "swap" && <SwapTab user={user} showMsg={showMsg} />}
+
+            {activeTab === "deploy" && (
+              <DeployPool
+                user={user}
+                showMsg={showMsg}
+                onSwitchToLinkName={(poolAddress) => {
+                  window.__salva_pool_prefill = poolAddress;
+                  setActiveTab("names");
+                }}
+              />
+            )}
+
+            {activeTab === "admin" && user.isValidator && (
+              <AdminPanel user={user} showMsg={showMsg} />
+            )}
+            {activeTab === "seller" && user.isSeller && (
+              <SellerMintPanel user={user} showMsg={showMsg} />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
-      {/* ── Send Modal ── */}
+      {/* ══ SEND MODAL ═══════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -2370,27 +2173,77 @@ useEffect(() => {
               exit={{ opacity: 0 }}
             />
             <motion.div
-              className="relative bg-white dark:bg-zinc-900 p-6 sm:p-12 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg border-t sm:border border-white/10 shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-6 sm:p-10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
-              <div className="w-12 h-1.5 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black mb-1 text-black dark:text-white">
-                Send
-              </h3>
-              <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-6">
-                Salva Secure Transfer
-              </p>
-
-              {/* Coin selector */}
+              <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
+              <div className="mb-6 flex items-start justify-between gap-4">
+                <div>
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">
+                    Send
+                  </h3>
+                  <p className="text-[10px] text-salvaGold/60 uppercase tracking-[0.35em] font-black mt-0.5">
+                    Salva Secure Transfer
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsScanOpen(true)}
+                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-salvaGold/40 hover:bg-salvaGold/[0.06] transition-all flex items-center justify-center group mt-1"
+                >
+                  <svg
+                    className="w-5 h-5 text-white/40 group-hover:text-salvaGold transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={1.8}
+                      d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
+                    />
+                    <rect
+                      x="7"
+                      y="7"
+                      width="4"
+                      height="4"
+                      rx="0.5"
+                      strokeWidth={1.8}
+                    />
+                    <rect
+                      x="13"
+                      y="7"
+                      width="4"
+                      height="4"
+                      rx="0.5"
+                      strokeWidth={1.8}
+                    />
+                    <rect
+                      x="7"
+                      y="13"
+                      width="4"
+                      height="4"
+                      rx="0.5"
+                      strokeWidth={1.8}
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeWidth={1.8}
+                      d="M13 13h1v1M17 13v1h-1M13 17h4v-2"
+                    />
+                  </svg>
+                </button>
+              </div>
               <div className="mb-5">
-                <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                <label className="text-[10px] uppercase text-white/30 font-bold block mb-2">
                   Select Token
                 </label>
                 <div className="flex gap-2">
-                  {["NGN", "USDT", "USDC"].map((coin) => (
+                  {["NGN", "CNGN", "USDT", "USDC"].map((coin) => (
                     <button
                       key={coin}
                       onClick={() => {
@@ -2399,13 +2252,13 @@ useEffect(() => {
                         setTransferAmountDisplay("");
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 opacity-50 hover:opacity-80"}`}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 text-white/40 hover:text-white/80"}`}
                     >
                       {coin === "NGN" ? "NGNs" : coin}
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] opacity-30 mt-1.5">
+                <p className="text-[10px] text-white/20 mt-1.5">
                   Balance:{" "}
                   {balanceLoading
                     ? "…"
@@ -2415,16 +2268,15 @@ useEffect(() => {
                   {coinSymbol}
                 </p>
               </div>
-
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   resolveAndConfirm();
                 }}
-                className="space-y-5"
+                className="space-y-4"
               >
                 <div className="space-y-2">
-                  <label className="text-[10px] uppercase opacity-40 font-bold block">
+                  <label className="text-[10px] uppercase text-white/30 font-bold block">
                     Recipient
                   </label>
                   <input
@@ -2433,10 +2285,10 @@ useEffect(() => {
                     placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
-                    className={`w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border transition-all outline-none font-bold text-sm text-black dark:text-white ${recipientNameError ? "border-red-500" : "border-transparent focus:border-salvaGold"}`}
+                    className={`${darkInput} ${recipientNameError ? "border-red-500" : ""}`}
                   />
                   {inputType !== "empty" && (
-                    <p className="text-[10px] opacity-40 font-bold ml-1">
+                    <p className="text-[10px] text-white/30 font-bold ml-1">
                       {inputType === "address"
                         ? "✓ Wallet address — sending directly"
                         : "Name alias — select a wallet below"}
@@ -2449,7 +2301,7 @@ useEffect(() => {
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                      <label className="text-[10px] uppercase text-white/30 font-bold block mb-2">
                         Select Wallet Service
                       </label>
                       <RegistryDropdown
@@ -2461,9 +2313,8 @@ useEffect(() => {
                     </div>
                   )}
                 </div>
-
                 <div>
-                  <label className="text-[10px] uppercase opacity-40 font-bold block mb-2">
+                  <label className="text-[10px] uppercase text-white/30 font-bold block mb-2">
                     Amount ({coinSymbol})
                   </label>
                   <div className="relative">
@@ -2479,7 +2330,7 @@ useEffect(() => {
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`w-full p-4 rounded-xl text-lg font-bold bg-gray-100 dark:bg-white/5 outline-none transition-all text-black dark:text-white ${amountError ? "border border-red-500 text-red-500" : "border border-transparent"}`}
+                      className={`${darkInput} text-lg pr-16 ${amountError ? "border-red-500" : ""}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       {coinSymbol}
@@ -2490,61 +2341,34 @@ useEffect(() => {
                       ⚠️ Insufficient balance
                     </p>
                   )}
-
-                  {/* Fee preview */}
-                  {selectedCoin === "NGN" && transferAmount && !amountError && (
-                    <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px] space-y-1">
-                      <div className="flex justify-between">
-                        <span className="opacity-50 uppercase font-bold">
-                          Network Fee
-                        </span>
-                        <span
-                          className={
-                            feePreview.feeNGN > 0
-                              ? "text-red-400 font-black"
-                              : "text-green-400 font-black"
-                          }
-                        >
-                          {feePreview.feeNGN > 0
-                            ? `-${formatNumber(feePreview.feeNGN)} NGNs`
-                            : "Free"}
-                        </span>
+                  {(selectedCoin === "NGN" || selectedCoin === "CNGN") &&
+                    transferAmount &&
+                    !amountError && (
+                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] space-y-1">
+                        <div className="flex justify-between">
+                          <span className="text-white/30 uppercase font-bold">
+                            Network Fee
+                          </span>
+                          <span
+                            className={
+                              feePreview.feeNGN > 0
+                                ? "text-red-400 font-black"
+                                : "text-green-400 font-black"
+                            }
+                          >
+                            {feePreview.feeNGN > 0
+                              ? `-${formatNumber(feePreview.feeNGN)} NGNs`
+                              : "Free"}
+                          </span>
+                        </div>
                       </div>
-                      {/* Points preview */}
-                      {(() => {
-                        const amt = parseFloat(transferAmount);
-                        let pts = 0,
-                          tier = "";
-                        if (amt >= (feeConfig?.tier2Min ?? 10000)) {
-                          pts = 25;
-                          tier = "HIGH";
-                        } else if (amt >= (feeConfig?.tier1Min ?? 5000)) {
-                          pts = 15;
-                          tier = "MID";
-                        } else if (amt > 0) {
-                          pts = 5;
-                          tier = "FREE";
-                        }
-                        if (!pts) return null;
-                        return (
-                          <div className="flex justify-between">
-                            <span className="opacity-50 uppercase font-bold">
-                              Points Earned
-                            </span>
-                            <span className="text-salvaGold font-black">
-                              +{pts} pts ({tier})
-                            </span>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
+                    )}
                   {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
                     transferAmount &&
                     !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/5 border border-white/10 text-[10px]">
+                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px]">
                         <div className="flex justify-between">
-                          <span className="opacity-50 uppercase font-bold">
+                          <span className="text-white/30 uppercase font-bold">
                             Network Fee
                           </span>
                           <span
@@ -2562,7 +2386,6 @@ useEffect(() => {
                       </div>
                     )}
                 </div>
-
                 <button
                   disabled={
                     loading ||
@@ -2571,12 +2394,16 @@ useEffect(() => {
                     recipientNameError
                   }
                   type="submit"
-                  className={`w-full py-5 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${loading || amountError || !recipientInput ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-salvaGold text-black hover:brightness-110 active:scale-95"}`}
+                  className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
+                    loading || amountError || !recipientInput
+                      ? "bg-white/5 text-white/20 cursor-not-allowed border border-white/5"
+                      : "bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20"
+                  }`}
                 >
                   {loading && (
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
-                  {loading ? "PROCESSING…" : "REVIEW & SEND"}
+                  {loading ? "Processing…" : "Review & Send"}
                 </button>
               </form>
             </motion.div>
@@ -2584,7 +2411,7 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
-      {/* ── Confirmation Modal ── */}
+      {/* ══ CONFIRM MODAL ════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
@@ -2597,41 +2424,41 @@ useEffect(() => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-lg border border-gray-200 dark:border-white/10 shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-lg shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-yellow-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">⚠️</span>
+                <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-1 text-black dark:text-white">
+                <h3 className="text-xl font-black mb-1 text-white">
                   Verify Recipient
                 </h3>
-                <p className="text-sm opacity-60">
+                <p className="text-sm text-white/40">
                   Double-check before sending. Blockchain transactions are
                   irreversible.
                 </p>
               </div>
               <div className="space-y-3 mb-6">
-                <div className="p-4 rounded-xl bg-salvaGold/5 border border-salvaGold/20">
-                  <p className="text-[10px] opacity-60 mb-1">Sending To</p>
-                  <p className="font-black text-sm sm:text-base text-salvaGold break-all leading-snug">
+                <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/15">
+                  <p className="text-[10px] text-white/30 mb-1">Sending To</p>
+                  <p className="font-black text-sm text-salvaGold break-all leading-snug">
                     {confirmationData.displayIdentifier}
                   </p>
-                  <p className="font-mono text-[10px] opacity-40 mt-1 break-all">
+                  <p className="font-mono text-[10px] text-white/25 mt-1 break-all">
                     {confirmationData.resolvedAddress}
                   </p>
                   {confirmationData.walletName && (
-                    <p className="text-[10px] opacity-50 mt-1 font-bold">
+                    <p className="text-[10px] text-white/30 mt-1 font-bold">
                       via {confirmationData.walletName}
                     </p>
                   )}
                 </div>
-                <div className="p-4 rounded-xl bg-gray-100 dark:bg-white/5">
-                  <p className="text-[10px] opacity-60 mb-1">You Send</p>
-                  <p className="font-black text-xl text-black dark:text-white">
+                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                  <p className="text-[10px] text-white/30 mb-1">You Send</p>
+                  <p className="font-black text-xl text-white">
                     {formatNumber(confirmationData.amount)}{" "}
                     <span className="text-salvaGold">
                       {confirmationData.coin === "NGN"
@@ -2642,8 +2469,10 @@ useEffect(() => {
                 </div>
                 {(confirmationData.feeNGN > 0 ||
                   confirmationData.feeUsd > 0) && (
-                  <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/10">
-                    <p className="text-[10px] opacity-60 mb-1">Network Fee</p>
+                  <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
+                    <p className="text-[10px] text-white/30 mb-1">
+                      Network Fee
+                    </p>
                     <p className="font-black text-base text-red-400">
                       {confirmationData.feeNGN > 0
                         ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
@@ -2655,7 +2484,7 @@ useEffect(() => {
               <div className="flex gap-3">
                 <button
                   onClick={() => setIsConfirmModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white"
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
                 >
                   Go Back
                 </button>
@@ -2676,7 +2505,7 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
-      {/* ── PIN Modal ── */}
+      {/* ══ PIN MODAL ═════════════════════════════════════════════════════════ */}
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
@@ -2689,19 +2518,21 @@ useEffect(() => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-md shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
               <div className="text-center mb-6">
-                <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <span className="text-3xl">🔐</span>
+                <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-2 text-black dark:text-white">
-                  Enter Transaction PIN
+                <h3 className="text-2xl font-black mb-1 text-white">
+                  Transaction PIN
                 </h3>
-                <p className="text-sm opacity-60">Verify identity to proceed</p>
+                <p className="text-sm text-white/30">
+                  Verify identity to proceed
+                </p>
               </div>
               <input
                 type="password"
@@ -2714,10 +2545,10 @@ useEffect(() => {
                 }
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-black dark:text-white"
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
               />
               {pinAttempts > 0 && (
-                <p className="text-xs text-red-500 text-center mb-4 font-bold">
+                <p className="text-xs text-red-400 text-center mb-4 font-bold">
                   ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
                   remaining
                 </p>
@@ -2726,7 +2557,7 @@ useEffect(() => {
                 <button
                   onClick={() => setIsPinModalOpen(false)}
                   disabled={loading}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 transition-all text-black dark:text-white"
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
@@ -2738,7 +2569,7 @@ useEffect(() => {
                   {loading && (
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
-                  {loading ? "VERIFYING..." : "VERIFY"}
+                  {loading ? "Verifying…" : "Verify"}
                 </button>
               </div>
             </motion.div>
@@ -2753,19 +2584,163 @@ useEffect(() => {
         )}
       </AnimatePresence>
 
-      {/* ── Points Ledger Modal ── */}
+      {/* ══ RECEIVE MODAL ════════════════════════════════════════════════════ */}
       <AnimatePresence>
-        {showLedger && (
-          <PointsLedgerModal
-            safeAddress={user.safeAddress}
-            userPoints={userPoints}
-            onClose={() => setShowLedger(false)}
+        {isReceiveOpen && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <motion.div
+              onClick={() => setIsReceiveOpen(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+            >
+              <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-7 sm:hidden" />
+              <div className="text-center mb-7">
+                <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
+                  Receive Funds
+                </p>
+                <h3 className="text-2xl font-black text-white">
+                  {user.username}
+                </h3>
+              </div>
+              <div className="flex justify-center mb-6">
+                <div
+                  onClick={() => {
+                    navigator.clipboard.writeText(user.safeAddress);
+                    showMsg("Address copied!");
+                  }}
+                  className="relative group cursor-pointer"
+                >
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-salvaGold/40 via-salvaGold/10 to-transparent blur-md group-hover:blur-lg transition-all" />
+                  <div className="relative p-4 rounded-2xl bg-white border-2 border-salvaGold/30 group-hover:border-salvaGold/60 transition-all shadow-2xl shadow-black">
+                    <QRCodeSVG
+                      value={user.safeAddress}
+                      size={188}
+                      bgColor="#FFFFFF"
+                      fgColor="#0A0A0B"
+                      level="M"
+                      includeMargin={false}
+                    />
+                  </div>
+                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                    <div className="bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
+                      Tap to copy
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(user.safeAddress);
+                  showMsg("Address copied!");
+                }}
+                className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
+              >
+                <div className="min-w-0 text-left">
+                  <p className="text-[9px] uppercase tracking-[0.35em] text-white/25 font-black mb-1">
+                    Wallet Address
+                  </p>
+                  <p className="font-mono text-[10px] text-salvaGold/70 truncate">
+                    {user.safeAddress}
+                  </p>
+                </div>
+                <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
+                  <svg
+                    className="w-3 h-3 text-white/30 group-hover:text-salvaGold transition-colors"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      strokeWidth="2"
+                    />
+                    <path
+                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                      strokeWidth="2"
+                    />
+                  </svg>
+                </div>
+              </button>
+              {user.nameAlias && (
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(user.nameAlias);
+                    showMsg("Name alias copied!");
+                  }}
+                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
+                >
+                  <div className="min-w-0 text-left">
+                    <p className="text-[9px] uppercase tracking-[0.35em] text-white/25 font-black mb-1">
+                      Name Alias
+                    </p>
+                    <p className="font-black text-sm text-salvaGold">
+                      {user.nameAlias}
+                    </p>
+                  </div>
+                  <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
+                    <svg
+                      className="w-3 h-3 text-white/30 group-hover:text-salvaGold transition-colors"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        strokeWidth="2"
+                      />
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </div>
+                </button>
+              )}
+              <button
+                onClick={() => setIsReceiveOpen(false)}
+                className="w-full py-3.5 rounded-2xl border border-white/10 font-bold text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all text-sm uppercase tracking-widest mt-1"
+              >
+                Close
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ══ QR SCANNER MODAL ══════════════════════════════════════════════════ */}
+      <AnimatePresence>
+        {isScanOpen && (
+          <QRScannerModal
+            onScan={(address) => {
+              setRecipientInput(address);
+              handleRecipientChange(address);
+              setIsScanOpen(false);
+              if (!isSendOpen) setIsSendOpen(true);
+            }}
+            onClose={() => setIsScanOpen(false)}
           />
         )}
       </AnimatePresence>
 
-      {/* ── Floating Buy NGNs Chat (user) ── */}
-      {!user.isSeller && <SalvaNGNsChat user={user} userPoints={userPoints} />}
+      {/* ── Floating Buy NGNs Chat ── */}
+      {!user.isSeller && <SalvaNGNsChat user={user} />}
 
       {/* ── Seller Mint Inbox ── */}
       {user.isSeller && <SalvaSellerChat user={user} />}

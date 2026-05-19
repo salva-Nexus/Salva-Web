@@ -18,16 +18,17 @@ class AdminErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 rounded-3xl border border-red-500/30 bg-red-500/5 text-center">
-          <p className="text-red-400 font-black text-lg mb-2">
-            ⚠️ Admin Panel Error
-          </p>
-          <p className="text-xs opacity-60 mb-4 font-mono">
+        <div className="p-8 rounded-3xl border border-red-500/20 bg-red-500/5 text-center space-y-4">
+          <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+            <span className="text-xl">⚠</span>
+          </div>
+          <p className="text-red-400 font-black text-lg">Panel Error</p>
+          <p className="text-xs text-white/30 font-mono">
             {this.state.error?.message}
           </p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-6 py-2 bg-salvaGold text-black font-black rounded-xl text-xs uppercase"
+            className="px-6 py-2.5 bg-salvaGold text-black font-black rounded-xl text-xs uppercase tracking-widest hover:brightness-110 transition-all"
           >
             Retry
           </button>
@@ -60,82 +61,105 @@ const TimelockCountdown = ({ timeLockTimestamp }) => {
   const isReady = remaining === "READY";
   return (
     <span
-      className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${isReady ? "bg-green-500/10 text-green-400" : "bg-salvaGold/10 text-salvaGold"}`}
+      className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${isReady ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-salvaGold/10 border-salvaGold/20 text-salvaGold"}`}
     >
-      {isReady ? "✓ READY" : `⏱ ${remaining}`}
+      {isReady ? "✓ Ready" : `⏱ ${remaining}`}
     </span>
   );
 };
 
-// ── Section Header ────────────────────────────────────────────────────────────
-const SectionHeader = ({ icon, title, subtitle, accent = "salvaGold" }) => (
-  <div className="flex items-start gap-3 mb-6">
-    <div
-      className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg flex-shrink-0 bg-${accent}/10`}
-    >
-      {icon}
-    </div>
-    <div>
-      <p
-        className={`text-[10px] uppercase tracking-[0.3em] font-black text-${accent} opacity-70`}
-      >
-        {subtitle}
-      </p>
-      <h3 className="text-xl font-black tracking-tight">{title}</h3>
-    </div>
-  </div>
-);
-
-// ── Proposal Card ─────────────────────────────────────────────────────────────
-const ProposalCard = ({ children, borderColor = "white/10" }) => (
-  <div
-    className={`p-5 rounded-2xl border border-gray-200 dark:border-${borderColor} bg-white dark:bg-white/[0.03] space-y-4 shadow-sm dark:shadow-none`}
-  >
-    {children}
-  </div>
-);
-
 // ── Status Badge ──────────────────────────────────────────────────────────────
-const StatusBadge = ({ label, color }) => {
+const StatusBadge = ({ label, color = "gray" }) => {
   const colors = {
-    green: "bg-green-500/10 text-green-400",
-    red: "bg-red-500/10 text-red-400",
-    gold: "bg-salvaGold/10 text-salvaGold",
-    blue: "bg-blue-500/10 text-blue-400",
-    gray: "bg-white/5 text-white/40",
+    green: "bg-green-500/10 border-green-500/20 text-green-400",
+    red: "bg-red-500/10 border-red-500/20 text-red-400",
+    gold: "bg-salvaGold/10 border-salvaGold/20 text-salvaGold",
+    blue: "bg-blue-500/10 border-blue-500/20 text-blue-400",
+    purple: "bg-purple-500/10 border-purple-500/20 text-purple-400",
+    gray: "bg-white/5 border-white/10 text-white/40",
+    orange: "bg-orange-500/10 border-orange-500/20 text-orange-400",
+    teal: "bg-teal-500/10 border-teal-500/20 text-teal-400",
   };
   return (
     <span
-      className={`text-[10px] font-black uppercase px-2 py-1 rounded-lg tracking-widest ${colors[color] || colors.gray}`}
+      className={`inline-flex text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${colors[color] || colors.gray}`}
     >
       {label}
     </span>
   );
 };
 
+// ── Proposal Card ─────────────────────────────────────────────────────────────
+const ProposalCard = ({ children }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 6 }}
+    animate={{ opacity: 1, y: 0 }}
+    className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/20 hover:bg-salvaGold/[0.02] transition-all space-y-4"
+  >
+    {children}
+  </motion.div>
+);
+
+// ── Dark Input ────────────────────────────────────────────────────────────────
+const darkInput =
+  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/20 transition-all";
+
+const Input = ({
+  placeholder,
+  value,
+  onChange,
+  mono = false,
+  type = "text",
+  disabled = false,
+  ...props
+}) => (
+  <input
+    type={type}
+    value={value}
+    onChange={onChange}
+    placeholder={placeholder}
+    disabled={disabled}
+    className={`${darkInput} ${mono ? "font-mono text-xs" : ""} ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+    {...props}
+  />
+);
+
+const Field = ({ label, hint, children }) => (
+  <div>
+    <label className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-black block mb-2">
+      {label}
+    </label>
+    {children}
+    {hint && <p className="text-[10px] text-white/20 mt-1.5 ml-1">{hint}</p>}
+  </div>
+);
+
 // ── Action Button ─────────────────────────────────────────────────────────────
 const ActionBtn = ({
   label,
   onClick,
   disabled,
-  variant = "default",
+  variant = "gold",
   spinning = false,
+  fullWidth = false,
 }) => {
+  const base =
+    "flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest px-5 py-3 rounded-xl transition-all active:scale-[0.97]";
   const variants = {
-    default:
-      "bg-salvaGold/10 border-2 border-salvaGold text-salvaGold hover:bg-salvaGold hover:text-black",
+    gold: "bg-salvaGold text-black hover:brightness-110 shadow-lg shadow-salvaGold/20",
     danger:
-      "bg-red-500/10 border-2 border-red-500 text-red-400 hover:bg-red-500 hover:text-white",
+      "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white hover:border-red-500",
     green:
-      "bg-green-500/10 border-2 border-green-500 text-green-400 hover:bg-green-500 hover:text-black",
-    ghost:
-      "bg-white/5 border-2 border-white/20 text-white/40 cursor-not-allowed",
+      "bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-500",
+    ghost: "border border-white/10 text-white/40 cursor-not-allowed",
+    outline:
+      "border border-white/10 text-white/60 hover:text-white hover:border-white/20 hover:bg-white/5",
   };
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase border-2 transition-all flex items-center gap-1.5 ${disabled ? variants.ghost : variants[variant]} disabled:opacity-40`}
+      className={`${base} ${disabled ? variants.ghost : variants[variant]} disabled:opacity-40 disabled:cursor-not-allowed ${fullWidth ? "w-full py-4 text-sm" : ""}`}
     >
       {spinning && (
         <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -145,33 +169,86 @@ const ActionBtn = ({
   );
 };
 
-// ── Input Field ───────────────────────────────────────────────────────────────
-const Field = ({ label, children, hint }) => (
-  <div>
-    <label className="text-[10px] uppercase opacity-40 font-bold block mb-1.5">
-      {label}
-    </label>
-    {children}
-    {hint && <p className="text-[10px] opacity-30 mt-1 ml-1">{hint}</p>}
+// ── Toggle ────────────────────────────────────────────────────────────────────
+const Toggle = ({ label, hint, checked, onChange }) => (
+  <button
+    type="button"
+    onClick={onChange}
+    className="flex items-center gap-3 group w-fit"
+  >
+    <div
+      className={`w-10 h-6 rounded-full border-2 flex items-center transition-all px-0.5 ${checked ? "bg-salvaGold border-salvaGold" : "bg-white/5 border-white/20 group-hover:border-white/30"}`}
+    >
+      <motion.div
+        animate={{ x: checked ? 16 : 0 }}
+        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+        className={`w-4 h-4 rounded-full flex-shrink-0 ${checked ? "bg-black" : "bg-white/40"}`}
+      />
+    </div>
+    <div>
+      <p className="text-xs font-black text-white">{label}</p>
+      {hint && <p className="text-[10px] text-white/30">{hint}</p>}
+    </div>
+  </button>
+);
+
+// ── Mark Selector ─────────────────────────────────────────────────────────────
+const MarkSelector = ({ value, onChange }) => (
+  <div className="flex gap-2">
+    {[
+      { v: 0, label: "MultiSig" },
+      { v: 1, label: "External" },
+    ].map((opt) => (
+      <button
+        key={opt.v}
+        type="button"
+        onClick={() => onChange(opt.v)}
+        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${value === opt.v ? "bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20" : "border-white/10 text-white/40 hover:border-white/20 hover:text-white/60"}`}
+      >
+        {opt.label} ({opt.v})
+      </button>
+    ))}
   </div>
 );
 
-const Input = ({ placeholder, value, onChange, mono = false, ...props }) => (
-  <input
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    className={`w-full p-3.5 rounded-xl bg-black/30 border border-white/10 focus:border-salvaGold outline-none text-sm font-bold ${mono ? "font-mono" : ""}`}
-    {...props}
-  />
+// ── Add / Remove Selector ─────────────────────────────────────────────────────
+const ActionSelector = ({ value, onChange }) => (
+  <div className="flex gap-2">
+    <button
+      type="button"
+      onClick={() => onChange(true)}
+      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${value ? "bg-green-500 text-white border-green-500" : "border-white/10 text-white/40 hover:border-white/20"}`}
+    >
+      Add
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange(false)}
+      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${!value ? "bg-red-500 text-white border-red-500" : "border-white/10 text-white/40 hover:border-white/20"}`}
+    >
+      Remove
+    </button>
+  </div>
 );
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN INNER PANEL
-// ══════════════════════════════════════════════════════════════════════════════
+// ── Section navigation icons ──────────────────────────────────────────────────
+const NAV_ITEMS = [
+  { id: "overview", label: "Overview", icon: "🏛", color: "gold" },
+  { id: "registry", label: "Registry", icon: "🔗", color: "gold" },
+  { id: "validator", label: "Validators", icon: "🛡", color: "green" },
+  { id: "upgrades", label: "Upgrades", icon: "⚡", color: "blue" },
+  { id: "signer", label: "Signer", icon: "🔑", color: "purple" },
+  { id: "impl", label: "Impl", icon: "📦", color: "teal" },
+  { id: "fee", label: "Fee", icon: "💰", color: "green" },
+  { id: "pause", label: "Pause", icon: "⏸", color: "orange" },
+  { id: "withdraw", label: "Withdraw", icon: "💸", color: "red" },
+  { id: "recovery", label: "Recovery", icon: "🔐", color: "red" },
+];
 
+// ══════════════════════════════════════════════════════════════════════════════
+// INNER PANEL
+// ══════════════════════════════════════════════════════════════════════════════
 const AdminPanelInner = ({ user, showMsg }) => {
-  // ── State ──────────────────────────────────────────────────────────────────
   const [proposals, setProposals] = useState({
     registryProposals: [],
     validatorProposals: [],
@@ -222,12 +299,11 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const setCancel = (type, val) =>
     setCancelForms((p) => ({ ...p, [type]: val }));
 
-  // PIN modal
+  // PIN
   const [isPinOpen, setIsPinOpen] = useState(false);
   const [adminPin, setAdminPin] = useState("");
   const [pendingAdminAction, setPendingAdminAction] = useState(null);
 
-  // ── Fetch proposals ────────────────────────────────────────────────────────
   const fetchProposals = useCallback(async () => {
     setFetching(true);
     try {
@@ -268,7 +344,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     return () => clearInterval(iv);
   }, [fetchProposals]);
 
-  // ── PIN flow ───────────────────────────────────────────────────────────────
   const requestPin = (actionFn) => {
     setPendingAdminAction(() => actionFn);
     setAdminPin("");
@@ -300,7 +375,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     }
   };
 
-  // ── API helper ─────────────────────────────────────────────────────────────
   const callAdmin = async (privateKey, endpoint, body) => {
     const res = await fetch(`${SALVA_API_URL}/api/admin/${endpoint}`, {
       method: "POST",
@@ -316,7 +390,6 @@ const AdminPanelInner = ({ user, showMsg }) => {
     return data;
   };
 
-  // ── Overview stats ─────────────────────────────────────────────────────────
   const totalProposals =
     proposals.registryProposals.length +
     proposals.validatorProposals.length +
@@ -325,1515 +398,1243 @@ const AdminPanelInner = ({ user, showMsg }) => {
     proposals.implUpdateProposals.length +
     proposals.unpauseProposals.length;
 
-  // ══════════════════════════════════════════════════════════════════════════
-  // SECTION RENDERERS
-  // ══════════════════════════════════════════════════════════════════════════
-
-  // ── Overview ──────────────────────────────────────────────────────────────
+  // ── SECTION: Overview ─────────────────────────────────────────────────────
   const renderOverview = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
-      <SectionHeader
-        icon="🏛️"
-        subtitle="Salva Protocol"
-        title="MultiSig Control Center"
-      />
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {/* Stats row */}
+      <div className="grid grid-cols-3 gap-3">
         {[
-          { label: "Active Proposals", value: totalProposals, icon: "📋" },
+          {
+            label: "Total Active",
+            value: totalProposals,
+            accent: "text-salvaGold",
+          },
           {
             label: "Registry",
             value: proposals.registryProposals.length,
-            icon: "🔗",
+            accent: "text-salvaGold",
           },
           {
-            label: "Validator",
+            label: "Validators",
             value: proposals.validatorProposals.length,
-            icon: "🛡️",
+            accent: "text-green-400",
           },
           {
             label: "Upgrades",
             value: proposals.upgradeProposals.length,
-            icon: "⚡",
+            accent: "text-blue-400",
           },
           {
-            label: "Signer Updates",
+            label: "Signer",
             value: proposals.signerUpdateProposals.length,
-            icon: "🔑",
+            accent: "text-purple-400",
           },
           {
             label: "Unpause",
             value: proposals.unpauseProposals.length,
-            icon: "▶️",
+            accent: "text-orange-400",
           },
-        ].map((s) => (
-          <div
+        ].map((s, i) => (
+          <motion.div
             key={s.label}
-            className="p-4 rounded-2xl bg-white dark:bg-white/[0.03] border border-gray-200 dark:border-white/5 shadow-sm dark:shadow-none"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: i * 0.05 }}
+            className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/20 transition-all"
           >
-            <p className="text-xl mb-1">{s.icon}</p>
-            <p className="text-2xl font-black text-salvaGold">{s.value}</p>
-            <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">
+            <p className={`text-2xl font-black ${s.accent}`}>{s.value}</p>
+            <p className="text-[9px] uppercase tracking-[0.25em] text-white/25 font-black mt-0.5">
               {s.label}
             </p>
-          </div>
+          </motion.div>
         ))}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {[
-          { id: "registry", label: "Registry", icon: "🔗", color: "salvaGold" },
-          {
-            id: "validator",
-            label: "Validators",
-            icon: "🛡️",
-            color: "salvaGold",
-          },
-          { id: "upgrades", label: "Upgrades", icon: "⚡", color: "blue-400" },
-          {
-            id: "signer",
-            label: "Signer Update",
-            icon: "🔑",
-            color: "purple-400",
-          },
-          { id: "impl", label: "Impl Update", icon: "📦", color: "teal-400" },
-          { id: "fee", label: "Factory Fee", icon: "💰", color: "green-400" },
-          {
-            id: "pause",
-            label: "Pause / Unpause",
-            icon: "⏸️",
-            color: "orange-400",
-          },
-          { id: "withdraw", label: "Withdraw", icon: "💸", color: "red-400" },
-          { id: "recovery", label: "Recovery", icon: "🔐", color: "pink-400" },
-        ].map((nav) => (
-          <button
-            key={nav.id}
-            onClick={() => setActiveSection(nav.id)}
-            className={`p-4 rounded-2xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.03] hover:border-salvaGold hover:bg-salvaGold/5 transition-all text-left group shadow-sm dark:shadow-none`}
-          >
-            <p className="text-xl mb-2">{nav.icon}</p>
-            <p className="font-black text-sm">{nav.label}</p>
-            <p className="text-[10px] opacity-30 mt-0.5 uppercase tracking-widest">
-              → Manage
-            </p>
-          </button>
-        ))}
+      {/* Nav grid */}
+      <div>
+        <div className="relative flex items-center mb-5">
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+          <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/20">
+            Sections
+          </span>
+          <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+        </div>
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+          {NAV_ITEMS.filter((n) => n.id !== "overview").map((nav, i) => (
+            <motion.button
+              key={nav.id}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: i * 0.04 }}
+              onClick={() => setActiveSection(nav.id)}
+              className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group active:scale-95"
+            >
+              <span className="text-xl leading-none">{nav.icon}</span>
+              <span className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 group-hover:text-white/60 transition-colors">
+                {nav.label}
+              </span>
+            </motion.button>
+          ))}
+        </div>
       </div>
     </motion.div>
   );
 
-  // ── Registry ──────────────────────────────────────────────────────────────
+  // ── SECTION: Registry ─────────────────────────────────────────────────────
   const renderRegistry = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="🔗"
-        subtitle="Namespace Management"
-        title="Registry Initialization"
-      />
-
       {/* Propose */}
-      <div className="p-6 rounded-3xl border border-salvaGold/20 bg-salvaGold/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-salvaGold">
-          Propose New Registry
-        </p>
-        <p className="text-[10px] opacity-50">
-          Deploys a BaseRegistry clone via RegistryFactory and opens an
-          initialization proposal in the MultiSig. Validators must then validate
-          before the timelock and execute.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Registry Name">
-            <Input
-              placeholder="e.g. Trust Wallet"
-              value={regForm.name}
-              onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
-            />
-          </Field>
-          <Field label="Namespace (must start with @)">
-            <Input
-              placeholder="@trustwallet"
-              value={regForm.nspace}
-              onChange={(e) =>
-                setRegForm({ ...regForm, nspace: e.target.value })
-              }
-            />
-          </Field>
-        </div>
-        <label className="flex items-center gap-3 cursor-pointer group w-fit">
-          <div
-            onClick={() =>
-              setRegForm({ ...regForm, isWallet: !regForm.isWallet })
-            }
-            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${regForm.isWallet ? "bg-blue-500 border-blue-500" : "border-white/20 group-hover:border-white/40"}`}
-          >
-            {regForm.isWallet && <span className="text-white text-xs">✓</span>}
-          </div>
-          <div
-            onClick={() =>
-              setRegForm({ ...regForm, isWallet: !regForm.isWallet })
-            }
-          >
-            <p className="text-xs font-black">This is a crypto wallet</p>
-            <p className="text-[10px] opacity-40">
-              {regForm.isWallet
-                ? "Will appear in transfer wallet list"
-                : "Will NOT appear in transfer wallet list"}
+      <div className="rounded-3xl overflow-hidden border border-salvaGold/20 bg-salvaGold/[0.03]">
+        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/60 font-black">
+              Propose
+            </p>
+            <h4 className="text-lg font-black">New Registry</h4>
+            <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+              Deploys a BaseRegistry clone via RegistryFactory and opens an
+              initialization proposal in the MultiSig.
             </p>
           </div>
-        </label>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Proposing…" : "Propose Registry"}
-          disabled={loading || !regForm.name || !regForm.nspace.startsWith("@")}
-          onClick={() =>
-            requestPin(async (pk) => {
-              const data = await callAdmin(pk, "propose-registry", {
-                nspace: regForm.nspace,
-                registryName: regForm.name,
-                isWallet: regForm.isWallet,
-              });
-              showMsg(
-                `Registry proposed! Clone: ${data.cloneAddress?.slice(0, 10)}…`,
-              );
-              setRegForm({ name: "", nspace: "@", isWallet: false });
-            })
-          }
-        />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Registry Name">
+              <Input
+                placeholder="e.g. Trust Wallet"
+                value={regForm.name}
+                onChange={(e) =>
+                  setRegForm({ ...regForm, name: e.target.value })
+                }
+              />
+            </Field>
+            <Field label="Namespace">
+              <Input
+                placeholder="@trustwallet"
+                value={regForm.nspace}
+                onChange={(e) =>
+                  setRegForm({ ...regForm, nspace: e.target.value })
+                }
+              />
+            </Field>
+          </div>
+          <Toggle
+            label="This is a crypto wallet"
+            hint={
+              regForm.isWallet
+                ? "Will appear in transfer wallet list"
+                : "Will NOT appear in transfer wallet list"
+            }
+            checked={regForm.isWallet}
+            onChange={() =>
+              setRegForm({ ...regForm, isWallet: !regForm.isWallet })
+            }
+          />
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Proposing…" : "Propose Registry"}
+            disabled={
+              loading || !regForm.name || !regForm.nspace.startsWith("@")
+            }
+            fullWidth
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-registry", {
+                  nspace: regForm.nspace,
+                  registryName: regForm.name,
+                  isWallet: regForm.isWallet,
+                });
+                showMsg("Registry proposed!");
+                setRegForm({ name: "", nspace: "@", isWallet: false });
+              })
+            }
+          />
+        </div>
       </div>
 
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel a Registry Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the clone address of the registry proposal to cancel it on-chain
-          and clear from chain state.
-        </p>
-        <Field label="Registry Clone Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.registry}
-            onChange={(e) => setCancel("registry", e.target.value)}
-            mono
-          />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.registry}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-registry", {
-                registryAddress: cancelForms.registry,
-              });
-              showMsg("Registry proposal cancelled.");
-              setCancel("registry", "");
-            })
-          }
-        />
-      </div>
+      {/* Cancel */}
+      <CancelBlock
+        title="Cancel Registry Proposal"
+        hint="Enter the clone address of the registry proposal to cancel."
+        label="Registry Clone Address"
+        value={cancelForms.registry}
+        onChange={(v) => setCancel("registry", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-registry", {
+              registryAddress: cancelForms.registry,
+            });
+            showMsg("Registry proposal cancelled.");
+            setCancel("registry", "");
+          })
+        }
+      />
 
       {/* Active proposals */}
       {proposals.registryProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Registry Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.registryProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="flex flex-col sm:flex-row justify-between gap-3">
-                  <div className="space-y-1">
-                    <StatusBadge label="Registry Init" color="gold" />
-                    <p className="font-black text-salvaGold">{p.nspace}</p>
-                    <p className="font-mono text-[10px] opacity-40 break-all">
-                      {p.registry}
-                    </p>
-                    {p.isWallet && (
-                      <StatusBadge label="Crypto Wallet" color="blue" />
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {p.remainingValidation !== null && (
-                      <StatusBadge
-                        label={
-                          p.remainingValidation <= 0
-                            ? "Quorum Reached"
-                            : `${p.remainingValidation} Votes Needed`
-                        }
-                        color={p.remainingValidation <= 0 ? "green" : "gray"}
-                      />
-                    )}
-                    {p.isValidated && p.timeLockTimestamp && (
-                      <TimelockCountdown
-                        timeLockTimestamp={p.timeLockTimestamp}
-                      />
-                    )}
-                  </div>
+        <ActiveSection title="Active Registry Proposals">
+          {proposals.registryProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2 min-w-0">
+                  <StatusBadge label="Registry Init" color="gold" />
+                  <p className="font-black text-salvaGold">{p.nspace}</p>
+                  <p className="font-mono text-[10px] text-white/30 break-all">
+                    {p.registry}
+                  </p>
+                  {p.isWallet && (
+                    <StatusBadge label="Crypto Wallet" color="blue" />
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      variant="default"
-                      disabled={loading}
-                      onClick={() =>
+                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                  {p.remainingValidation !== null && (
+                    <StatusBadge
+                      label={
+                        p.remainingValidation <= 0
+                          ? "Quorum Reached"
+                          : `${p.remainingValidation} Votes Needed`
+                      }
+                      color={p.remainingValidation <= 0 ? "green" : "gray"}
+                    />
+                  )}
+                  {p.isValidated && p.timeLockTimestamp && (
+                    <TimelockCountdown
+                      timeLockTimestamp={p.timeLockTimestamp}
+                    />
+                  )}
+                </div>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-registry", {
                             registryAddress: p.registry,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-registry", {
-                          registryAddress: p.registry,
-                        });
-                        showMsg("Registry initialized!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-registry", {
-                          registryAddress: p.registry,
-                        });
-                        showMsg("Registry proposal cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-registry", {
+                      registryAddress: p.registry,
+                    });
+                    showMsg("Registry initialized!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-registry", {
+                      registryAddress: p.registry,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── Validator ─────────────────────────────────────────────────────────────
+  // ── SECTION: Validator ────────────────────────────────────────────────────
   const renderValidator = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="🛡️"
-        subtitle="Governance"
-        title="Validator Set Management"
+      <div className="rounded-3xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-green-400/70 font-black">
+              Propose
+            </p>
+            <h4 className="text-lg font-black">Validator Update</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Target Wallet Address">
+              <Input
+                placeholder="0x…"
+                value={valForm.address}
+                onChange={(e) =>
+                  setValForm({ ...valForm, address: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="Action">
+              <ActionSelector
+                value={valForm.action}
+                onChange={(v) => setValForm({ ...valForm, action: v })}
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Submitting…" : "Propose"}
+            disabled={loading || !valForm.address}
+            fullWidth
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-validator", {
+                  targetAddress: valForm.address,
+                  action: valForm.action,
+                });
+                showMsg("Validator proposal submitted!");
+                setValForm({ address: "", action: true });
+              })
+            }
+          />
+        </div>
+      </div>
+
+      <CancelBlock
+        title="Cancel Validator Proposal"
+        hint="Enter the target address to cancel on-chain."
+        label="Target Wallet Address"
+        value={cancelForms.validator}
+        onChange={(v) => setCancel("validator", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-validator", {
+              targetAddress: cancelForms.validator,
+            });
+            showMsg("Cancelled.");
+            setCancel("validator", "");
+          })
+        }
       />
 
-      <div className="p-6 rounded-3xl border border-white/10 bg-white/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-salvaGold">
-          Propose Validator Update
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Wallet Address">
-            <Input
-              placeholder="0x…"
-              value={valForm.address}
-              onChange={(e) =>
-                setValForm({ ...valForm, address: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="Action">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setValForm({ ...valForm, action: true })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${valForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                Add
-              </button>
-              <button
-                onClick={() => setValForm({ ...valForm, action: false })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!valForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                Remove
-              </button>
-            </div>
-          </Field>
-        </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Submitting…" : "Propose"}
-          disabled={loading || !valForm.address}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "propose-validator", {
-                targetAddress: valForm.address,
-                action: valForm.action,
-              });
-              showMsg("Validator proposal submitted!");
-              setValForm({ address: "", action: true });
-            })
-          }
-        />
-      </div>
-
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel a Validator Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the target address of the validator proposal to cancel it
-          on-chain.
-        </p>
-        <Field label="Target Wallet Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.validator}
-            onChange={(e) => setCancel("validator", e.target.value)}
-            mono
-          />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.validator}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-validator", {
-                targetAddress: cancelForms.validator,
-              });
-              showMsg("Validator proposal cancelled.");
-              setCancel("validator", "");
-            })
-          }
-        />
-      </div>
-
       {proposals.validatorProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Validator Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.validatorProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="flex flex-col sm:flex-row justify-between gap-3">
-                  <div className="space-y-1">
-                    <StatusBadge
-                      label={p.action ? "Add Validator" : "Remove Validator"}
-                      color={p.action ? "green" : "red"}
-                    />
-                    <p className="font-mono text-[10px] opacity-40 break-all">
-                      {p.addr}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {p.remainingValidation !== null && (
-                      <StatusBadge
-                        label={
-                          p.remainingValidation <= 0
-                            ? "Quorum Reached"
-                            : `${p.remainingValidation} Votes Needed`
-                        }
-                        color={p.remainingValidation <= 0 ? "green" : "gray"}
-                      />
-                    )}
-                    {p.isValidated && p.timeLockTimestamp && (
-                      <TimelockCountdown
-                        timeLockTimestamp={p.timeLockTimestamp}
-                      />
-                    )}
-                  </div>
+        <ActiveSection title="Active Validator Proposals">
+          {proposals.validatorProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2">
+                  <StatusBadge
+                    label={p.action ? "Add Validator" : "Remove Validator"}
+                    color={p.action ? "green" : "red"}
+                  />
+                  <p className="font-mono text-[10px] text-white/30 break-all">
+                    {p.addr}
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      disabled={loading}
-                      onClick={() =>
+                <div className="flex flex-col items-end gap-2">
+                  {p.remainingValidation !== null && (
+                    <StatusBadge
+                      label={
+                        p.remainingValidation <= 0
+                          ? "Quorum Reached"
+                          : `${p.remainingValidation} Votes Needed`
+                      }
+                      color={p.remainingValidation <= 0 ? "green" : "gray"}
+                    />
+                  )}
+                  {p.isValidated && p.timeLockTimestamp && (
+                    <TimelockCountdown
+                      timeLockTimestamp={p.timeLockTimestamp}
+                    />
+                  )}
+                </div>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-validator", {
                             targetAddress: p.addr,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-validator", {
-                          targetAddress: p.addr,
-                          action: p.action,
-                        });
-                        showMsg("Validator updated!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-validator", {
-                          targetAddress: p.addr,
-                        });
-                        showMsg("Proposal cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-validator", {
+                      targetAddress: p.addr,
+                      action: p.action,
+                    });
+                    showMsg("Validator updated!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-validator", {
+                      targetAddress: p.addr,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── Upgrades ──────────────────────────────────────────────────────────────
+  // ── SECTION: Upgrades ─────────────────────────────────────────────────────
   const renderUpgrades = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader icon="⚡" subtitle="UUPS" title="Protocol Upgrades" />
-
-      <div className="p-6 rounded-3xl border border-blue-500/20 bg-blue-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-blue-400">
-          Propose Upgrade
-        </p>
-        <p className="text-[10px] opacity-50">
-          Targets Singleton, Factory, or the MultiSig itself. If targeting
-          MultiSig, check "Self-upgrade" and leave proxy empty.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field
-            label="Proxy to Upgrade"
-            hint="Leave empty if self-upgrading MultiSig"
-          >
-            <Input
-              placeholder="0x…"
-              value={upgradeForm.proxy}
-              onChange={(e) =>
-                setUpgradeForm({ ...upgradeForm, proxy: e.target.value })
+      <div className="rounded-3xl overflow-hidden border border-blue-500/20 bg-blue-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-blue-400/70 font-black">
+              UUPS · Propose
+            </p>
+            <h4 className="text-lg font-black">Protocol Upgrade</h4>
+            <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+              Targets Singleton, Factory, or MultiSig itself. Enable
+              Self-Upgrade and leave proxy empty for MultiSig.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field
+              label="Proxy to Upgrade"
+              hint={
+                upgradeForm.isMultisig
+                  ? "Disabled — self-upgrade mode"
+                  : "Leave empty if self-upgrading"
               }
-              mono
-              disabled={upgradeForm.isMultisig}
-            />
-          </Field>
-          <Field label="New Implementation Address">
-            <Input
-              placeholder="0x…"
-              value={upgradeForm.newImpl}
-              onChange={(e) =>
-                setUpgradeForm({ ...upgradeForm, newImpl: e.target.value })
-              }
-              mono
-            />
-          </Field>
-        </div>
-        <label className="flex items-center gap-3 cursor-pointer w-fit">
-          <div
-            onClick={() =>
+            >
+              <Input
+                placeholder="0x…"
+                value={upgradeForm.proxy}
+                onChange={(e) =>
+                  setUpgradeForm({ ...upgradeForm, proxy: e.target.value })
+                }
+                mono
+                disabled={upgradeForm.isMultisig}
+              />
+            </Field>
+            <Field label="New Implementation">
+              <Input
+                placeholder="0x…"
+                value={upgradeForm.newImpl}
+                onChange={(e) =>
+                  setUpgradeForm({ ...upgradeForm, newImpl: e.target.value })
+                }
+                mono
+              />
+            </Field>
+          </div>
+          <Toggle
+            label="Self-upgrade MultiSig proxy"
+            checked={upgradeForm.isMultisig}
+            onChange={() =>
               setUpgradeForm({
                 ...upgradeForm,
                 isMultisig: !upgradeForm.isMultisig,
               })
             }
-            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all ${upgradeForm.isMultisig ? "bg-blue-500 border-blue-500" : "border-white/20 hover:border-white/40"}`}
-          >
-            {upgradeForm.isMultisig && (
-              <span className="text-white text-xs">✓</span>
-            )}
-          </div>
-          <p className="text-xs font-black">Self-upgrade MultiSig proxy</p>
-        </label>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Proposing…" : "Propose Upgrade"}
-          disabled={
-            loading ||
-            !upgradeForm.newImpl ||
-            (!upgradeForm.isMultisig && !upgradeForm.proxy)
-          }
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "propose-upgrade", {
-                proxyAddress: upgradeForm.proxy,
-                newImplAddress: upgradeForm.newImpl,
-                isMultisig: upgradeForm.isMultisig,
-              });
-              showMsg("Upgrade proposed!");
-              setUpgradeForm({ proxy: "", newImpl: "", isMultisig: false });
-            })
-          }
-        />
+          />
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Proposing…" : "Propose Upgrade"}
+            fullWidth
+            disabled={
+              loading ||
+              !upgradeForm.newImpl ||
+              (!upgradeForm.isMultisig && !upgradeForm.proxy)
+            }
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-upgrade", {
+                  proxyAddress: upgradeForm.proxy,
+                  newImplAddress: upgradeForm.newImpl,
+                  isMultisig: upgradeForm.isMultisig,
+                });
+                showMsg("Upgrade proposed!");
+                setUpgradeForm({ proxy: "", newImpl: "", isMultisig: false });
+              })
+            }
+          />
+        </div>
       </div>
 
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel an Upgrade Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the new implementation address of the upgrade proposal to cancel
-          it on-chain.
-        </p>
-        <Field label="New Implementation Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.upgrade}
-            onChange={(e) => setCancel("upgrade", e.target.value)}
-            mono
-          />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.upgrade}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-upgrade", {
-                newImplAddress: cancelForms.upgrade,
-              });
-              showMsg("Upgrade proposal cancelled.");
-              setCancel("upgrade", "");
-            })
-          }
-        />
-      </div>
+      <CancelBlock
+        title="Cancel Upgrade Proposal"
+        hint="Enter the new implementation address to cancel."
+        label="New Implementation Address"
+        value={cancelForms.upgrade}
+        onChange={(v) => setCancel("upgrade", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-upgrade", {
+              newImplAddress: cancelForms.upgrade,
+            });
+            showMsg("Cancelled.");
+            setCancel("upgrade", "");
+          })
+        }
+      />
 
       {proposals.upgradeProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Upgrade Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.upgradeProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="flex flex-col sm:flex-row justify-between gap-3">
-                  <div className="space-y-1">
-                    <StatusBadge
-                      label={
-                        p.isMultisig
-                          ? "MultiSig Self-Upgrade"
-                          : "External Upgrade"
-                      }
-                      color="blue"
-                    />
-                    <p className="text-[10px] opacity-40 font-bold">
-                      New impl:
+        <ActiveSection title="Active Upgrade Proposals">
+          {proposals.upgradeProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-2 min-w-0">
+                  <StatusBadge
+                    label={
+                      p.isMultisig
+                        ? "MultiSig Self-Upgrade"
+                        : "External Upgrade"
+                    }
+                    color="blue"
+                  />
+                  <p className="text-[10px] text-white/30 font-bold">
+                    New impl:
+                  </p>
+                  <p className="font-mono text-[10px] text-white/50 break-all">
+                    {p.newImpl}
+                  </p>
+                  {!p.isMultisig && (
+                    <p className="font-mono text-[10px] text-white/25 break-all">
+                      Proxy: {p.proxy}
                     </p>
-                    <p className="font-mono text-[10px] opacity-60 break-all">
-                      {p.newImpl}
-                    </p>
-                    {!p.isMultisig && (
-                      <p className="font-mono text-[10px] opacity-30 break-all">
-                        Proxy: {p.proxy}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {p.isValidated && p.timeLockTimestamp && (
-                      <TimelockCountdown
-                        timeLockTimestamp={p.timeLockTimestamp}
-                      />
-                    )}
-                  </div>
+                  )}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      disabled={loading}
-                      onClick={() =>
+                <div>
+                  {p.isValidated && p.timeLockTimestamp && (
+                    <TimelockCountdown
+                      timeLockTimestamp={p.timeLockTimestamp}
+                    />
+                  )}
+                </div>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-upgrade", {
                             newImplAddress: p.newImpl,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-upgrade", {
-                          newImplAddress: p.newImpl,
-                        });
-                        showMsg("Upgrade executed!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-upgrade", {
-                          newImplAddress: p.newImpl,
-                        });
-                        showMsg("Upgrade cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-upgrade", {
+                      newImplAddress: p.newImpl,
+                    });
+                    showMsg("Upgrade executed!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-upgrade", {
+                      newImplAddress: p.newImpl,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── Signer Update ─────────────────────────────────────────────────────────
+  // ── SECTION: Signer ───────────────────────────────────────────────────────
   const renderSigner = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="🔑"
-        subtitle="RegistryFactory"
-        title="Backend Signer Update"
-      />
-      <p className="text-sm opacity-50">
+      <p className="text-[11px] text-white/30 leading-relaxed">
         Updates the ECDSA signer the RegistryFactory uses to verify name link
         requests. Affects all registries immediately after execution.
       </p>
-
-      <div className="p-6 rounded-3xl border border-purple-500/20 bg-purple-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-purple-400">
-          Propose Signer Update
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="RegistryFactory Proxy Address">
-            <Input
-              placeholder="0x…"
-              value={signerForm.proxy}
-              onChange={(e) =>
-                setSignerForm({ ...signerForm, proxy: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="New Signer Address">
-            <Input
-              placeholder="0x…"
-              value={signerForm.newSigner}
-              onChange={(e) =>
-                setSignerForm({ ...signerForm, newSigner: e.target.value })
-              }
-              mono
-            />
-          </Field>
-        </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Proposing…" : "Propose Signer Update"}
-          disabled={loading || !signerForm.proxy || !signerForm.newSigner}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "propose-signer-update", {
-                factoryProxy: signerForm.proxy,
-                newSigner: signerForm.newSigner,
-              });
-              showMsg("Signer update proposed!");
-              setSignerForm({ proxy: "", newSigner: "" });
-            })
-          }
-        />
-      </div>
-
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel a Signer Update Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the new signer address of the proposal to cancel it on-chain.
-        </p>
-        <Field label="New Signer Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.signer}
-            onChange={(e) => setCancel("signer", e.target.value)}
-            mono
+      <div className="rounded-3xl overflow-hidden border border-purple-500/20 bg-purple-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-purple-400/70 font-black">
+              Propose
+            </p>
+            <h4 className="text-lg font-black">Signer Update</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="RegistryFactory Proxy">
+              <Input
+                placeholder="0x…"
+                value={signerForm.proxy}
+                onChange={(e) =>
+                  setSignerForm({ ...signerForm, proxy: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="New Signer Address">
+              <Input
+                placeholder="0x…"
+                value={signerForm.newSigner}
+                onChange={(e) =>
+                  setSignerForm({ ...signerForm, newSigner: e.target.value })
+                }
+                mono
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Proposing…" : "Propose Signer Update"}
+            fullWidth
+            disabled={loading || !signerForm.proxy || !signerForm.newSigner}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-signer-update", {
+                  factoryProxy: signerForm.proxy,
+                  newSigner: signerForm.newSigner,
+                });
+                showMsg("Signer update proposed!");
+                setSignerForm({ proxy: "", newSigner: "" });
+              })
+            }
           />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.signer}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-signer-update", {
-                newSigner: cancelForms.signer,
-              });
-              showMsg("Signer update proposal cancelled.");
-              setCancel("signer", "");
-            })
-          }
-        />
+        </div>
       </div>
+
+      <CancelBlock
+        title="Cancel Signer Update Proposal"
+        hint="Enter the new signer address to cancel."
+        label="New Signer Address"
+        value={cancelForms.signer}
+        onChange={(v) => setCancel("signer", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-signer-update", {
+              newSigner: cancelForms.signer,
+            });
+            showMsg("Cancelled.");
+            setCancel("signer", "");
+          })
+        }
+      />
 
       {proposals.signerUpdateProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Signer Update Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.signerUpdateProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="space-y-1">
-                  <StatusBadge label="Signer Update" color="gold" />
-                  <p className="text-[10px] opacity-40 font-bold">
-                    New signer:
-                  </p>
-                  <p className="font-mono text-[10px] opacity-60 break-all">
-                    {p.newImpl}
-                  </p>
-                  <p className="font-mono text-[10px] opacity-30 break-all">
-                    Factory: {p.proxy}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      disabled={loading}
-                      onClick={() =>
+        <ActiveSection title="Active Signer Proposals">
+          {proposals.signerUpdateProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="space-y-1.5">
+                <StatusBadge label="Signer Update" color="purple" />
+                <p className="font-mono text-[10px] text-white/50 break-all">
+                  New: {p.newImpl}
+                </p>
+                <p className="font-mono text-[10px] text-white/25 break-all">
+                  Factory: {p.proxy}
+                </p>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-signer-update", {
                             newSigner: p.newImpl,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-signer-update", {
-                          newSigner: p.newImpl,
-                        });
-                        showMsg("Signer updated!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-signer-update", {
-                          newSigner: p.newImpl,
-                        });
-                        showMsg("Cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-signer-update", {
+                      newSigner: p.newImpl,
+                    });
+                    showMsg("Signer updated!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-signer-update", {
+                      newSigner: p.newImpl,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── BaseRegistry Impl ─────────────────────────────────────────────────────
+  // ── SECTION: Impl ─────────────────────────────────────────────────────────
   const renderImpl = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="📦"
-        subtitle="RegistryFactory"
-        title="Implementation Update"
-      />
-      <p className="text-sm opacity-50">
-        Updates the logic implementation address used for future BaseRegistry
+      <p className="text-[11px] text-white/30 leading-relaxed">
+        Updates the logic implementation address used for future
         clone deployments. Existing clones are unaffected.
       </p>
-
-      <div className="p-6 rounded-3xl border border-teal-500/20 bg-teal-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-teal-400">
-          Propose Impl Update
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="RegistryFactory Proxy Address">
-            <Input
-              placeholder="0x…"
-              value={implForm.proxy}
-              onChange={(e) =>
-                setImplForm({ ...implForm, proxy: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="New Implementation Update">
-            <Input
-              placeholder="0x…"
-              value={implForm.newImpl}
-              onChange={(e) =>
-                setImplForm({ ...implForm, newImpl: e.target.value })
-              }
-              mono
-            />
-          </Field>
-        </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Proposing…" : "Propose Impl Update"}
-          disabled={loading || !implForm.proxy || !implForm.newImpl}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "propose-impl-update", {
-                factoryProxy: implForm.proxy,
-                newImplAddress: implForm.newImpl,
-              });
-              showMsg("Impl update proposed!");
-              setImplForm({ proxy: "", newImpl: "" });
-            })
-          }
-        />
-      </div>
-
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel an Impl Update Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the new implementation address of the proposal to cancel it
-          on-chain.
-        </p>
-        <Field label="New Implementation Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.impl}
-            onChange={(e) => setCancel("impl", e.target.value)}
-            mono
+      <div className="rounded-3xl overflow-hidden border border-teal-500/20 bg-teal-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-teal-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-teal-400/70 font-black">
+              Propose
+            </p>
+            <h4 className="text-lg font-black">Implementation Update</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="RegistryFactory Proxy">
+              <Input
+                placeholder="0x…"
+                value={implForm.proxy}
+                onChange={(e) =>
+                  setImplForm({ ...implForm, proxy: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="New Implementation">
+              <Input
+                placeholder="0x…"
+                value={implForm.newImpl}
+                onChange={(e) =>
+                  setImplForm({ ...implForm, newImpl: e.target.value })
+                }
+                mono
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Proposing…" : "Propose Impl Update"}
+            fullWidth
+            disabled={loading || !implForm.proxy || !implForm.newImpl}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-impl-update", {
+                  factoryProxy: implForm.proxy,
+                  newImplAddress: implForm.newImpl,
+                });
+                showMsg("Impl update proposed!");
+                setImplForm({ proxy: "", newImpl: "" });
+              })
+            }
           />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.impl}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-impl-update", {
-                newImplAddress: cancelForms.impl,
-              });
-              showMsg("Impl proposal cancelled.");
-              setCancel("impl", "");
-            })
-          }
-        />
+        </div>
       </div>
+
+      <CancelBlock
+        title="Cancel Impl Update Proposal"
+        hint="Enter the new implementation address to cancel."
+        label="New Implementation Address"
+        value={cancelForms.impl}
+        onChange={(v) => setCancel("impl", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-impl-update", {
+              newImplAddress: cancelForms.impl,
+            });
+            showMsg("Cancelled.");
+            setCancel("impl", "");
+          })
+        }
+      />
 
       {proposals.implUpdateProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Impl Update Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.implUpdateProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="space-y-1">
-                  <StatusBadge label="Impl Update" color="gold" />
-                  <p className="font-mono text-[10px] opacity-60 break-all">
-                    New: {p.newImpl}
-                  </p>
-                  <p className="font-mono text-[10px] opacity-30 break-all">
-                    Factory: {p.proxy}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      disabled={loading}
-                      onClick={() =>
+        <ActiveSection title="Active Impl Proposals">
+          {proposals.implUpdateProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="space-y-1.5">
+                <StatusBadge label="Impl Update" color="teal" />
+                <p className="font-mono text-[10px] text-white/50 break-all">
+                  New: {p.newImpl}
+                </p>
+                <p className="font-mono text-[10px] text-white/25 break-all">
+                  Factory: {p.proxy}
+                </p>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-impl-update", {
                             newImplAddress: p.newImpl,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-impl-update", {
-                          newImplAddress: p.newImpl,
-                        });
-                        showMsg("Impl updated!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-impl-update", {
-                          newImplAddress: p.newImpl,
-                        });
-                        showMsg("Cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-impl-update", {
+                      newImplAddress: p.newImpl,
+                    });
+                    showMsg("Impl updated!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-impl-update", {
+                      newImplAddress: p.newImpl,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── Factory Fee ───────────────────────────────────────────────────────────
+  // ── SECTION: Fee ──────────────────────────────────────────────────────────
   const renderFee = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="💰"
-        subtitle="RegistryFactory"
-        title="Protocol Link Fee"
-      />
-      <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30">
-        <p className="text-xs text-yellow-400 font-bold">
-          ⚡ Immediate — No Proposal Required
-        </p>
-        <p className="text-[10px] opacity-60 mt-1">
-          Fee is denominated in NGNs base units (6 decimals). Enter
-          human-readable amount (e.g. 500 = 500 NGNs).
-        </p>
-      </div>
-      <div className="p-6 rounded-3xl border border-green-500/20 bg-green-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-green-400">
-          Update Link Fee
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="RegistryFactory Proxy Address">
-            <Input
-              placeholder="0x…"
-              value={feeForm.proxy}
-              onChange={(e) =>
-                setFeeForm({ ...feeForm, proxy: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="New Fee (NGNs)" hint="e.g. 500 → 500 NGNs">
-            <Input
-              type="number"
-              placeholder="500"
-              value={feeForm.newFee}
-              onChange={(e) =>
-                setFeeForm({ ...feeForm, newFee: e.target.value })
-              }
-            />
-          </Field>
+      <ImmediateBadge />
+      <p className="text-[11px] text-white/30 leading-relaxed">
+        Fee denominated in NGNs base units (6 decimals). Enter human-readable
+        amount — e.g. 500 = 500 NGNs.
+      </p>
+      <div className="rounded-3xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-green-400/70 font-black">
+              Update · Immediate
+            </p>
+            <h4 className="text-lg font-black">Protocol Link Fee</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="RegistryFactory Proxy">
+              <Input
+                placeholder="0x…"
+                value={feeForm.proxy}
+                onChange={(e) =>
+                  setFeeForm({ ...feeForm, proxy: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="New Fee (NGNs)" hint="e.g. 500 → 500 NGNs">
+              <Input
+                type="number"
+                placeholder="500"
+                value={feeForm.newFee}
+                onChange={(e) =>
+                  setFeeForm({ ...feeForm, newFee: e.target.value })
+                }
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Updating…" : "Update Fee"}
+            fullWidth
+            variant="gold"
+            disabled={loading || !feeForm.proxy || !feeForm.newFee}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "update-factory-fee", {
+                  factoryProxy: feeForm.proxy,
+                  newFee: feeForm.newFee,
+                });
+                showMsg(`Fee updated to ${feeForm.newFee} NGNs!`);
+                setFeeForm({ proxy: "", newFee: "" });
+              })
+            }
+          />
         </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Updating…" : "Update Fee"}
-          disabled={loading || !feeForm.proxy || !feeForm.newFee}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "update-factory-fee", {
-                factoryProxy: feeForm.proxy,
-                newFee: feeForm.newFee,
-              });
-              showMsg(`Fee updated to ${feeForm.newFee} NGNs!`);
-              setFeeForm({ proxy: "", newFee: "" });
-            })
-          }
-        />
       </div>
     </motion.div>
   );
 
-  // ── Pause / Unpause ───────────────────────────────────────────────────────
+  // ── SECTION: Pause ────────────────────────────────────────────────────────
   const renderPause = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="⏸️"
-        subtitle="Emergency Controls"
-        title="Pause / Unpause"
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/20">
+        <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+        <div>
+          <p className="text-xs text-red-400 font-black">
+            Pause is immediate. Unpause requires proposal + timelock.
+          </p>
+          <p className="text-[10px] text-white/30 mt-0.5">
+            Mark 0 = MultiSig itself · Mark 1 = external contract
+          </p>
+        </div>
+      </div>
+
+      {/* Pause */}
+      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+              Emergency · Immediate
+            </p>
+            <h4 className="text-lg font-black">Pause Contract</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Target Contract">
+              <Input
+                placeholder="0x…"
+                value={pauseForm.proxy}
+                onChange={(e) =>
+                  setPauseForm({ ...pauseForm, proxy: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="Mark">
+              <MarkSelector
+                value={pauseForm.mark}
+                onChange={(v) => setPauseForm({ ...pauseForm, mark: v })}
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Pausing…" : "🚨 Pause Now"}
+            fullWidth
+            variant="danger"
+            disabled={loading || !pauseForm.proxy}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "pause-state", {
+                  proxyAddress: pauseForm.proxy,
+                  mark: pauseForm.mark,
+                });
+                showMsg("Contract paused.");
+                setPauseForm({ proxy: "", mark: 1 });
+              })
+            }
+          />
+        </div>
+      </div>
+
+      {/* Unpause */}
+      <div className="rounded-3xl overflow-hidden border border-orange-500/20 bg-orange-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-orange-400/70 font-black">
+              Propose · Timelock
+            </p>
+            <h4 className="text-lg font-black">Unpause Contract</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Target Contract">
+              <Input
+                placeholder="0x…"
+                value={unpauseForm.proxy}
+                onChange={(e) =>
+                  setUnpauseForm({ ...unpauseForm, proxy: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="Mark">
+              <MarkSelector
+                value={unpauseForm.mark}
+                onChange={(v) => setUnpauseForm({ ...unpauseForm, mark: v })}
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Proposing…" : "Propose Unpause"}
+            fullWidth
+            disabled={loading || !unpauseForm.proxy}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "propose-unpause", {
+                  proxyAddress: unpauseForm.proxy,
+                  mark: unpauseForm.mark,
+                });
+                showMsg("Unpause proposal created!");
+                setUnpauseForm({ proxy: "", mark: 1 });
+              })
+            }
+          />
+        </div>
+      </div>
+
+      <CancelBlock
+        title="Cancel Unpause Proposal"
+        hint="Enter the proxy address to cancel."
+        label="Target Proxy Address"
+        value={cancelForms.unpause}
+        onChange={(v) => setCancel("unpause", v)}
+        loading={loading}
+        onCancel={() =>
+          requestPin(async (pk) => {
+            await callAdmin(pk, "cancel-unpause", {
+              proxyAddress: cancelForms.unpause,
+            });
+            showMsg("Cancelled.");
+            setCancel("unpause", "");
+          })
+        }
       />
 
-      <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
-        <p className="text-xs text-red-400 font-bold">
-          ⚠️ Pause is immediate. Unpause requires proposal + timelock.
-        </p>
-        <p className="text-[10px] opacity-60 mt-1">
-          Mark 0 = pause/unpause MultiSig itself. Mark 1 = pause/unpause
-          external contract (Singleton or Factory).
-        </p>
-      </div>
-
-      {/* Immediate Pause */}
-      <div className="p-6 rounded-3xl border border-red-500/20 bg-red-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Immediate Pause
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Contract Address">
-            <Input
-              placeholder="0x…"
-              value={pauseForm.proxy}
-              onChange={(e) =>
-                setPauseForm({ ...pauseForm, proxy: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="Mark">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setPauseForm({ ...pauseForm, mark: 0 })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${pauseForm.mark === 0 ? "bg-salvaGold text-black" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                MultiSig (0)
-              </button>
-              <button
-                onClick={() => setPauseForm({ ...pauseForm, mark: 1 })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${pauseForm.mark === 1 ? "bg-salvaGold text-black" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                External (1)
-              </button>
-            </div>
-          </Field>
-        </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Pausing…" : "🚨 Pause Now"}
-          variant="danger"
-          disabled={loading || !pauseForm.proxy}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "pause-state", {
-                proxyAddress: pauseForm.proxy,
-                mark: pauseForm.mark,
-              });
-              showMsg("Contract paused.");
-              setPauseForm({ proxy: "", mark: 1 });
-            })
-          }
-        />
-      </div>
-
-      {/* Propose Unpause */}
-      <div className="p-6 rounded-3xl border border-orange-500/20 bg-orange-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-orange-400">
-          Propose Unpause
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Contract Address">
-            <Input
-              placeholder="0x…"
-              value={unpauseForm.proxy}
-              onChange={(e) =>
-                setUnpauseForm({ ...unpauseForm, proxy: e.target.value })
-              }
-              mono
-            />
-          </Field>
-          <Field label="Mark">
-            <div className="flex gap-3">
-              <button
-                onClick={() => setUnpauseForm({ ...unpauseForm, mark: 0 })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${unpauseForm.mark === 0 ? "bg-salvaGold text-black" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                MultiSig (0)
-              </button>
-              <button
-                onClick={() => setUnpauseForm({ ...unpauseForm, mark: 1 })}
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${unpauseForm.mark === 1 ? "bg-salvaGold text-black" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                External (1)
-              </button>
-            </div>
-          </Field>
-        </div>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Proposing…" : "Propose Unpause"}
-          disabled={loading || !unpauseForm.proxy}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "propose-unpause", {
-                proxyAddress: unpauseForm.proxy,
-                mark: unpauseForm.mark,
-              });
-              showMsg("Unpause proposal created!");
-              setUnpauseForm({ proxy: "", mark: 1 });
-            })
-          }
-        />
-      </div>
-
-      {/* Standalone Cancel */}
-      <div className="p-4 rounded-2xl border border-red-500/20 bg-red-500/5 space-y-3">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Cancel an Unpause Proposal
-        </p>
-        <p className="text-[10px] opacity-50">
-          Enter the proxy address of the unpause proposal to cancel it on-chain.
-        </p>
-        <Field label="Target Proxy Address">
-          <Input
-            placeholder="0x…"
-            value={cancelForms.unpause}
-            onChange={(e) => setCancel("unpause", e.target.value)}
-            mono
-          />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Cancelling…" : "Cancel Proposal"}
-          variant="danger"
-          disabled={loading || !cancelForms.unpause}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "cancel-unpause", {
-                proxyAddress: cancelForms.unpause,
-              });
-              showMsg("Unpause proposal cancelled.");
-              setCancel("unpause", "");
-            })
-          }
-        />
-      </div>
-
       {proposals.unpauseProposals.length > 0 && (
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black opacity-40 mb-3">
-            Active Unpause Proposals
-          </p>
-          <div className="space-y-3">
-            {proposals.unpauseProposals.map((p, i) => (
-              <ProposalCard key={p._id || i}>
-                <div className="space-y-1">
-                  <StatusBadge
-                    label={
-                      p.mark === 0 ? "MultiSig Unpause" : "External Unpause"
-                    }
-                    color="gold"
-                  />
-                  <p className="font-mono text-[10px] opacity-40 break-all">
-                    Target: {p.proxy}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!p.isValidated && (
-                    <ActionBtn
-                      label="Validate"
-                      disabled={loading}
-                      onClick={() =>
+        <ActiveSection title="Active Unpause Proposals">
+          {proposals.unpauseProposals.map((p, i) => (
+            <ProposalCard key={p._id || i}>
+              <div className="space-y-1.5">
+                <StatusBadge
+                  label={p.mark === 0 ? "MultiSig Unpause" : "External Unpause"}
+                  color="orange"
+                />
+                <p className="font-mono text-[10px] text-white/30 break-all">
+                  Target: {p.proxy}
+                </p>
+              </div>
+              <ProposalActions
+                loading={loading}
+                isValidated={p.isValidated}
+                timeLockTimestamp={p.timeLockTimestamp}
+                onValidate={
+                  !p.isValidated
+                    ? () =>
                         requestPin(async (pk) => {
                           await callAdmin(pk, "validate-unpause", {
                             proxyAddress: p.proxy,
                           });
                           showMsg("Vote cast!");
                         })
-                      }
-                    />
-                  )}
-                  <ActionBtn
-                    label="Execute"
-                    variant="green"
-                    disabled={
-                      loading ||
-                      !p.isValidated ||
-                      (p.timeLockTimestamp &&
-                        Math.floor(Date.now() / 1000) < p.timeLockTimestamp)
-                    }
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "execute-unpause", {
-                          proxyAddress: p.proxy,
-                        });
-                        showMsg("Unpaused!");
-                      })
-                    }
-                  />
-                  <ActionBtn
-                    label="Cancel"
-                    variant="danger"
-                    disabled={loading}
-                    onClick={() =>
-                      requestPin(async (pk) => {
-                        await callAdmin(pk, "cancel-unpause", {
-                          proxyAddress: p.proxy,
-                        });
-                        showMsg("Cancelled.");
-                      })
-                    }
-                  />
-                </div>
-              </ProposalCard>
-            ))}
-          </div>
-        </div>
+                    : null
+                }
+                onExecute={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "execute-unpause", {
+                      proxyAddress: p.proxy,
+                    });
+                    showMsg("Unpaused!");
+                  })
+                }
+                onCancel={() =>
+                  requestPin(async (pk) => {
+                    await callAdmin(pk, "cancel-unpause", {
+                      proxyAddress: p.proxy,
+                    });
+                    showMsg("Cancelled.");
+                  })
+                }
+              />
+            </ProposalCard>
+          ))}
+        </ActiveSection>
       )}
     </motion.div>
   );
 
-  // ── Withdraw ──────────────────────────────────────────────────────────────
+  // ── SECTION: Withdraw ─────────────────────────────────────────────────────
   const renderWithdraw = () => (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
     >
-      <SectionHeader
-        icon="💸"
-        subtitle="Treasury"
-        title="Withdraw From Singleton"
-      />
-      <p className="text-sm opacity-50">
+      <ImmediateBadge />
+      <p className="text-[11px] text-white/30 leading-relaxed">
         Pulls token balance accumulated from name link fees out of the Singleton
         contract to a designated receiver address.
       </p>
-      <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30">
-        <p className="text-xs text-yellow-400 font-bold">
-          ⚡ Immediate — No Proposal Required
-        </p>
-      </div>
-      <div className="p-6 rounded-3xl border border-red-500/20 bg-red-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-red-400">
-          Execute Withdrawal
-        </p>
-        <Field label="Singleton Proxy Address">
-          <Input
-            placeholder="0x…"
-            value={withdrawForm.singleton}
-            onChange={(e) =>
-              setWithdrawForm({ ...withdrawForm, singleton: e.target.value })
-            }
-            mono
-          />
-        </Field>
-        <Field label="Token Address (NGNs / USDC / USDT)">
-          <Input
-            placeholder="0x…"
-            value={withdrawForm.token}
-            onChange={(e) =>
-              setWithdrawForm({ ...withdrawForm, token: e.target.value })
-            }
-            mono
-          />
-        </Field>
-        <Field label="Receiver Address">
-          <Input
-            placeholder="0x…"
-            value={withdrawForm.receiver}
-            onChange={(e) =>
-              setWithdrawForm({ ...withdrawForm, receiver: e.target.value })
-            }
-            mono
-          />
-        </Field>
-        <ActionBtn
-          spinning={loading}
-          label={loading ? "Withdrawing…" : "Withdraw"}
-          variant="danger"
-          disabled={
-            loading ||
-            !withdrawForm.singleton ||
-            !withdrawForm.token ||
-            !withdrawForm.receiver
-          }
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "withdraw", {
-                singletonAddress: withdrawForm.singleton,
-                tokenAddress: withdrawForm.token,
-                receiverAddress: withdrawForm.receiver,
-              });
-              showMsg("Withdrawal executed!");
-              setWithdrawForm({ singleton: "", token: "", receiver: "" });
-            })
-          }
-        />
-      </div>
-    </motion.div>
-  );
-
-  // ── Recovery ──────────────────────────────────────────────────────────────
-  const renderRecovery = () => (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
-      <SectionHeader
-        icon="🔐"
-        subtitle="Emergency Access"
-        title="Recovery Privileges"
-      />
-      <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30">
-        <p className="text-xs text-red-400 font-bold">
-          ⚠️ Grant sparingly — recovery addresses bypass quorum and timelock.
-        </p>
-        <p className="text-[10px] opacity-60 mt-1">
-          Only existing recovery addresses can call this function.
-        </p>
-      </div>
-      <div className="p-4 rounded-2xl bg-yellow-500/10 border border-yellow-500/30">
-        <p className="text-xs text-yellow-400 font-bold">
-          ⚡ Immediate — No Proposal Required
-        </p>
-      </div>
-      <div className="p-6 rounded-3xl border border-pink-500/20 bg-pink-500/5 space-y-4">
-        <p className="text-xs uppercase tracking-widest font-black text-pink-400">
-          Update Recovery Status
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Field label="Target Address">
+      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+              Treasury · Immediate
+            </p>
+            <h4 className="text-lg font-black">Withdraw From Singleton</h4>
+          </div>
+          <Field label="Singleton Proxy Address">
             <Input
               placeholder="0x…"
-              value={recoveryForm.address}
+              value={withdrawForm.singleton}
               onChange={(e) =>
-                setRecoveryForm({ ...recoveryForm, address: e.target.value })
+                setWithdrawForm({ ...withdrawForm, singleton: e.target.value })
               }
               mono
             />
           </Field>
-          <Field label="Action">
-            <div className="flex gap-3">
-              <button
-                onClick={() =>
-                  setRecoveryForm({ ...recoveryForm, action: true })
-                }
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${recoveryForm.action ? "bg-green-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                Grant
-              </button>
-              <button
-                onClick={() =>
-                  setRecoveryForm({ ...recoveryForm, action: false })
-                }
-                className={`flex-1 py-3 rounded-xl font-black text-xs uppercase transition-all ${!recoveryForm.action ? "bg-red-500 text-white" : "border border-white/10 opacity-40 hover:opacity-70"}`}
-              >
-                Revoke
-              </button>
-            </div>
+          <Field label="Token Address (NGNs / USDC / USDT)">
+            <Input
+              placeholder="0x…"
+              value={withdrawForm.token}
+              onChange={(e) =>
+                setWithdrawForm({ ...withdrawForm, token: e.target.value })
+              }
+              mono
+            />
           </Field>
+          <Field label="Receiver Address">
+            <Input
+              placeholder="0x…"
+              value={withdrawForm.receiver}
+              onChange={(e) =>
+                setWithdrawForm({ ...withdrawForm, receiver: e.target.value })
+              }
+              mono
+            />
+          </Field>
+          <ActionBtn
+            spinning={loading}
+            label={loading ? "Withdrawing…" : "Execute Withdrawal"}
+            fullWidth
+            variant="danger"
+            disabled={
+              loading ||
+              !withdrawForm.singleton ||
+              !withdrawForm.token ||
+              !withdrawForm.receiver
+            }
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "withdraw", {
+                  singletonAddress: withdrawForm.singleton,
+                  tokenAddress: withdrawForm.token,
+                  receiverAddress: withdrawForm.receiver,
+                });
+                showMsg("Withdrawal executed!");
+                setWithdrawForm({ singleton: "", token: "", receiver: "" });
+              })
+            }
+          />
         </div>
-        <ActionBtn
-          spinning={loading}
-          label={
-            loading
-              ? "Updating…"
-              : `${recoveryForm.action ? "Grant" : "Revoke"} Recovery`
-          }
-          variant={recoveryForm.action ? "default" : "danger"}
-          disabled={loading || !recoveryForm.address}
-          onClick={() =>
-            requestPin(async (pk) => {
-              await callAdmin(pk, "update-recovery", {
-                targetAddress: recoveryForm.address,
-                action: recoveryForm.action,
-              });
-              showMsg(
-                `Recovery ${recoveryForm.action ? "granted" : "revoked"} for ${recoveryForm.address.slice(0, 10)}…`,
-              );
-              setRecoveryForm({ address: "", action: true });
-            })
-          }
-        />
       </div>
     </motion.div>
   );
 
-  // ── Section Map ───────────────────────────────────────────────────────────
+  // ── SECTION: Recovery ─────────────────────────────────────────────────────
+  const renderRecovery = () => (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-5"
+    >
+      <ImmediateBadge />
+      <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/20">
+        <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+        <div>
+          <p className="text-xs text-red-400 font-black">
+            Grant sparingly — recovery addresses bypass quorum and timelock.
+          </p>
+          <p className="text-[10px] text-white/30 mt-0.5">
+            Only existing recovery addresses can call this function.
+          </p>
+        </div>
+      </div>
+      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+        <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
+        <div className="p-6 space-y-5">
+          <div>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+              Emergency Access · Immediate
+            </p>
+            <h4 className="text-lg font-black">Recovery Privileges</h4>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label="Target Address">
+              <Input
+                placeholder="0x…"
+                value={recoveryForm.address}
+                onChange={(e) =>
+                  setRecoveryForm({ ...recoveryForm, address: e.target.value })
+                }
+                mono
+              />
+            </Field>
+            <Field label="Action">
+              <ActionSelector
+                value={recoveryForm.action}
+                onChange={(v) =>
+                  setRecoveryForm({ ...recoveryForm, action: v })
+                }
+              />
+            </Field>
+          </div>
+          <ActionBtn
+            spinning={loading}
+            label={
+              loading
+                ? "Updating…"
+                : `${recoveryForm.action ? "Grant" : "Revoke"} Recovery`
+            }
+            fullWidth
+            variant={recoveryForm.action ? "gold" : "danger"}
+            disabled={loading || !recoveryForm.address}
+            onClick={() =>
+              requestPin(async (pk) => {
+                await callAdmin(pk, "update-recovery", {
+                  targetAddress: recoveryForm.address,
+                  action: recoveryForm.action,
+                });
+                showMsg(
+                  `Recovery ${recoveryForm.action ? "granted" : "revoked"}!`,
+                );
+                setRecoveryForm({ address: "", action: true });
+              })
+            }
+          />
+        </div>
+      </div>
+    </motion.div>
+  );
+
   const sections = {
     overview: renderOverview,
     registry: renderRegistry,
@@ -1847,34 +1648,37 @@ const AdminPanelInner = ({ user, showMsg }) => {
     recovery: renderRecovery,
   };
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  const activeNav = NAV_ITEMS.find((n) => n.id === activeSection);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className="space-y-6"
     >
-      {/* Top bar */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-salvaGold font-black">
-            Admin Panel · v2.1.0
+          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+            MultiSig Control · v2.1.0
           </p>
-          <h3 className="text-2xl font-black">MultiSig Control</h3>
+          <h3 className="text-2xl font-black tracking-tight">
+            {activeSection === "overview" ? "Admin Panel" : activeNav?.label}
+          </h3>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {activeSection !== "overview" && (
             <button
               onClick={() => setActiveSection("overview")}
-              className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all"
+              className="px-4 py-2.5 rounded-xl border border-white/10 font-bold text-xs uppercase tracking-widest text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all"
             >
-              ← Overview
+              ← Back
             </button>
           )}
           <button
             onClick={fetchProposals}
             disabled={fetching}
-            className="px-4 py-2 rounded-xl border border-white/10 font-bold text-xs uppercase hover:bg-white/5 transition-all disabled:opacity-40 flex items-center gap-2"
+            className="px-4 py-2.5 rounded-xl border border-white/10 font-bold text-xs uppercase tracking-widest text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all disabled:opacity-40 flex items-center gap-2"
           >
             <span
               className={
@@ -1883,38 +1687,62 @@ const AdminPanelInner = ({ user, showMsg }) => {
             >
               ⟳
             </span>
-            {fetching ? "Refreshing…" : "Refresh"}
+            {fetching ? "…" : "Refresh"}
           </button>
         </div>
       </div>
 
-      {/* Loading banner */}
-      {loading && (
-        <div className="p-4 rounded-2xl bg-salvaGold/10 border border-salvaGold/30 flex items-center gap-3">
-          <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-          <p className="text-xs text-salvaGold font-bold">
-            Submitting on-chain… this may take 30–60 seconds.
-          </p>
-        </div>
-      )}
-
-      {/* Fetch error */}
-      {fetchError && (
-        <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-between gap-4">
-          <p className="text-xs text-red-400 font-bold">⚠️ {fetchError}</p>
-          <button
-            onClick={fetchProposals}
-            className="text-[10px] text-salvaGold font-black uppercase tracking-widest border border-salvaGold/30 px-3 py-1 rounded-lg hover:bg-salvaGold hover:text-black transition-all"
+      {/* ── Loading banner ── */}
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="flex items-center gap-3 p-4 rounded-2xl bg-salvaGold/8 border border-salvaGold/20"
           >
-            Retry
-          </button>
-        </div>
-      )}
+            <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+            <p className="text-xs text-salvaGold font-bold">
+              Submitting on-chain… this may take 30–60 seconds.
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Active section */}
-      {(sections[activeSection] || sections.overview)()}
+      {/* ── Fetch error ── */}
+      <AnimatePresence>
+        {fetchError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-red-500/5 border border-red-500/20"
+          >
+            <p className="text-xs text-red-400 font-bold">⚠ {fetchError}</p>
+            <button
+              onClick={fetchProposals}
+              className="text-[10px] text-salvaGold font-black uppercase tracking-widest border border-salvaGold/30 px-3 py-1.5 rounded-lg hover:bg-salvaGold hover:text-black transition-all"
+            >
+              Retry
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* PIN Modal */}
+      {/* ── Section content ── */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.18 }}
+        >
+          {(sections[activeSection] || sections.overview)()}
+        </motion.div>
+      </AnimatePresence>
+
+      {/* ── PIN Modal ── */}
       <AnimatePresence>
         {isPinOpen && (
           <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
@@ -1930,17 +1758,20 @@ const AdminPanelInner = ({ user, showMsg }) => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="relative bg-zinc-900 p-8 rounded-3xl w-full max-w-sm border border-white/10 shadow-2xl"
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 16 }}
+              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5"
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-3">
-                  <span className="text-2xl">🔐</span>
-                </div>
-                <h3 className="text-xl font-black mb-1">Admin Verification</h3>
-                <p className="text-xs opacity-50">
+              <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
+                <span className="text-2xl">🔐</span>
+              </div>
+              <div>
+                <h3 className="text-xl font-black text-white">
+                  Admin Verification
+                </h3>
+                <p className="text-xs text-white/30 mt-1">
                   Enter your transaction PIN to sign
                 </p>
               </div>
@@ -1957,7 +1788,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                 }
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6"
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
               />
               <div className="flex gap-3">
                 <button
@@ -1965,14 +1796,14 @@ const AdminPanelInner = ({ user, showMsg }) => {
                     setIsPinOpen(false);
                     setAdminPin("");
                   }}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm hover:bg-white/5"
+                  className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={executePinnedAction}
                   disabled={adminPin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold text-sm hover:brightness-110 disabled:opacity-50"
+                  className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-40 transition-all"
                 >
                   Sign
                 </button>
@@ -1982,6 +1813,102 @@ const AdminPanelInner = ({ user, showMsg }) => {
         )}
       </AnimatePresence>
     </motion.div>
+  );
+};
+
+// ── Shared sub-components ─────────────────────────────────────────────────────
+
+const ImmediateBadge = () => (
+  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-salvaGold/8 border border-salvaGold/20 w-fit">
+    <motion.span
+      animate={{ opacity: [1, 0.3, 1] }}
+      transition={{ repeat: Infinity, duration: 2 }}
+      className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0"
+    />
+    <p className="text-[10px] font-black text-salvaGold uppercase tracking-widest">
+      Immediate — No Proposal Required
+    </p>
+  </div>
+);
+
+const ActiveSection = ({ title, children }) => (
+  <div>
+    <div className="relative flex items-center mb-4">
+      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+      <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/20">
+        {title}
+      </span>
+      <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
+    </div>
+    <div className="space-y-3">{children}</div>
+  </div>
+);
+
+const CancelBlock = ({
+  title,
+  hint,
+  label,
+  value,
+  onChange,
+  loading,
+  onCancel,
+}) => (
+  <div className="p-5 rounded-2xl border border-red-500/15 bg-red-500/[0.02] space-y-4">
+    <div>
+      <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+        {title}
+      </p>
+      {hint && <p className="text-[10px] text-white/25 mt-1">{hint}</p>}
+    </div>
+    <Field label={label}>
+      <Input
+        placeholder="0x…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        mono
+      />
+    </Field>
+    <ActionBtn
+      spinning={loading}
+      label={loading ? "Cancelling…" : "Cancel Proposal"}
+      variant="danger"
+      disabled={loading || !value}
+      onClick={onCancel}
+    />
+  </div>
+);
+
+const ProposalActions = ({
+  loading,
+  isValidated,
+  timeLockTimestamp,
+  onValidate,
+  onExecute,
+  onCancel,
+}) => {
+  const timelockActive =
+    timeLockTimestamp && Math.floor(Date.now() / 1000) < timeLockTimestamp;
+  return (
+    <div className="flex flex-wrap gap-2 pt-1">
+      {onValidate && (
+        <ActionBtn label="Validate" disabled={loading} onClick={onValidate} />
+      )}
+      <ActionBtn
+        label="Execute"
+        variant="green"
+        disabled={loading || !isValidated || timelockActive}
+        onClick={onExecute}
+      />
+      <ActionBtn
+        label="Cancel"
+        variant="danger"
+        disabled={loading}
+        onClick={onCancel}
+      />
+      {isValidated && timeLockTimestamp && (
+        <TimelockCountdown timeLockTimestamp={timeLockTimestamp} />
+      )}
+    </div>
   );
 };
 
