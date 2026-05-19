@@ -40,6 +40,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
 
   useEffect(() => {
     let scanner;
+    let stopped = false;
 
     const startScanner = async () => {
       try {
@@ -56,14 +57,20 @@ const QRScannerModal = ({ onScan, onClose }) => {
             disableFlip: false,
           },
           (decodedText) => {
-            if (hasScanned.current) return;
+            if (hasScanned.current || stopped) return;
             hasScanned.current = true;
+            stopped = true;
             const clean = decodedText
               .replace(/^ethereum:/i, "")
               .split("?")[0]
               .trim();
-            onScan(clean);
-            scanner.stop().catch(() => {});
+            // Stop scanner first, then call onScan — avoids cleanup race
+            scanner
+              .stop()
+              .catch(() => {})
+              .finally(() => {
+                onScan(clean);
+              });
           },
           () => {},
         );
@@ -97,11 +104,13 @@ const QRScannerModal = ({ onScan, onClose }) => {
     startScanner();
 
     return () => {
-      if (scannerInstanceRef.current && isStarted.current) {
+      // Only stop if not already stopped by scan callback
+      if (!stopped && scannerInstanceRef.current && isStarted.current) {
+        stopped = true;
         scannerInstanceRef.current.stop().catch(() => {});
       }
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center px-0 sm:px-4">
