@@ -64,13 +64,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
               .replace(/^ethereum:/i, "")
               .split("?")[0]
               .trim();
-            // Stop scanner first, then call onScan — avoids cleanup race
-            scanner
-              .stop()
-              .catch(() => {})
-              .finally(() => {
-                onScan(clean);
-              });
+            onScan(clean);
           },
           () => {},
         );
@@ -2738,10 +2732,12 @@ const computeFeePreview = (amount, coin) => {
         {isScanOpen && (
           <QRScannerModal
             onScan={(address) => {
-              setRecipientInput(address);
-              handleRecipientChange(address);
               setIsScanOpen(false);
-              if (!isSendOpen) setIsSendOpen(true);
+              setTimeout(() => {
+                setRecipientInput(address);
+                handleRecipientChange(address);
+                if (!isSendOpen) setIsSendOpen(true);
+              }, 350);
             }}
             onClose={() => setIsScanOpen(false)}
           />
