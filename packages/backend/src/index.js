@@ -2,6 +2,9 @@
 require("dotenv").config({
   path: require("path").resolve(__dirname, "../.env"),
 });
+// Initialize L1 DB connection early so it's ready when pool routes are loaded
+require("./services/l1db");
+
 function cleanEnvAddr(raw) {
   if (!raw) return null;
   let s = raw.trim().replace(/^["']|["']$/g, "");
@@ -388,6 +391,7 @@ async function connectDB() {
 connectDB().catch((err) =>
   console.error("❌ Initial MongoDB connection attempt failed:", err.message),
 );
+
 
 // ===============================================
 // HELPERS
@@ -1565,6 +1569,85 @@ res.json({
   }
 });
 
+app.get("/api/l1-balance/:address", async (req, res) => {
+  const { address } = req.params;
+
+  if (!address || !address.startsWith("0x") || address.length !== 42) {
+    return res.status(400).json({ error: "Invalid address" });
+  }
+
+  const isProd = process.env.NODE_ENV === "production";
+
+  const rpcUrl = isProd
+    ? process.env.ETH_MAINNET_RPC_URL
+    : process.env.ETH_SEPOLIA_RPC_URL;
+
+  const NGN_ADDRESS = isProd
+    ? process.env.L1_NGN_TOKEN_ADDRESS
+    : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS;
+  const CNGN_ADDRESS = isProd
+    ? process.env.L1_CNGN_CONTRACT_ADDRESS
+    : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS;
+  const USDT_ADDRESS = isProd
+    ? process.env.L1_USDT_CONTRACT_ADDRESS
+    : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS;
+  const USDC_ADDRESS = isProd
+    ? process.env.L1_USDC_CONTRACT_ADDRESS
+    : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS;
+
+  const L1_ERC20_ABI = [
+    "function balanceOf(address owner) view returns (uint256)",
+    "function decimals() view returns (uint8)",
+  ];
+
+  try {
+    const l1Provider = new ethers.JsonRpcProvider(rpcUrl);
+
+    const fetchTokenBalance = async (tokenAddress, fallbackDecimals = 18) => {
+      if (
+        !tokenAddress ||
+        tokenAddress.startsWith("0xYOUR") ||
+        tokenAddress.length !== 42
+      ) {
+        return "0.00";
+      }
+      try {
+        const contract = new ethers.Contract(
+          tokenAddress,
+          L1_ERC20_ABI,
+          l1Provider,
+        );
+        const [raw, decimals] = await Promise.all([
+          contract.balanceOf(address),
+          contract.decimals().catch(() => fallbackDecimals),
+        ]);
+        return parseFloat(ethers.formatUnits(raw, decimals)).toFixed(2);
+      } catch {
+        return "0.00";
+      }
+    };
+
+    const [ngnBalance, cNgnBalance, usdtBalance, usdcBalance] =
+      await Promise.all([
+        fetchTokenBalance(NGN_ADDRESS, 18),
+        fetchTokenBalance(CNGN_ADDRESS, 18),
+        fetchTokenBalance(USDT_ADDRESS, 6),
+        fetchTokenBalance(USDC_ADDRESS, 6),
+      ]);
+
+    return res.json({ ngnBalance, cNgnBalance, usdtBalance, usdcBalance });
+  } catch (err) {
+    console.error("L1 balance fetch error:", err);
+    return res.status(500).json({
+      error: "Failed to fetch L1 balances",
+      ngnBalance: "0.00",
+      cNgnBalance: "0.00",
+      usdtBalance: "0.00",
+      usdcBalance: "0.00",
+    });
+  }
+});
+
 app.get("/api/alias/list/:safeAddress", async (req, res) => {
   try {
     const user = await User.findOne({
@@ -1595,6 +1678,26 @@ app.get("/api/seller-info", (req, res) => {
     bankName: process.env.SELLER_BANK_NAME || "",
     accountName: process.env.SELLER_ACCOUNT_NAME || "",
     accountNumber: process.env.SELLER_ACCOUNT_NUMBER || "",
+  });
+});
+
+// ===============================================
+// GET L1 CONFIG — returns correct addresses for dev (Sepolia) or prod (Mainnet)
+// NODE_ENV=production → Ethereum Mainnet addresses
+// NODE_ENV=development → Ethereum Sepolia addresses
+// ===============================================
+app.get("/api/l1-config", (req, res) => {
+  const isProd = process.env.NODE_ENV === "production";
+  res.json({
+    ngnTokenAddress:     isProd ? (process.env.L1_NGN_TOKEN_ADDRESS          || "") : (process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS          || ""),
+    cngnContractAddress: isProd ? (process.env.L1_CNGN_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS       || ""),
+    usdtContractAddress: isProd ? (process.env.L1_USDT_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS       || ""),
+    usdcContractAddress: isProd ? (process.env.L1_USDC_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS       || ""),
+    poolFactoryAddress:  isProd ? (process.env.L1_POOL_FACTORY_ADDRESS        || "") : (process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS        || ""),
+    treasuryAddress:     isProd ? (process.env.L1_TREASURY_CONTRACT_ADDRESS   || "") : (process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS   || ""),
+    rpcUrl:              isProd ? (process.env.ETH_MAINNET_RPC_URL            || "") : (process.env.ETH_SEPOLIA_RPC_URL                   || ""),
+    chainId:             isProd ? 1 : 11155111,
+    explorerUrl:         isProd ? "https://etherscan.io" : "https://sepolia.etherscan.io",
   });
 });
 

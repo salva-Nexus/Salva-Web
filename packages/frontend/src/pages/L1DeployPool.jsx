@@ -1,12 +1,50 @@
+// src/pages/L1DeployPool.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ethers } from "ethers";
 import { SALVA_API_URL } from "../config";
 
-// ─── Shared dark input style ──────────────────────────────────────────────────
-const darkInput =
-  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+// ── ABIs ──────────────────────────────────────────────────────────────────────
+const FACTORY_ABI = [
+  "function deployPool() external returns (address pool)",
+  "event PoolDeployed(address indexed deployer, address indexed pool)",
+];
 
-// ─── Registry Dropdown ────────────────────────────────────────────────────────
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address) view returns (uint256)",
+];
+
+const POOL_ABI = [
+  "function removeLiquidity(address asset, uint256 amount) external returns (bool)",
+  "function updateBuyRate(uint256 _exRate) external returns (bool)",
+  "function updateSellRate(uint256 _exRate) external returns (bool)",
+  "function pause() external returns (bool)",
+  "function unpause() external returns (bool)",
+  "function setMinimumNgnAmount(uint256 amount) external returns (bool)",
+  "function setMinimumTokenAmount(uint256 amount) external returns (bool)",
+  "function availableLiquidity(address asset) external view returns (uint256)",
+];
+
+// ── Shared helpers ────────────────────────────────────────────────────────────
+const darkInput =
+  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+
+const fmt = (n, d = 2) =>
+  parseFloat(n || 0).toLocaleString("en-US", {
+    minimumFractionDigits: d,
+    maximumFractionDigits: d,
+  });
+
+const getSigner = async () => {
+  if (!window.ethereum)
+    throw new Error("No wallet found. Please install MetaMask.");
+  const provider = new ethers.BrowserProvider(window.ethereum);
+  return provider.getSigner();
+};
+
+// ── Registry Dropdown (same as L2 DeployPool) ─────────────────────────────────
 const RegistryDropdown = ({
   registries,
   value,
@@ -48,16 +86,16 @@ const RegistryDropdown = ({
         }}
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${
           open
-            ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
+            ? "border-blue-400 bg-blue-500/5 ring-1 ring-blue-400/30"
             : value
-              ? "border-salvaGold/40 bg-salvaGold/5"
-              : "border-white/10 bg-white/5 hover:border-salvaGold/40"
+              ? "border-blue-400/40 bg-blue-500/5"
+              : "border-white/10 bg-white/5 hover:border-blue-400/40"
         }`}
       >
         {value ? (
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-salvaGold/20 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-xs font-black">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-400 text-xs font-black">
                 {value.name.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -112,7 +150,6 @@ const RegistryDropdown = ({
           </button>
         </div>
       </button>
-
       <AnimatePresence>
         {open && (
           <motion.div
@@ -149,7 +186,7 @@ const RegistryDropdown = ({
                   <button
                     type="button"
                     onClick={() => setQuery("")}
-                    className="text-white/60 hover:text-white/80 text-[10px]"
+                    className="text-white/60 hover:text-white/60 text-[10px]"
                   >
                     ✕
                   </button>
@@ -171,10 +208,14 @@ const RegistryDropdown = ({
                       setOpen(false);
                       setQuery("");
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors text-left ${
+                      value?.registryAddress === reg.registryAddress
+                        ? "bg-blue-500/10"
+                        : ""
+                    }`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-salvaGold text-xs font-black">
+                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-400 text-xs font-black">
                         {reg.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -187,7 +228,7 @@ const RegistryDropdown = ({
                       </p>
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-salvaGold text-sm">✓</span>
+                      <span className="text-blue-400 text-sm">✓</span>
                     )}
                   </button>
                 ))
@@ -200,70 +241,7 @@ const RegistryDropdown = ({
   );
 };
 
-// ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
-  const [pin, setPin] = useState("");
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
-      <motion.div
-        className="absolute inset-0 bg-black/95 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        onClick={() => !loading && onCancel()}
-      />
-      <motion.div
-        className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-        initial={{ opacity: 0, scale: 0.92, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92 }}
-        transition={{ type: "spring", stiffness: 380, damping: 28 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-        <div className="p-8 text-center">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔐</span>
-          </div>
-          <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-xs text-white/60 mb-6 leading-relaxed">
-            {subtitle}
-          </p>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength="4"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-            placeholder="••••"
-            autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
-          />
-          <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(pin)}
-              disabled={loading || pin.length !== 4}
-              className="flex-1 py-3.5 rounded-2xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 transition-all"
-            >
-              {loading && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
-              {loading ? "Verifying…" : "Confirm"}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-// ─── Subscription Badge ───────────────────────────────────────────────────────
+// ── Subscription Badge ────────────────────────────────────────────────────────
 const SubBadge = ({ pool }) => {
   const now = new Date();
   const expiry = pool.subscriptionExpiresAt
@@ -286,7 +264,7 @@ const SubBadge = ({ pool }) => {
   );
 };
 
-// ─── Stat Cell ────────────────────────────────────────────────────────────────
+// ── Stat Cell ─────────────────────────────────────────────────────────────────
 const StatCell = ({ label, value, color }) => (
   <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center">
     <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
@@ -298,7 +276,7 @@ const StatCell = ({ label, value, color }) => (
   </div>
 );
 
-// ─── Section Tab Row ──────────────────────────────────────────────────────────
+// ── Section Tabs ──────────────────────────────────────────────────────────────
 const SectionTabs = ({ active, onChange }) => (
   <div className="flex gap-1.5">
     {["liquidity", "rates", "controls"].map((s) => (
@@ -307,8 +285,8 @@ const SectionTabs = ({ active, onChange }) => (
         onClick={() => onChange(s)}
         className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
           active === s
-            ? "bg-salvaGold text-black shadow-lg shadow-salvaGold/20"
-            : "bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60"
+            ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
+            : "bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/80"
         }`}
       >
         {s}
@@ -317,8 +295,15 @@ const SectionTabs = ({ active, onChange }) => (
   </div>
 );
 
-// ─── Pool Manage Panel ────────────────────────────────────────────────────────
-const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
+// ── Pool Manage Panel ─────────────────────────────────────────────────────────
+const L1PoolManagePanel = ({
+  pool,
+  l1Account,
+  l1Config,
+  showMsg,
+  onClose,
+  onRefresh,
+}) => {
   const [activeSection, setActiveSection] = useState("liquidity");
   const [liqAsset, setLiqAsset] = useState("NGN");
   const [liqAmount, setLiqAmount] = useState("");
@@ -331,245 +316,201 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   );
   const [minNgn, setMinNgn] = useState("");
   const [minToken, setMinToken] = useState("");
-  const [pinVisible, setPinVisible] = useState(false);
-  const [pinAction, setPinAction] = useState(null);
-  const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
+  const [txMsg, setTxMsg] = useState("");
 
   const assets = ["NGN", "CNGN", "USDT", "USDC"];
 
-  const availableForAsset = (asset) => {
-    if (asset === "NGN") return pool.ngnLiquidity || "0";
-    if (asset === "CNGN") return pool.cNgnLiquidity || "0";
-    if (asset === "USDT") return pool.usdtLiquidity || "0";
-    if (asset === "USDC") return pool.usdcLiquidity || "0";
+  const resolveToken = (sym) => {
+    if (!l1Config) return null;
+    switch (sym.toUpperCase()) {
+      case "NGN":
+        return l1Config.ngnTokenAddress;
+      case "CNGN":
+        return l1Config.cngnContractAddress;
+      case "USDT":
+        return l1Config.usdtContractAddress;
+      case "USDC":
+        return l1Config.usdcContractAddress;
+      default:
+        return null;
+    }
+  };
+
+  const availableForAsset = (a) => {
+    if (a === "NGN") return pool.ngnLiquidity || "0";
+    if (a === "CNGN") return pool.cNgnLiquidity || "0";
+    if (a === "USDT") return pool.usdtLiquidity || "0";
+    if (a === "USDC") return pool.usdcLiquidity || "0";
     return "0";
   };
 
-  const verifyPin = async (pin) => {
-    setPinLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showMsg("Invalid PIN", "error");
-        return;
-      }
-      setPinVisible(false);
-      if (pinAction === "provide")
-        await executeProvideLiquidity(data.privateKey);
-      else if (pinAction === "remove")
-        await executeRemoveLiquidity(data.privateKey);
-      else if (pinAction === "buyRate")
-        await executeUpdateBuyRate(data.privateKey);
-      else if (pinAction === "sellRate")
-        await executeUpdateSellRate(data.privateKey);
-      else if (pinAction === "pause")
-        await executeTogglePause(data.privateKey, true);
-      else if (pinAction === "unpause")
-        await executeTogglePause(data.privateKey, false);
-      else if (pinAction === "minNgn") await executeSetMinNgn(data.privateKey);
-      else if (pinAction === "minToken")
-        await executeSetMinToken(data.privateKey);
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setPinLoading(false);
-    }
-  };
-
-  const executeProvideLiquidity = async (privateKey) => {
-    if (!liqAmount || parseFloat(liqAmount) <= 0) return;
+  const withLoading = async (label, fn) => {
     setTxLoading(true);
+    setTxMsg(label);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/provide-liquidity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          asset: liqAsset,
-          amount: liqAmount,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg(`${liqAmount} ${liqAsset} sent to pool!`);
-      setLiqAmount("");
-      onRefresh();
-    } catch {
-      showMsg("Failed", "error");
+      await fn();
+    } catch (err) {
+      showMsg(err?.reason || err?.message || "Transaction failed", "error");
     } finally {
       setTxLoading(false);
+      setTxMsg("");
     }
   };
 
-  const executeRemoveLiquidity = async (privateKey) => {
-    if (!liqAmount || parseFloat(liqAmount) <= 0) return;
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/remove-liquidity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          asset: liqAsset,
-          amount: liqAmount,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+  const handleProvideLiquidity = () =>
+    withLoading("Step 1/2: Approving — confirm in your wallet…", async () => {
+      if (!liqAmount || parseFloat(liqAmount) <= 0) return;
+      const signer = await getSigner();
+      const tokenAddr = resolveToken(liqAsset);
+      if (!tokenAddr) throw new Error(`Unknown asset: ${liqAsset}`);
+      const amtWei = ethers.parseUnits(String(liqAmount), 6);
+      const poolAddr = ethers.getAddress(pool.poolAddress);
+
+      const APPROVE_ABI = [
+        "function approve(address spender, uint256 amount) returns (bool)",
+      ];
+      const PROVIDE_ABI = [
+        "function provideLiquidity(address asset, uint256 amount) external returns (bool)",
+      ];
+
+      // Step 1: approve pool to spend tokens
+      const token = new ethers.Contract(
+        ethers.getAddress(tokenAddr),
+        APPROVE_ABI,
+        signer,
+      );
+      const approveTx = await token.approve(poolAddr, amtWei, { gasLimit: 60_000 });
+      setTxMsg("Waiting for approval confirmation…");
+      await approveTx.wait(1);
+
+      // Step 2: call provideLiquidity — updates internal accounting
+      setTxMsg("Step 2/2: Providing liquidity — confirm in your wallet…");
+      const poolContract = new ethers.Contract(poolAddr, PROVIDE_ABI, signer);
+      const tx = await poolContract.provideLiquidity(
+        ethers.getAddress(tokenAddr),
+        amtWei,
+        { gasLimit: 150_000 },
+      );
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
+
+      showMsg(`${liqAmount} ${liqAsset} added to pool!`);
+      setLiqAmount("");
+      onRefresh();
+    });
+
+  const handleRemoveLiquidity = () =>
+    withLoading("Removing — confirm in your wallet…", async () => {
+      if (!liqAmount || parseFloat(liqAmount) <= 0) return;
+      const signer = await getSigner();
+      const tokenAddr = resolveToken(liqAsset);
+      if (!tokenAddr) throw new Error(`Unknown asset: ${liqAsset}`);
+      const amtWei = ethers.parseUnits(String(liqAmount), 6);
+      const poolC = new ethers.Contract(
+        ethers.getAddress(pool.poolAddress),
+        POOL_ABI,
+        signer,
+      );
+      const tx = await poolC.removeLiquidity(
+        ethers.getAddress(tokenAddr),
+        amtWei,
+        { gasLimit: 150_000 },
+      );
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
       showMsg(`${liqAmount} ${liqAsset} withdrawn!`);
       setLiqAmount("");
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
+    });
 
-  const executeUpdateBuyRate = async (privateKey) => {
-    if (buyRate === "" || buyRate === undefined) return;
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/update-rates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          buyRate,
-          sellRate: undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+  const handleUpdateBuyRate = () =>
+    withLoading("Updating buy rate — confirm in your wallet…", async () => {
+      const signer = await getSigner();
+      const poolC = new ethers.Contract(
+        ethers.getAddress(pool.poolAddress),
+        POOL_ABI,
+        signer,
+      );
+      const rateWei = ethers.parseUnits(parseFloat(buyRate).toFixed(6), 6);
+      const tx = await poolC.updateBuyRate(rateWei);
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
       showMsg("Buy rate updated!");
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
+    });
 
-  const executeUpdateSellRate = async (privateKey) => {
-    if (sellRate === "" || sellRate === undefined) return;
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/update-rates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          buyRate: undefined,
-          sellRate,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+  const handleUpdateSellRate = () =>
+    withLoading("Updating sell rate — confirm in your wallet…", async () => {
+      const signer = await getSigner();
+      const poolC = new ethers.Contract(
+        ethers.getAddress(pool.poolAddress),
+        POOL_ABI,
+        signer,
+      );
+      const rateWei = ethers.parseUnits(parseFloat(sellRate).toFixed(6), 6);
+      const tx = await poolC.updateSellRate(rateWei);
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
       showMsg("Sell rate updated!");
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
+    });
 
-  const executeTogglePause = async (privateKey, pause) => {
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/toggle-pause`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          pause,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg(pause ? "Pool paused." : "Pool unpaused.");
-      onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
+  const handlePause = (pause) =>
+    withLoading(
+      `${pause ? "Pausing" : "Unpausing"} — confirm in your wallet…`,
+      async () => {
+        const signer = await getSigner();
+        const poolC = new ethers.Contract(
+          ethers.getAddress(pool.poolAddress),
+          POOL_ABI,
+          signer,
+        );
+        const tx = pause ? await poolC.pause() : await poolC.unpause();
+        setTxMsg("Waiting for confirmation…");
+        await tx.wait(1);
+        showMsg(pause ? "Pool paused." : "Pool unpaused.");
+        onRefresh();
+      },
+    );
 
-  const executeSetMinNgn = async (privateKey) => {
-    if (!minNgn || parseFloat(minNgn) < 0) return;
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/set-mins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          minNgnAmount: minNgn,
-          minTokenAmount: undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+  const handleSetMinNgn = () =>
+    withLoading("Setting min NGNs — confirm in your wallet…", async () => {
+      if (!minNgn || parseFloat(minNgn) < 0) return;
+      const signer = await getSigner();
+      const poolC = new ethers.Contract(
+        ethers.getAddress(pool.poolAddress),
+        POOL_ABI,
+        signer,
+      );
+      const tx = await poolC.setMinimumNgnAmount(
+        ethers.parseUnits(String(minNgn), 6),
+      );
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
       showMsg("Min NGNs updated!");
       setMinNgn("");
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
+    });
 
-  const executeSetMinToken = async (privateKey) => {
-    if (!minToken || parseFloat(minToken) < 0) return;
-    setTxLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/set-mins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          minNgnAmount: undefined,
-          minTokenAmount: minToken,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg("Min token amount updated!");
+  const handleSetMinToken = () =>
+    withLoading("Setting min token — confirm in your wallet…", async () => {
+      if (!minToken || parseFloat(minToken) < 0) return;
+      const signer = await getSigner();
+      const poolC = new ethers.Contract(
+        ethers.getAddress(pool.poolAddress),
+        POOL_ABI,
+        signer,
+      );
+      const tx = await poolC.setMinimumTokenAmount(
+        ethers.parseUnits(String(minToken), 6),
+      );
+      setTxMsg("Waiting for confirmation…");
+      await tx.wait(1);
+      showMsg("Min token updated!");
       setMinToken("");
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
-    } finally {
-      setTxLoading(false);
-    }
-  };
-
-  const triggerPin = (action) => {
-    setPinAction(action);
-    setPinVisible(true);
-  };
+    });
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -587,15 +528,14 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         transition={{ type: "spring", damping: 25, stiffness: 200 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+        <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
 
-        {/* Header */}
         <div className="px-6 pt-5 pb-4 border-b border-white/[0.05]">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-0.5">
-                Manage Pool
+              <p className="text-[9px] uppercase tracking-[0.35em] text-blue-400/60 font-black mb-0.5">
+                Manage Pool · ETH CHAIN
               </p>
               <p className="font-black text-lg text-white truncate">
                 {pool.poolName || "Unnamed Pool"}
@@ -612,45 +552,44 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
-              <p className="text-[9px] uppercase tracking-widest text-white/60 font-black mb-0.5">
-                NGN
-              </p>
-              <p className="font-black text-sm text-salvaGold">
-                {(
-                  parseFloat(pool.ngnLiquidity || 0) +
-                  parseFloat(pool.cNgnLiquidity || 0)
-                ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
-              </p>
-            </div>
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
-              <p className="text-[9px] uppercase tracking-widest text-white/60 font-black mb-0.5">
-                USD
-              </p>
-              <p className="font-black text-sm text-green-400">
-                {(
-                  parseFloat(pool.usdtLiquidity || 0) +
-                  parseFloat(pool.usdcLiquidity || 0)
-                ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
-              </p>
-            </div>
+            <StatCell
+              label="NGN"
+              value={(
+                parseFloat(pool.ngnLiquidity || 0) +
+                parseFloat(pool.cNgnLiquidity || 0)
+              ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+              color="#D4AF37"
+            />
+            <StatCell
+              label="USD"
+              value={(
+                parseFloat(pool.usdtLiquidity || 0) +
+                parseFloat(pool.usdcLiquidity || 0)
+              ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+              color="#22c55e"
+            />
           </div>
         </div>
 
-        {/* Section tabs */}
         <div className="px-6 py-3 border-b border-white/[0.05]">
           <SectionTabs active={activeSection} onChange={setActiveSection} />
         </div>
 
+        {txLoading && (
+          <div className="px-6 py-3 border-b border-blue-500/15 bg-blue-500/5 flex items-center gap-3">
+            <span className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin flex-shrink-0" />
+            <p className="text-xs font-bold text-blue-400">{txMsg}</p>
+          </div>
+        )}
+
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* ── LIQUIDITY ── */}
+          {/* LIQUIDITY */}
           {activeSection === "liquidity" && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
-              {/* Mode toggle */}
               <div className="flex gap-2">
                 {["provide", "remove"].map((m) => (
                   <button
@@ -659,17 +598,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
                       liqMode === m
                         ? m === "provide"
-                          ? "bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20"
+                          ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
                           : "bg-red-500/10 border-red-500/30 text-red-400"
-                        : "border-white/10 bg-white/5 text-white/60 hover:text-white/50"
+                        : "border-white/10 bg-white/5 text-white/60 hover:text-white/70"
                     }`}
                   >
                     {m === "provide" ? "↑ Add Liquidity" : "↓ Remove Liquidity"}
                   </button>
                 ))}
               </div>
-
-              {/* Token selector */}
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                   Token
@@ -686,8 +623,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                         }}
                         className={`py-3 rounded-xl border transition-all flex flex-col items-center gap-0.5 ${
                           liqAsset === a
-                            ? "bg-salvaGold/10 border-salvaGold/40 text-salvaGold"
-                            : "border-white/[0.06] bg-white/5 text-white/60 hover:text-white/60"
+                            ? "bg-blue-500/10 border-blue-500/40 text-blue-400"
+                            : "border-white/[0.06] bg-white/5 text-white/60 hover:text-white/80"
                         }`}
                       >
                         <span className="text-xs font-black uppercase">
@@ -703,8 +640,6 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   })}
                 </div>
               </div>
-
-              {/* Amount */}
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
@@ -714,7 +649,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     <button
                       type="button"
                       onClick={() => setLiqAmount(availableForAsset(liqAsset))}
-                      className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
+                      className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
                     </button>
@@ -728,24 +663,21 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     onChange={(e) => setLiqAmount(e.target.value)}
                     className={`${darkInput} text-xl pr-16`}
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
                     {liqAsset}
                   </span>
                 </div>
-                {liqMode === "provide" && (
-                  <p className="text-[10px] text-white/60 mt-1.5 leading-relaxed">
-                    Tokens sent from your Safe wallet directly to the pool
-                    contract.
-                  </p>
-                )}
               </div>
-
               <button
-                onClick={() => triggerPin(liqMode)}
+                onClick={
+                  liqMode === "provide"
+                    ? handleProvideLiquidity
+                    : handleRemoveLiquidity
+                }
                 disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
                 className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
                   liqMode === "provide"
-                    ? "bg-salvaGold text-black shadow-salvaGold/20"
+                    ? "bg-blue-500 text-white shadow-blue-500/20"
                     : "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white"
                 }`}
               >
@@ -761,7 +693,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </motion.div>
           )}
 
-          {/* ── RATES ── */}
+          {/* RATES */}
           {activeSection === "rates" && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -771,12 +703,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10">
                 <p className="text-[11px] text-white/60 leading-relaxed">
                   Rates in{" "}
-                  <span className="font-black text-salvaGold">NGN per USD</span>
-                  . Each rate saves as a separate on-chain transaction.
+                  <span className="font-black text-blue-400">NGN per USD</span>.
+                  Each saves as a separate on-chain tx — confirm in your wallet.
                 </p>
               </div>
-
-              {/* Buy Rate */}
               <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
                 <div className="p-5 space-y-3">
@@ -785,8 +715,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       Buy Rate
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{parseFloat(pool.buyRate || 0).toLocaleString()}{" "}
-                      · Used when users sell USDT/USDC to pool
+                      Current: ₦{parseFloat(pool.buyRate || 0).toLocaleString()}
                     </p>
                   </div>
                   <div className="relative">
@@ -802,19 +731,17 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <button
-                    onClick={() => triggerPin("buyRate")}
+                    onClick={handleUpdateBuyRate}
                     disabled={txLoading || buyRate === ""}
                     className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-green-500/10 border border-green-500/25 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-500"
                   >
-                    {txLoading && pinAction === "buyRate" && (
+                    {txLoading && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Buy Rate On-Chain
                   </button>
                 </div>
               </div>
-
-              {/* Sell Rate */}
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
                 <div className="p-5 space-y-3">
@@ -824,8 +751,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
                       Current: ₦
-                      {parseFloat(pool.sellRate || 0).toLocaleString()} · Used
-                      when users buy USDT/USDC with NGNs
+                      {parseFloat(pool.sellRate || 0).toLocaleString()}
                     </p>
                   </div>
                   <div className="relative">
@@ -841,11 +767,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <button
-                    onClick={() => triggerPin("sellRate")}
+                    onClick={handleUpdateSellRate}
                     disabled={txLoading || sellRate === ""}
                     className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500 hover:text-black hover:border-blue-500"
                   >
-                    {txLoading && pinAction === "sellRate" && (
+                    {txLoading && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Sell Rate On-Chain
@@ -855,7 +781,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </motion.div>
           )}
 
-          {/* ── CONTROLS ── */}
+          {/* CONTROLS */}
           {activeSection === "controls" && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
@@ -867,34 +793,30 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   Emergency Controls
                 </p>
                 <p className="text-[11px] text-white/60 leading-relaxed">
-                  Pausing stops all swaps. Liquidity is safe — only you can
-                  unpause.
+                  Pausing stops all swaps. Confirm each in your wallet.
                 </p>
               </div>
-
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => triggerPin("pause")}
+                  onClick={() => handlePause(true)}
                   disabled={txLoading}
                   className="py-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-xs uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ⏸ Pause
                 </button>
                 <button
-                  onClick={() => triggerPin("unpause")}
+                  onClick={() => handlePause(false)}
                   disabled={txLoading}
                   className="py-3.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-black text-xs uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ▶ Unpause
                 </button>
               </div>
-
-              {/* Min NGNs */}
-              <div className="rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.02] overflow-hidden">
-                <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
+              <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden">
+                <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-salvaGold">
+                    <p className="text-xs font-black text-blue-400">
                       Min NGNs Per Swap
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
@@ -904,25 +826,23 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   </div>
                   <input
                     type="number"
-                    placeholder={`e.g. ${parseFloat(pool.minNgnAmount || 0).toLocaleString()}`}
+                    placeholder="e.g. 1000"
                     value={minNgn}
                     onChange={(e) => setMinNgn(e.target.value)}
                     className={darkInput}
                   />
                   <button
-                    onClick={() => triggerPin("minNgn")}
+                    onClick={handleSetMinNgn}
                     disabled={txLoading || !minNgn}
-                    className="w-full py-3 rounded-xl bg-salvaGold/10 border border-salvaGold/25 text-salvaGold font-black text-xs uppercase tracking-widest hover:bg-salvaGold hover:text-black hover:border-salvaGold transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="w-full py-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                   >
-                    {txLoading && pinAction === "minNgn" && (
+                    {txLoading && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min NGNs
                   </button>
                 </div>
               </div>
-
-              {/* Min Token */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <div className="p-5 space-y-3">
@@ -938,17 +858,17 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   </div>
                   <input
                     type="number"
-                    placeholder={`e.g. ${parseFloat(pool.minTokenAmount || 0).toLocaleString()}`}
+                    placeholder="e.g. 5"
                     value={minToken}
                     onChange={(e) => setMinToken(e.target.value)}
                     className={darkInput}
                   />
                   <button
-                    onClick={() => triggerPin("minToken")}
+                    onClick={handleSetMinToken}
                     disabled={txLoading || !minToken}
                     className="w-full py-3 rounded-xl bg-white/5 border border-white/15 text-white/60 font-black text-xs uppercase tracking-widest hover:bg-white/15 hover:text-white transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                   >
-                    {txLoading && pinAction === "minToken" && (
+                    {txLoading && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min Token
@@ -958,153 +878,138 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </motion.div>
           )}
         </div>
-
-        <AnimatePresence>
-          {pinVisible && (
-            <PinModal
-              title="Enter Transaction PIN"
-              subtitle="Authorize this action via your Safe wallet"
-              onConfirm={verifyPin}
-              onCancel={() => setPinVisible(false)}
-              loading={pinLoading}
-            />
-          )}
-        </AnimatePresence>
       </motion.div>
     </div>
   );
 };
 
-// ─── Pool Card ────────────────────────────────────────────────────────────────
-const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.05 }}
-      className="rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-salvaGold/20 transition-all"
-    >
-      <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-5 space-y-4">
-        {/* Identity */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="font-black text-salvaGold text-base truncate">
-                {pool.poolName || "Unnamed Pool"}
+// ── Pool Card ─────────────────────────────────────────────────────────────────
+const L1PoolCard = ({
+  pool,
+  index,
+  onManage,
+  onPublish,
+  onRename,
+  onDelete,
+}) => (
+  <motion.div
+    initial={{ opacity: 0, y: 8 }}
+    animate={{ opacity: 1, y: 0 }}
+    transition={{ delay: index * 0.05 }}
+    className="rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-blue-500/20 transition-all"
+  >
+    <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+    <div className="p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            <p className="font-black text-blue-400 text-base truncate">
+              {pool.poolName || "Unnamed Pool"}
+            </p>
+            <SubBadge pool={pool} />
+          </div>
+          <p className="font-mono text-[10px] text-white/60 truncate">
+            {pool.poolAddress}
+          </p>
+          {pool.subscriptionExpiresAt &&
+            new Date(pool.subscriptionExpiresAt) > new Date() && (
+              <p className="text-[9px] text-white/60 mt-0.5">
+                Expires{" "}
+                {new Date(pool.subscriptionExpiresAt).toLocaleDateString(
+                  "en-US",
+                  { day: "numeric", month: "short", year: "numeric" },
+                )}
               </p>
-              <SubBadge pool={pool} />
-            </div>
-            <p className="font-mono text-[10px] text-white/60 truncate">
-              {pool.poolAddress}
-            </p>
-            {pool.subscriptionExpiresAt &&
-              new Date(pool.subscriptionExpiresAt) > new Date() && (
-                <p className="text-[9px] text-white/60 mt-0.5">
-                  Expires{" "}
-                  {new Date(pool.subscriptionExpiresAt).toLocaleDateString(
-                    "en-US",
-                    { day: "numeric", month: "short", year: "numeric" },
-                  )}
-                </p>
-              )}
-          </div>
-        </div>
-
-        {/* Liquidity stats */}
-        <div className="grid grid-cols-3 gap-2">
-          <StatCell
-            label="NGNs"
-            value={(
-              parseFloat(pool.ngnLiquidity || 0) +
-              parseFloat(pool.cNgnLiquidity || 0)
-            ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
-            color="#D4AF37"
-          />
-          <StatCell
-            label="USDT"
-            value={parseFloat(pool.usdtLiquidity || 0).toLocaleString("en-US", {
-              maximumFractionDigits: 6,
-            })}
-            color="#22c55e"
-          />
-          <StatCell
-            label="USDC"
-            value={parseFloat(pool.usdcLiquidity || 0).toLocaleString("en-US", {
-              maximumFractionDigits: 6,
-            })}
-            color="#3b82f6"
-          />
-        </div>
-
-        {/* Rate stats */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            <p className="text-[9px] uppercase tracking-widest text-green-400/50 font-black mb-1">
-              Buy Rate
-            </p>
-            <p className="font-black text-sm text-green-400">
-              ₦{parseFloat(pool.buyRate || 0).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
-            </p>
-          </div>
-          <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            <p className="text-[9px] uppercase tracking-widest text-blue-400/50 font-black mb-1">
-              Sell Rate
-            </p>
-            <p className="font-black text-sm text-blue-400">
-              ₦{parseFloat(pool.sellRate || 0).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
-            </p>
-          </div>
-        </div>
-
-        {/* Action row */}
-        <div className="flex gap-2">
-          <button
-            onClick={onManage}
-            className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/[0.07] text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
-          >
-            ⚙ Manage
-          </button>
-          <button
-            onClick={onPublish}
-            className="flex-1 py-2.5 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-salvaGold/20"
-          >
-            {pool.isPublished ? "Extend" : "Publish"}
-          </button>
-          <button
-            onClick={onRename}
-            className="py-2.5 px-3.5 rounded-xl border border-salvaGold/25 text-salvaGold font-black text-xs uppercase hover:bg-salvaGold/10 transition-all"
-          >
-            {pool.poolName ? "✎" : "Name"}
-          </button>
-          <button
-            onClick={onDelete}
-            className="py-2.5 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all"
-          >
-            🗑
-          </button>
+            )}
         </div>
       </div>
-    </motion.div>
-  );
-};
+      <div className="grid grid-cols-3 gap-2">
+        <StatCell
+          label="NGNs"
+          value={(
+            parseFloat(pool.ngnLiquidity || 0) +
+            parseFloat(pool.cNgnLiquidity || 0)
+          ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+          color="#D4AF37"
+        />
+        <StatCell
+          label="USDT"
+          value={parseFloat(pool.usdtLiquidity || 0).toLocaleString("en-US", {
+            maximumFractionDigits: 6,
+          })}
+          color="#22c55e"
+        />
+        <StatCell
+          label="USDC"
+          value={parseFloat(pool.usdcLiquidity || 0).toLocaleString("en-US", {
+            maximumFractionDigits: 6,
+          })}
+          color="#3b82f6"
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+          <p className="text-[9px] uppercase tracking-widest text-green-400/50 font-black mb-1">
+            Buy Rate
+          </p>
+          <p className="font-black text-sm text-green-400">
+            ₦{parseFloat(pool.buyRate || 0).toLocaleString()}
+            <span className="text-[10px] text-white/60 font-normal">/USD</span>
+          </p>
+        </div>
+        <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+          <p className="text-[9px] uppercase tracking-widest text-blue-400/50 font-black mb-1">
+            Sell Rate
+          </p>
+          <p className="font-black text-sm text-blue-400">
+            ₦{parseFloat(pool.sellRate || 0).toLocaleString()}
+            <span className="text-[10px] text-white/60 font-normal">/USD</span>
+          </p>
+        </div>
+      </div>
+      <div className="flex gap-2">
+        <button
+          onClick={onManage}
+          className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/[0.07] text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
+        >
+          ⚙ Manage
+        </button>
+        <button
+          onClick={onPublish}
+          className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
+        >
+          {pool.isPublished ? "Extend" : "Publish"}
+        </button>
+        <button
+          onClick={onRename}
+          className="py-2.5 px-3.5 rounded-xl border border-blue-500/25 text-blue-400 font-black text-xs uppercase hover:bg-blue-500/10 transition-all"
+        >
+          {pool.poolName ? "✎" : "Name"}
+        </button>
+        <button
+          onClick={onDelete}
+          className="py-2.5 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all"
+        >
+          🗑
+        </button>
+      </div>
+    </div>
+  </motion.div>
+);
 
-// ─── Main DeployPool ──────────────────────────────────────────────────────────
-const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
+// ── Main L1DeployPool ─────────────────────────────────────────────────────────
+const L1DeployPool = ({
+  l1Account,
+  l1Config,
+  configLoading,
+  showMsg,
+  wrongChain,
+}) => {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
   const [subFees, setSubFees] = useState(null);
-  const [managingPool, setManagingPool] = useState(null);
-  const [pinVisible, setPinVisible] = useState(false);
-  const [pinAction, setPinAction] = useState(null);
-  const [pinLoading, setPinLoading] = useState(false);
   const [deploying, setDeploying] = useState(false);
+  const [managingPool, setManagingPool] = useState(null);
   const [showSubModal, setShowSubModal] = useState(false);
   const [selectedPool, setSelectedPool] = useState(null);
   const [subTier, setSubTier] = useState(1);
@@ -1114,7 +1019,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deletingPool, setDeletingPool] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [registries, setRegistries] = useState([]);
 
+  // ── Rename state (identical to L2 DeployPool) ─────────────────────────────
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPool, setRenamingPool] = useState(null);
   const [renameInput, setRenameInput] = useState("");
@@ -1127,16 +1034,28 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [renameLoading, setRenameLoading] = useState(false);
   const [renameFee, setRenameFee] = useState(null);
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
-  const [registries, setRegistries] = useState([]);
+
+  // user object built from l1Account — Safe address = l1Account for DB lookups
+  // but for relay calls (link-name / execute-link / unlink-name), the backend
+  // uses the user's L2 Safe stored in DB by their email. Here we pass l1Account
+  // as safeAddress so the pool address ownership is correctly scoped.
+  // The naming relay (sponsorLinkNameBase) uses the safeAddress to sign — which
+  // works because the user's L2 Safe is the msg.sender on the registry.
+  // We retrieve the user's L2 safe from session/localStorage for relay calls.
+  const l2User = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("salva_user") || "{}");
+    } catch {
+      return {};
+    }
+  })();
 
   const fetchMyPools = useCallback(
     async (silent = false) => {
-      if (!user?.safeAddress) return;
+      if (!l1Account) return;
       if (!silent) setLoading(true);
       try {
-        const res = await fetch(
-          `${SALVA_API_URL}/api/pool/my/${user.safeAddress}`,
-        );
+        const res = await fetch(`${SALVA_API_URL}/api/pool/l1/my/${l1Account}`);
         const data = await res.json();
         setPools(data.pools || []);
       } catch {
@@ -1145,7 +1064,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         setLoading(false);
       }
     },
-    [user?.safeAddress],
+    [l1Account],
   );
 
   const fetchSubFees = useCallback(async () => {
@@ -1165,94 +1084,138 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       .catch(() => {});
   }, [fetchMyPools, fetchSubFees]);
 
-  const handlePinConfirm = async (pin) => {
-    setPinLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showMsg("Invalid PIN", "error");
-        return;
-      }
-      setPinVisible(false);
-      if (pinAction === "deploy") await executeDeploy(data.privateKey);
-      if (pinAction === "subscribe") await executeSubscribe(data.privateKey);
-      if (pinAction === "delete") await executeDelete(data.privateKey);
-      if (pinAction === "rename") await executeRename(data.privateKey);
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setPinLoading(false);
+  // ── Deploy ────────────────────────────────────────────────────────────────
+  const handleDeploy = async () => {
+    if (wrongChain) {
+      showMsg("Switch to Ethereum Mainnet first", "error");
+      return;
     }
-  };
-
-  const executeDeploy = async (privateKey) => {
+    if (!l1Config?.poolFactoryAddress) {
+      showMsg("Config not loaded yet", "error");
+      return;
+    }
     setDeploying(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/deploy`, {
+      const signer = await getSigner();
+      const factory = new ethers.Contract(
+        ethers.getAddress(l1Config.poolFactoryAddress),
+        FACTORY_ABI,
+        signer,
+      );
+      const tx = await factory.deployPool();
+      showMsg("Pool deployment submitted — waiting for confirmation…", "info");
+      const receipt = await tx.wait(1);
+
+      const TOPIC = ethers.id("PoolDeployed(address,address)");
+      let poolAddress = null;
+      for (const log of receipt.logs) {
+        try {
+          if (!log.topics || log.topics.length < 3) continue;
+          if (log.topics[0].toLowerCase() !== TOPIC.toLowerCase()) continue;
+          poolAddress = ethers.getAddress("0x" + log.topics[2].slice(-40));
+          break;
+        } catch {}
+      }
+
+      if (!poolAddress) {
+        showMsg(
+          "Pool deployed but address not found in event — check Etherscan",
+          "warning",
+        );
+        return;
+      }
+
+      await fetch(`${SALVA_API_URL}/api/pool/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Deploy failed");
+        body: JSON.stringify({ poolAddress, ownerSafeAddress: l1Account }),
+      }).catch(() => {});
+
       showMsg("Pool deployed!");
       await fetchMyPools();
-      setNewlyDeployedPool(data.poolAddress);
+      setNewlyDeployedPool(poolAddress);
       setShowNamePrompt(true);
-    } catch {
-      showMsg("Pool deployment failed", "error");
+    } catch (err) {
+      showMsg(err?.reason || err?.message || "Deploy failed", "error");
     } finally {
       setDeploying(false);
     }
   };
 
-  const executeSubscribe = async (privateKey) => {
-    if (!selectedPool) return;
+  // ── Subscribe ─────────────────────────────────────────────────────────────
+  const handleSubscribe = async () => {
+    if (wrongChain) {
+      showMsg("Switch to Ethereum Mainnet first", "error");
+      return;
+    }
+    if (
+      !selectedPool ||
+      !l1Config?.ngnTokenAddress ||
+      !l1Config?.treasuryAddress
+    )
+      return;
     setSubscribing(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/subscribe`, {
+      const monthly = subFees?.monthly || 5000;
+      const total = monthly * subTier;
+      const totalWei = ethers.parseUnits(String(total), 6);
+      const signer = await getSigner();
+      const ngnToken = new ethers.Contract(
+        ethers.getAddress(l1Config.ngnTokenAddress),
+        ERC20_ABI,
+        signer,
+      );
+
+      const bal = await ngnToken.balanceOf(ethers.getAddress(l1Account));
+      if (bal < totalWei) {
+        showMsg(
+          `Insufficient NGNs. You need ${total.toLocaleString()} NGNs.`,
+          "error",
+        );
+        setSubscribing(false);
+        return;
+      }
+
+      const tx = await ngnToken.transfer(
+        ethers.getAddress(l1Config.treasuryAddress),
+        totalWei,
+      );
+      showMsg("Payment submitted — waiting for confirmation…", "info");
+      const receipt = await tx.wait(1);
+
+      await fetch(`${SALVA_API_URL}/api/pool/subscribe-direct`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           poolAddress: selectedPool.poolAddress,
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
+          ownerSafeAddress: l1Account,
           months: subTier,
+          txHash: receipt.hash,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Subscription failed");
-      showMsg(
-        `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}`,
-      );
+
+      showMsg(`Pool published! ${subTier} month(s) added.`);
       await fetchMyPools();
-    } catch {
-      showMsg("Subscription failed", "error");
+    } catch (err) {
+      showMsg(err?.reason || err?.message || "Subscription failed", "error");
     } finally {
       setSubscribing(false);
+      setShowSubModal(false);
       setSelectedPool(null);
     }
   };
 
-  const executeDelete = async (privateKey) => {
+  // ── Delete ────────────────────────────────────────────────────────────────
+  const handleDelete = async () => {
     if (!deletingPool) return;
     setDeleting(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/delete`, {
+      const res = await fetch(`${SALVA_API_URL}/api/pool/delete-direct`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           poolAddress: deletingPool.poolAddress,
-          ownerSafeAddress: user.safeAddress,
-          ownerPrivateKey: privateKey,
+          ownerSafeAddress: l1Account,
         }),
       });
       const data = await res.json();
@@ -1263,8 +1226,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           : "Pool removed.",
       );
       await fetchMyPools();
-    } catch {
-      showMsg("Delete failed", "error");
+    } catch (err) {
+      showMsg(err?.message || "Delete failed", "error");
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1272,6 +1235,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     }
   };
 
+  // ── Rename helpers (identical logic to L2 DeployPool) ────────────────────
   const resetRenameModal = () => {
     setRenameInput("");
     setRenameRegistry(null);
@@ -1330,6 +1294,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     }
   };
 
+  // prepare uses the L2 safeAddress as the signer — backend relay pays gas
+  // the L1 pool address is passed as walletToLink
   const handleRenamePrepare = async () => {
     if (!renamingPool || !renameRegistry || !renameInput) return;
     setRenameLoading(true);
@@ -1338,9 +1304,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          safeAddress: l2User.safeAddress, // L2 Safe signs + pays fee
           name: renameInput,
-          walletToLink: renamingPool.poolAddress,
+          walletToLink: renamingPool.poolAddress, // L1 pool address being named
           registryAddress: renameRegistry.registryAddress,
         }),
       });
@@ -1361,8 +1327,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         return;
       }
       setRenamePrepared(data);
-      setPinAction("rename");
-      setPinVisible(true);
+      setRenameStep("pin");
     } catch {
       setRenameError("Network error during preparation.");
     } finally {
@@ -1370,12 +1335,27 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     }
   };
 
-  const executeRename = async (privateKey) => {
+  const handleRenameExecute = async (pin) => {
     if (!renamingPool || !renamePrepared) return;
     setRenameLoading(true);
-    setRenameStep("renaming");
-    setShowRenameModal(false);
+    // verify PIN to get L2 private key for relay
     try {
+      const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: l2User.email, pin }),
+      });
+      const pinData = await pinRes.json();
+      if (!pinRes.ok) {
+        setRenameError(pinData.message || "Invalid PIN");
+        setRenameLoading(false);
+        return;
+      }
+
+      setRenameStep("renaming");
+      setShowRenameModal(false);
+
+      // unlink old name if pool has one
       if (renamingPool.poolName) {
         const unlinkRes = await fetch(
           `${SALVA_API_URL}/api/alias/unlink-name`,
@@ -1383,14 +1363,13 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              safeAddress: user.safeAddress,
+              safeAddress: l2User.safeAddress,
               weldedName: renamingPool.poolName.trim(),
               registryAddress: renamePrepared.registryAddress,
-              userPrivateKey: privateKey,
+              userPrivateKey: pinData.privateKey,
             }),
           },
         );
-        const unlinkData = await unlinkRes.json();
         if (!unlinkRes.ok) {
           showMsg("Failed to unlink old name", "error");
           resetRenameModal();
@@ -1398,18 +1377,20 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           return;
         }
       }
+
+      // execute link — relay pays gas, L2 Safe is msg.sender
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          safeAddress: l2User.safeAddress,
           pureName: renamePrepared.pureName,
           weldedName: renamePrepared.weldedName,
-          walletToLink: renamePrepared.walletToLink,
+          walletToLink: renamePrepared.walletToLink, // = L1 pool address
           registryAddress: renamePrepared.registryAddress,
           signature: renamePrepared.signature,
           feeWei: renamePrepared.feeWei,
-          userPrivateKey: privateKey,
+          userPrivateKey: pinData.privateKey,
         }),
       });
       const execData = await execRes.json();
@@ -1419,16 +1400,19 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         setRenameLoading(false);
         return;
       }
-      await fetch(`${SALVA_API_URL}/api/pool/set-name`, {
+
+      // update pool name in DB
+      await fetch(`${SALVA_API_URL}/api/pool/l1/set-name`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           poolAddress: renamingPool.poolAddress,
-          ownerSafeAddress: user.safeAddress,
+          ownerSafeAddress: l1Account,
           poolName: renamePrepared.weldedName,
         }),
       }).catch(() => {});
-      showMsg(`Pool renamed to "${renamePrepared.weldedName}"!`);
+
+      showMsg(`Pool named "${renamePrepared.weldedName}"!`);
       await fetchMyPools();
     } catch {
       showMsg("Rename failed", "error");
@@ -1439,90 +1423,95 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     }
   };
 
+  // ── PIN state for rename ──────────────────────────────────────────────────
+  const [renamePin, setRenamePin] = useState("");
+  const [renamePinLoading, setRenamePinLoading] = useState(false);
+
+  const handleRenamePinConfirm = async () => {
+    if (renamePin.length !== 4) return;
+    setRenamePinLoading(true);
+    await handleRenameExecute(renamePin);
+    setRenamePin("");
+    setRenamePinLoading(false);
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-5 relative"
+      className="space-y-5"
     >
-      {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
-        <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl">🏊</span>
-          </div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black">
-            Salva V3 Pools
-          </p>
-          <p className="text-xl font-black text-white">Coming Soon</p>
-          <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
-            V3 smart contracts are under development and testing.
-          </p>
-        </div>
-      </div> */}
-      {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
-            Salva V3
+          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
+            Salva V3 · Ethereum Chain
           </p>
           <h2 className="text-3xl font-black tracking-tight">My Pools</h2>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
-            href="/l1"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
+            href="/dashboard"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] transition-all"
           >
-            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">ETH CHAIN</span>
-            <span className="text-blue-400 text-[9px]">↗</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-salvaGold">
+              Base Chain
+            </span>
+            <span className="text-salvaGold text-[9px]">↗</span>
           </a>
           <button
             onClick={() => fetchMyPools(true)}
             disabled={loading}
-            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
+            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-400/30 transition-all"
           >
             {loading ? (
-              <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
             ) : (
-              <span className="text-salvaGold text-lg leading-none">↻</span>
+              <span className="text-blue-400 text-lg leading-none">↻</span>
             )}
           </button>
           <button
-            onClick={() => {
-              setPinAction("deploy");
-              setPinVisible(true);
-            }}
-            disabled={deploying}
-            className="flex items-center gap-2 px-5 py-3 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-salvaGold/20"
+            onClick={handleDeploy}
+            disabled={deploying || wrongChain || configLoading}
+            className="flex items-center gap-2 px-5 py-3 bg-blue-500 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
           >
             {deploying && (
-              <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
             {deploying ? "Deploying…" : "+ Deploy"}
           </button>
         </div>
       </div>
 
-      {/* Info card */}
+      {wrongChain && (
+        <div className="p-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.06]">
+          <p className="text-sm font-bold text-orange-400">
+            ⚠ Switch to Ethereum Mainnet to deploy or manage pools.
+          </p>
+        </div>
+      )}
+
+      {/* Info */}
       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-xs font-black text-salvaGold mb-1">How it works</p>
+        <p className="text-xs font-black text-blue-400 mb-1">
+          How it works on ETH CHAIN
+        </p>
         <p className="text-[11px] text-white/60 leading-relaxed">
-          Deploy your pool, add liquidity, set rates, then publish it. A
-          subscription of{" "}
-          <span className="font-black text-salvaGold">
+          Deploy your pool directly from your wallet. Add liquidity, set rates,
+          then publish it. A subscription of{" "}
+          <span className="font-black text-blue-400">
             {subFees?.monthly?.toLocaleString() || "5,000"} NGN/month
           </span>{" "}
-          keeps it visible on the swap marketplace. Time rolls over if you
-          extend before expiry.
+          keeps it visible. Your MetaMask wallet signs pool txs. Naming your
+          pool uses your Salva Wallet via relay.
         </p>
       </div>
 
       {/* Pool list */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-salvaGold/20 border-t-salvaGold rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-400/20 border-t-blue-400 rounded-full animate-spin" />
         </div>
       ) : pools.length === 0 ? (
         <motion.div
@@ -1530,18 +1519,18 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           animate={{ opacity: 1 }}
           className="py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
         >
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🏊</span>
           </div>
           <p className="font-black text-white/60 text-sm mb-1">No pools yet</p>
           <p className="text-[11px] text-white/60">
-            Deploy your first pool to start earning as an LP
+            Deploy your first pool to start earning as an LP on Ethereum Chain
           </p>
         </motion.div>
       ) : (
         <div className="space-y-3">
           {pools.map((pool, i) => (
-            <PoolCard
+            <L1PoolCard
               key={pool.poolAddress}
               pool={pool}
               index={i}
@@ -1551,21 +1540,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 setShowSubModal(true);
               }}
               onRename={() => {
-                if (pool.poolName) {
-                  setRenamingPool(pool);
-                  setRenameInput("");
-                  setRenameRegistry(
-                    registries.length === 1 ? registries[0] : null,
-                  );
-                  setRenameStep("form");
-                  setRenameCheckResult(null);
-                  setRenamePrepared(null);
-                  setRenameError("");
-                  setShowRenameModal(true);
-                } else {
-                  setNewlyDeployedPool(pool.poolAddress);
-                  setShowNamePrompt(true);
-                }
+                setRenamingPool(pool);
+                setRenameInput("");
+                setRenameRegistry(
+                  registries.length === 1 ? registries[0] : null,
+                );
+                setRenameStep("form");
+                setRenameCheckResult(null);
+                setRenamePrepared(null);
+                setRenameError("");
+                setRenamePin("");
+                setShowRenameModal(true);
               }}
               onDelete={() => {
                 setDeletingPool(pool);
@@ -1576,19 +1561,18 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         </div>
       )}
 
-      {/* ── Manage Panel ── */}
+      {/* Manage Panel */}
       <AnimatePresence>
         {managingPool && (
-          <PoolManagePanel
+          <L1PoolManagePanel
             pool={managingPool}
-            user={user}
+            l1Account={l1Account}
+            l1Config={l1Config}
             showMsg={showMsg}
             onClose={() => setManagingPool(null)}
             onRefresh={async () => {
               await fetchMyPools(true);
-              const res = await fetch(
-                `${SALVA_API_URL}/api/pool/my/${user.safeAddress}`,
-              );
+              const res = await fetch(`${SALVA_API_URL}/api/pool/l1/my/${l1Account}`);
               const data = await res.json();
               const fresh = (data.pools || []).find(
                 (p) => p.poolAddress === managingPool.poolAddress,
@@ -1599,7 +1583,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Subscription Modal ── */}
+      {/* Subscribe Modal */}
       <AnimatePresence>
         {showSubModal && selectedPool && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -1618,16 +1602,16 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="p-8">
-                <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
-                  Marketplace
+                <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
+                  Marketplace · ETH CHAIN
                 </p>
                 <h3 className="text-xl font-black mb-1 text-white">
                   Publish Pool
                 </h3>
                 <p className="text-xs text-white/60 mb-5 leading-relaxed">
-                  Subscribe to list your pool on the SWAP marketplace.
+                  Your wallet transfers NGNs to treasury. Confirm in MetaMask.
                   {selectedPool.isPublished && " Remaining time is preserved."}
                 </p>
                 <div className="space-y-2 mb-5">
@@ -1637,15 +1621,15 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       onClick={() => setSubTier(tier.months)}
                       className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
                         subTier === tier.months
-                          ? "border-salvaGold bg-salvaGold/10"
-                          : "border-white/10 bg-white/5 hover:border-salvaGold/30"
+                          ? "border-blue-500 bg-blue-500/10"
+                          : "border-white/10 bg-white/5 hover:border-blue-500/30"
                       }`}
                     >
                       <span className="font-black text-sm text-white">
                         {tier.label}
                       </span>
                       <span
-                        className={`font-black text-sm ${subTier === tier.months ? "text-salvaGold" : "text-white/60"}`}
+                        className={`font-black text-sm ${subTier === tier.months ? "text-blue-400" : "text-white/60"}`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
@@ -1660,15 +1644,14 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      setShowSubModal(false);
-                      setPinAction("subscribe");
-                      setPinVisible(true);
-                    }}
+                    onClick={handleSubscribe}
                     disabled={subscribing}
-                    className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 shadow-lg shadow-salvaGold/20 transition-all"
+                    className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all"
                   >
-                    Subscribe
+                    {subscribing && (
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    )}
+                    {subscribing ? "Subscribing…" : "Subscribe"}
                   </button>
                 </div>
               </div>
@@ -1677,7 +1660,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Name Prompt ── */}
+      {/* Name Prompt */}
       <AnimatePresence>
         {showNamePrompt && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -1696,9 +1679,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="p-8">
-                <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🏷️</span>
                 </div>
                 <h3 className="text-xl font-black mb-2 text-white">
@@ -1706,9 +1689,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 </h3>
                 <p className="text-xs text-white/60 mb-2 leading-relaxed">
                   Give it a human-readable identity like{" "}
-                  <span className="text-salvaGold font-black">
-                    mypool@salva
-                  </span>
+                  <span className="text-blue-400 font-black">mypool@salva</span>
                 </p>
                 <p className="font-mono text-[10px] text-white/60 mb-6 break-all">
                   {newlyDeployedPool}
@@ -1723,10 +1704,32 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <button
                     onClick={() => {
                       setShowNamePrompt(false);
-                      if (onSwitchToLinkName && newlyDeployedPool)
-                        onSwitchToLinkName(newlyDeployedPool);
+                      // open rename modal for the newly deployed pool
+                      const newPool = pools.find(
+                        (p) =>
+                          p.poolAddress.toLowerCase() ===
+                          newlyDeployedPool?.toLowerCase(),
+                      );
+                      if (newPool) {
+                        setRenamingPool(newPool);
+                      } else {
+                        setRenamingPool({
+                          poolAddress: newlyDeployedPool,
+                          poolName: null,
+                        });
+                      }
+                      setRenameInput("");
+                      setRenameRegistry(
+                        registries.length === 1 ? registries[0] : null,
+                      );
+                      setRenameStep("form");
+                      setRenameCheckResult(null);
+                      setRenamePrepared(null);
+                      setRenameError("");
+                      setRenamePin("");
+                      setShowRenameModal(true);
                     }}
-                    className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                    className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                   >
                     Proceed
                   </button>
@@ -1737,7 +1740,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Delete Confirm ── */}
+      {/* Delete Confirm */}
       <AnimatePresence>
         {showDeleteConfirm && deletingPool && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
@@ -1762,27 +1765,11 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <span className="text-2xl">⚠️</span>
                 </div>
                 <h3 className="text-xl font-black mb-2 text-white">
-                  Delete Pool?
+                  Remove Pool?
                 </h3>
-                <p className="text-xs text-white/60 mb-1 leading-relaxed">
-                  Removes from registry. Contract stays on-chain.
+                <p className="text-xs text-white/60 mb-4 leading-relaxed">
+                  Removes from the Salva registry. Contract stays on-chain.
                 </p>
-                <p className="text-xs text-red-400 font-bold mb-4">
-                  Must have &lt;1,000 NGNs and &lt;$1 in stablecoins.
-                </p>
-                {deletingPool.poolName && (
-                  <div className="mb-5 px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-                    <p className="text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-1">
-                      Linked Name Detected
-                    </p>
-                    <p className="text-xs text-white/60 leading-relaxed">
-                      <span className="text-salvaGold font-black">
-                        {deletingPool.poolName}
-                      </span>{" "}
-                      will be automatically unlinked on-chain.
-                    </p>
-                  </div>
-                )}
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
@@ -1791,20 +1778,14 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     Cancel
                   </button>
                   <button
-                    onClick={() => {
-                      setShowDeleteConfirm(false);
-                      if (deletingPool.poolName) {
-                        setPinAction("delete");
-                        setPinVisible(true);
-                      } else executeDelete(null);
-                    }}
+                    onClick={handleDelete}
                     disabled={deleting}
                     className="flex-1 py-3.5 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
                   >
                     {deleting && (
                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    {deleting ? "Deleting…" : "Yes, Delete"}
+                    {deleting ? "Removing…" : "Yes, Remove"}
                   </button>
                 </div>
               </div>
@@ -1813,7 +1794,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Rename Modal ── */}
+      {/* Rename Modal — identical flow to L2 DeployPool */}
       <AnimatePresence>
         {showRenameModal && renamingPool && (
           <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
@@ -1835,15 +1816,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+              <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
 
               <div className="px-6 pt-5 pb-4 border-b border-white/[0.05] flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-0.5">
-                    Salva NS
+                  <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
+                    Salva NS · BASE CHAIN
                   </p>
-                  <h3 className="text-xl font-black text-white">Rename Pool</h3>
+                  <h3 className="text-xl font-black text-white">
+                    {renamingPool.poolName ? "Rename Pool" : "Name Pool"}
+                  </h3>
                   <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
                     {renamingPool.poolAddress}
                   </p>
@@ -1860,12 +1843,28 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               </div>
 
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
+                {/* L2 account required notice */}
+                {!l2User?.email && (
+                  <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                    <p className="text-xs font-black text-yellow-400 mb-1">
+                      Salva Wallet Required
+                    </p>
+                    <p className="text-[11px] text-white/60 leading-relaxed">
+                      Naming uses your Salva wallet via relay. Please{" "}
+                      <a href="/login" className="text-yellow-400 underline">
+                        log in to your Salva Wallet (Base)
+                      </a>{" "}
+                      first.
+                    </p>
+                  </div>
+                )}
+
                 {renamingPool.poolName && (
                   <div className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                     <span className="text-[10px] uppercase font-black text-white/60 tracking-widest flex-shrink-0">
                       Current
                     </span>
-                    <span className="text-salvaGold font-black text-sm truncate flex-1">
+                    <span className="text-blue-400 font-black text-sm truncate flex-1">
                       {renamingPool.poolName}
                     </span>
                     <span className="text-[9px] text-white/60 font-bold flex-shrink-0">
@@ -1874,6 +1873,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   </div>
                 )}
 
+                {/* FORM */}
                 {renameStep === "form" && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
@@ -1882,11 +1882,11 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   >
                     <div>
                       <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                        New Name
+                        Name
                       </label>
                       <input
                         type="text"
-                        placeholder="newpoolname"
+                        placeholder="poolname"
                         value={renameInput}
                         onChange={(e) => {
                           setRenameInput(
@@ -1900,7 +1900,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         className={darkInput}
                       />
                       {renameInput && renameRegistry && (
-                        <p className="text-[10px] text-salvaGold/60 font-bold mt-1.5 ml-1">
+                        <p className="text-[10px] text-blue-400/60 font-bold mt-1.5 ml-1">
                           Preview: {renameInput}
                           {renameRegistry.nspace}
                         </p>
@@ -1933,37 +1933,41 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     <button
                       onClick={handleRenameCheck}
                       disabled={
-                        renameChecking || !renameInput || !renameRegistry
+                        renameChecking ||
+                        !renameInput ||
+                        !renameRegistry ||
+                        !l2User?.email
                       }
-                      className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
+                      className="w-full py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                     >
                       {renameChecking && (
-                        <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       )}
                       {renameChecking ? "Checking…" : "Check Availability"}
                     </button>
                   </motion.div>
                 )}
 
+                {/* CONFIRM */}
                 {renameStep === "confirm" && renameCheckResult && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="space-y-4"
                   >
-                    <div className="p-5 rounded-2xl bg-salvaGold/8 border border-salvaGold/20 text-center">
-                      <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">
+                    <div className="p-5 rounded-2xl bg-blue-500/8 border border-blue-500/20 text-center">
+                      <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-400/50 mb-2">
                         Name Available
                       </p>
-                      <p className="text-2xl font-black text-salvaGold">
+                      <p className="text-2xl font-black text-blue-400">
                         {renameCheckResult.welded}
                       </p>
                     </div>
 
                     {renameFeeLoading ? (
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
-                        <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-                        <p className="text-xs text-salvaGold font-bold">
+                        <div className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin flex-shrink-0" />
+                        <p className="text-xs text-blue-400 font-bold">
                           Fetching registration fee…
                         </p>
                       </div>
@@ -1977,7 +1981,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         </div>
                         <p className="font-black text-white text-sm">
                           {renameFee?.toLocaleString()}{" "}
-                          <span className="text-salvaGold text-xs">NGNs</span>
+                          <span className="text-blue-400 text-xs">NGNs</span>
                         </p>
                       </div>
                     ) : renameFee === 0 ? (
@@ -2004,7 +2008,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                           unlinked on-chain
                           <br />
                           2.{" "}
-                          <span className="text-salvaGold font-black">
+                          <span className="text-blue-400 font-black">
                             {renameCheckResult.welded}
                           </span>{" "}
                           linked to this pool
@@ -2031,10 +2035,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       <button
                         onClick={handleRenamePrepare}
                         disabled={renameLoading || renameFeeLoading}
-                        className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20 transition-all"
+                        className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
                       >
                         {renameLoading && (
-                          <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         )}
                         {renameLoading ? "Preparing…" : "Confirm & Enter PIN"}
                       </button>
@@ -2042,6 +2046,60 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   </motion.div>
                 )}
 
+                {/* PIN */}
+                {renameStep === "pin" && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
+                  >
+                    <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                      <span className="text-xl">🔐</span>
+                    </div>
+                    <div>
+                      <p className="font-black text-white text-lg">
+                        Salva Wallet Transaction PIN
+                      </p>
+                      <p className="text-[11px] text-white/60 mt-1">
+                        Authorise the on-chain name link via your Base Chain Wallet
+                      </p>
+                    </div>
+                    <input
+                      type="password"
+                      inputMode="numeric"
+                      pattern="\d{4}"
+                      maxLength="4"
+                      value={renamePin}
+                      onChange={(e) =>
+                        setRenamePin(e.target.value.replace(/\D/g, ""))
+                      }
+                      placeholder="••••"
+                      autoFocus
+                      className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
+                    />
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setRenameStep("confirm")}
+                        disabled={renamePinLoading}
+                        className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleRenamePinConfirm}
+                        disabled={renamePinLoading || renamePin.length !== 4}
+                        className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                      >
+                        {renamePinLoading && (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        )}
+                        {renamePinLoading ? "Signing…" : "Confirm"}
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* RENAMING */}
                 {renameStep === "renaming" && (
                   <motion.div
                     initial={{ opacity: 0 }}
@@ -2049,17 +2107,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
                   >
                     <div className="relative w-14 h-14 mx-auto">
-                      <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
-                      <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
-                      <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-                        <span className="text-salvaGold text-sm font-black">
+                      <div className="absolute inset-0 rounded-full border-2 border-blue-400/20" />
+                      <div className="absolute inset-0 rounded-full border-2 border-t-blue-400 animate-spin" />
+                      <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <span className="text-blue-400 text-sm font-black">
                           ₦
                         </span>
                       </div>
                     </div>
-                    <p className="font-black text-white">Renaming on-chain…</p>
+                    <p className="font-black text-white">Naming on-chain…</p>
                     <p className="text-xs text-white/60">
-                      Unlinking old, linking new · 60–90 seconds
+                      Broadcasting via Base relay · 30–90 seconds
                     </p>
                   </motion.div>
                 )}
@@ -2068,31 +2126,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </div>
         )}
       </AnimatePresence>
-
-      {/* ── PIN Modal ── */}
-      <AnimatePresence>
-        {pinVisible && (
-          <PinModal
-            title="Enter Transaction PIN"
-            subtitle={
-              pinAction === "deploy"
-                ? "Sign pool deployment via your Safe"
-                : pinAction === "subscribe"
-                  ? "Authorize subscription payment from your Safe"
-                  : pinAction === "delete"
-                    ? "Authorize pool deletion via your Safe"
-                    : pinAction === "rename"
-                      ? "Sign rename — unlink old, link new"
-                      : "Enter your PIN"
-            }
-            onConfirm={handlePinConfirm}
-            onCancel={() => setPinVisible(false)}
-            loading={pinLoading}
-          />
-        )}
-      </AnimatePresence>
     </motion.div>
   );
 };
 
-export default DeployPool;
+export default L1DeployPool;

@@ -31,11 +31,19 @@ function computeFee(amountNgn) {
   return Math.round(amountNgn * 0.005); // 0.5%
 }
 
-function getBackendSigner() {
-  const rpcUrl =
-    process.env.NODE_ENV === "production"
-      ? process.env.BASE_MAINNET_RPC_URL
-      : process.env.BASE_SEPOLIA_RPC_URL;
+function getBackendSigner(isL1 = false) {
+  let rpcUrl;
+  if (isL1) {
+    rpcUrl =
+      process.env.NODE_ENV === "production"
+        ? process.env.ETH_MAINNET_RPC_URL
+        : process.env.ETH_SEPOLIA_RPC_URL;
+  } else {
+    rpcUrl =
+      process.env.NODE_ENV === "production"
+        ? process.env.BASE_MAINNET_RPC_URL
+        : process.env.BASE_SEPOLIA_RPC_URL;
+  }
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const pk = process.env.MANAGER_PRIVATE_KEY;
   if (!pk) throw new Error("MANAGER_PRIVATE_KEY not set in .env");
@@ -301,8 +309,11 @@ function sellRejectedSellerEmail(username, amount) {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/initiate", async (req, res) => {
   try {
-    const { safeAddress, amountNgn } = req.body;
-    console.log(`💳 initiate: safeAddress=${safeAddress} amount=${amountNgn}`);
+    const { safeAddress, amountNgn, isL1: isL1Flag, recipientAddress } = req.body;
+    const isL1 = isL1Flag === true || isL1Flag === "true";
+    const chain = isL1 ? "ethereum" : "base";
+    const mintToAddress = (isL1 && recipientAddress) ? recipientAddress.toLowerCase() : safeAddress.toLowerCase();
+    console.log(`💳 initiate: safeAddress=${safeAddress} amount=${amountNgn} isL1=${isL1} mintTo=${mintToAddress}`);
 
     if (!safeAddress || !safeAddress.startsWith("0x"))
       return res.status(400).json({ message: "Invalid safeAddress" });
@@ -322,9 +333,11 @@ router.post("/initiate", async (req, res) => {
     const acctNum = process.env.SELLER_ACCOUNT_NUMBER || "0000000000";
     const bankName = process.env.SELLER_BANK_NAME || "OPay";
 
+    const networkLabel = isL1 ? "Ethereum L1" : "Base Mainnet";
+    const mintToDisplay = isL1 ? mintToAddress : mintToAddress;
     const bankMsg = {
       sender: "seller",
-      text: `👋 Hi **${user.username}**! Transfer exactly **₦${amount.toLocaleString()}** to:\n\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n${feeNgn > 0 ? `⚡ Fee: **${feeNgn} NGNs** deducted → you receive **${mintAmount.toLocaleString()} NGNs**` : `✅ No fee → you receive **${mintAmount.toLocaleString()} NGNs**`}\n\nTap **"I Have Paid"** after sending.`,
+      text: `👋 Hi **${user.username}**! Transfer exactly **₦${amount.toLocaleString()}** to:\n\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n${feeNgn > 0 ? `⚡ Fee: **${feeNgn} NGNs** deducted → you receive **${mintAmount.toLocaleString()} NGNs**` : `✅ No fee → you receive **${mintAmount.toLocaleString()} NGNs**`}\n\n🌐 Network: **${networkLabel}**\n📍 Minting to: \`${mintToDisplay.slice(0, 10)}…${mintToDisplay.slice(-6)}\`\n\nTap **"I Have Paid"** after sending.`,
       createdAt: new Date(),
     };
 
@@ -344,6 +357,9 @@ router.post("/initiate", async (req, res) => {
       mintRequest.amountNgn = amount;
       mintRequest.feeNgn = feeNgn;
       mintRequest.mintAmountNgn = mintAmount;
+      mintRequest.isL1 = isL1;
+      mintRequest.chain = chain;
+      mintRequest.mintToAddress = mintToAddress;
       mintRequest.receiptImageBase64 = null;
       mintRequest.sellerRead = false;
       mintRequest.txHash = null;
@@ -359,6 +375,9 @@ router.post("/initiate", async (req, res) => {
         amountNgn: amount,
         feeNgn,
         mintAmountNgn: mintAmount,
+        isL1,
+        chain,
+        mintToAddress: mintToAddress,
         status: "pending",
         sellerRead: false,
         messages: [bankMsg],
@@ -504,26 +523,42 @@ router.post("/confirm-mint", async (req, res) => {
     await mintRequest.save();
     console.log(`⏳ Status → minting for ${requestId}`);
 
-    const ngnTokenAddress = process.env.NGN_TOKEN_ADDRESS;
-    if (!ngnTokenAddress) throw new Error("NGN_TOKEN_ADDRESS not set in .env");
+    const isL1 = mintRequest.isL1 === true;
+    const isProd = process.env.NODE_ENV === "production";
 
-    const signer = getBackendSigner();
+    const ngnTokenAddress = isL1
+      ? (isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS)
+      : process.env.NGN_TOKEN_ADDRESS;
+
+    if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1 ? "L1" : "L2"}`);
+
+    const mintTarget = mintRequest.mintToAddress || mintRequest.userSafeAddress;
+
+    const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
     const decimals = await ngnToken.decimals();
     const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
 
-    console.log(`🔗 Calling mint(${mintRequest.userSafeAddress}, ${mintAmt}) on ${ngnTokenAddress}`);
-    const tx = await ngnToken.mint(mintRequest.userSafeAddress, mintAmt);
+    const networkLabel = isL1 ? (isProd ? "Ethereum Mainnet" : "Ethereum Sepolia") : "Base Mainnet";
+    console.log(`🔗 Calling mint(${mintTarget}, ${mintAmt}) on ${ngnTokenAddress} [${networkLabel}]`);
+    const tx = await ngnToken.mint(mintTarget, mintAmt);
     console.log(`⏳ Tx submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();
     if (receipt.status !== 1) throw new Error("Mint transaction reverted");
     console.log(`✅ Mint confirmed: ${tx.hash}`);
 
+    const networkLabelSuccess = isL1
+      ? (isProd ? "Ethereum Mainnet" : "Ethereum Sepolia")
+      : "Base Mainnet";
+    const explorerBase = isL1
+      ? (isProd ? "https://etherscan.io" : "https://sepolia.etherscan.io")
+      : (isProd ? "https://basescan.org" : "https://sepolia.basescan.org");
+
     const successMsg = {
       sender: "seller",
       isMinted: true,
-      text: `🎉 **${mintRequest.mintAmountNgn.toLocaleString()} NGNs** minted to your wallet!\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet`,
+      text: `🎉 **${mintRequest.mintAmountNgn.toLocaleString()} NGNs** minted to your wallet!\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSuccess}`,
       createdAt: new Date(),
     };
 
@@ -715,8 +750,11 @@ router.get("/unread-count", async (req, res) => {
 // ══════════════════════════════════════════════════════════════════════════════
 router.post("/initiate-sell", async (req, res) => {
   try {
-    const { safeAddress, amountNgn, bankName, accountNumber, accountName } = req.body;
-    console.log(`🔥 initiate-sell: safeAddress=${safeAddress} amount=${amountNgn}`);
+    const { safeAddress, amountNgn, bankName, accountNumber, accountName, isL1: isL1Flag, burnFromAddress } = req.body;
+    const isL1 = isL1Flag === true || isL1Flag === "true";
+    const chain = isL1 ? "ethereum" : "base";
+    const isProd = process.env.NODE_ENV === "production";
+    console.log(`🔥 initiate-sell: safeAddress=${safeAddress} amount=${amountNgn} isL1=${isL1}`);
 
     if (!safeAddress || !safeAddress.startsWith("0x"))
       return res.status(400).json({ message: "Invalid safeAddress" });
@@ -731,13 +769,19 @@ router.post("/initiate-sell", async (req, res) => {
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const ngnTokenAddress = process.env.NGN_TOKEN_ADDRESS;
-    if (!ngnTokenAddress) throw new Error("NGN_TOKEN_ADDRESS not set in .env");
+    const ngnTokenAddress = isL1
+      ? (isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS)
+      : process.env.NGN_TOKEN_ADDRESS;
 
-    const signer = getBackendSigner();
+    if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1 ? "L1" : "L2"}`);
+
+    // For L1: burn from the connected EOA wallet, not the L2 Safe
+    const burnTarget = (isL1 && burnFromAddress) ? burnFromAddress.toLowerCase() : safeAddress.toLowerCase();
+
+    const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_BURN_ABI, signer);
     const decimals = await ngnToken.decimals();
-    const balanceWei = await ngnToken.balanceOf(safeAddress.toLowerCase());
+    const balanceWei = await ngnToken.balanceOf(burnTarget);
     const balanceHuman = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
     if (amount > balanceHuman) {
@@ -756,8 +800,10 @@ router.post("/initiate-sell", async (req, res) => {
     }
 
     const burnAmt = ethers.parseUnits(amount.toString(), decimals);
-    console.log(`🔥 Calling burn(${safeAddress}, ${burnAmt}) on ${ngnTokenAddress}`);
-    const tx = await ngnToken.burn(safeAddress.toLowerCase(), burnAmt);
+    console.log(
+      `🔥 Calling burn(${burnTarget}, ${burnAmt}) on ${ngnTokenAddress}`,
+    );
+    const tx = await ngnToken.burn(burnTarget, burnAmt);
     console.log(`⏳ Burn tx submitted: ${tx.hash}`);
 
     const receipt = await tx.wait();
@@ -767,7 +813,7 @@ router.post("/initiate-sell", async (req, res) => {
     if (Transaction) {
       try {
         await Transaction.create({
-          fromAddress: safeAddress.toLowerCase(),
+          fromAddress: burnTarget,
           toAddress: ngnTokenAddress,
           fromUsername: user.username,
           toUsername: "Salva Burn",
@@ -784,10 +830,14 @@ router.post("/initiate-sell", async (req, res) => {
       }
     }
 
+    const networkLabelSell = isL1
+      ? (isProd ? "Ethereum Mainnet" : "Ethereum Sepolia")
+      : "Base Mainnet";
+
     const sellMsg = {
       sender: "user",
       isBurned: true,
-      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet`,
+      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
       createdAt: new Date(),
     };
 
@@ -797,6 +847,8 @@ router.post("/initiate-sell", async (req, res) => {
 
     if (mintRequest && ["minted", "rejected", "burned", "sell_completed"].includes(mintRequest.status)) {
       mintRequest.type = "sell";
+      mintRequest.isL1 = isL1;
+      mintRequest.chain = chain;
       mintRequest.status = "paid";
       mintRequest.amountNgn = amount;
       mintRequest.feeNgn = 0;
@@ -814,6 +866,8 @@ router.post("/initiate-sell", async (req, res) => {
         userEmail: user.email,
         username: user.username,
         type: "sell",
+        isL1,
+        chain,
         amountNgn: amount,
         feeNgn: 0,
         mintAmountNgn: amount,
@@ -956,23 +1010,47 @@ router.post("/mark-minted", async (req, res) => {
     mintRequest.status = "minting";
     await mintRequest.save();
 
-    const ngnTokenAddress = process.env.NGN_TOKEN_ADDRESS;
-    if (!ngnTokenAddress) throw new Error("NGN_TOKEN_ADDRESS not set in .env");
+    const isL1Req = mintRequest.isL1 === true;
+    const isProdReq = process.env.NODE_ENV === "production";
 
-    const signer = getBackendSigner();
-    const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
+    const ngnTokenAddress = isL1Req
+      ? isProdReq
+        ? process.env.L1_NGN_TOKEN_ADDRESS
+        : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+      : process.env.NGN_TOKEN_ADDRESS;
+
+    if (!ngnTokenAddress)
+      throw new Error(`NGN token address not set for ${isL1Req ? "L1" : "L2"}`);
+
+    const mintTargetReq =
+      mintRequest.mintToAddress || mintRequest.userSafeAddress;
+    const signer = getBackendSigner(isL1Req);
+    const ngnToken = new ethers.Contract(
+      ngnTokenAddress,
+      ERC20_MINT_ABI,
+      signer,
+    );
     const decimals = await ngnToken.decimals();
-    const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
+    const mintAmt = ethers.parseUnits(
+      mintRequest.mintAmountNgn.toString(),
+      decimals,
+    );
 
-    const tx = await ngnToken.mint(mintRequest.userSafeAddress, mintAmt);
+    const tx = await ngnToken.mint(mintTargetReq, mintAmt);
     const receipt = await tx.wait();
     if (receipt.status !== 1) throw new Error("Mint transaction reverted");
     console.log(`✅ mark-minted confirmed: ${tx.hash}`);
 
+    const networkLabelMark = isL1Req
+      ? isProdReq
+        ? "Ethereum Mainnet"
+        : "Ethereum Sepolia"
+      : "Base Mainnet";
+
     const successMsg = {
       sender: "seller",
       isMinted: true,
-      text: `🎉 **${mintRequest.mintAmountNgn.toLocaleString()} NGNs** minted to your wallet!\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 Base Mainnet`,
+      text: `🎉 **${mintRequest.mintAmountNgn.toLocaleString()} NGNs** minted to your wallet!\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelMark}`,
       createdAt: new Date(),
     };
 

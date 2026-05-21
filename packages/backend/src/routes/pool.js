@@ -76,38 +76,85 @@ async function waitForTxReceipt(txHash, timeoutMs = 120_000) {
   }
 }
 
-async function fetchPoolOnChain(poolAddress) {
-  const ngnAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
-const cNgnAddr = cleanAddr(process.env.CNGN_CONTRACT_ADDRESS);
-const usdtAddr = cleanAddr(process.env.USDT_CONTRACT_ADDRESS);
-const usdcAddr = cleanAddr(process.env.USDC_CONTRACT_ADDRESS);
+async function fetchPoolOnChain(poolAddress, isL1 = false) {
+  const isProd = process.env.NODE_ENV === "production";
 
-const pool = new ethers.Contract(ethers.getAddress(poolAddress), POOL_VIEW_ABI, provider);
+  // L1 uses ETH RPC + L1 token addresses + balanceOf (raw transfer approach)
+  // L2 uses Base RPC + L2 token addresses + availableLiquidity (internal accounting)
+  let ngnAddr, cNgnAddr, usdtAddr, usdcAddr, poolProvider;
 
-const settled = await Promise.allSettled([
-  pool.availableLiquidity(ngnAddr),
-  pool.availableLiquidity(cNgnAddr),
-  pool.availableLiquidity(usdtAddr),
-  pool.availableLiquidity(usdcAddr),
-  pool._getBuyRate(),
-  pool._getSellRate(),
-  pool.getMinuimumNgnAmount(),
-  pool.getMinuimumTokenAmount(),
-]);
+  if (isL1) {
+    ngnAddr  = cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS);
+    cNgnAddr = cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS);
+    usdtAddr = cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS);
+    usdcAddr = cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS);
+    const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+    poolProvider = new ethers.JsonRpcProvider(l1Rpc);
+  } else {
+    ngnAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
+    cNgnAddr = cleanAddr(process.env.CNGN_CONTRACT_ADDRESS);
+    usdtAddr = cleanAddr(process.env.USDT_CONTRACT_ADDRESS);
+    usdcAddr = cleanAddr(process.env.USDC_CONTRACT_ADDRESS);
+    poolProvider = provider; // existing Base provider from walletSigner
+  }
 
-const val = (r) => (r.status === "fulfilled" ? r.value : 0n);
-const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
+  const ERC20_BAL_ABI = ["function balanceOf(address) view returns (uint256)"];
+  const poolAddr = ethers.getAddress(poolAddress);
+  const poolContract = new ethers.Contract(poolAddr, POOL_VIEW_ABI, poolProvider);
 
-return {
-  ngnLiquidity:   ethers.formatUnits(ngnLiq,   6),
-  cNgnLiquidity:  ethers.formatUnits(cNgnLiq,  6),
-  usdtLiquidity:  ethers.formatUnits(usdtLiq,  6),
-  usdcLiquidity:  ethers.formatUnits(usdcLiq,  6),
-  buyRate:        ethers.formatUnits(buyRate,  6),
-  sellRate:       ethers.formatUnits(sellRate, 6),
-  minNgnAmount:   ethers.formatUnits(minNgn,   6),
-  minTokenAmount: ethers.formatUnits(minToken, 6),
-};
+  if (isL1) {
+    // L1: tokens were sent via raw transfer — read balanceOf on each token contract
+    const settled = await Promise.allSettled([
+      ngnAddr  ? new ethers.Contract(ethers.getAddress(ngnAddr),  ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
+      cNgnAddr ? new ethers.Contract(ethers.getAddress(cNgnAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
+      usdtAddr ? new ethers.Contract(ethers.getAddress(usdtAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
+      usdcAddr ? new ethers.Contract(ethers.getAddress(usdcAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
+      poolContract._getBuyRate(),
+      poolContract._getSellRate(),
+      poolContract.getMinuimumNgnAmount(),
+      poolContract.getMinuimumTokenAmount(),
+    ]);
+
+    const val = (r) => (r.status === "fulfilled" ? r.value : 0n);
+    const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
+
+    return {
+      ngnLiquidity:   ethers.formatUnits(ngnLiq,   6),
+      cNgnLiquidity:  ethers.formatUnits(cNgnLiq,  6),
+      usdtLiquidity:  ethers.formatUnits(usdtLiq,  6),
+      usdcLiquidity:  ethers.formatUnits(usdcLiq,  6),
+      buyRate:        ethers.formatUnits(buyRate,  6),
+      sellRate:       ethers.formatUnits(sellRate, 6),
+      minNgnAmount:   ethers.formatUnits(minNgn,   6),
+      minTokenAmount: ethers.formatUnits(minToken, 6),
+    };
+  } else {
+    // L2: uses availableLiquidity internal accounting
+    const settled = await Promise.allSettled([
+      poolContract.availableLiquidity(ngnAddr),
+      poolContract.availableLiquidity(cNgnAddr),
+      poolContract.availableLiquidity(usdtAddr),
+      poolContract.availableLiquidity(usdcAddr),
+      poolContract._getBuyRate(),
+      poolContract._getSellRate(),
+      poolContract.getMinuimumNgnAmount(),
+      poolContract.getMinuimumTokenAmount(),
+    ]);
+
+    const val = (r) => (r.status === "fulfilled" ? r.value : 0n);
+    const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
+
+    return {
+      ngnLiquidity:   ethers.formatUnits(ngnLiq,   6),
+      cNgnLiquidity:  ethers.formatUnits(cNgnLiq,  6),
+      usdtLiquidity:  ethers.formatUnits(usdtLiq,  6),
+      usdcLiquidity:  ethers.formatUnits(usdcLiq,  6),
+      buyRate:        ethers.formatUnits(buyRate,  6),
+      sellRate:       ethers.formatUnits(sellRate, 6),
+      minNgnAmount:   ethers.formatUnits(minNgn,   6),
+      minTokenAmount: ethers.formatUnits(minToken, 6),
+    };
+  }
 }
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────────
@@ -396,14 +443,23 @@ router.post("/toggle-pause", async (req, res) => {
 
 router.post("/quote", async (req, res) => {
   try {
-    const { poolAddress, swapFn, amount } = req.body;
+    const { poolAddress, swapFn, amount, isL1 } = req.body;
     const cleanPool = cleanAddr(poolAddress);
 
     if (!cleanPool || !swapFn || !amount)
       return res.status(400).json({ message: "Missing fields" });
 
     const amountWei = ethers.parseUnits(String(parseFloat(amount).toFixed(6)), 6);
-    const pool      = new ethers.Contract(ethers.getAddress(cleanPool), POOL_VIEW_ABI, provider);
+
+    const quoteProvider = (isL1 === true || isL1 === "true")
+      ? new ethers.JsonRpcProvider(
+          process.env.NODE_ENV === "production"
+            ? process.env.ETH_MAINNET_RPC_URL
+            : process.env.ETH_SEPOLIA_RPC_URL
+        )
+      : provider;
+
+    const pool = new ethers.Contract(ethers.getAddress(cleanPool), POOL_VIEW_ABI, quoteProvider);
 
     const [buyRate, sellRate] = await Promise.all([
       pool._getBuyRate(),
@@ -635,7 +691,7 @@ router.get("/published", async (req, res) => {
     const enriched = await Promise.all(
       pools.map(async (p) => {
         try {
-          const onChain = await fetchPoolOnChain(p.poolAddress);
+          const onChain = await fetchPoolOnChain(p.poolAddress, false);
           return { ...p.toJSON(), ...onChain };
         } catch {
           return { ...p.toJSON(), fetchError: true };
@@ -670,38 +726,32 @@ router.get("/published", async (req, res) => {
 
 router.get("/trust-status", async (req, res) => {
   try {
-    const cleanUser   = cleanAddr(req.query.userSafeAddress);
-    const cleanPool   = cleanAddr(req.query.poolAddress);
+    const cleanUser = cleanAddr(req.query.userSafeAddress);
+    const cleanPool = cleanAddr(req.query.poolAddress);
     const tokenSymbol = req.query.tokenSymbol;
 
     if (!cleanUser || !cleanPool || !tokenSymbol)
-      return res.status(400).json({ message: "Missing query params: userSafeAddress, poolAddress, tokenSymbol" });
+      return res
+        .status(400)
+        .json({
+          message:
+            "Missing query params: userSafeAddress, poolAddress, tokenSymbol",
+        });
 
     const cleanToken = resolveTokenSymbol(tokenSymbol);
     if (!cleanToken)
-      return res.status(400).json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
+      return res
+        .status(400)
+        .json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
 
     const record = await TrustedPool.findOne({
       userSafeAddress: cleanUser,
-      poolAddress:     cleanPool,
-      tokenAddress:    cleanToken,
+      poolAddress: cleanPool,
+      tokenAddress: cleanToken,
     });
 
-    let onChainTrusted = false;
-    if (record) {
-      try {
-        const tokenContract = new ethers.Contract(ethers.getAddress(cleanToken), ERC20_ABI, provider);
-        const allowance = await tokenContract.allowance(
-          ethers.getAddress(cleanUser),
-          ethers.getAddress(cleanPool)
-        );
-        onChainTrusted = allowance >= BigInt("340282366920938463463374607431768211456");
-      } catch {
-        onChainTrusted = false;
-      }
-    }
-
-    res.json({ trusted: !!record && onChainTrusted });
+    // DB record is the source of truth for L2 — Safe wallet approvals are via relay, always valid
+    res.json({ trusted: !!record });
   } catch (err) {
     console.error("❌ /pool/trust-status:", err.message);
     res.status(500).json({ message: err.message });
@@ -765,7 +815,8 @@ router.post("/swap", async (req, res) => {
 
     const cleanUser    = cleanAddr(userSafeAddress);
     const cleanPool    = cleanAddr(poolAddress);
-    const cleanNgn     = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
+    const ngnSymbol = req.body.ngnToken === "CNGN" ? "CNGN" : "NGN";
+    const cleanNgn = resolveTokenSymbol(ngnSymbol);
     const cleanStable  = resolveTokenSymbol(stableToken);
     const cleanTokenIn = resolveTokenSymbol(tokenIn);
 
@@ -992,10 +1043,8 @@ const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq] = await Promise.all([
       console.warn(`⚠️ Pool "${pool.poolName}" has a name but no privateKey provided — skipping auto-unlink`);
     }
 
-    // ── Soft-delete from DB ───────────────────────────────────────────────
-    pool.deleted     = true;
-    pool.isPublished = false;
-    await pool.save();
+    // ── Hard-delete from DB ───────────────────────────────────────────────
+    await Pool.deleteOne({ poolAddress: cleanPool, ownerSafeAddress: cleanOwner });
 
     res.json({ success: true, message: "Pool removed from registry." });
   } catch (err) {
@@ -1069,6 +1118,414 @@ router.post("/set-mins", async (req, res) => {
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error("❌ /pool/set-mins:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// L1 ROUTES — use separate l1DB (salva-l1 database), NOT the L2 Pool model
+// Pool addresses on L1 (Ethereum) are separate from L2 (Base) pools.
+// Users swap on L1 pools from the L1 page, never mixed with L2.
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Lazy-load L1 models from the L1 DB connection.
+// We lazy-load (inside each route) to avoid issues with connection timing.
+function getL1Models() {
+  const l1DB       = require("../services/l1db");
+  const PoolSchema = require("../models/Pool").schema;
+  const PoolSubSchema = require("../models/PoolSubscription").schema;
+  const TrustedPoolSchema = require("../models/TrustedPool").schema;
+
+  // .model() is idempotent — safe to call multiple times
+  const PoolL1         = l1DB.models.Pool         || l1DB.model("Pool",         PoolSchema);
+  const PoolSubL1      = l1DB.models.PoolSubscription || l1DB.model("PoolSubscription", PoolSubSchema);
+  const TrustedPoolL1  = l1DB.models.TrustedPool   || l1DB.model("TrustedPool",  TrustedPoolSchema);
+
+  return { PoolL1, PoolSubL1, TrustedPoolL1 };
+}
+
+// ── L1: Register pool ─────────────────────────────────────────────────────────
+// Called after the frontend deploys a pool on-chain directly via MetaMask.
+// No relay involved — frontend already did the on-chain deploy, this just
+// records the pool in the L1 database (salva-l1) so it can be managed.
+router.post("/register", async (req, res) => {
+  try {
+    const { poolAddress, ownerSafeAddress } = req.body;
+    const cleanPool  = cleanAddr(poolAddress);
+    const cleanOwner = cleanAddr(ownerSafeAddress);
+
+    if (!cleanPool || !cleanOwner)
+      return res.status(400).json({ message: "Missing poolAddress or ownerSafeAddress" });
+
+    const { PoolL1 } = getL1Models();
+
+    const existing = await PoolL1.findOne({ poolAddress: cleanPool });
+    if (existing)
+      return res.json({ success: true, pool: existing.toJSON(), alreadyExists: true });
+
+    const pool = await PoolL1.create({
+      poolAddress:      cleanPool,
+      ownerSafeAddress: cleanOwner,
+    });
+
+    console.log(`✅ L1 Pool registered: ${cleanPool} by ${cleanOwner}`);
+    res.json({ success: true, pool: pool.toJSON() });
+  } catch (err) {
+    console.error("❌ /pool/register:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Subscribe directly ────────────────────────────────────────────────────
+// Called after the user has already transferred NGNs directly from their
+// MetaMask wallet to the L1 treasury contract on-chain.
+// This route just records the subscription in the L1 DB and publishes the pool.
+// No relay, no Safe SDK — the on-chain transfer already happened.
+router.post("/subscribe-direct", async (req, res) => {
+  try {
+    const { poolAddress, ownerSafeAddress, months, txHash } = req.body;
+    const cleanPool  = cleanAddr(poolAddress);
+    const cleanOwner = cleanAddr(ownerSafeAddress);
+
+    if (!cleanPool || !cleanOwner)
+      return res.status(400).json({ message: "Missing required fields" });
+
+    const validMonths = [1, 2, 6, 12];
+    const m = Number(months);
+    if (!validMonths.includes(m))
+      return res.status(400).json({ message: "months must be 1, 2, 6, or 12" });
+
+    const { PoolL1, PoolSubL1 } = getL1Models();
+
+    const pool = await PoolL1.findOne({
+      poolAddress:      cleanPool,
+      ownerSafeAddress: cleanOwner,
+      deleted:          false,
+    });
+    if (!pool) return res.status(404).json({ message: "L1 Pool not found" });
+
+    // Use the same FeeConfig as L2 for the monthly fee amount
+    let config = await FeeConfig.findById("main");
+    if (!config) config = await FeeConfig.create({ _id: "main" });
+
+    const monthlyFee = config.poolSubscriptionMonthlyFee || 5000;
+    const totalFee   = monthlyFee * m;
+    const now        = new Date();
+
+    // If there's still time left on the existing subscription, extend from
+    // that expiry date, not from now. Otherwise extend from now.
+    const base = pool.subscriptionExpiresAt && pool.subscriptionExpiresAt > now
+      ? pool.subscriptionExpiresAt
+      : now;
+
+    const newExpiry = addMonths(base, m);
+
+    // Record subscription in L1 DB
+    await PoolSubL1.create({
+      poolAddress:      cleanPool,
+      ownerSafeAddress: cleanOwner,
+      months:           m,
+      amountPaid:       totalFee,
+      txHash:           txHash || null,
+      startedAt:        base,
+      expiresAt:        newExpiry,
+    });
+
+    // Update pool record in L1 DB
+    pool.subscriptionExpiresAt = newExpiry;
+    pool.isPublished            = true;
+    pool.totalSubscribedMonths  = (pool.totalSubscribedMonths || 0) + m;
+    await pool.save();
+
+    console.log(`✅ L1 subscription recorded: ${cleanPool} (${m} months, tx: ${txHash || "none"})`);
+    res.json({
+      success: true,
+      subscriptionExpiresAt: newExpiry,
+      months:   m,
+      totalFee,
+    });
+  } catch (err) {
+    console.error("❌ /pool/subscribe-direct:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Delete pool directly ──────────────────────────────────────────────────
+// Soft-deletes the pool from the L1 database.
+// No on-chain relay needed — the contract stays on-chain forever.
+// If the pool has a name, the name was linked via the L2 relay system,
+// so the frontend (L1DeployPool) handles unlinking via L2 relay before calling here.
+router.post("/delete-direct", async (req, res) => {
+  try {
+    const { poolAddress, ownerSafeAddress } = req.body;
+    const cleanPool  = cleanAddr(poolAddress);
+    const cleanOwner = cleanAddr(ownerSafeAddress);
+
+    if (!cleanPool || !cleanOwner)
+      return res.status(400).json({ message: "Missing poolAddress or ownerSafeAddress" });
+
+    const { PoolL1 } = getL1Models();
+
+    const pool = await PoolL1.findOne({
+      poolAddress:      cleanPool,
+      ownerSafeAddress: cleanOwner,
+      deleted:          false,
+    });
+    if (!pool) return res.status(404).json({ message: "L1 Pool not found" });
+
+    await PoolL1.deleteOne({
+      poolAddress: cleanPool,
+      ownerSafeAddress: cleanOwner,
+    });
+
+    console.log(`✅ L1 Pool hard-deleted: ${cleanPool}`);
+    res.json({ success: true, message: "Pool removed from the L1 registry." });
+  } catch (err) {
+    console.error("❌ /pool/delete-direct:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Get my pools ──────────────────────────────────────────────────────────
+// Returns all L1 pools owned by the given address from the L1 database.
+// The regular /pool/my/:address route returns L2 pools (L2 DB).
+// This is separate so L1 and L2 pools never interfere.
+router.get("/l1/my/:ownerAddress", async (req, res) => {
+  try {
+    const cleanOwner = cleanAddr(req.params.ownerAddress);
+    if (!cleanOwner) return res.status(400).json({ message: "Invalid address" });
+
+    const { PoolL1 } = getL1Models();
+
+    const pools = await PoolL1.find({ ownerSafeAddress: cleanOwner, deleted: false });
+
+    // Enrich with on-chain data (liquidity, rates etc) — same as L2
+    const enriched = await Promise.all(
+      pools.map(async (p) => {
+        try {
+          const onChain = await fetchPoolOnChain(p.poolAddress, true);
+          return { ...p.toJSON(), ...onChain };
+        } catch {
+          return p.toJSON();
+        }
+      })
+    );
+
+    res.json({ pools: enriched });
+  } catch (err) {
+    console.error("❌ /pool/l1/my:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Set pool name in L1 DB ────────────────────────────────────────────────
+// Called after L2 relay successfully links a name to the L1 pool address.
+// Updates the poolName field in the L1 database record.
+router.post("/l1/set-name", async (req, res) => {
+  try {
+    const { poolAddress, ownerSafeAddress, poolName } = req.body;
+    const cleanPool  = cleanAddr(poolAddress);
+    const cleanOwner = cleanAddr(ownerSafeAddress);
+
+    if (!cleanPool || !cleanOwner || !poolName)
+      return res.status(400).json({ message: "Missing poolAddress, ownerSafeAddress, or poolName" });
+
+    const { PoolL1 } = getL1Models();
+
+    const pool = await PoolL1.findOne({
+      poolAddress:      cleanPool,
+      ownerSafeAddress: cleanOwner,
+      deleted:          false,
+    });
+    if (!pool) return res.status(404).json({ message: "L1 Pool not found" });
+
+    pool.poolName = poolName.trim();
+    await pool.save();
+
+    res.json({ success: true, pool: pool.toJSON() });
+  } catch (err) {
+    console.error("❌ /pool/l1/set-name:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Published pools (for L1 swap tab) ────────────────────────────────────
+// Returns published L1 pools from the L1 database.
+// The regular /pool/published route returns L2 pools.
+// L1 users can only swap in L1 pools, not L2 pools.
+router.get("/l1/published", async (req, res) => {
+  try {
+    const { search } = req.query;
+    const now = new Date();
+
+    const { PoolL1 } = getL1Models();
+
+    // Auto-expire lapsed subscriptions in L1 DB
+    await PoolL1.updateMany(
+      { isPublished: true, subscriptionExpiresAt: { $lt: now }, deleted: false },
+      { isPublished: false }
+    );
+
+    const query = { isPublished: true, deleted: false };
+    if (search?.trim()) {
+      const s = search.trim();
+      query.$or = [
+        { poolAddress: { $regex: s, $options: "i" } },
+        { poolName:    { $regex: s, $options: "i" } },
+      ];
+    }
+
+    const pools = await PoolL1.find(query);
+
+    const enriched = await Promise.all(
+      pools.map(async (p) => {
+        try {
+          const onChain = await fetchPoolOnChain(p.poolAddress, true);
+          return { ...p.toJSON(), ...onChain };
+        } catch {
+          return { ...p.toJSON(), fetchError: true };
+        }
+      })
+    );
+
+    // Same display rules as L2:
+    // buyPools:  USDT or USDC liquidity > 0 AND buyRate > 0
+    // sellPools: NGN liquidity > 0 AND sellRate > 0
+    const buyPools = enriched
+      .filter((p) =>
+        (parseFloat(p.usdtLiquidity || 0) > 0 || parseFloat(p.usdcLiquidity || 0) > 0) &&
+        parseFloat(p.buyRate || 0) > 0
+      )
+      .sort((a, b) => parseFloat(a.buyRate) - parseFloat(b.buyRate));
+
+    const sellPools = enriched
+      .filter((p) =>
+        parseFloat(p.ngnLiquidity || 0) > 0 &&
+        parseFloat(p.sellRate || 0) > 0
+      )
+      .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
+
+    res.json({ buyPools, sellPools });
+  } catch (err) {
+    console.error("❌ /pool/l1/published:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Trust status ──────────────────────────────────────────────────────────
+// Checks if a user has trusted a pool for a given token in the L1 DB.
+// The regular /pool/trust-status checks L2 TrustedPool.
+router.get("/l1/trust-status", async (req, res) => {
+  try {
+    const cleanUser = cleanAddr(req.query.userSafeAddress);
+    const cleanPool = cleanAddr(req.query.poolAddress);
+    const tokenSymbol = req.query.tokenSymbol;
+
+    if (!cleanUser || !cleanPool || !tokenSymbol)
+      return res
+        .status(400)
+        .json({
+          message:
+            "Missing query params: userSafeAddress, poolAddress, tokenSymbol",
+        });
+
+    // Resolve using L1 token addresses (from .env L1_* vars)
+    const isProd = process.env.NODE_ENV === "production";
+    function resolveL1Token(sym) {
+      switch (sym.toUpperCase()) {
+        case "NGN":
+          return cleanAddr(
+            isProd
+              ? process.env.L1_NGN_TOKEN_ADDRESS
+              : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS,
+          );
+        case "CNGN":
+          return cleanAddr(
+            isProd
+              ? process.env.L1_CNGN_CONTRACT_ADDRESS
+              : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS,
+          );
+        case "USDT":
+          return cleanAddr(
+            isProd
+              ? process.env.L1_USDT_CONTRACT_ADDRESS
+              : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS,
+          );
+        case "USDC":
+          return cleanAddr(
+            isProd
+              ? process.env.L1_USDC_CONTRACT_ADDRESS
+              : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS,
+          );
+        default:
+          return null;
+      }
+    }
+
+    const cleanToken = resolveL1Token(tokenSymbol);
+    if (!cleanToken)
+      return res
+        .status(400)
+        .json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
+
+    const { TrustedPoolL1 } = getL1Models();
+
+    const record = await TrustedPoolL1.findOne({
+      userSafeAddress: cleanUser,
+      poolAddress: cleanPool,
+      tokenAddress: cleanToken,
+    });
+
+    // Also verify the on-chain allowance is still there
+    // DB record is source of truth — if approve tx confirmed and recorded, trust is valid
+    res.json({ trusted: !!record });
+  } catch (err) {
+    console.error("❌ /pool/l1/trust-status:", err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── L1: Record trust (called after frontend does approve-max directly) ─────────
+// When the L1 user approves max spending on-chain via MetaMask, the frontend
+// calls this endpoint to record it in the L1 TrustedPool DB so future checks
+// know this pool is already approved.
+// No relay — the on-chain approval already happened via MetaMask.
+router.post("/l1/trust", async (req, res) => {
+  try {
+    const { userSafeAddress, poolAddress, tokenSymbol, txHash } = req.body;
+
+    const cleanUser  = cleanAddr(userSafeAddress);
+    const cleanPool  = cleanAddr(poolAddress);
+
+    if (!cleanUser || !cleanPool || !tokenSymbol)
+      return res.status(400).json({ message: "Missing userSafeAddress, poolAddress, or tokenSymbol" });
+
+    const isProd = process.env.NODE_ENV === "production";
+    function resolveL1Token(sym) {
+      switch (sym.toUpperCase()) {
+        case "NGN":  return cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS  : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS);
+        case "CNGN": return cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS);
+        case "USDT": return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS);
+        case "USDC": return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS);
+        default:     return null;
+      }
+    }
+
+    const cleanToken = resolveL1Token(tokenSymbol);
+    if (!cleanToken) return res.status(400).json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
+
+    const { TrustedPoolL1 } = getL1Models();
+
+    await TrustedPoolL1.findOneAndUpdate(
+      { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanToken },
+      { txHash: txHash || null, trustedAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    console.log(`✅ L1 trust recorded: ${cleanUser} → pool ${cleanPool} (${tokenSymbol})`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ /pool/l1/trust:", err.message);
     res.status(500).json({ message: err.message });
   }
 });

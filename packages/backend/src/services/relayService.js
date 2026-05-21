@@ -634,3 +634,71 @@ module.exports = {
   // Build encoded swap calldata to pass into sponsorApproveAndSwap / sponsorSwapOnly
   buildSwapCalldata: _buildSwapCalldata,
 };
+
+/**
+ * 
+ * There is a bug in this trusting pool logic.. 
+
+This is how its meant to be: 
+
+We have -
+
+ NGNs and cNGN -> Naira Stablecoins
+
+and 
+
+USDC and USDT -> USDT Stablecoins
+
+
+
+So, Trusted pools should be based on what the pool is taking from the persons wallet..
+
+which means:
+
+
+
+
+
+In the "Spend NGN, Get USD" section, trust pool logic and check should should work/revolve only around Naira Stablecoins, because those are the token the pool is pulling from the users wallet,. if i trust the pool on NGNs, it should only record trusted on NGNs and the pool address, so if select cNGN in the next swap, it will not show trusted, and there require approval.. and vice versa
+
+
+
+In the "Spend USD, Get NGN" section, trust pool logic and check should should work/revolve only around USD Stablecoins, because those are the token the pool is pulling from the users wallet. if i trust the pool on USDT, it should only record trusted on USDT and the pool address, so if select USDC in the next swap, it will not show trusted, and there require approval.. and vice versa
+
+
+
+apply this logic surgically, both on L2 (if needed) and L1 remember to explicitly tell me what and where to update, even if it means updating the trusted pool model
+
+
+
+
+
+const mongoose = require("mongoose");
+
+// Records that a user has approved type(uint256).max for a pool contract
+// so that subsequent swaps skip the approve step
+const TrustedPoolSchema = new mongoose.Schema({
+  userSafeAddress: {
+    type: String,
+    required: true,
+    lowercase: true,
+    index: true,
+  },
+  poolAddress: { type: String, required: true, lowercase: true, index: true },
+  // Which token was approved (NGNs, USDC, or USDT address)
+  tokenAddress: { type: String, required: true, lowercase: true },
+  txHash: { type: String, default: null },
+  trustedAt: { type: Date, default: Date.now },
+});
+
+// One trust record per (user, pool, token) triple
+TrustedPoolSchema.index(
+  { userSafeAddress: 1, poolAddress: 1, tokenAddress: 1 },
+  { unique: true },
+);
+
+module.exports = mongoose.model("TrustedPool", TrustedPoolSchema);
+
+
+
+ */

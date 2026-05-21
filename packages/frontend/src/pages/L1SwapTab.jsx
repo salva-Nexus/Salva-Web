@@ -1,5 +1,9 @@
+// src/pages/L1SwapTab.jsx
+/* eslint-env browser, es2020 */
+/* global BigInt */
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { ethers } from "ethers";
 import { SALVA_API_URL } from "../config";
 
 const POLL_MS = 60_000;
@@ -17,68 +21,58 @@ const fmtInput = (raw) => {
   return p.length > 1 ? p[0] + "." + p[1] : p[0];
 };
 
-// ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
-  const [pin, setPin] = useState("");
-  return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
-      <motion.div
-        className="absolute inset-0 bg-black/95 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        onClick={() => !loading && onCancel()}
-      />
-      <motion.div
-        className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-        initial={{ opacity: 0, scale: 0.92, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92 }}
-        transition={{ type: "spring", stiffness: 380, damping: 28 }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-        <div className="p-8 text-center">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔐</span>
-          </div>
-          <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-xs text-white/60 mb-6 leading-relaxed">{subtitle}</p>
-          <input
-            type="password"
-            inputMode="numeric"
-            maxLength="4"
-            value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
-            placeholder="••••"
-            autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
-          />
-          <div className="flex gap-3">
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => onConfirm(pin)}
-              disabled={loading || pin.length !== 4}
-              className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20 transition-all"
-            >
-              {loading && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
-              {loading ? "Verifying…" : "Confirm"}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
+// ── ERC20 / Pool ABIs (minimal) ───────────────────────────────────────────────
+const ERC20_ABI = [
+  "function approve(address spender, uint256 amount) returns (bool)",
+  "function allowance(address owner, address spender) view returns (uint256)",
+];
+
+const POOL_ABI = [
+  "function swapExactNGNAmountForToken(address _receiver, address _swapTokenOut, address _ngnToken, uint256 _ngnAmountIn) external returns (bool)",
+  "function swapExactTokenAmountForNGN(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _tokenAmountIn) external returns (bool)",
+  "function swapForExactTokenAmount(address _receiver, address _swapTokenOut, address _ngnTokenIn, uint256 _tokenAmountOut) external returns (bool)",
+  "function swapForExactNGNAmount(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)",
+];
+
+// ── ADD THIS RIGHT HERE, after POOL_ABI ──────────────────────────────────────
+let _cachedProvider = null;
+let _cachedSigner = null;
+
+const bustSignerCache = () => {
+  _cachedProvider = null;
+  _cachedSigner = null;
 };
 
-// ─── Trust Modal ──────────────────────────────────────────────────────────────
+// ── Token Pill Selector ───────────────────────────────────────────────────────
+const TokenPills = ({ options, value, onChange, accentColor }) => (
+  <div className="flex gap-2">
+    {options.map((t) => (
+      <button
+        key={t}
+        onClick={() => onChange(t)}
+        className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all"
+        style={
+          value === t
+            ? {
+                background: accentColor,
+                color: "#000",
+                borderColor: accentColor,
+                boxShadow: `0 4px 16px ${accentColor}33`,
+              }
+            : {
+                borderColor: "rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)",
+                color: "rgba(255,255,255,0.3)",
+              }
+        }
+      >
+        {t}
+      </button>
+    ))}
+  </div>
+);
+
+// ── Trust Modal ───────────────────────────────────────────────────────────────
 const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
   <div className="fixed inset-0 z-[85] flex items-center justify-center px-4">
     <motion.div
@@ -95,17 +89,17 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
       transition={{ type: "spring", stiffness: 380, damping: 28 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
       <div className="p-8">
         <div className="text-center mb-6">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🔓</span>
           </div>
           <h3 className="text-xl font-black text-white mb-1">
             Trust This Pool?
           </h3>
           <p className="text-xs text-white/60">
-            <span className="text-salvaGold font-black">
+            <span className="text-blue-400 font-black">
               {pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}
             </span>
           </p>
@@ -116,8 +110,8 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
               ✅ Trust Pool — Recommended
             </p>
             <p className="text-[11px] text-white/60 leading-relaxed">
-              Approve unlimited {tokenLabel} spending once. Future swaps skip
-              the approval step.
+              Your wallet will approve unlimited {tokenLabel} spending once.
+              MetaMask will prompt you to sign. Future swaps skip approval.
             </p>
           </div>
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
@@ -125,8 +119,8 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
               ⚠️ This swap only
             </p>
             <p className="text-[11px] text-white/60 leading-relaxed">
-              Approve exact amount for this swap. You'll be asked again next
-              time.
+              Approve exact amount for this swap only. You'll be asked again
+              next time.
             </p>
           </div>
         </div>
@@ -145,7 +139,7 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
           </button>
           <button
             onClick={onTrust}
-            className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+            className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
           >
             Trust
           </button>
@@ -155,36 +149,47 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
   </div>
 );
 
-// ─── Token Pill Selector ──────────────────────────────────────────────────────
-const TokenPills = ({ options, value, onChange, accentColor }) => (
-  <div className="flex gap-2">
-    {options.map((t) => (
-      <button
-        key={t}
-        onClick={() => onChange(t)}
-        className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all"
-        style={
-          value === t
-            ? {
-                background: accentColor,
-                color: "#000",
-                borderColor: accentColor,
-                boxShadow: `0 4px 16px ${accentColor}33`,
-              }
-            : { borderColor: "rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.03)", color: "rgba(255,255,255,0.3)" }
-        }
-      >
-        {t}
-      </button>
-    ))}
-  </div>
-);
-
-// ─── Swap Modal ───────────────────────────────────────────────────────────────
-const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) => {
+// ── Swap Modal ────────────────────────────────────────────────────────────────
+const L1SwapModal = ({
+  pool,
+  section,
+  l1Account,
+  l1Config,
+  onClose,
+  showMsg,
+  onSwapComplete,
+}) => {
   const [swapType, setSwapType] = useState("exact_in");
   const [amountDisplay, setAmountDisplay] = useState("");
   const [amountRaw, setAmountRaw] = useState(0);
+  const [stableToken, setStableToken] = useState(
+    parseFloat(pool.usdtLiquidity || 0) > 0 ? "USDT" : "USDC",
+  );
+  const [ngnToken, setNgnToken] = useState(
+    parseFloat(pool.ngnLiquidity || 0) > 0 ? "NGNS" : "CNGN",
+  );
+  const [quote, setQuote] = useState(null);
+  const [quoteLoading, setQuoteLoading] = useState(false);
+  const [trustChecked, setTrustChecked] = useState(false);
+  const [isTrusted, setIsTrusted] = useState(false);
+  const [showTrust, setShowTrust] = useState(false);
+  const [, setTrustChoice] = useState(null);
+  const [step, setStep] = useState("input"); // input | approving | loading | done
+  const [txHash, setTxHash] = useState(null);
+  const [receivedAmount, setReceivedAmount] = useState(null);
+  const [receivedToken, setReceivedToken] = useState(null);
+  const [approveMsg, setApproveMsg] = useState("");
+  const quoteTimer = useRef(null);
+
+  const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
+  const hasUSDC = parseFloat(pool.usdcLiquidity || 0) > 0;
+  const hasNGNs = parseFloat(pool.ngnLiquidity || 0) > 0;
+  const hasCNGN = parseFloat(pool.cNgnLiquidity || 0) > 0;
+
+  const accentColor = section === "buy" ? "#D4AF37" : "#22c55e";
+  const tokenIn = section === "buy" ? ngnToken : stableToken;
+  const ngnLabel = ngnToken === "CNGN" ? "cNGN" : "NGNs";
+  const tokenOut = section === "buy" ? stableToken : ngnLabel;
 
   const minAmount =
     section === "buy"
@@ -193,75 +198,10 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const isBelowMin =
     swapType === "exact_in" && amountRaw > 0 && amountRaw < minAmount;
 
-  const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
-  const hasUSDC = parseFloat(pool.usdcLiquidity || 0) > 0;
-  const hasNGNs = parseFloat(pool.ngnLiquidity || 0) > 0;
-  const hasCNGN = parseFloat(pool.cNgnLiquidity || 0) > 0;
-  const [stableToken, setStableToken] = useState(hasUSDT ? "USDT" : "USDC");
-  const [ngnToken, setNgnToken] = useState(hasNGNs ? "NGN" : "CNGN");
-
-  const tokenIn = section === "buy" ? ngnToken : stableToken;
-  const ngnLabel = ngnToken === "CNGN" ? "cNGN" : "NGNs";
-  const tokenOut = section === "buy" ? stableToken : ngnLabel;
   const displayRate =
     section === "buy"
       ? parseFloat(pool.buyRate || 0)
       : parseFloat(pool.sellRate || 0);
-  const accentColor = section === "buy" ? "#D4AF37" : "#22c55e";
-
-  const [trustChecked, setTrustChecked] = useState(false);
-  const [isTrusted, setIsTrusted] = useState(false);
-  const [showTrust, setShowTrust] = useState(false);
-  const [trustLoading, setTrustLoading] = useState(false);
-  const [trustChoice, setTrustChoice] = useState(null);
-  const [pinVisible, setPinVisible] = useState(false);
-  const [pinLoading, setPinLoading] = useState(false);
-  const [step, setStep] = useState("input");
-  const [txHash, setTxHash] = useState(null);
-  const [quote, setQuote] = useState(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const quoteTimer = useRef(null);
-  const [receivedAmount, setReceivedAmount] = useState(null);
-  const [receivedToken, setReceivedToken] = useState(null);
-
-  // ── User wallet balances ──────────────────────────────────────────────────
-  const [userBal, setUserBal] = useState({});
-  const [userBalLoading, setUserBalLoading] = useState(true);
-  useEffect(() => {
-    if (!user?.safeAddress) return;
-    setUserBalLoading(true);
-    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
-      .then((r) => r.json())
-      .then((d) => setUserBal({
-        NGN:  parseFloat(d.balance      || 0),
-        CNGN: parseFloat(d.cNgnBalance  || 0),
-        USDT: parseFloat(d.usdtBalance  || 0),
-        USDC: parseFloat(d.usdcBalance  || 0),
-      }))
-      .catch(() => {})
-      .finally(() => setUserBalLoading(false));
-  }, [user?.safeAddress]);
-
-  const userSendBal   = userBal[tokenIn]  ?? null;
-  const poolReceiveBal = tokenOut === "USDT" ? parseFloat(pool.usdtLiquidity || 0)
-    : tokenOut === "USDC"  ? parseFloat(pool.usdcLiquidity  || 0)
-    : tokenOut === "cNGN"  ? parseFloat(pool.cNgnLiquidity  || 0)
-    : parseFloat(pool.ngnLiquidity || 0);
-
-  useEffect(() => {
-    setTrustChecked(false);
-    setIsTrusted(false);
-    const sym = section === "buy" ? "NGN" : stableToken;
-    fetch(
-      `${SALVA_API_URL}/api/pool/trust-status?userSafeAddress=${user.safeAddress}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`,
-    )
-      .then((r) => r.json())
-      .then((d) => {
-        setIsTrusted(!!d.trusted);
-        setTrustChecked(true);
-      })
-      .catch(() => setTrustChecked(true));
-  }, [pool.poolAddress, section, stableToken, user.safeAddress]);
 
   const swapFn = (() => {
     if (section === "buy")
@@ -273,6 +213,67 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       : "swapForExactNGNAmount";
   })();
 
+  const resolveTokenAddress = (sym) => {
+    if (!l1Config) return null;
+    switch (sym.toUpperCase()) {
+      case "NGNS":
+        return l1Config.ngnTokenAddress;
+      case "CNGN":
+        return l1Config.cngnContractAddress;
+      case "USDT":
+        return l1Config.usdtContractAddress;
+      case "USDC":
+        return l1Config.usdcContractAddress;
+      default:
+        return null;
+    }
+  };
+
+  // ── User EOA wallet balances ──────────────────────────────────────────────
+  const [userBal, setUserBal] = useState({});
+  const [userBalLoading, setUserBalLoading] = useState(true);
+  useEffect(() => {
+    if (!l1Account) return;
+    setUserBalLoading(true);
+    fetch(`${SALVA_API_URL}/api/l1-balance/${l1Account}`)
+      .then((r) => r.json())
+      .then((d) => setUserBal({
+        NGNS: parseFloat(d.ngnBalance  || 0),
+        CNGN: parseFloat(d.cNgnBalance || 0),
+        USDT: parseFloat(d.usdtBalance || 0),
+        USDC: parseFloat(d.usdcBalance || 0),
+      }))
+      .catch(() => {})
+      .finally(() => setUserBalLoading(false));
+  }, [l1Account]);
+
+  useEffect(() => {
+    bustSignerCache();
+  }, [l1Account]);
+
+  const userSendBal    = userBal[tokenIn]  ?? null;
+  const poolReceiveBal = tokenOut === "USDT" ? parseFloat(pool.usdtLiquidity || 0)
+    : tokenOut === "USDC" ? parseFloat(pool.usdcLiquidity  || 0)
+    : tokenOut === "cNGN" ? parseFloat(pool.cNgnLiquidity  || 0)
+    : parseFloat(pool.ngnLiquidity || 0);
+
+  // Check trust status
+  useEffect(() => {
+    setTrustChecked(false);
+    setIsTrusted(false);
+    const sym = section === "buy" ? "NGN" : stableToken;
+    fetch(
+      `${SALVA_API_URL}/api/pool/l1/trust-status?userSafeAddress=${l1Account}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`,
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        setIsTrusted(!!d.trusted);
+        setTrustChecked(true);
+      })
+      .catch(() => setTrustChecked(true));
+  }, [pool.poolAddress, section, stableToken, l1Account]);
+
+  // Quote
   useEffect(() => {
     if (amountRaw <= 0) {
       setQuote(null);
@@ -289,6 +290,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             poolAddress: pool.poolAddress,
             swapFn,
             amount: amountRaw,
+            isL1: true,
           }),
         });
         const data = await res.json();
@@ -311,101 +313,191 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const poolCantCover  = receiveAmt > 0 && poolReceiveBal < receiveAmt;
   const poolEmpty      = poolReceiveBal <= 0;
 
+  const getSigner = async () => {
+    if (!window.ethereum) throw new Error("No wallet found");
+    if (!_cachedProvider) {
+      _cachedProvider = new ethers.BrowserProvider(window.ethereum);
+    }
+    if (!_cachedSigner) {
+      _cachedSigner = await _cachedProvider.getSigner();
+    }
+    return _cachedSigner;
+  };
+
   const handleContinue = () => {
     if (amountRaw <= 0 || isBelowMin) return;
     if (!isTrusted) {
       setShowTrust(true);
       return;
     }
-    setPinVisible(true);
+    executeSwap(false);
   };
 
-  const handlePinConfirm = async (pin) => {
-    setPinLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showMsg(data.message || "Invalid PIN", "error");
-        return;
-      }
-      setPinVisible(false);
-      setStep("loading");
-      await executeSwap(data.privateKey);
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setPinLoading(false);
+const executeSwap = async (doTrust) => {
+  setStep("loading");
+  try {
+    if (!l1Config) {
+      showMsg("L1 config not loaded. Please refresh the page.", "error");
+      setStep("input");
+      return;
     }
-  };
 
-  const executeSwap = async (privateKey) => {
-    try {
-      let finalTrusted = isTrusted;
-      if (trustChoice === "trust" && !isTrusted) {
-        setTrustLoading(true);
-        const r = await fetch(`${SALVA_API_URL}/api/pool/trust`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userSafeAddress: user.safeAddress,
-            userPrivateKey: privateKey,
-            poolAddress: pool.poolAddress,
-            tokenSymbol: tokenIn,
-          }),
-        });
-        const d = await r.json();
-        setTrustLoading(false);
-        if (!r.ok) throw new Error(d.message || "Trust failed");
-        finalTrusted = true;
-        setIsTrusted(true);
-      }
-      const approveAmountWei =
-        swapType === "exact_out" && quote
-          ? Math.floor(parseFloat(quote) * 1e6).toString()
-          : amountWei;
-      const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
+    const signer = await getSigner();
+    const tokenInAddr = resolveTokenAddress(tokenIn);
+    const ngnAddr = resolveTokenAddress("NGNS");
+    const stableAddr = resolveTokenAddress(stableToken);
+
+    if (!tokenInAddr) {
+      showMsg(`Token address not found for ${tokenIn}.`, "error");
+      setStep("input");
+      return;
+    }
+    if (!ngnAddr) {
+      showMsg("NGN token address not found in L1 config.", "error");
+      setStep("input");
+      return;
+    }
+    if (!stableAddr) {
+      showMsg(`${stableToken} address not found in L1 config.`, "error");
+      setStep("input");
+      return;
+    }
+    if (!pool.poolAddress || !ethers.isAddress(pool.poolAddress))
+      throw new Error(`Invalid pool address: ${pool.poolAddress}`);
+
+    const poolAddr = ethers.getAddress(pool.poolAddress);
+    let finalTrusted = isTrusted;
+
+    // ── Trust: approve max ──────────────────────────────────────────────
+    if (doTrust && !isTrusted) {
+      setStep("approving");
+      setApproveMsg("Approving unlimited spending — confirm in MetaMask…");
+
+      const tokenContract = new ethers.Contract(
+        ethers.getAddress(tokenInAddr),
+        ERC20_ABI,
+        signer,
+      );
+
+      const approveTx = await tokenContract.approve(
+        poolAddr,
+        ethers.MaxUint256,
+        {
+          gasLimit: 60_000,
+        },
+      );
+
+      setApproveMsg("Confirming approval…");
+      await approveTx.wait(1);
+
+      const tokenSymbolForApi = tokenIn === "NGNS" ? "NGN" : tokenIn;
+      fetch(`${SALVA_API_URL}/api/pool/l1/trust`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userSafeAddress: user.safeAddress,
-          userPrivateKey: privateKey,
+          userSafeAddress: l1Account,
           poolAddress: pool.poolAddress,
-          stableToken,
-          ngnToken,
-          swapFn,
-          amountWei,
-          approveAmountWei,
-          trusted: finalTrusted,
-          tokenIn,
+          tokenSymbol: tokenSymbolForApi,
+          txHash: approveTx.hash,
         }),
-      });
-      const swapData = await swapRes.json();
-      if (!swapRes.ok) throw new Error(swapData.message || "Swap failed");
-      setTxHash(swapData.txHash);
-      const outToken = tokenOut;
-      const outAmt =
-        swapType === "exact_in"
-          ? quote !== null
-            ? parseFloat(quote)
-            : null
-          : amountRaw;
-      setReceivedAmount(outAmt);
-      setReceivedToken(outToken);
-      setStep("done");
-      onSwapComplete?.();
-    } catch {
-      showMsg("Swap failed — please try again", "error");
-      setStep("input");
-    }
-  };
+      }).catch(() => {});
 
- const inputTokenLabel = section === "buy" ? ngnLabel : stableToken;
- const outputTokenLabel = section === "buy" ? stableToken : ngnLabel;
+      finalTrusted = true;
+      setIsTrusted(true);
+      setStep("loading");
+    } else if (!finalTrusted) {
+      setStep("approving");
+      setApproveMsg("Checking allowance…");
+
+      const tokenContract = new ethers.Contract(
+        ethers.getAddress(tokenInAddr),
+        ERC20_ABI,
+        signer,
+      );
+
+      const neededAmt = BigInt(
+        swapType === "exact_out" && quote
+          ? Math.floor(parseFloat(quote) * 1e6).toString()
+          : amountWei,
+      );
+
+      const [currentAllowance] = await Promise.all([
+        tokenContract.allowance(await signer.getAddress(), poolAddr),
+      ]);
+
+      if (currentAllowance < neededAmt) {
+        setApproveMsg("Approving — confirm in MetaMask…");
+        const approveTx = await tokenContract.approve(poolAddr, neededAmt, {
+          gasLimit: 60_000,
+        });
+        setApproveMsg("Waiting for approval…");
+        await approveTx.wait(1);
+      }
+      setStep("loading");
+    }
+
+    // ── Swap ────────────────────────────────────────────────────────────
+    const poolContract = new ethers.Contract(poolAddr, POOL_ABI, signer);
+    const receiver = ethers.getAddress(l1Account);
+    const amtBn = BigInt(amountWei);
+    const swapArgs = [
+      receiver,
+      ethers.getAddress(stableAddr),
+      ethers.getAddress(ngnAddr),
+      amtBn,
+    ];
+    const swapOpts = { gasLimit: 200_000 };
+
+    let swapTx;
+    switch (swapFn) {
+      case "swapExactNGNAmountForToken":
+        swapTx = await poolContract.swapExactNGNAmountForToken(
+          ...swapArgs,
+          swapOpts,
+        );
+        break;
+      case "swapExactTokenAmountForNGN":
+        swapTx = await poolContract.swapExactTokenAmountForNGN(
+          ...swapArgs,
+          swapOpts,
+        );
+        break;
+      case "swapForExactTokenAmount":
+        swapTx = await poolContract.swapForExactTokenAmount(
+          ...swapArgs,
+          swapOpts,
+        );
+        break;
+      case "swapForExactNGNAmount":
+        swapTx = await poolContract.swapForExactNGNAmount(
+          ...swapArgs,
+          swapOpts,
+        );
+        break;
+      default:
+        throw new Error(`Unknown swapFn: ${swapFn}`);
+    }
+
+    await swapTx.wait(1);
+    setTxHash(swapTx.hash);
+
+    const outAmt =
+      swapType === "exact_in" && quote !== null ? parseFloat(quote) : amountRaw;
+    setReceivedAmount(outAmt);
+    setReceivedToken(tokenOut);
+    setStep("done");
+    onSwapComplete?.();
+  } catch (err) {
+    console.error("L1 swap error:", err);
+    bustSignerCache();
+    showMsg("Swap failed — please try again", "error");
+    setStep("input");
+  }
+};
+
+  const inputTokenLabel = section === "buy" ? ngnLabel : stableToken;
+  const outputTokenLabel = section === "buy" ? stableToken : ngnLabel;
+
   const amountInputLabel =
     swapType === "exact_in"
       ? `${inputTokenLabel} to spend`
@@ -424,7 +516,9 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           className="absolute inset-0 bg-black/95 backdrop-blur-md"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          onClick={step !== "loading" ? onClose : undefined}
+          onClick={
+            step !== "loading" && step !== "approving" ? onClose : undefined
+          }
         />
         <motion.div
           className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
@@ -434,25 +528,22 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           transition={{ type: "spring", damping: 25, stiffness: 200 }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Accent top line using the section's accent color */}
           <div
             className="h-px"
             style={{
               background: `linear-gradient(90deg, transparent, ${accentColor}66, transparent)`,
             }}
           />
-
           <div className="p-6 sm:p-8">
             <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
 
-            {/* ── INPUT ── */}
+            {/* INPUT */}
             {step === "input" && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-4"
               >
-                {/* Header */}
                 <div className="mb-2">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p
@@ -472,15 +563,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   <h3 className="text-xl font-black text-white">
                     {pool.poolName || "Anonymous Pool"}
                   </h3>
-                  <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
+                  <p className="font-mono text-[10px] text-white/50 truncate mt-0.5">
                     {pool.poolAddress}
                   </p>
                 </div>
 
-                {/* Stablecoin selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                    Stablecoin
+                    USD Stablecoin
                   </label>
                   <TokenPills
                     options={["USDT", "USDC"]}
@@ -489,21 +579,18 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     accentColor={accentColor}
                   />
                 </div>
-
-                {/* NGN token selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                    Naira Token
+                    Naira Stablecoin
                   </label>
                   <TokenPills
-                    options={["NGN", "CNGN"]}
+                    options={["NGNS", "CNGN"]}
                     value={ngnToken}
                     onChange={setNgnToken}
                     accentColor={accentColor}
                   />
                 </div>
 
-                {/* Mode selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                     Mode
@@ -584,7 +671,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   </p>
                 )}
 
-                {/* Amount input */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                     {amountInputLabel}
@@ -603,7 +689,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                       className={`w-full p-4 rounded-xl bg-white/5 border outline-none text-xl font-black text-white transition-all pr-20 ${
                         isBelowMin
                           ? "border-red-500"
-                          : "border-white/10 focus:border-salvaGold"
+                          : "border-white/10 focus:border-blue-400"
                       }`}
                     />
                     <span
@@ -623,14 +709,13 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   )}
                 </div>
 
-                {/* Quote */}
                 {(quote !== null || quoteLoading) && amountRaw > 0 && (
                   <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
                     <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
                       {quoteLabel}
                     </span>
                     {quoteLoading ? (
-                      <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
                     ) : (
                       <span
                         className="font-black text-sm"
@@ -642,7 +727,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   </div>
                 )}
 
-                {/* Rate */}
                 <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
                   <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Exchange Rate
@@ -656,7 +740,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   </span>
                 </div>
 
-                {/* Actions */}
+                <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/15">
+                  <p className="text-[10px] text-blue-400/80 font-bold leading-relaxed">
+                    ⚡ Your external wallet signs all transactions.
+                    required.
+                    {!isTrusted && " You may need to approve before swapping."}
+                  </p>
+                </div>
+
                 <div className="flex gap-3 pt-1">
                   <button
                     onClick={onClose}
@@ -680,7 +771,26 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
               </motion.div>
             )}
 
-            {/* ── LOADING ── */}
+            {/* APPROVING */}
+            {step === "approving" && (
+              <div className="text-center py-14">
+                <div className="relative w-14 h-14 mx-auto mb-6">
+                  <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
+                  <div className="absolute inset-0 rounded-full border-2 border-t-blue-400 animate-spin" />
+                  <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <span className="text-blue-400 text-sm font-black">✓</span>
+                  </div>
+                </div>
+                <p className="font-black text-lg text-white mb-2">
+                  Waiting for Approval
+                </p>
+                <p className="text-xs text-white/60 leading-relaxed max-w-[260px] mx-auto">
+                  {approveMsg}
+                </p>
+              </div>
+            )}
+
+            {/* LOADING */}
             {step === "loading" && (
               <div className="text-center py-14">
                 <div className="relative w-14 h-14 mx-auto mb-6">
@@ -690,16 +800,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     <span className="text-salvaGold text-sm font-black">₦</span>
                   </div>
                 </div>
-                <p className="font-black text-lg text-white">
-                  {trustLoading ? "Trusting pool…" : "Executing swap…"}
-                </p>
+                <p className="font-black text-lg text-white">Executing swap…</p>
                 <p className="text-xs text-white/60 mt-2">
-                  Broadcasting via your Safe wallet. Please wait.
+                  Confirm in your wallet if prompted.
                 </p>
               </div>
             )}
 
-            {/* ── DONE ── */}
+            {/* DONE */}
             {step === "done" && (
               <div className="text-center py-8">
                 <motion.div
@@ -726,18 +834,17 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 )}
                 {txHash && (
                   <a
-                    href={`https://${process.env.REACT_APP_NODE_ENV === "production" ? "" : "sepolia."}basescan.org/tx/${txHash}`}
+                    href={`https://etherscan.io/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[11px] font-black underline break-all block mb-2"
-                    style={{ color: accentColor }}
+                    className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
                   >
-                    View on Basescan ↗
+                    View on Etherscan ↗
                   </a>
                 )}
                 <button
                   onClick={onClose}
-                  className="w-full mt-5 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                  className="w-full mt-5 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                 >
                   Done
                 </button>
@@ -755,25 +862,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             onTrust={() => {
               setTrustChoice("trust");
               setShowTrust(false);
-              setPinVisible(true);
+              executeSwap(true);
             }}
             onSkip={() => {
               setTrustChoice("skip");
               setShowTrust(false);
-              setPinVisible(true);
+              executeSwap(false);
             }}
             onCancel={() => setShowTrust(false)}
-          />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {pinVisible && (
-          <PinModal
-            title="Confirm Swap"
-            subtitle="Enter your PIN to authorize this transaction via your Safe"
-            onConfirm={handlePinConfirm}
-            onCancel={() => setPinVisible(false)}
-            loading={pinLoading}
           />
         )}
       </AnimatePresence>
@@ -781,8 +877,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   );
 };
 
-// ─── Pool Card ────────────────────────────────────────────────────────────────
-const PoolCard = ({ pool, section, onSwap, index }) => {
+// ── Pool Card ─────────────────────────────────────────────────────────────────
+const L1PoolCard = ({ pool, section, onSwap, index }) => {
   const rate =
     section === "buy"
       ? parseFloat(pool.buyRate || 0)
@@ -802,7 +898,6 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <div className="p-5">
-        {/* Identity */}
         <div className="flex items-start justify-between gap-3 mb-4">
           <div className="min-w-0">
             <p className="font-black text-base text-white truncate">
@@ -824,7 +919,6 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
           </div>
         </div>
 
-        {/* Stats */}
         {section === "buy" ? (
           <div className="grid grid-cols-3 gap-2 mb-4">
             <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
@@ -913,8 +1007,14 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
   );
 };
 
-// ─── Main SwapTab ─────────────────────────────────────────────────────────────
-const SwapTab = ({ user, showMsg }) => {
+// ── Main L1SwapTab ────────────────────────────────────────────────────────────
+const L1SwapTab = ({
+  l1Account,
+  l1Config,
+  configLoading,
+  showMsg,
+  wrongChain,
+}) => {
   const [section, setSection] = useState("buy");
   const [buyPools, setBuyPools] = useState([]);
   const [sellPools, setSellPools] = useState([]);
@@ -932,7 +1032,7 @@ const SwapTab = ({ user, showMsg }) => {
         const q = search.trim()
           ? `?search=${encodeURIComponent(search.trim())}`
           : "";
-        const res = await fetch(`${SALVA_API_URL}/api/pool/published${q}`);
+        const res = await fetch(`${SALVA_API_URL}/api/pool/l1/published${q}`);
         const d = await res.json();
         setBuyPools(d.buyPools || []);
         setSellPools(d.sellPools || []);
@@ -963,40 +1063,25 @@ const SwapTab = ({ user, showMsg }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-5 relative"
+      className="space-y-5"
     >
-      {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
-        <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl">⚙️</span>
-          </div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black">
-            Salva V3 DEX
-          </p>
-          <p className="text-xl font-black text-white">Coming Soon</p>
-          <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
-            V3 smart contracts are under development and testing.
-          </p>
-        </div>
-      </div> */}
-      {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
-
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
-            Salva V3 DEX
+          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
+            Salva V3 · Ethereum Chain
           </p>
           <h2 className="text-3xl font-black tracking-tight">Naira Exchange</h2>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
-            href="/l1"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
+            href="/dashboard"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] transition-all"
           >
-            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">ETH CHAIN</span>
-            <span className="text-blue-400 text-[9px]">↗</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-salvaGold">
+              Base Chain
+            </span>
+            <span className="text-salvaGold text-[9px]">↗</span>
           </a>
           {lastTime && (
             <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest hidden sm:block">
@@ -1006,15 +1091,31 @@ const SwapTab = ({ user, showMsg }) => {
           <button
             onClick={() => fetchPools(true)}
             disabled={refreshing}
-            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
+            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-400/30 transition-all"
           >
             {refreshing ? (
-              <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
             ) : (
-              <span className="text-salvaGold text-lg leading-none">↻</span>
+              <span className="text-blue-400 text-lg leading-none">↻</span>
             )}
           </button>
         </div>
+      </div>
+
+      {/* Wrong chain */}
+      {wrongChain && (
+        <div className="p-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.06]">
+          <p className="text-sm font-bold text-orange-400">
+            ⚠ Switch to Ethereum Mainnet to execute swaps.
+          </p>
+        </div>
+      )}
+
+      {/* L1 info */}
+      <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/15">
+        <p className="text-[10px] text-blue-400/80 font-bold">
+          ⚡ Your external wallet signs swap transactions.
+        </p>
       </div>
 
       {/* Search */}
@@ -1033,7 +1134,7 @@ const SwapTab = ({ user, showMsg }) => {
           placeholder="Search pools by name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-salvaGold/30 transition-all"
+          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-blue-400/30 transition-all"
         />
         {search && (
           <button
@@ -1051,14 +1152,14 @@ const SwapTab = ({ user, showMsg }) => {
           {
             id: "buy",
             label: "NGN → USD",
-            sub: "Spend NGNs, get stablecoin",
+            sub: "Spend NGN, get USD",
             count: buyPools.length,
             color: "#D4AF37",
           },
           {
             id: "sell",
             label: "USD → NGN",
-            sub: "Spend stablecoin, get NGNs",
+            sub: "Spend USD, get NGN",
             count: sellPools.length,
             color: "#22c55e",
           },
@@ -1073,10 +1174,7 @@ const SwapTab = ({ user, showMsg }) => {
             }`}
             style={
               section === id
-                ? {
-                    background: `${color}18`,
-                    borderColor: `${color}40`,
-                  }
+                ? { background: `${color}18`, borderColor: `${color}40` }
                 : {}
             }
           >
@@ -1111,7 +1209,7 @@ const SwapTab = ({ user, showMsg }) => {
       {/* Pool list */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-salvaGold/20 border-t-salvaGold rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-400/20 border-t-blue-400 rounded-full animate-spin" />
         </div>
       ) : activePools.length === 0 ? (
         <motion.div
@@ -1130,7 +1228,7 @@ const SwapTab = ({ user, showMsg }) => {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="mt-3 text-[10px] font-black text-salvaGold/60 hover:text-salvaGold uppercase tracking-widest transition-colors"
+              className="mt-3 text-[10px] font-black text-blue-400/60 hover:text-blue-400 uppercase tracking-widest transition-colors"
             >
               Clear search
             </button>
@@ -1139,7 +1237,7 @@ const SwapTab = ({ user, showMsg }) => {
       ) : (
         <div className="space-y-3">
           {activePools.map((pool, i) => (
-            <PoolCard
+            <L1PoolCard
               key={pool.poolAddress}
               pool={pool}
               section={section}
@@ -1152,10 +1250,11 @@ const SwapTab = ({ user, showMsg }) => {
 
       <AnimatePresence>
         {selected && (
-          <SwapModal
+          <L1SwapModal
             pool={selected}
             section={section}
-            user={user}
+            l1Account={l1Account}
+            l1Config={l1Config}
             showMsg={showMsg}
             onClose={() => setSelected(null)}
             onSwapComplete={() => fetchPools(true)}
@@ -1166,4 +1265,4 @@ const SwapTab = ({ user, showMsg }) => {
   );
 };
 
-export default SwapTab;
+export default L1SwapTab;

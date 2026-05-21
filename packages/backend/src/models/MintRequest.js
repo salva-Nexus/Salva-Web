@@ -43,6 +43,10 @@ const MintRequestSchema = new mongoose.Schema({
     default: "pending",
   },
 
+  isL1: { type: Boolean, default: false },
+  chain: { type: String, enum: ["base", "ethereum"], default: "base" },
+  mintToAddress: { type: String, lowercase: true, default: null },
+
   txHash: { type: String, default: null },
   mintedAt: { type: Date, default: null },
   receiptImageBase64: { type: String, default: null },

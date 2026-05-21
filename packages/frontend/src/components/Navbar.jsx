@@ -100,7 +100,8 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
 
       {/* ── Right side ── */}
 
-      {/* ── L1 Connect Wallet (only on /l1) ── */}
+      <div className="flex items-center gap-3 sm:gap-4">
+        {/* ── L1 Connect Wallet (only on /l1) ── */}
         {isL1Page && (
           <div className="relative" ref={l1Ref}>
             {!l1Account ? (
@@ -112,9 +113,9 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                 className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all disabled:opacity-50"
                 style={{ background: "#D4AF37", color: "#000" }}
               >
-                {l1Connecting ? (
+                {l1Connecting && (
                   <span className="w-3 h-3 border-2 border-black/25 border-t-black rounded-full animate-spin" />
-                ) : null}
+                )}
                 {l1Connecting ? "Connecting…" : "Connect Wallet"}
               </motion.button>
             ) : (
@@ -125,13 +126,28 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
               >
                 <span
                   className="w-2 h-2 rounded-full animate-pulse"
-                  style={{ background: l1ChainId === 1 || l1ChainId === 11155111 ? "#D4AF37" : "#f97316" }}
+                  style={{
+                    background:
+                      l1ChainId === 1 || l1ChainId === 11155111
+                        ? "#D4AF37"
+                        : "#f97316",
+                  }}
                 />
                 <span className="font-mono font-black text-[11px] text-white">
                   {l1Account.slice(0, 6)}…{l1Account.slice(-4)}
                 </span>
-                <svg className={`w-3 h-3 text-white/25 transition-transform ${showL1Menu ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                <svg
+                  className={`w-3 h-3 text-white/25 transition-transform ${showL1Menu ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M19 9l-7 7-7-7"
+                  />
                 </svg>
               </motion.button>
             )}
@@ -145,20 +161,40 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                   transition={{ duration: 0.15 }}
                   className="absolute right-0 mt-2 w-64 bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50"
                 >
-                  <div className="h-px" style={{ background: "linear-gradient(90deg, transparent, #D4AF37, transparent)" }} />
+                  <div
+                    className="h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, #D4AF37, transparent)",
+                    }}
+                  />
                   <div className="p-4 flex flex-col gap-2">
                     <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                      <p className="text-[9px] uppercase font-black text-white/25 tracking-widest mb-1">L1 Wallet</p>
-                      <p className="font-mono text-[11px] break-all leading-relaxed" style={{ color: "#D4AF37" }}>{l1Account}</p>
+                      <p className="text-[9px] uppercase font-black text-white/25 tracking-widest mb-1">
+                        L1 Wallet
+                      </p>
+                      <p
+                        className="font-mono text-[11px] break-all leading-relaxed"
+                        style={{ color: "#D4AF37" }}
+                      >
+                        {l1Account}
+                      </p>
                     </div>
                     {l1ChainId !== 1 && l1ChainId !== 11155111 && (
                       <div className="p-2.5 rounded-xl bg-orange-500/[0.07] border border-orange-500/20">
-                        <p className="text-[10px] font-black text-orange-400">⚠ Not on Ethereum</p>
-                        <p className="text-[10px] text-white/30 mt-0.5">Switch to Ethereum Mainnet in your wallet.</p>
+                        <p className="text-[10px] font-black text-orange-400">
+                          ⚠ Not on Ethereum
+                        </p>
+                        <p className="text-[10px] text-white/30 mt-0.5">
+                          Switch to Ethereum in your wallet.
+                        </p>
                       </div>
                     )}
                     <button
-                      onClick={() => { setShowL1Menu(false); onL1Disconnect(); }}
+                      onClick={() => {
+                        setShowL1Menu(false);
+                        onL1Disconnect();
+                      }}
                       className="w-full py-2.5 rounded-xl border border-red-500/20 bg-red-500/[0.06] text-red-400 font-black text-[10px] uppercase tracking-widest hover:bg-red-500 hover:text-white transition-all"
                     >
                       Disconnect
@@ -169,57 +205,58 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
             </AnimatePresence>
           </div>
         )}
-        
-      <div className="flex items-center gap-6 sm:gap-8">
-        {!isLoggedIn ? (
-          <Link
-            to="/login"
-            className="text-xs font-bold uppercase tracking-[0.2em] text-white opacity-60 hover:opacity-100 transition-opacity"
-          >
-            Login
-          </Link>
-        ) : (
-          <div className="relative" ref={settingsRef}>
-            <motion.button
-              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-              whileHover={{ scale: 1.1 }}
-              whileTap={{ scale: 0.95 }}
-              className="p-2 rounded-full hover:bg-white/5 transition-colors"
-              aria-label="Settings"
-            >
-              <Settings className="w-5 h-5 text-white opacity-60 hover:opacity-100" />
-            </motion.button>
 
-            <AnimatePresence>
-              {showSettingsMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{ duration: 0.2 }}
-                  className="absolute right-0 mt-2 w-48 bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
-                >
-                  <Link
-                    to="/account-settings"
-                    onClick={() => setShowSettingsMenu(false)}
-                    className="block px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
+        {/* ── Settings / Login (non-L1 pages) ── */}
+        {!isL1Page &&
+          (!isLoggedIn ? (
+            <Link
+              to="/login"
+              className="text-xs font-bold uppercase tracking-[0.2em] text-white opacity-60 hover:opacity-100 transition-opacity"
+            >
+              Login
+            </Link>
+          ) : (
+            <div className="relative" ref={settingsRef}>
+              <motion.button
+                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.95 }}
+                className="p-2 rounded-full hover:bg-white/5 transition-colors"
+                aria-label="Settings"
+              >
+                <Settings className="w-5 h-5 text-white opacity-60 hover:opacity-100" />
+              </motion.button>
+
+              <AnimatePresence>
+                {showSettingsMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 mt-2 w-48 bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
                   >
-                    Account Settings
-                  </Link>
-                  <button
-                    onClick={() => {
-                      setShowSettingsMenu(false);
-                      handleLogout();
-                    }}
-                    className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-white/10"
-                  >
-                    Logout
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
+                    <Link
+                      to="/account-settings"
+                      onClick={() => setShowSettingsMenu(false)}
+                      className="block px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
+                    >
+                      Account Settings
+                    </Link>
+                    <button
+                      onClick={() => {
+                        setShowSettingsMenu(false);
+                        handleLogout();
+                      }}
+                      className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-white/10"
+                    >
+                      Logout
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
       </div>
     </nav>
   );
