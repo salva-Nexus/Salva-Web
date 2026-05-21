@@ -424,7 +424,7 @@ const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
       <Stars />
 
       {/* ── THIS SECTION IS FOR LOCKING ETH CHAIN PAGE ──────────────────────────── */}
-      <div className="fixed inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto">
+      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center">
             <span className="text-2xl">⛓</span>
