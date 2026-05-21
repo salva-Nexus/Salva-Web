@@ -251,7 +251,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   useEffect(() => {
     setTrustChecked(false);
     setIsTrusted(false);
-    const sym = section === "buy" ? "NGN" : stableToken;
+    const sym = tokenIn;
     fetch(
       `${SALVA_API_URL}/api/pool/trust-status?userSafeAddress=${user.safeAddress}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`,
     )
@@ -261,7 +261,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         setTrustChecked(true);
       })
       .catch(() => setTrustChecked(true));
-  }, [pool.poolAddress, section, stableToken, user.safeAddress]);
+  }, [pool.poolAddress, tokenIn, user.safeAddress]);
 
   const swapFn = (() => {
     if (section === "buy")
@@ -751,7 +751,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         {showTrust && (
           <TrustModal
             pool={pool}
-            tokenLabel={tokenIn === "NGN" ? "NGNs" : stableToken}
+            tokenLabel={tokenIn === "NGN" ? "NGNs" : tokenIn === "CNGN" ? "cNGN" : tokenIn}
             onTrust={() => {
               setTrustChoice("trust");
               setShowTrust(false);
@@ -966,7 +966,7 @@ const SwapTab = ({ user, showMsg }) => {
       className="space-y-5 relative"
     >
       {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
+      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
             <span className="text-2xl">⚙️</span>
@@ -979,7 +979,7 @@ const SwapTab = ({ user, showMsg }) => {
             V3 smart contracts are under development and testing.
           </p>
         </div>
-      </div> */}
+      </div>
       {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
 
       {/* Header */}

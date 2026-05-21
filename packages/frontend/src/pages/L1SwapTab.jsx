@@ -261,7 +261,7 @@ const L1SwapModal = ({
   useEffect(() => {
     setTrustChecked(false);
     setIsTrusted(false);
-    const sym = section === "buy" ? "NGN" : stableToken;
+    const sym = tokenIn === "NGNS" ? "NGN" : tokenIn;
     fetch(
       `${SALVA_API_URL}/api/pool/l1/trust-status?userSafeAddress=${l1Account}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`,
     )
@@ -271,7 +271,7 @@ const L1SwapModal = ({
         setTrustChecked(true);
       })
       .catch(() => setTrustChecked(true));
-  }, [pool.poolAddress, section, stableToken, l1Account]);
+  }, [pool.poolAddress, tokenIn, l1Account]);
 
   // Quote
   useEffect(() => {
@@ -858,7 +858,7 @@ const executeSwap = async (doTrust) => {
         {showTrust && (
           <TrustModal
             pool={pool}
-            tokenLabel={tokenIn === "NGN" ? "NGNs" : stableToken}
+            tokenLabel={tokenIn === "NGNS" ? "NGNs" : tokenIn === "CNGN" ? "cNGN" : tokenIn}
             onTrust={() => {
               setTrustChoice("trust");
               setShowTrust(false);
