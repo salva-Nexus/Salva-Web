@@ -1556,16 +1556,21 @@ const [ngnWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
 ]);
 
 res.json({
-      balance: ethers.formatUnits(ngnWei, 6),
-      cNgnBalance: ethers.formatUnits(cNgnWei, 6),
-      usdtBalance: ethers.formatUnits(usdtWei, 6),
-      usdcBalance: ethers.formatUnits(usdcWei, 6),
-    });
+  ngnBalance: ethers.formatUnits(ngnWei, 6),
+  cNgnBalance: ethers.formatUnits(cNgnWei, 6),
+  usdtBalance: ethers.formatUnits(usdtWei, 6),
+  usdcBalance: ethers.formatUnits(usdcWei, 6),
+});
   } catch (error) {
     console.error("❌ Balance Fetch Failed:", error.message);
     res
       .status(200)
-      .json({ balance: "0.00", cNgnBalance: "0.00", usdtBalance: "0.00", usdcBalance: "0.00" });
+      .json({
+        ngnBalance: "0.00",
+        cNgnBalance: "0.00",
+        usdtBalance: "0.00",
+        usdcBalance: "0.00",
+      });
   }
 });
 
@@ -1609,7 +1614,7 @@ app.get("/api/l1-balance/:address", async (req, res) => {
         tokenAddress.startsWith("0xYOUR") ||
         tokenAddress.length !== 42
       ) {
-        return "0.00";
+        return "0";
       }
       try {
         const contract = new ethers.Contract(
@@ -1621,9 +1626,9 @@ app.get("/api/l1-balance/:address", async (req, res) => {
           contract.balanceOf(address),
           contract.decimals().catch(() => fallbackDecimals),
         ]);
-        return parseFloat(ethers.formatUnits(raw, decimals)).toFixed(2);
+        return ethers.formatUnits(raw, decimals); // ← return raw string, no rounding
       } catch {
-        return "0.00";
+        return "0";
       }
     };
 

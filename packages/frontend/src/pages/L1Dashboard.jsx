@@ -51,16 +51,36 @@ const L1Notification = ({ notification, onClose }) => {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatNumber = (num) => {
-  const n = parseFloat(num);
-  if (isNaN(n)) return "0";
-  const str = n.toString();
-  if (!str.includes(".")) return n.toLocaleString("en-US");
-  const decimals = str.split(".")[1].replace(/0+$/, "").length;
-  return n.toLocaleString("en-US", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
+const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
+  if (value === null || value === undefined || value === "") {
+    return "0";
+  }
+
+  const num = Number(value);
+
+  if (!Number.isFinite(num)) {
+    return "0";
+  }
+
+  const factor = 10 ** maxDecimals;
+
+  // truncate instead of round
+  const truncated = Math.trunc(num * factor) / factor;
+
+  return truncated.toLocaleString("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
   });
+};
+
+const addDecimals = (a, b) => {
+  const ai = Number(a || 0);
+  const bi = Number(b || 0);
+
+  const sum = ai + bi;
+
+  // preserve precision safely
+  return sum.toFixed(6).replace(/\.?0+$/, "");
 };
 
 // ── Balance Spinner ────────────────────────────────────────────────────────────
@@ -81,12 +101,8 @@ const L1BalanceCard = ({
   balanceLoading,
   onToggleVisibility,
 }) => {
-  const totalNgn = (
-    parseFloat(ngnBalance || 0) + parseFloat(cNgnBalance || 0)
-  ).toFixed(2);
-  const totalUsd = (
-    parseFloat(usdtBalance || 0) + parseFloat(usdcBalance || 0)
-  ).toFixed(2);
+  const totalNgn = addDecimals(ngnBalance, cNgnBalance);
+  const totalUsd = addDecimals(usdtBalance, usdcBalance);
   const MASK = "••••••";
 
   return (
@@ -123,12 +139,17 @@ const L1BalanceCard = ({
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
                 fontSize:
-                  showBalance && totalNgn.length > 10
+                  showBalance && formatNumber(totalNgn).length > 10
                     ? "clamp(1rem, 5vw, 1.75rem)"
                     : "1.875rem",
               }}
             >
-              {showBalance ? formatNumber(totalNgn) : MASK}
+              {showBalance
+  ? formatNumber(totalNgn, {
+      minDecimals: 3,
+      maxDecimals: 3,
+    })
+  : MASK}
             </span>
           )}
         </div>
@@ -136,7 +157,13 @@ const L1BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(ngnBalance)} NGNs · ${formatNumber(cNgnBalance)} cNGN`
+              ? `${formatNumber(ngnBalance, {
+  minDecimals: 3,
+  maxDecimals: 3,
+})} NGNs · ${formatNumber(cNgnBalance, {
+  minDecimals: 3,
+  maxDecimals: 3,
+})} cNGN`
               : "•••• NGNs · •••• cNGN"}
           </p>
         )}
@@ -163,12 +190,17 @@ const L1BalanceCard = ({
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
                 fontSize:
-                  showBalance && totalUsd.length > 10
+                  showBalance && String(totalUsd).length > 10
                     ? "clamp(0.9rem, 4vw, 1.5rem)"
                     : "1.5rem",
               }}
             >
-              {showBalance ? formatNumber(totalUsd) : MASK}
+              {showBalance
+  ? formatNumber(totalUsd, {
+      minDecimals: 2,
+      maxDecimals: 3,
+    })
+  : MASK}
             </span>
           )}
         </div>
@@ -176,7 +208,13 @@ const L1BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(usdtBalance)} USDT · ${formatNumber(usdcBalance)} USDC`
+              ? `${formatNumber(usdtBalance, {
+  minDecimals: 2,
+  maxDecimals: 3,
+})} USDT · ${formatNumber(usdcBalance, {
+  minDecimals: 2,
+  maxDecimals: 3,
+})} USDC`
               : "•••• USDT · •••• USDC"}
           </p>
         )}

@@ -12,11 +12,23 @@ import SwapTab from "./SwapTab";
 import { QRCodeSVG } from "qrcode.react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-const formatNumber = (num) =>
-  parseFloat(num).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
+  if (value === null || value === undefined || value === "") return "0";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "0";
+  const factor = 10 ** maxDecimals;
+  const truncated = Math.trunc(num * factor) / factor; // ← truncate, not round
+  return truncated.toLocaleString("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
   });
+};
+
+// Safe decimal string addition — no float garbage
+const addDecimals = (a, b) => {
+  const sum = Number(a || 0) + Number(b || 0);
+  return sum.toFixed(6).replace(/\.?0+$/, "");
+};
 
 const formatAmountInput = (raw) => {
   const digits = raw.replace(/[^0-9.]/g, "");
@@ -180,7 +192,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
 // ── Balance Spinner ────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
   <span className="inline-flex items-center gap-1.5">
-    <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
+    <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin inline-block flex-shrink-0" />
     <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
@@ -463,36 +475,30 @@ const SalvaNotification = ({ notification, onClose }) => {
 
 // ── Dual Balance Card ─────────────────────────────────────────────────────────
 const BalanceCard = ({
-  balance,
+  ngnBalance,
   cNgnBalance,
   usdtBalance,
   usdcBalance,
   showBalance,
   balanceLoading,
   onToggleVisibility,
-  onSend,
-  onReceive,
 }) => {
-  const totalNgn = (
-    parseFloat(balance || 0) + parseFloat(cNgnBalance || 0)
-  ).toFixed(2);
-  const totalUsd = (
-    parseFloat(usdtBalance || 0) + parseFloat(usdcBalance || 0)
-  ).toFixed(2);
+  const totalNgn = addDecimals(ngnBalance, cNgnBalance);
+  const totalUsd = addDecimals(usdtBalance, usdcBalance);
   const MASK = "••••••";
 
   return (
     <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
 
-      {/* NGN — TOP */}
+      {/* NGN */}
       <div className="px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-salvaGold block"
+              className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] block"
             />
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
               NGN
@@ -500,7 +506,7 @@ const BalanceCard = ({
           </div>
           <button
             onClick={onToggleVisibility}
-            className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
+            className="text-white/60 hover:text-white/80 transition-colors text-sm leading-none"
           >
             {showBalance ? "👁" : "👁‍🗨"}
           </button>
@@ -514,12 +520,14 @@ const BalanceCard = ({
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
                 fontSize:
-                  showBalance && totalNgn.length > 10
+                  showBalance && formatNumber(totalNgn).length > 10
                     ? "clamp(1rem, 5vw, 1.75rem)"
                     : "1.875rem",
               }}
             >
-              {showBalance ? formatNumber(totalNgn) : MASK}
+              {showBalance
+                ? formatNumber(totalNgn, { minDecimals: 3, maxDecimals: 3 })
+                : MASK}
             </span>
           )}
         </div>
@@ -527,14 +535,14 @@ const BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(balance)} NGNs · ${formatNumber(cNgnBalance)} cNGN`
+              ? `${formatNumber(ngnBalance, { minDecimals: 3, maxDecimals: 3 })} NGNs · ${formatNumber(cNgnBalance, { minDecimals: 3, maxDecimals: 3 })} cNGN`
               : "•••• NGNs · •••• cNGN"}
           </p>
         )}
       </div>
 
-      {/* USD — BOTTOM */}
-      <div className="px-5 sm:px-7 pt-4 pb-5 sm:pb-6">
+      {/* USD */}
+      <div className="px-5 sm:px-7 pt-4 pb-5 sm:pb-7">
         <div className="flex items-center gap-1.5 mb-3">
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
@@ -554,12 +562,14 @@ const BalanceCard = ({
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
                 fontSize:
-                  showBalance && totalUsd.length > 10
+                  showBalance && String(totalUsd).length > 10
                     ? "clamp(0.9rem, 4vw, 1.5rem)"
                     : "1.5rem",
               }}
             >
-              {showBalance ? formatNumber(totalUsd) : MASK}
+              {showBalance
+                ? formatNumber(totalUsd, { minDecimals: 2, maxDecimals: 3 })
+                : MASK}
             </span>
           )}
         </div>
@@ -567,26 +577,10 @@ const BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(usdtBalance)} USDT · ${formatNumber(usdcBalance)} USDC`
+              ? `${formatNumber(usdtBalance, { minDecimals: 2, maxDecimals: 3 })} USDT · ${formatNumber(usdcBalance, { minDecimals: 2, maxDecimals: 3 })} USDC`
               : "•••• USDT · •••• USDC"}
           </p>
         )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pb-5 sm:pb-7">
-        <button
-          onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
-        >
-          <span className="text-base leading-none">↑</span> Send
-        </button>
-        <button
-          onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-3.5 rounded-2xl text-sm uppercase tracking-widest flex items-center justify-center gap-2"
-        >
-          <span className="text-base leading-none">↓</span> Receive
-        </button>
       </div>
     </div>
   );
@@ -622,7 +616,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const fetchLinkedNames = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/alias/list/${user.safeAddress}`);
+      const res = await fetch(
+        `${SALVA_API_URL}/api/alias/list/${user.safeAddress}`,
+      );
       const data = await res.json();
       setLinkedNames(data.aliases || []);
     } catch {
@@ -632,14 +628,20 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     }
   }, [user?.safeAddress]);
 
-  useEffect(() => { fetchLinkedNames(); }, [fetchLinkedNames]);
+  useEffect(() => {
+    fetchLinkedNames();
+  }, [fetchLinkedNames]);
 
   const validateNameLocally = (val) => {
     if (!val) return "Name is required";
-    if (val.includes("0") || val.includes("1")) return "Digits 0 and 1 are not allowed";
-    if (!/^[a-z2-9_]+$/.test(val)) return "Only lowercase a–z, digits 2–9, one underscore";
-    if ((val.match(/_/g) || []).length > 1) return "Only one underscore allowed";
-    if (val.startsWith("_") || val.endsWith("_")) return "Cannot start or end with underscore";
+    if (val.includes("0") || val.includes("1"))
+      return "Digits 0 and 1 are not allowed";
+    if (!/^[a-z2-9_]+$/.test(val))
+      return "Only lowercase a–z, digits 2–9, one underscore";
+    if ((val.match(/_/g) || []).length > 1)
+      return "Only one underscore allowed";
+    if (val.startsWith("_") || val.endsWith("_"))
+      return "Cannot start or end with underscore";
     if (val.length > 32) return "Max 32 characters";
     if (val.length < 2) return "At least 2 characters required";
     return "";
@@ -647,30 +649,65 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const handleCheckName = async () => {
     const err = validateNameLocally(nameInput);
-    if (err) { setNameError(err); return; }
-    if (!walletInput || !walletInput.startsWith("0x") || walletInput.length !== 42) {
-      setNameError("Enter a valid 0x wallet address to link to"); return;
+    if (err) {
+      setNameError(err);
+      return;
     }
-    if (!selectedRegistry) { setNameError("Select which wallet service this name belongs to"); return; }
-    setNameError(""); setChecking(true); setNameCheckResult(null); setRegistryFee(null);
+    if (
+      !walletInput ||
+      !walletInput.startsWith("0x") ||
+      walletInput.length !== 42
+    ) {
+      setNameError("Enter a valid 0x wallet address to link to");
+      return;
+    }
+    if (!selectedRegistry) {
+      setNameError("Select which wallet service this name belongs to");
+      return;
+    }
+    setNameError("");
+    setChecking(true);
+    setNameCheckResult(null);
+    setRegistryFee(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameInput, registryAddress: selectedRegistry.registryAddress }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameInput,
+          registryAddress: selectedRegistry.registryAddress,
+        }),
       });
       const data = await res.json();
-      if (!res.ok) { setNameError(data.message || "Check failed"); return; }
+      if (!res.ok) {
+        setNameError(data.message || "Check failed");
+        return;
+      }
       setNameCheckResult(data);
-      if (data.reserved) { setLinkStep("reserved"); return; }
-      if (!data.available) { setNameError("This name is already taken. Try another."); return; }
+      if (data.reserved) {
+        setLinkStep("reserved");
+        return;
+      }
+      if (!data.available) {
+        setNameError("This name is already taken. Try another.");
+        return;
+      }
       setFeeLoading(true);
       try {
         const feeRes = await fetch(`${SALVA_API_URL}/api/registry-fee`);
         const feeData = await feeRes.json();
         setRegistryFee(feeRes.ok ? (feeData.fee ?? 0) : 0);
-      } catch { setRegistryFee(0); } finally { setFeeLoading(false); }
+      } catch {
+        setRegistryFee(0);
+      } finally {
+        setFeeLoading(false);
+      }
       setLinkStep("confirm");
-    } catch { setNameError("Network error. Please try again."); } finally { setChecking(false); }
+    } catch {
+      setNameError("Network error. Please try again.");
+    } finally {
+      setChecking(false);
+    }
   };
 
   const handleSendReservedNotification = async () => {
@@ -678,13 +715,23 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setReservedSubmitting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/notify-reserved`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nameInput, requesterEmail: reservedEmail }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nameInput,
+          requesterEmail: reservedEmail,
+        }),
       });
       const data = await res.json();
-      if (res.ok) { showMsg("Your request has been sent to our team!"); resetLinkForm(); }
-      else showMsg(data.message || "Failed to send", "error");
-    } catch { showMsg("Network error", "error"); } finally { setReservedSubmitting(false); }
+      if (res.ok) {
+        showMsg("Your request has been sent to our team!");
+        resetLinkForm();
+      } else showMsg(data.message || "Failed to send", "error");
+    } catch {
+      showMsg("Network error", "error");
+    } finally {
+      setReservedSubmitting(false);
+    }
   };
 
   const handleExecuteLink = async () => {
@@ -692,33 +739,89 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setPinLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: pinInput }),
       });
       const pinData = await pinRes.json();
-      if (!pinRes.ok) { showMsg(pinData.message || "Invalid PIN", "error"); setPinLoading(false); return; }
+      if (!pinRes.ok) {
+        showMsg(pinData.message || "Invalid PIN", "error");
+        setPinLoading(false);
+        return;
+      }
       setLinkStep("linking");
       const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ safeAddress: user.safeAddress, name: nameInput, walletToLink: walletInput, registryAddress: selectedRegistry.registryAddress }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          safeAddress: user.safeAddress,
+          name: nameInput,
+          walletToLink: walletInput,
+          registryAddress: selectedRegistry.registryAddress,
+        }),
       });
       const prepData = await prepRes.json();
-      if (prepData.reserved) { setLinkStep("reserved"); return; }
-      if (prepData.lowBalance) { showMsg(prepData.message || "Insufficient NGNs", "error"); setTimeout(() => onSwitchToBuy?.(), 1500); setLinkStep("form"); return; }
-      if (!prepRes.ok) { showMsg(prepData.message || "Preparation failed", "error"); setLinkStep("confirm"); return; }
+      if (prepData.reserved) {
+        setLinkStep("reserved");
+        return;
+      }
+      if (prepData.lowBalance) {
+        showMsg(prepData.message || "Insufficient NGNs", "error");
+        setTimeout(() => onSwitchToBuy?.(), 1500);
+        setLinkStep("form");
+        return;
+      }
+      if (!prepRes.ok) {
+        showMsg(prepData.message || "Preparation failed", "error");
+        setLinkStep("confirm");
+        return;
+      }
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ safeAddress: user.safeAddress, pureName: prepData.pureName, weldedName: prepData.weldedName, walletToLink: prepData.walletToLink, registryAddress: prepData.registryAddress, signature: prepData.signature, feeWei: prepData.feeWei, userPrivateKey: pinData.privateKey }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          safeAddress: user.safeAddress,
+          pureName: prepData.pureName,
+          weldedName: prepData.weldedName,
+          walletToLink: prepData.walletToLink,
+          registryAddress: prepData.registryAddress,
+          signature: prepData.signature,
+          feeWei: prepData.feeWei,
+          userPrivateKey: pinData.privateKey,
+        }),
       });
       const execData = await execRes.json();
-      if (!execRes.ok) { showMsg(execData.message || "Linking failed", "error"); setLinkStep("confirm"); return; }
+      if (!execRes.ok) {
+        showMsg(execData.message || "Linking failed", "error");
+        setLinkStep("confirm");
+        return;
+      }
       if (walletInput && execData.alias?.name) {
-        fetch(`${SALVA_API_URL}/api/pool/set-name`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ poolAddress: walletInput, ownerSafeAddress: user.safeAddress, poolName: execData.alias.name }) }).catch(() => {});
+        fetch(`${SALVA_API_URL}/api/pool/set-name`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            poolAddress: walletInput,
+            ownerSafeAddress: user.safeAddress,
+            poolName: execData.alias.name,
+          }),
+        }).catch(() => {});
       }
       setLinkStep("success");
       await fetchLinkedNames();
-      try { const saved = JSON.parse(localStorage.getItem("salva_user") || "{}"); saved.nameAlias = execData.alias?.name || saved.nameAlias; localStorage.setItem("salva_user", JSON.stringify(saved)); } catch { /* ignore */ }
-    } catch (err) { showMsg(err.message || "Failed to link name", "error"); setLinkStep("confirm"); } finally { setPinLoading(false); }
+      try {
+        const saved = JSON.parse(localStorage.getItem("salva_user") || "{}");
+        saved.nameAlias = execData.alias?.name || saved.nameAlias;
+        localStorage.setItem("salva_user", JSON.stringify(saved));
+      } catch {
+        /* ignore */
+      }
+    } catch (err) {
+      showMsg(err.message || "Failed to link name", "error");
+      setLinkStep("confirm");
+    } finally {
+      setPinLoading(false);
+    }
   };
 
   const handleExecuteUnlink = async () => {
@@ -726,38 +829,72 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setUnlinkLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: unlinkPinInput }),
       });
       const pinData = await pinRes.json();
-      if (!pinRes.ok) { showMsg(pinData.message || "Invalid PIN", "error"); setUnlinkLoading(false); return; }
+      if (!pinRes.ok) {
+        showMsg(pinData.message || "Invalid PIN", "error");
+        setUnlinkLoading(false);
+        return;
+      }
       const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ safeAddress: user.safeAddress, weldedName: unlinkTarget.name, registryAddress: unlinkTarget.registryAddress, userPrivateKey: pinData.privateKey }),
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          safeAddress: user.safeAddress,
+          weldedName: unlinkTarget.name,
+          registryAddress: unlinkTarget.registryAddress,
+          userPrivateKey: pinData.privateKey,
+        }),
       });
       const data = await res.json();
-      if (res.ok) { showMsg(`"${unlinkTarget.name}" unlinked successfully!`); setUnlinkPinStep(false); setUnlinkTarget(null); await fetchLinkedNames(); }
-      else showMsg(data.message || "Unlink failed", "error");
-    } catch { showMsg("Network error during unlink", "error"); } finally { setUnlinkLoading(false); }
+      if (res.ok) {
+        showMsg(`"${unlinkTarget.name}" unlinked successfully!`);
+        setUnlinkPinStep(false);
+        setUnlinkTarget(null);
+        await fetchLinkedNames();
+      } else showMsg(data.message || "Unlink failed", "error");
+    } catch {
+      showMsg("Network error during unlink", "error");
+    } finally {
+      setUnlinkLoading(false);
+    }
   };
 
   const resetLinkForm = () => {
-    setLinkStep("form"); setNameInput(""); setWalletInput(""); setNameError("");
-    setNameCheckResult(null); setPinInput(""); setSelectedRegistry(null);
-    setRegistryFee(null); setReservedEmail("");
+    setLinkStep("form");
+    setNameInput("");
+    setWalletInput("");
+    setNameError("");
+    setNameCheckResult(null);
+    setPinInput("");
+    setSelectedRegistry(null);
+    setRegistryFee(null);
+    setReservedEmail("");
   };
 
   const feeActive = registryFee !== null && registryFee > 0;
-  const darkInput = "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+  const darkInput =
+    "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-6"
+    >
       {/* ── Linked Names ── */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">Your Linked Names</p>
-          <button onClick={fetchLinkedNames} className="text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors">
+          <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
+            Your Linked Names
+          </p>
+          <button
+            onClick={fetchLinkedNames}
+            className="text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors"
+          >
             Refresh
           </button>
         </div>
@@ -769,13 +906,29 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         ) : linkedNames.length === 0 ? (
           <div className="relative overflow-hidden p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
             <div className="w-10 h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-3">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} className="w-5 h-5 text-salvaGold/60">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.75}
+                className="w-5 h-5 text-salvaGold/60"
+              >
                 <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
-                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
+                <circle
+                  cx="8.5"
+                  cy="8.5"
+                  r="1.5"
+                  fill="currentColor"
+                  stroke="none"
+                />
               </svg>
             </div>
-            <p className="text-sm font-black text-white/60">No names linked yet</p>
-            <p className="text-[10px] text-white/60 mt-1">Register a name below to get started</p>
+            <p className="text-sm font-black text-white/60">
+              No names linked yet
+            </p>
+            <p className="text-[10px] text-white/60 mt-1">
+              Register a name below to get started
+            </p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -789,19 +942,27 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-                    <span className="text-salvaGold text-xs font-black">{alias.name.charAt(0).toUpperCase()}</span>
+                    <span className="text-salvaGold text-xs font-black">
+                      {alias.name.charAt(0).toUpperCase()}
+                    </span>
                   </div>
                   <div className="min-w-0">
                     <p
                       className="font-black text-salvaGold text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => { navigator.clipboard.writeText(alias.name); showMsg("Name copied!"); }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(alias.name);
+                        showMsg("Name copied!");
+                      }}
                       title="Click to copy"
                     >
                       {alias.name}
                     </p>
                     <p
                       className="font-mono text-[10px] text-white/60 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
-                      onClick={() => { navigator.clipboard.writeText(alias.wallet); showMsg("Wallet address copied!"); }}
+                      onClick={() => {
+                        navigator.clipboard.writeText(alias.wallet);
+                        showMsg("Wallet address copied!");
+                      }}
                       title="Click to copy wallet"
                     >
                       {alias.wallet.slice(0, 10)}…{alias.wallet.slice(-8)}
@@ -809,7 +970,12 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   </div>
                 </div>
                 <button
-                  onClick={() => { setUnlinkTarget(alias); setShowUnlinkConfirm(true); setUnlinkPinInput(""); setUnlinkPinStep(false); }}
+                  onClick={() => {
+                    setUnlinkTarget(alias);
+                    setShowUnlinkConfirm(true);
+                    setUnlinkPinInput("");
+                    setUnlinkPinStep(false);
+                  }}
                   className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
                 >
                   Unlink
@@ -823,28 +989,43 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       {/* ── Divider ── */}
       <div className="relative flex items-center">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-        <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/60">Register New</span>
+        <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/60">
+          Register New
+        </span>
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
       </div>
 
       {/* ── FORM ── */}
       {linkStep === "form" && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-4"
+        >
           {/* Name input */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">Name</label>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+              Name
+            </label>
             <div className="relative">
               <input
                 type="text"
                 placeholder="yourname"
                 value={nameInput}
-                onChange={(e) => { setNameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, "")); setNameError(""); }}
+                onChange={(e) => {
+                  setNameInput(
+                    e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""),
+                  );
+                  setNameError("");
+                }}
                 maxLength={32}
                 className={darkInput}
               />
               {nameInput && selectedRegistry && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                  <span className="text-salvaGold/50 text-[10px] font-black">{selectedRegistry.nspace}</span>
+                  <span className="text-salvaGold/50 text-[10px] font-black">
+                    {selectedRegistry.nspace}
+                  </span>
                 </div>
               )}
             </div>
@@ -852,7 +1033,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               <div className="mt-2 px-3 py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
                 <p className="text-[10px] text-salvaGold font-black">
-                  {nameInput}{selectedRegistry ? selectedRegistry.nspace : "@salva"}
+                  {nameInput}
+                  {selectedRegistry ? selectedRegistry.nspace : "@salva"}
                 </p>
               </div>
             )}
@@ -860,23 +1042,33 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
           {/* Wallet input */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">Wallet Address</label>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+              Wallet Address
+            </label>
             <input
               type="text"
               placeholder="0x…"
               value={walletInput}
-              onChange={(e) => { setWalletInput(e.target.value.trim()); setNameError(""); }}
+              onChange={(e) => {
+                setWalletInput(e.target.value.trim());
+                setNameError("");
+              }}
               className={`${darkInput} font-mono text-xs`}
             />
           </div>
 
           {/* Registry dropdown */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">Wallet Service</label>
+            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+              Wallet Service
+            </label>
             <RegistryDropdown
               registries={registries}
               value={selectedRegistry}
-              onChange={(reg) => { setSelectedRegistry(reg); setNameError(""); }}
+              onChange={(reg) => {
+                setSelectedRegistry(reg);
+                setNameError("");
+              }}
               placeholder="Select wallet service…"
             />
           </div>
@@ -890,10 +1082,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
           <button
             onClick={handleCheckName}
-            disabled={checking || !nameInput || !walletInput || !selectedRegistry}
+            disabled={
+              checking || !nameInput || !walletInput || !selectedRegistry
+            }
             className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
           >
-            {checking && <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
+            {checking && (
+              <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+            )}
             {checking ? "Checking…" : "Check Availability"}
           </button>
         </motion.div>
@@ -901,7 +1097,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
       {/* ── RESERVED ── */}
       {linkStep === "reserved" && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           className="p-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 space-y-5"
         >
           <div className="flex items-start gap-4">
@@ -911,14 +1109,31 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <div>
               <p className="font-black text-white text-sm">Reserved Name</p>
               <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">
-                <span className="text-salvaGold font-black">{nameInput}</span> is reserved. Share your email and we'll reach out about eligibility.
+                <span className="text-salvaGold font-black">{nameInput}</span>{" "}
+                is reserved. Share your email and we'll reach out about
+                eligibility.
               </p>
             </div>
           </div>
-          <input type="email" placeholder="your@email.com" value={reservedEmail} onChange={(e) => setReservedEmail(e.target.value)} className={darkInput} />
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={reservedEmail}
+            onChange={(e) => setReservedEmail(e.target.value)}
+            className={darkInput}
+          />
           <div className="flex gap-3">
-            <button onClick={resetLinkForm} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all">Back</button>
-            <button onClick={handleSendReservedNotification} disabled={reservedSubmitting || !reservedEmail} className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all">
+            <button
+              onClick={resetLinkForm}
+              className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleSendReservedNotification}
+              disabled={reservedSubmitting || !reservedEmail}
+              className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all"
+            >
               {reservedSubmitting ? "Sending…" : "Send Request"}
             </button>
           </div>
@@ -927,11 +1142,19 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
       {/* ── CONFIRM ── */}
       {linkStep === "confirm" && nameCheckResult && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-3"
+        >
           {/* Name badge */}
           <div className="p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
-            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">Name Available</p>
-            <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
+            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">
+              Name Available
+            </p>
+            <p className="text-2xl font-black text-salvaGold">
+              {nameCheckResult.welded}
+            </p>
           </div>
 
           {/* Fee */}
@@ -944,21 +1167,36 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-red-400 block" />
-                <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">Registration Fee</p>
+                <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
+                  Registration Fee
+                </p>
               </div>
-              <p className="font-black text-white text-sm">{registryFee?.toLocaleString()} <span className="text-salvaGold text-xs">NGNs</span></p>
+              <p className="font-black text-white text-sm">
+                {registryFee?.toLocaleString()}{" "}
+                <span className="text-salvaGold text-xs">NGNs</span>
+              </p>
             </div>
           ) : (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
               <span className="text-green-400 text-sm flex-shrink-0">✦</span>
-              <p className="text-xs font-black text-green-400">Free Registration — no fee required</p>
+              <p className="text-xs font-black text-green-400">
+                Free Registration — no fee required
+              </p>
             </div>
           )}
 
           <div className="flex gap-3 pt-1">
-            <button onClick={resetLinkForm} className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all">Back</button>
             <button
-              onClick={() => { setLinkStep("pin"); setPinInput(""); }}
+              onClick={resetLinkForm}
+              className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => {
+                setLinkStep("pin");
+                setPinInput("");
+              }}
               disabled={feeLoading}
               className="flex-2 flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
             >
@@ -970,7 +1208,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
       {/* ── PIN ── */}
       {linkStep === "pin" && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
           className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
         >
           <div className="w-12 h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
@@ -978,22 +1218,37 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </div>
           <div>
             <p className="font-black text-white text-lg">Transaction PIN</p>
-            <p className="text-[11px] text-white/60 mt-1">Authorise the on-chain name link</p>
+            <p className="text-[11px] text-white/60 mt-1">
+              Authorise the on-chain name link
+            </p>
           </div>
           <input
-            type="password" inputMode="numeric" pattern="\d{4}" maxLength="4"
-            value={pinInput} onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
-            placeholder="••••" autoFocus
+            type="password"
+            inputMode="numeric"
+            pattern="\d{4}"
+            maxLength="4"
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+            placeholder="••••"
+            autoFocus
             className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
           />
           <div className="flex gap-3">
-            <button onClick={() => setLinkStep("confirm")} disabled={pinLoading} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Back</button>
+            <button
+              onClick={() => setLinkStep("confirm")}
+              disabled={pinLoading}
+              className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+            >
+              Back
+            </button>
             <button
               onClick={handleExecuteLink}
               disabled={pinLoading || pinInput.length !== 4}
               className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
-              {pinLoading && <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />}
+              {pinLoading && (
+                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              )}
               {pinLoading ? "Signing…" : "Confirm"}
             </button>
           </div>
@@ -1002,7 +1257,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
       {/* ── LINKING ── */}
       {linkStep === "linking" && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
           className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
         >
           <div className="relative w-14 h-14 mx-auto">
@@ -1013,17 +1270,22 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             </div>
           </div>
           <p className="font-black text-white">Linking on-chain…</p>
-          <p className="text-xs text-white/60">Broadcasting to Base · 30–60 seconds</p>
+          <p className="text-xs text-white/60">
+            Broadcasting to Base · 30–60 seconds
+          </p>
         </motion.div>
       )}
 
       {/* ── SUCCESS ── */}
       {linkStep === "success" && (
-        <motion.div initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
           className="py-12 px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-5"
         >
           <motion.div
-            initial={{ scale: 0 }} animate={{ scale: 1 }}
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
             transition={{ type: "spring", stiffness: 280, delay: 0.1 }}
             className="w-16 h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
           >
@@ -1031,9 +1293,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </motion.div>
           <div>
             <p className="text-xl font-black text-white">Name Linked</p>
-            <p className="text-[11px] text-white/60 mt-1">Your name is now live on Base</p>
+            <p className="text-[11px] text-white/60 mt-1">
+              Your name is now live on Base
+            </p>
           </div>
-          <button onClick={resetLinkForm} className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-sm">
+          <button
+            onClick={resetLinkForm}
+            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-sm"
+          >
             Link Another Name
           </button>
         </motion.div>
@@ -1043,18 +1310,46 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       <AnimatePresence>
         {showUnlinkConfirm && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div onClick={() => setShowUnlinkConfirm(false)} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+            <motion.div
+              onClick={() => setShowUnlinkConfirm(false)}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
               <div className="text-center space-y-3">
                 <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
                   <span className="text-xl">⚠️</span>
                 </div>
                 <p className="font-black text-white text-lg">Unlink Name?</p>
                 <p className="text-salvaGold font-black">{unlinkTarget.name}</p>
-                <p className="text-sm text-white/60">This removes the on-chain link and cannot be undone.</p>
+                <p className="text-sm text-white/60">
+                  This removes the on-chain link and cannot be undone.
+                </p>
                 <div className="flex gap-3 pt-2">
-                  <button onClick={() => setShowUnlinkConfirm(false)} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Cancel</button>
-                  <button onClick={() => { setShowUnlinkConfirm(false); setUnlinkPinStep(true); setUnlinkPinInput(""); }} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 transition-all">Unlink</button>
+                  <button
+                    onClick={() => setShowUnlinkConfirm(false)}
+                    className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUnlinkConfirm(false);
+                      setUnlinkPinStep(true);
+                      setUnlinkPinInput("");
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 transition-all"
+                  >
+                    Unlink
+                  </button>
                 </div>
               </div>
             </motion.div>
@@ -1066,25 +1361,66 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       <AnimatePresence>
         {unlinkPinStep && unlinkTarget && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
-            <motion.div onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} className="absolute inset-0 bg-black/90 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
-            <motion.div onClick={(e) => e.stopPropagation()} className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}>
+            <motion.div
+              onClick={() => {
+                setUnlinkPinStep(false);
+                setUnlinkPinInput("");
+              }}
+              className="absolute inset-0 bg-black/90 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            />
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
               <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
                 <span className="text-xl">🔐</span>
               </div>
               <div>
                 <p className="font-black text-white text-lg">Enter PIN</p>
-                <p className="text-[11px] text-white/60 mt-1">Confirm unlinking <span className="text-red-400 font-black">{unlinkTarget.name}</span></p>
+                <p className="text-[11px] text-white/60 mt-1">
+                  Confirm unlinking{" "}
+                  <span className="text-red-400 font-black">
+                    {unlinkTarget.name}
+                  </span>
+                </p>
               </div>
               <input
-                type="password" inputMode="numeric" maxLength="4"
-                value={unlinkPinInput} onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ""))}
-                placeholder="••••" autoFocus
+                type="password"
+                inputMode="numeric"
+                maxLength="4"
+                value={unlinkPinInput}
+                onChange={(e) =>
+                  setUnlinkPinInput(e.target.value.replace(/\D/g, ""))
+                }
+                placeholder="••••"
+                autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
               />
               <div className="flex gap-3">
-                <button onClick={() => { setUnlinkPinStep(false); setUnlinkPinInput(""); }} disabled={unlinkLoading} className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all">Cancel</button>
-                <button onClick={handleExecuteUnlink} disabled={unlinkLoading || unlinkPinInput.length !== 4} className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2">
-                  {unlinkLoading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                <button
+                  onClick={() => {
+                    setUnlinkPinStep(false);
+                    setUnlinkPinInput("");
+                  }}
+                  disabled={unlinkLoading}
+                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExecuteUnlink}
+                  disabled={unlinkLoading || unlinkPinInput.length !== 4}
+                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                >
+                  {unlinkLoading && (
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  )}
                   {unlinkLoading ? "Unlinking…" : "Confirm"}
                 </button>
               </div>
@@ -1429,11 +1765,11 @@ const Dashboard = () => {
     }
   });
 
-  const [balance, setBalance] = useState(null);
-  const [cNgnBalance, setCNgnBalance] = useState(null);
-  const [usdtBalance, setUsdtBalance] = useState(null);
-  const [usdcBalance, setUsdcBalance] = useState(null);
-  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [ngnBalance, setNgnBalance] = useState("0.00");
+  const [cNgnBalance, setCNgnBalance] = useState("0.00");
+  const [usdtBalance, setUsdtBalance] = useState("0.00");
+  const [usdcBalance, setUsdcBalance] = useState("0.00");
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
@@ -1547,12 +1883,12 @@ const Dashboard = () => {
       const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
       if (!res.ok) return;
       const data = await res.json();
-      setBalance(parseFloat(data.balance || 0).toFixed(2));
-      setCNgnBalance(parseFloat(data.cNgnBalance || 0).toFixed(2));
-      setUsdtBalance(parseFloat(data.usdtBalance || 0).toFixed(2));
-      setUsdcBalance(parseFloat(data.usdcBalance || 0).toFixed(2));
+      setNgnBalance(data.ngnBalance ?? "0.00"); // ← was data.balance
+      setCNgnBalance(data.cNgnBalance ?? "0.00");
+      setUsdtBalance(data.usdtBalance ?? "0.00");
+      setUsdcBalance(data.usdcBalance ?? "0.00");
     } catch {
-      /* keep existing */
+      /* keep existing values */
     } finally {
       if (showSpinner) setBalanceLoading(false);
     }
@@ -1600,7 +1936,7 @@ const Dashboard = () => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
       if (selectedCoin === "NGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(balance ?? "0"));
+        setAmountError(!isNaN(amt) && amt > parseFloat(ngnBalance ?? "0"));
       else if (selectedCoin === "CNGN")
         setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? "0"));
       else if (selectedCoin === "USDT")
@@ -1609,7 +1945,14 @@ const Dashboard = () => {
     } else {
       setAmountError(false);
     }
-  }, [transferAmount, balance, usdtBalance, usdcBalance, selectedCoin]);
+  }, [
+    transferAmount,
+    ngnBalance,
+    cNgnBalance,
+    usdtBalance,
+    usdcBalance,
+    selectedCoin,
+  ]);
 
   const fetchMeta = async () => {
     try {
@@ -1626,25 +1969,25 @@ const Dashboard = () => {
     } catch {}
   };
 
-const computeFeePreview = (amount, coin) => {
-  const amt = parseFloat(amount);
-  if (isNaN(amt) || !amount) {
-    setFeePreview({ feeNGN: 0, feeUsd: 0 });
-    return;
-  }
-  if ((coin === "NGN" || coin === "CNGN") && feeConfig) {
-    let fee = 0;
-    if (amt >= (feeConfig.tier2Min ?? 10000)) fee = feeConfig.tier2Fee ?? 20;
-    else if (
-      amt >= (feeConfig.tier1Min ?? 1000) &&
-      amt <= (feeConfig.tier1Max ?? 9999)
-    )
-      fee = feeConfig.tier1Fee ?? 10;
-    setFeePreview({ feeNGN: fee, feeUsd: 0 });
-  } else if (coin === "USDT" || coin === "USDC") {
-    setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
-  }
-};
+  const computeFeePreview = (amount, coin) => {
+    const amt = parseFloat(amount);
+    if (isNaN(amt) || !amount) {
+      setFeePreview({ feeNGN: 0, feeUsd: 0 });
+      return;
+    }
+    if ((coin === "NGN" || coin === "CNGN") && feeConfig) {
+      let fee = 0;
+      if (amt >= (feeConfig.tier2Min ?? 10000)) fee = feeConfig.tier2Fee ?? 20;
+      else if (
+        amt >= (feeConfig.tier1Min ?? 1000) &&
+        amt <= (feeConfig.tier1Max ?? 9999)
+      )
+        fee = feeConfig.tier1Fee ?? 10;
+      setFeePreview({ feeNGN: fee, feeUsd: 0 });
+    } else if (coin === "USDT" || coin === "USDC") {
+      setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
+    }
+  };
 
   const handleRecipientChange = (val) => {
     setRecipientInput(val);
@@ -1927,7 +2270,7 @@ const computeFeePreview = (amount, coin) => {
   const showRegistryDropdown = inputType === "name";
   const currentCoinBalance =
     selectedCoin === "NGN"
-      ? (balance ?? "0.00")
+      ? (ngnBalance ?? "0.00")
       : selectedCoin === "CNGN"
         ? (cNgnBalance ?? "0.00")
         : selectedCoin === "USDT"
@@ -1963,7 +2306,7 @@ const computeFeePreview = (amount, coin) => {
 
         {/* ── Balance Card ── */}
         <BalanceCard
-          balance={balance ?? "0.00"}
+          ngnBalance={ngnBalance ?? "0.00"}
           cNgnBalance={cNgnBalance ?? "0.00"}
           usdtBalance={usdtBalance ?? "0.00"}
           usdcBalance={usdcBalance ?? "0.00"}
