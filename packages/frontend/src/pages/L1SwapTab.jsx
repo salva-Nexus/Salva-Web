@@ -834,7 +834,7 @@ const executeSwap = async (doTrust) => {
                 )}
                 {txHash && (
                   <a
-                    href={`https://etherscan.io/tx/${txHash}`}
+                    href={`https://${process.env.NODE_ENV === "production" ? "" : "sepolia."}etherscan.io/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] font-black underline break-all block mb-2 text-blue-400"

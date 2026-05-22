@@ -4,11 +4,17 @@ import { SALVA_API_URL } from "../config";
 
 const POLL_MS = 60_000;
 
-const fmt = (n, d = 2) =>
-  parseFloat(n || 0).toLocaleString("en-US", {
-    minimumFractionDigits: d,
-    maximumFractionDigits: 6,
+const fmt = (n) => {
+  const num = parseFloat(n || 0);
+  if (isNaN(num)) return "0";
+  const str = num.toString();
+  if (!str.includes(".")) return num.toLocaleString("en-US");
+  const decimals = str.split(".")[1].replace(/0+$/, "").length;
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
+};
 
 const fmtInput = (raw) => {
   const d = raw.replace(/[^0-9.]/g, "");
@@ -726,7 +732,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 )}
                 {txHash && (
                   <a
-                    href={`https://${process.env.REACT_APP_NODE_ENV === "production" ? "" : "sepolia."}basescan.org/tx/${txHash}`}
+                    href={`https://${process.env.NODE_ENV === "production" ? "" : "sepolia."}basescan.org/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[11px] font-black underline break-all block mb-2"

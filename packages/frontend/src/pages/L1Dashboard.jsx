@@ -51,11 +51,17 @@ const L1Notification = ({ notification, onClose }) => {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatNumber = (num) =>
-  parseFloat(num).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 6,
+const formatNumber = (num) => {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  const str = n.toString();
+  if (!str.includes(".")) return n.toLocaleString("en-US");
+  const decimals = str.split(".")[1].replace(/0+$/, "").length;
+  return n.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
   });
+};
 
 // ── Balance Spinner ────────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
@@ -228,17 +234,6 @@ const L1Hero = ({ onConnect, connecting }) => (
     <div className="max-w-2xl mx-auto relative z-10">
       {/* Headline */}
       <div className="text-center mb-12">
-        <motion.h1
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-5xl sm:text-6xl font-black tracking-tight leading-none mb-4"
-        >
-          Salva<span style={{ color: "#D4AF37" }}>.</span>
-          <span className="text-white/60 ml-3 text-3xl sm:text-4xl font-black">
-            ETH CHAIN
-          </span>
-        </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

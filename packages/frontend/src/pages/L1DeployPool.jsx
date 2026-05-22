@@ -31,6 +31,18 @@ const POOL_ABI = [
 const darkInput =
   "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
+const smartFmt = (n) => {
+  const num = parseFloat(n || 0);
+  if (isNaN(num)) return "0";
+  const str = num.toString();
+  if (!str.includes(".")) return num.toLocaleString("en-US");
+  const decimals = str.split(".")[1].replace(/0+$/, "").length;
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
 const fmt = (n, d = 2) =>
   parseFloat(n || 0).toLocaleString("en-US", {
     minimumFractionDigits: d,
@@ -338,10 +350,10 @@ const L1PoolManagePanel = ({
   };
 
   const availableForAsset = (a) => {
-    if (a === "NGN") return pool.ngnLiquidity || "0";
-    if (a === "CNGN") return pool.cNgnLiquidity || "0";
-    if (a === "USDT") return pool.usdtLiquidity || "0";
-    if (a === "USDC") return pool.usdcLiquidity || "0";
+    if (a === "NGN") return smartFmt(pool.ngnLiquidity) || "0";
+    if (a === "CNGN") return smartFmt(pool.cNgnLiquidity) || "0";
+    if (a === "USDT") return smartFmt(pool.usdtLiquidity) || "0";
+    if (a === "USDC") return smartFmt(pool.usdcLiquidity) || "0";
     return "0";
   };
 
@@ -554,18 +566,18 @@ const L1PoolManagePanel = ({
           <div className="grid grid-cols-2 gap-2">
             <StatCell
               label="NGN"
-              value={(
-                parseFloat(pool.ngnLiquidity || 0) +
-                parseFloat(pool.cNgnLiquidity || 0)
-              ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+              value={
+                smartFmt(pool.ngnLiquidity) +
+                smartFmt(pool.cNgnLiquidity)
+              }
               color="#D4AF37"
             />
             <StatCell
               label="USD"
-              value={(
-                parseFloat(pool.usdtLiquidity || 0) +
-                parseFloat(pool.usdcLiquidity || 0)
-              ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+              value={
+                smartFmt(pool.usdtLiquidity) +
+                smartFmt(pool.usdcLiquidity)
+              }
               color="#22c55e"
             />
           </div>
@@ -926,24 +938,20 @@ const L1PoolCard = ({
       <div className="grid grid-cols-3 gap-2">
         <StatCell
           label="NGNs"
-          value={(
-            parseFloat(pool.ngnLiquidity || 0) +
-            parseFloat(pool.cNgnLiquidity || 0)
-          ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+          value={
+            smartFmt(pool.ngnLiquidity) +
+            smartFmt(pool.cNgnLiquidity)
+          }
           color="#D4AF37"
         />
         <StatCell
           label="USDT"
-          value={parseFloat(pool.usdtLiquidity || 0).toLocaleString("en-US", {
-            maximumFractionDigits: 6,
-          })}
+          value={smartFmt(pool.usdtLiquidity)}
           color="#22c55e"
         />
         <StatCell
           label="USDC"
-          value={parseFloat(pool.usdcLiquidity || 0).toLocaleString("en-US", {
-            maximumFractionDigits: 6,
-          })}
+          value={smartFmt(pool.usdcLiquidity)}
           color="#3b82f6"
         />
       </div>

@@ -6,6 +6,18 @@ import { SALVA_API_URL } from "../config";
 const darkInput =
   "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
+const smartFmt = (n) => {
+  const num = parseFloat(n || 0);
+  if (isNaN(num)) return "0";
+  const str = num.toString();
+  if (!str.includes(".")) return num.toLocaleString("en-US");
+  const decimals = str.split(".")[1].replace(/0+$/, "").length;
+  return num.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
 // ─── Registry Dropdown ────────────────────────────────────────────────────────
 const RegistryDropdown = ({
   registries,
@@ -339,10 +351,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const assets = ["NGN", "CNGN", "USDT", "USDC"];
 
   const availableForAsset = (asset) => {
-    if (asset === "NGN") return pool.ngnLiquidity || "0";
-    if (asset === "CNGN") return pool.cNgnLiquidity || "0";
-    if (asset === "USDT") return pool.usdtLiquidity || "0";
-    if (asset === "USDC") return pool.usdcLiquidity || "0";
+    if (asset === "NGN") return smartFmt(pool.ngnLiquidity) || "0";
+    if (asset === "CNGN") return smartFmt(pool.cNgnLiquidity) || "0";
+    if (asset === "USDT") return smartFmt(pool.usdtLiquidity) || "0";
+    if (asset === "USDC") return smartFmt(pool.usdcLiquidity) || "0";
     return "0";
   };
 
@@ -617,10 +629,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 NGN
               </p>
               <p className="font-black text-sm text-salvaGold">
-                {(
-                  parseFloat(pool.ngnLiquidity || 0) +
-                  parseFloat(pool.cNgnLiquidity || 0)
-                ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                {
+                  smartFmt(pool.ngnLiquidity) +
+                  smartFmt(pool.cNgnLiquidity)
+                }
               </p>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
@@ -628,10 +640,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 USD
               </p>
               <p className="font-black text-sm text-green-400">
-                {(
-                  parseFloat(pool.usdtLiquidity || 0) +
-                  parseFloat(pool.usdcLiquidity || 0)
-                ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+                {smartFmt(pool.usdtLiquidity) + 
+                 smartFmt(pool.usdtLiquidity)
+                }
               </p>
             </div>
           </div>
@@ -1015,24 +1026,20 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
         <div className="grid grid-cols-3 gap-2">
           <StatCell
             label="NGNs"
-            value={(
-              parseFloat(pool.ngnLiquidity || 0) +
-              parseFloat(pool.cNgnLiquidity || 0)
-            ).toLocaleString("en-US", { maximumFractionDigits: 6 })}
+            value={
+              smartFmt(pool.ngnLiquidity) +
+              smartFmt(pool.cNgnLiquidity)
+             }
             color="#D4AF37"
           />
           <StatCell
             label="USDT"
-            value={parseFloat(pool.usdtLiquidity || 0).toLocaleString("en-US", {
-              maximumFractionDigits: 6,
-            })}
+            value={smartFmt(pool.usdtLiquidity)}
             color="#22c55e"
           />
           <StatCell
             label="USDC"
-            value={parseFloat(pool.usdcLiquidity || 0).toLocaleString("en-US", {
-              maximumFractionDigits: 6,
-            })}
+            value={smartFmt(pool.usdcLiquidity)}
             color="#3b82f6"
           />
         </div>
