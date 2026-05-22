@@ -209,8 +209,23 @@ const TAB_ICONS = {
 const L1Hero = ({ onConnect, connecting }) => (
   <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
     <Stars />
+    {/* ── THIS SECTION IS FOR LOCKING ETH CHAIN PAGE ──────────────────────────── */}
+    <div className="fixed inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto">
+        <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
+          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center">
+            <span className="text-2xl">⛓</span>
+          </div>
+          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black">
+            Salva V3 · ETH Chain
+          </p>
+          <p className="text-xl font-black text-white">Coming Soon</p>
+          <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
+            V3 smart contracts are under development and testing on Ethereum.
+          </p>
+        </div>
+      </div>
+    {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
     <div className="max-w-2xl mx-auto relative z-10">
-
       {/* Headline */}
       <div className="text-center mb-12">
         <motion.h1
@@ -220,7 +235,9 @@ const L1Hero = ({ onConnect, connecting }) => (
           className="text-5xl sm:text-6xl font-black tracking-tight leading-none mb-4"
         >
           Salva<span style={{ color: "#D4AF37" }}>.</span>
-          <span className="text-white/60 ml-3 text-3xl sm:text-4xl font-black">ETH CHAIN</span>
+          <span className="text-white/60 ml-3 text-3xl sm:text-4xl font-black">
+            ETH CHAIN
+          </span>
         </motion.h1>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -266,12 +283,18 @@ const L1Hero = ({ onConnect, connecting }) => (
           >
             <div
               className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-xl"
-              style={{ background: `${card.color}15`, color: card.color, border: `1px solid ${card.color}30` }}
+              style={{
+                background: `${card.color}15`,
+                color: card.color,
+                border: `1px solid ${card.color}30`,
+              }}
             >
               {card.icon}
             </div>
             <p className="font-black text-sm text-white">{card.title}</p>
-            <p className="text-[11px] text-white/60 leading-relaxed">{card.desc}</p>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              {card.desc}
+            </p>
           </div>
         ))}
       </motion.div>
@@ -287,7 +310,11 @@ const L1Hero = ({ onConnect, connecting }) => (
           onClick={onConnect}
           disabled={connecting}
           className="flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 shadow-2xl"
-          style={{ background: "#D4AF37", color: "#000", boxShadow: "0 8px 32px rgba(212,175,55,0.35)" }}
+          style={{
+            background: "#D4AF37",
+            color: "#000",
+            boxShadow: "0 8px 32px rgba(212,175,55,0.35)",
+          }}
         >
           {connecting && (
             <span className="w-4 h-4 border-2 border-black/25 border-t-black rounded-full animate-spin" />
@@ -308,7 +335,6 @@ const L1Hero = ({ onConnect, connecting }) => (
           ← Back to Salva Wallet on Base
         </a>
       </div>
-
     </div>
   </div>
 );
@@ -422,24 +448,6 @@ const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
       <Stars />
-
-      {/* ── THIS SECTION IS FOR LOCKING ETH CHAIN PAGE ──────────────────────────── */}
-      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto">
-        <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl">⛓</span>
-          </div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black">
-            Salva V3 · ETH Chain
-          </p>
-          <p className="text-xl font-black text-white">Coming Soon</p>
-          <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
-            V3 smart contracts are under development and testing on Ethereum.
-          </p>
-        </div>
-      </div>
-      {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
-
       <div className="max-w-2xl mx-auto relative z-10"></div>
       <div className="max-w-2xl mx-auto relative z-10">
         {/* Header */}

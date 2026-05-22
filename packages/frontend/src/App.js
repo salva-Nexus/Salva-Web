@@ -68,6 +68,7 @@ function App() {
   const handleL1Disconnect = useCallback(() => {
     setL1Account(null);
     setL1ChainId(null);
+    localStorage.removeItem("l1_account");
   }, []);
 
   // Restore chain ID on mount if account was persisted
