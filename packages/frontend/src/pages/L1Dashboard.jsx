@@ -11,8 +11,13 @@ import L1DeployPool from "./L1DeployPool";
 const L1Notification = ({ notification, onClose }) => {
   const cfgMap = {
     success: { icon: "✓", bar: "#D4AF37", btnBg: "#D4AF37", btnText: "#000" },
-    error:   { icon: "✕", bar: "#EF4444", btnBg: "#EF4444", btnText: "#fff" },
-    info:    { icon: "↻", bar: "#3B82F6", btnBg: "rgba(255,255,255,0.15)", btnText: "#fff" },
+    error: { icon: "✕", bar: "#EF4444", btnBg: "#EF4444", btnText: "#fff" },
+    info: {
+      icon: "↻",
+      bar: "#3B82F6",
+      btnBg: "rgba(255,255,255,0.15)",
+      btnText: "#fff",
+    },
     warning: { icon: "⚠", bar: "#F59E0B", btnBg: "#F59E0B", btnText: "#000" },
   };
   const cfg = cfgMap[notification.type] || cfgMap.info;
@@ -21,7 +26,9 @@ const L1Notification = ({ notification, onClose }) => {
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
       <motion.div
         className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         onClick={onClose}
       />
       <motion.div
@@ -34,14 +41,22 @@ const L1Notification = ({ notification, onClose }) => {
       >
         <div style={{ height: 4, background: cfg.bar }} />
         <div className="p-7 text-center">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: cfg.bar }}>
-            <span className="text-xl font-black" style={{ color: cfg.btnText }}>{cfg.icon}</span>
+          <div
+            className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ background: cfg.bar }}
+          >
+            <span className="text-xl font-black" style={{ color: cfg.btnText }}>
+              {cfg.icon}
+            </span>
           </div>
-          <p className="font-black text-sm leading-relaxed mb-6 text-white">{notification.message}</p>
-          <button onClick={onClose}
+          <p className="font-black text-sm leading-relaxed mb-6 text-white">
+            {notification.message}
+          </p>
+          <button
+            onClick={onClose}
             className="w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
-            style={{ background: cfg.btnBg, color: cfg.btnText }}>
+            style={{ background: cfg.btnBg, color: cfg.btnText }}
+          >
             OK
           </button>
         </div>
@@ -145,11 +160,11 @@ const L1BalanceCard = ({
               }}
             >
               {showBalance
-  ? formatNumber(totalNgn, {
-      minDecimals: 3,
-      maxDecimals: 3,
-    })
-  : MASK}
+                ? formatNumber(totalNgn, {
+                    minDecimals: 3,
+                    maxDecimals: 3,
+                  })
+                : MASK}
             </span>
           )}
         </div>
@@ -158,12 +173,12 @@ const L1BalanceCard = ({
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
               ? `${formatNumber(ngnBalance, {
-  minDecimals: 3,
-  maxDecimals: 3,
-})} NGNs · ${formatNumber(cNgnBalance, {
-  minDecimals: 3,
-  maxDecimals: 3,
-})} cNGN`
+                  minDecimals: 3,
+                  maxDecimals: 3,
+                })} NGNs · ${formatNumber(cNgnBalance, {
+                  minDecimals: 3,
+                  maxDecimals: 3,
+                })} cNGN`
               : "•••• NGNs · •••• cNGN"}
           </p>
         )}
@@ -196,11 +211,11 @@ const L1BalanceCard = ({
               }}
             >
               {showBalance
-  ? formatNumber(totalUsd, {
-      minDecimals: 2,
-      maxDecimals: 3,
-    })
-  : MASK}
+                ? formatNumber(totalUsd, {
+                    minDecimals: 2,
+                    maxDecimals: 3,
+                  })
+                : MASK}
             </span>
           )}
         </div>
@@ -209,12 +224,12 @@ const L1BalanceCard = ({
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
               ? `${formatNumber(usdtBalance, {
-  minDecimals: 2,
-  maxDecimals: 3,
-})} USDT · ${formatNumber(usdcBalance, {
-  minDecimals: 2,
-  maxDecimals: 3,
-})} USDC`
+                  minDecimals: 2,
+                  maxDecimals: 3,
+                })} USDT · ${formatNumber(usdcBalance, {
+                  minDecimals: 2,
+                  maxDecimals: 3,
+                })} USDC`
               : "•••• USDT · •••• USDC"}
           </p>
         )}
@@ -226,21 +241,48 @@ const L1BalanceCard = ({
 // ── Tab icons ─────────────────────────────────────────────────────────────────
 const TAB_ICONS = {
   buy: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
-      <text x="12" y="17" textAnchor="middle" fontSize="16" fontWeight="700"
-        stroke="none" fill="currentColor" fontFamily="sans-serif">₦</text>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+    >
+      <text
+        x="12"
+        y="17"
+        textAnchor="middle"
+        fontSize="16"
+        fontWeight="700"
+        stroke="none"
+        fill="currentColor"
+        fontFamily="sans-serif"
+      >
+        ₦
+      </text>
     </svg>
   ),
   swap: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}
-      strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <path d="M7 16V4m0 0L4 7m3-3 3 3" />
       <path d="M17 8v12m0 0 3-3m-3 3-3-3" />
     </svg>
   ),
   deploy: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}
-      strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       <rect x="2" y="7" width="20" height="14" rx="2" />
       <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
       <line x1="12" y1="12" x2="12" y2="16" />
@@ -411,23 +453,23 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
     });
   };
 
-const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
-  if (!address) return;
-  if (showSpinner) setBalanceLoading(true);
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${address}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setNgnBalance(data.ngnBalance ?? "0.00");
-    setCNgnBalance(data.cNgnBalance ?? "0.00");
-    setUsdtBalance(data.usdtBalance ?? "0.00");
-    setUsdcBalance(data.usdcBalance ?? "0.00");
-  } catch {
-    /* keep existing values */
-  } finally {
-    if (showSpinner) setBalanceLoading(false);
-  }
-}, []);
+  const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
+    if (!address) return;
+    if (showSpinner) setBalanceLoading(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${address}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setNgnBalance(data.ngnBalance ?? "0.00");
+      setCNgnBalance(data.cNgnBalance ?? "0.00");
+      setUsdtBalance(data.usdtBalance ?? "0.00");
+      setUsdcBalance(data.usdcBalance ?? "0.00");
+    } catch {
+      /* keep existing values */
+    } finally {
+      if (showSpinner) setBalanceLoading(false);
+    }
+  }, []);
   const showMsg = (msg, type = "success") =>
     setNotification({ show: true, message: msg, type });
   const closeNotif = () => setNotification((n) => ({ ...n, show: false }));
@@ -447,7 +489,7 @@ const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
     fetchL1Balance(l1Account, true);
     const tick = () => {
       if (document.visibilityState === "visible") fetchL1Balance(l1Account);
-  };
+    };
     const iv = setInterval(tick, 45000);
     document.addEventListener("visibilitychange", tick);
     return () => {
@@ -681,6 +723,6 @@ const fetchL1Balance = useCallback(async (address, showSpinner = false) => {
       </AnimatePresence>
     </div>
   );
-};;
+};
 
 export default L1Dashboard;

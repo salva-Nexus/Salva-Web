@@ -297,7 +297,6 @@ function validatePin(pin) {
 // POINTS & REWARDS ROUTES
 // ══════════════════════════════════════════════════════════════════════════════
 
-
 // ===============================================
 // SECURITY: Error Handler
 // ===============================================
@@ -392,7 +391,6 @@ connectDB().catch((err) =>
   console.error("❌ Initial MongoDB connection attempt failed:", err.message),
 );
 
-
 // ===============================================
 // HELPERS
 // ===============================================
@@ -485,7 +483,9 @@ async function retryRPCCall(fn, maxRetries = 3, baseDelay = 1500) {
       if (i === maxRetries - 1) throw error;
       // Exponential backoff: 1.5s → 3s → 6s, prevents RPC flood
       const wait = baseDelay * Math.pow(2, i);
-      console.log(`⚠️ RPC call failed, retrying (${i + 1}/${maxRetries}) in ${wait}ms...`);
+      console.log(
+        `⚠️ RPC call failed, retrying (${i + 1}/${maxRetries}) in ${wait}ms...`,
+      );
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
@@ -548,17 +548,23 @@ async function applyCooldown(walletAddress, seconds = 20) {
 }
 
 async function cleanupStaleQueueEntries() {
-  const STALE_THRESHOLD = 10 * 60 * 1000; // 10 minutes
-  const staleDate = new Date(Date.now() - STALE_THRESHOLD);
+  const stuckDate = new Date(Date.now() - 10 * 60 * 1000);
+  await TransactionQueue.updateMany(
+    { status: "SENDING", updatedAt: { $lt: stuckDate } },
+    {
+      $set: {
+        status: "PENDING",
+        errorMessage: "Stuck in SENDING — reverted for retry",
+        updatedAt: new Date(),
+      },
+    },
+  );
 
-  const result = await TransactionQueue.deleteMany({
-    status: { $in: ["PENDING", "SENDING"] },
-    createdAt: { $lt: staleDate },
+  const oldFailedDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  await TransactionQueue.deleteMany({
+    status: "FAILED_ONCHAIN",
+    updatedAt: { $lt: oldFailedDate },
   });
-
-  if (result.deletedCount > 0) {
-    console.log(`🧹 Cleaned up ${result.deletedCount} stale queue entries`);
-  }
 }
 
 // ── getFeeForAmount ────────────────────────────────────────────────────────────
@@ -704,7 +710,8 @@ app.post("/api/auth/verify-otp", authLimiter, async (req, res) => {
     const sanitizedEmail = sanitizeEmail(email);
     const record = await OtpStore.findOne({ email: sanitizedEmail });
 
-    if (!record) return res.status(400).json({ message: "Invalid or expired code" });
+    if (!record)
+      return res.status(400).json({ message: "Invalid or expired code" });
     if (new Date() > record.expires) {
       await OtpStore.deleteOne({ email: sanitizedEmail });
       return res.status(400).json({ message: "Invalid or expired code" });
@@ -714,7 +721,8 @@ app.post("/api/auth/verify-otp", authLimiter, async (req, res) => {
       Buffer.from(record.code),
       Buffer.from(String(code)),
     );
-    if (!isValid) return res.status(400).json({ message: "Invalid or expired code" });
+    if (!isValid)
+      return res.status(400).json({ message: "Invalid or expired code" });
 
     record.verified = true;
     await record.save();
@@ -729,7 +737,10 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
     const { email, newPassword } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedOldEmail, verified: true });
+    const otpRecord = await OtpStore.findOne({
+      email: sanitizedOldEmail,
+      verified: true,
+    });
     if (!otpRecord || new Date() > otpRecord.expires) {
       return res.status(401).json({ message: "Please verify OTP first" });
     }
@@ -798,7 +809,9 @@ app.post(
     try {
       const { username, email, password } = req.body;
 
-      console.log(`📝 Registration attempt: username="${username}" email="${email}"`);
+      console.log(
+        `📝 Registration attempt: username="${username}" email="${email}"`,
+      );
 
       const existingEmail = await User.findOne({ email });
       if (existingEmail)
@@ -1527,50 +1540,48 @@ app.get("/api/balance/:address", async (req, res) => {
 
     const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
-const ngnContract = new ethers.Contract(
-  process.env.NGN_TOKEN_ADDRESS,
-  ERC20_ABI,
-  provider,
-);
-const cNgnContract = new ethers.Contract(
-  process.env.CNGN_CONTRACT_ADDRESS,
-  ERC20_ABI,
-  provider,
-);
-const usdtContract = new ethers.Contract(
-  process.env.USDT_CONTRACT_ADDRESS,
-  ERC20_ABI,
-  provider,
-);
-const usdcContract = new ethers.Contract(
-  process.env.USDC_CONTRACT_ADDRESS,
-  ERC20_ABI,
-  provider,
-);
+    const ngnContract = new ethers.Contract(
+      process.env.NGN_TOKEN_ADDRESS,
+      ERC20_ABI,
+      provider,
+    );
+    const cNgnContract = new ethers.Contract(
+      process.env.CNGN_CONTRACT_ADDRESS,
+      ERC20_ABI,
+      provider,
+    );
+    const usdtContract = new ethers.Contract(
+      process.env.USDT_CONTRACT_ADDRESS,
+      ERC20_ABI,
+      provider,
+    );
+    const usdcContract = new ethers.Contract(
+      process.env.USDC_CONTRACT_ADDRESS,
+      ERC20_ABI,
+      provider,
+    );
 
-const [ngnWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
-  retryRPCCall(() => ngnContract.balanceOf(address)).catch(() => 0n),
-  retryRPCCall(() => cNgnContract.balanceOf(address)).catch(() => 0n),
-  retryRPCCall(() => usdtContract.balanceOf(address)).catch(() => 0n),
-  retryRPCCall(() => usdcContract.balanceOf(address)).catch(() => 0n),
-]);
+    const [ngnWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
+      retryRPCCall(() => ngnContract.balanceOf(address)).catch(() => 0n),
+      retryRPCCall(() => cNgnContract.balanceOf(address)).catch(() => 0n),
+      retryRPCCall(() => usdtContract.balanceOf(address)).catch(() => 0n),
+      retryRPCCall(() => usdcContract.balanceOf(address)).catch(() => 0n),
+    ]);
 
-res.json({
-  ngnBalance: ethers.formatUnits(ngnWei, 6),
-  cNgnBalance: ethers.formatUnits(cNgnWei, 6),
-  usdtBalance: ethers.formatUnits(usdtWei, 6),
-  usdcBalance: ethers.formatUnits(usdcWei, 6),
-});
+    res.json({
+      ngnBalance: ethers.formatUnits(ngnWei, 6),
+      cNgnBalance: ethers.formatUnits(cNgnWei, 6),
+      usdtBalance: ethers.formatUnits(usdtWei, 6),
+      usdcBalance: ethers.formatUnits(usdcWei, 6),
+    });
   } catch (error) {
     console.error("❌ Balance Fetch Failed:", error.message);
-    res
-      .status(200)
-      .json({
-        ngnBalance: "0.00",
-        cNgnBalance: "0.00",
-        usdtBalance: "0.00",
-        usdcBalance: "0.00",
-      });
+    res.status(200).json({
+      ngnBalance: "0.00",
+      cNgnBalance: "0.00",
+      usdtBalance: "0.00",
+      usdcBalance: "0.00",
+    });
   }
 });
 
@@ -1694,15 +1705,31 @@ app.get("/api/seller-info", (req, res) => {
 app.get("/api/l1-config", (req, res) => {
   const isProd = process.env.NODE_ENV === "production";
   res.json({
-    ngnTokenAddress:     isProd ? (process.env.L1_NGN_TOKEN_ADDRESS          || "") : (process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS          || ""),
-    cngnContractAddress: isProd ? (process.env.L1_CNGN_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS       || ""),
-    usdtContractAddress: isProd ? (process.env.L1_USDT_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS       || ""),
-    usdcContractAddress: isProd ? (process.env.L1_USDC_CONTRACT_ADDRESS       || "") : (process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS       || ""),
-    poolFactoryAddress:  isProd ? (process.env.L1_POOL_FACTORY_ADDRESS        || "") : (process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS        || ""),
-    treasuryAddress:     isProd ? (process.env.L1_TREASURY_CONTRACT_ADDRESS   || "") : (process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS   || ""),
-    rpcUrl:              isProd ? (process.env.ETH_MAINNET_RPC_URL            || "") : (process.env.ETH_SEPOLIA_RPC_URL                   || ""),
-    chainId:             isProd ? 1 : 11155111,
-    explorerUrl:         isProd ? "https://etherscan.io" : "https://sepolia.etherscan.io",
+    ngnTokenAddress: isProd
+      ? process.env.L1_NGN_TOKEN_ADDRESS || ""
+      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS || "",
+    cngnContractAddress: isProd
+      ? process.env.L1_CNGN_CONTRACT_ADDRESS || ""
+      : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS || "",
+    usdtContractAddress: isProd
+      ? process.env.L1_USDT_CONTRACT_ADDRESS || ""
+      : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS || "",
+    usdcContractAddress: isProd
+      ? process.env.L1_USDC_CONTRACT_ADDRESS || ""
+      : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS || "",
+    poolFactoryAddress: isProd
+      ? process.env.L1_POOL_FACTORY_ADDRESS || ""
+      : process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS || "",
+    treasuryAddress: isProd
+      ? process.env.L1_TREASURY_CONTRACT_ADDRESS || ""
+      : process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS || "",
+    rpcUrl: isProd
+      ? process.env.ETH_MAINNET_RPC_URL || ""
+      : process.env.ETH_SEPOLIA_RPC_URL || "",
+    chainId: isProd ? 1 : 11155111,
+    explorerUrl: isProd
+      ? "https://etherscan.io"
+      : "https://sepolia.etherscan.io",
   });
 });
 
@@ -1807,10 +1834,10 @@ app.post("/api/transfer", async (req, res) => {
 
     // Determine token contract address from env based on coin
     let tokenAddress;
-if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
-else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
-else if (coin === "CNGN") tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
-else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
+    if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
+    else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
+    else if (coin === "CNGN") tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
+    else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
 
     if (!tokenAddress) {
       return res
@@ -1866,7 +1893,7 @@ else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
     let actualFeeWei;
     let recipientReceives;
 
-const feeHuman = (coin === "NGN" || coin === "CNGN") ? feeNGN : feeUsd;
+    const feeHuman = coin === "NGN" || coin === "CNGN" ? feeNGN : feeUsd;
 
     if (feeHuman === 0) {
       actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
@@ -1899,167 +1926,37 @@ const feeHuman = (coin === "NGN" || coin === "CNGN") ? feeNGN : feeUsd;
       safeAddress: recipientAddress.toLowerCase(),
     });
 
-    await delayBeforeBlockchain(safeAddress, "Transfer queued");
-
-    const queueEntry = await new TransactionQueue({
+    // ── 4. Queue the transaction — processor picks it up via /api/queue/process ──
+    await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
       status: "PENDING",
+      submittedOnchain: false,
       type: "transfer",
       payload: {
-        toInput: finalToInput,
-        amount,
-        recipientAddress,
-        feeNGN,
-        coin,
-      },
-    }).save();
-
-    // ── 4. Blockchain Execution ──────────────────────────────────────────────
-    try {
-      queueEntry.status = "SENDING";
-      queueEntry.updatedAt = new Date();
-      await queueEntry.save();
-
-      const result = await sponsorSafeTransfer(
         safeAddress,
         userPrivateKey,
         recipientAddress,
-        actualAmountWei,
-        actualFeeWei,
+        actualAmountWei: actualAmountWei.toString(),
+        actualFeeWei: actualFeeWei.toString(),
         tokenAddress,
-      );
-
-      if (!result || !result.txHash) {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = "Failed to submit to relay";
-        await queueEntry.save();
-        await new Transaction({
-          fromAddress: safeAddress.toLowerCase(),
-          fromUsername: senderUser?.username || null,
-          fromNameAlias: senderUser?.nameAlias || null,
-          toAddress: recipientAddress.toLowerCase(),
-          toUsername: recipientUser?.username || null,
-          toNameAlias: recipientUser?.nameAlias || null,
-          senderDisplayIdentifier:
-            req.body.senderDisplayIdentifier || finalToInput,
-          amount,
-          fee: feeHuman > 0 ? String(feeHuman) : null,
-          coin,
-          status: "failed",
-          taskId: null,
-          type: "transfer",
-          date: new Date(),
-        }).save();
-        return res
-          .status(400)
-          .json({ success: false, message: "Transfer failed on blockchain" });
-      }
-
-      queueEntry.taskId = result.txHash;
-      queueEntry.txHash = result.txHash;
-      await queueEntry.save();
-
-      const taskStatus = await waitForTxReceipt(result.txHash);
-
-      await new Transaction({
-        fromAddress: safeAddress.toLowerCase(),
-        fromUsername: senderUser?.username || null,
-        fromNameAlias: senderUser?.nameAlias || null,
-        toAddress: recipientAddress.toLowerCase(),
-        toUsername: recipientUser?.username || null,
-        toNameAlias: recipientUser?.nameAlias || null,
+        coin,
+        amount,
+        feeHuman,
+        toInput: finalToInput,
         senderDisplayIdentifier:
           req.body.senderDisplayIdentifier || finalToInput,
-        amount,
-        fee: feeHuman > 0 ? String(feeHuman) : null,
-        coin,
-        status: taskStatus.success ? "successful" : "failed",
-        taskId: result.txHash,
-        type: "transfer",
-        date: new Date(),
-      }).save();
+      },
+    }).save();
 
-      if (taskStatus.success) {
-        queueEntry.status = "CONFIRMED";
-        queueEntry.updatedAt = new Date();
-        await queueEntry.save();
-        await applyCooldown(safeAddress, 20);
-
-        // ── Email notifications ────────────────────────────────────────────
-        if (senderUser?.email) {
-          try {
-            await sendTransactionEmailToSender(
-              senderUser.email,
-              senderUser.username,
-              finalToInput,
-              amount,
-              "successful",
-              coin
-            );
-          } catch (e) {
-            console.error("❌ Sender email error:", e.message);
-          }
-        }
-        if (recipientUser?.email) {
-          try {
-            await sendTransactionEmailToReceiver(
-              recipientUser.email,
-              recipientUser.username,
-              safeAddress,
-              amount,
-              coin
-            );
-          } catch (e) {
-            console.error("❌ Recipient email error:", e.message);
-          }
-        }
-
-        return res.json({
-          success: true,
-          taskId: result.txHash,
-          feeNGN,
-          feeUsd,
-          recipientReceives,
-          coin,
-        });
-      } else {
-        queueEntry.status = "FAILED";
-        queueEntry.errorMessage = taskStatus.reason;
-        await queueEntry.save();
-        return res.status(400).json({
-          success: false,
-          message: taskStatus.reason || "Transfer reverted on-chain",
-        });
-      }
-    } catch (error) {
-      queueEntry.status = "FAILED";
-      queueEntry.errorMessage = error.message;
-      await queueEntry.save();
-
-      // Write a failed Transaction so it appears in history
-      try {
-        await new Transaction({
-          fromAddress: safeAddress.toLowerCase(),
-          fromUsername: senderUser?.username || null,
-          fromNameAlias: senderUser?.nameAlias || null,
-          toAddress: recipientAddress.toLowerCase(),
-          toUsername: recipientUser?.username || null,
-          toNameAlias: recipientUser?.nameAlias || null,
-          senderDisplayIdentifier: req.body.senderDisplayIdentifier || finalToInput,
-          amount,
-          fee: null,
-          coin,
-          status: "failed",
-          taskId: null,
-          type: "transfer",
-          date: new Date(),
-        }).save();
-      } catch (txSaveErr) {
-        console.error("❌ Failed to save failed transaction record:", txSaveErr.message);
-      }
-
-      throw error;
-    }
+    return res.json({
+      success: true,
+      queued: true,
+      message: "Transaction queued. It will be processed shortly.",
+      feeNGN,
+      feeUsd,
+      recipientReceives,
+      coin,
+    });
   } catch (error) {
     console.error("❌ Transfer failed:", error.message);
     return res
@@ -2108,25 +2005,25 @@ app.get("/api/transactions/:address", async (req, res) => {
     // Pull active queue entries — PENDING and SENDING show as pending in history
     const queueEntries = await TransactionQueue.find({
       walletAddress: address,
-      status: { $in: ["PENDING", "SENDING"] },
+      status: { $in: ["PENDING", "SENDING", "FAILED_ONCHAIN"] },
     }).sort({ createdAt: -1 });
 
-    // Convert queue entries to transaction-shaped objects
     const pendingTxs = queueEntries.map((q) => ({
       _id: q._id,
       fromAddress: address,
       toAddress: q.payload?.recipientAddress || null,
       amount: q.payload?.amount || "0",
       coin: q.payload?.coin || "NGN",
-      status: "pending",
-      displayType: "pending",
+      status: q.status === "FAILED_ONCHAIN" ? "failed" : "pending",
+      displayType: q.status === "FAILED_ONCHAIN" ? "failed" : "pending",
       displayPartner: q.payload?.toInput || q.payload?.recipientAddress || "—",
       date: q.createdAt,
       taskId: q.txHash || null,
       fee: null,
-      isPending: true,
+      isPending: q.status !== "FAILED_ONCHAIN",
+      submittedOnchain: q.submittedOnchain || false,
+      canCancel: false,
     }));
-
     const formatted = transactions.map((tx) => {
       const isFromMe = tx.fromAddress?.toLowerCase() === address;
       const isToMe = tx.toAddress?.toLowerCase() === address;
@@ -2414,7 +2311,6 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
 
     await OtpStore.deleteOne({ email: sanitizedOldEmail });
 
-
     try {
       const accountNum =
         (await getAccountNumberFromAddress(user.safeAddress)) ||
@@ -2453,7 +2349,10 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
 
-    const otpRecord = await OtpStore.findOne({ email: sanitizedOldEmail, verified: true });
+    const otpRecord = await OtpStore.findOne({
+      email: sanitizedOldEmail,
+      verified: true,
+    });
     if (!otpRecord || new Date() > otpRecord.expires) {
       return res.status(401).json({ message: "Please verify OTP first" });
     }
@@ -2533,6 +2432,132 @@ app.post("/api/user/update-username", async (req, res) => {
   } catch (error) {
     console.error("❌ Update username error:", error);
     return handleError(error, res, "Failed to update username");
+  }
+});
+
+// ===============================================
+// PROCESS QUEUE
+// ===============================================
+app.post("/api/queue/process/:address", async (req, res) => {
+  try {
+    const address = req.params.address.toLowerCase();
+
+    const inFlight = await TransactionQueue.findOne({
+      walletAddress: address,
+      status: "SENDING",
+    });
+    if (inFlight) {
+      return res.json({ processing: false, reason: "Already in-flight" });
+    }
+
+    const entry = await TransactionQueue.findOne({
+      walletAddress: address,
+      status: "PENDING",
+    }).sort({ createdAt: 1 });
+
+    if (!entry) {
+      return res.json({ processing: false, reason: "No pending transactions" });
+    }
+
+    entry.status = "SENDING";
+    entry.updatedAt = new Date();
+    await entry.save();
+
+    res.json({ processing: true, queueId: entry._id });
+
+setImmediate(async () => {
+  try {
+    const {
+      safeAddress, userPrivateKey, recipientAddress,
+      actualAmountWei, actualFeeWei, tokenAddress,
+      coin, amount, feeHuman, toInput, senderDisplayIdentifier,
+    } = entry.payload;
+
+    const senderUser = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    const recipientUser = await User.findOne({ safeAddress: recipientAddress.toLowerCase() });
+
+    let result;
+    try {
+      result = await sponsorSafeTransfer(
+        safeAddress, userPrivateKey, recipientAddress,
+        BigInt(actualAmountWei), BigInt(actualFeeWei), tokenAddress,
+      );
+    } catch (broadcastErr) {
+      console.warn(`⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
+      entry.status = "PENDING";
+      entry.errorMessage = broadcastErr.message;
+      entry.updatedAt = new Date();
+      await entry.save();
+      return;
+    }
+
+    if (!result || !result.txHash) {
+      entry.status = "PENDING";
+      entry.errorMessage = "No txHash returned from broadcast";
+      entry.updatedAt = new Date();
+      await entry.save();
+      return;
+    }
+
+    entry.submittedOnchain = true;
+    entry.txHash = result.txHash;
+    entry.taskId = result.txHash;
+    entry.updatedAt = new Date();
+    await entry.save();
+
+    const taskStatus = await waitForTxReceipt(result.txHash);
+
+    await new Transaction({
+      fromAddress: safeAddress.toLowerCase(),
+      fromUsername: senderUser?.username || null,
+      fromNameAlias: senderUser?.nameAlias || null,
+      toAddress: recipientAddress.toLowerCase(),
+      toUsername: recipientUser?.username || null,
+      toNameAlias: recipientUser?.nameAlias || null,
+      senderDisplayIdentifier: senderDisplayIdentifier || toInput,
+      amount,
+      fee: feeHuman > 0 ? String(feeHuman) : null,
+      coin,
+      status: taskStatus.success ? "successful" : "failed",
+      taskId: result.txHash,
+      type: "transfer",
+      date: new Date(),
+    }).save();
+
+    if (taskStatus.success) {
+      await TransactionQueue.deleteOne({ _id: entry._id });
+      await applyCooldown(safeAddress, 20);
+      console.log(`✅ Processed and removed: ${result.txHash}`);
+      if (senderUser?.email) {
+        try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, toInput, amount, "successful", coin); } catch {}
+      }
+      if (recipientUser?.email) {
+        try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, safeAddress, amount, coin); } catch {}
+      }
+    } else {
+      entry.status = "FAILED_ONCHAIN";
+      entry.errorMessage = taskStatus.reason || "Transaction reverted on-chain";
+      entry.updatedAt = new Date();
+      await entry.save();
+      console.error(`❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`);
+    }
+
+  } catch (err) {
+    console.error("❌ Queue processor crashed:", err.message);
+    try {
+      const freshEntry = await TransactionQueue.findById(entry._id);
+      if (!freshEntry) return;
+      freshEntry.status = "PENDING";
+      freshEntry.errorMessage = `Processor error: ${err.message}`;
+      freshEntry.updatedAt = new Date();
+      await freshEntry.save();
+    } catch (saveErr) {
+      console.error("❌ Could not save after crash:", saveErr.message);
+    }
+  }
+});
+  } catch (error) {
+    return handleError(error, res, "Failed to process queue");
   }
 });
 

@@ -39,8 +39,17 @@ function getTxDisplayNames(tx, user) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-const formatNumber = (num) =>
-  parseFloat(num).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const formatNumber = (value, { minDecimals = 2, maxDecimals = 6 } = {}) => {
+  if (value === null || value === undefined || value === "") return "0.00";
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "0.00";
+  const factor = 10 ** maxDecimals;
+  const truncated = Math.trunc(num * factor) / factor;
+  return truncated.toLocaleString("en-US", {
+    minimumFractionDigits: minDecimals,
+    maximumFractionDigits: maxDecimals,
+  });
+};
 
 const coinLabel = (tx) => (tx.coin === "NGN" ? "NGNs" : tx.coin || "NGNs");
 
@@ -52,7 +61,7 @@ const NETWORK_LABEL = process.env.NODE_ENV === "production" ? "Base Mainnet" : "
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 
 // ── TX Row Card ────────────────────────────────────────────────────────────
-const TxCard = ({ tx, user, index, onDownload }) => {
+const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
   const [expanded, setExpanded] = useState(false);
 
 const isPending  = tx.displayType === "pending";
@@ -135,13 +144,15 @@ const isPending  = tx.displayType === "pending";
           </p>
         </div>
 
-        {/* amount */}
-        <div className="text-right flex-shrink-0">
-          <p className={`text-sm font-black tabular-nums ${amtColor}`}>
-            {amtPrefix}
-            {formatNumber(tx.amount)}
-          </p>
-          <p className="text-[9px] text-white/25 font-bold">{coin}</p>
+        {/* amount + cancel */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="text-right">
+            <p className={`text-sm font-black tabular-nums ${amtColor}`}>
+              {amtPrefix}
+              {formatNumber(tx.amount)}
+            </p>
+            <p className="text-[9px] text-white/25 font-bold">{coin}</p>
+          </div>
         </div>
 
         {/* chevron */}
@@ -264,14 +275,21 @@ const Transactions = () => {
     }
   }, [toast]);
 
-  const fetchTransactions = async (address) => {
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
-      const data = await res.json();
-      setTransactions(Array.isArray(data) ? data : []);
-    } catch { setTransactions([]); }
-    finally { setLoading(false); }
-  };
+const fetchTransactions = async (address) => {
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
+    const data = await res.json();
+    setTransactions(Array.isArray(data) ? data : []);
+    // Trigger queue processor silently — don't await
+    fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
+      method: "POST",
+    }).catch(() => {});
+  } catch {
+    setTransactions([]);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const showMsg = (msg) => setToast({ show: true, message: msg });
 
@@ -551,32 +569,38 @@ const Transactions = () => {
       <Stars />
 
       <div className="max-w-2xl mx-auto relative z-10">
-
         {/* ── Back ── */}
-        <Link to="/dashboard"
-          className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] text-white/25 hover:text-salvaGold transition-colors mb-8 font-black">
+        <Link
+          to="/dashboard"
+          className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] text-white/25 hover:text-salvaGold transition-colors mb-8 font-black"
+        >
           ← Dashboard
         </Link>
 
         {/* ── Header ── */}
         <header className="mb-8">
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">Transaction History</p>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">{user.username}</h1>
+          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+            Transaction History
+          </p>
+          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+            {user.username}
+          </h1>
         </header>
-
-
 
         {/* ── Toolbar ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 mb-5">
           {/* Filter pills */}
           <div className="flex gap-1.5 flex-wrap">
             {FILTERS.map((f) => (
-              <button key={f} onClick={() => setFilter(f)}
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
                 className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
                   filter === f
                     ? "bg-salvaGold text-black border-salvaGold"
                     : "border-white/10 text-white/30 hover:text-white/60 hover:border-white/20"
-                }`}>
+                }`}
+              >
                 {f}
               </button>
             ))}
@@ -586,14 +610,26 @@ const Transactions = () => {
 
           {/* Search */}
           <div className="relative w-full sm:w-56">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20"
-              fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5}
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/20"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
+              />
             </svg>
-            <input type="text" placeholder="Search…" value={search}
+            <input
+              type="text"
+              placeholder="Search…"
+              value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs border border-white/10 bg-white/[0.03] text-white placeholder:text-white/20 focus:outline-none focus:border-salvaGold/40 transition-all" />
+              className="w-full pl-9 pr-4 py-2 rounded-xl text-xs border border-white/10 bg-white/[0.03] text-white placeholder:text-white/20 focus:outline-none focus:border-salvaGold/40 transition-all"
+            />
           </div>
         </div>
 
@@ -605,10 +641,14 @@ const Transactions = () => {
         ) : filtered.length === 0 ? (
           <div className="text-center py-24">
             <p className="text-3xl mb-3">📭</p>
-            <p className="font-black text-white/40 text-sm">No transactions found</p>
+            <p className="font-black text-white/40 text-sm">
+              No transactions found
+            </p>
             {search && (
-              <button onClick={() => setSearch("")}
-                className="text-salvaGold text-xs font-black mt-3 underline underline-offset-4">
+              <button
+                onClick={() => setSearch("")}
+                className="text-salvaGold text-xs font-black mt-3 underline underline-offset-4"
+              >
                 Clear search
               </button>
             )}
@@ -619,23 +659,39 @@ const Transactions = () => {
             <div className="hidden sm:flex items-center gap-3 sm:gap-4 px-4 mb-2">
               <div className="w-2 flex-shrink-0" />
               <div className="w-[72px] flex-shrink-0">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">Date</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
+                  Date
+                </p>
               </div>
               <div className="w-[58px] flex-shrink-0">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">Type</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
+                  Type
+                </p>
               </div>
               <div className="flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">Counterparty</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
+                  Counterparty
+                </p>
               </div>
               <div className="text-right flex-shrink-0 pr-6">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">Amount</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
+                  Amount
+                </p>
               </div>
             </div>
 
             {/* Feed */}
             <div className="space-y-2">
               {paginated.map((tx, i) => (
-                <TxCard key={tx._id || i} tx={tx} user={user} index={i} onDownload={downloadReceipt} />
+                <TxCard
+                  key={tx._id || i}
+                  tx={tx}
+                  user={user}
+                  index={i}
+                  onDownload={downloadReceipt}
+                  showMsg={showMsg}
+                  setTransactions={setTransactions}
+                />
               ))}
             </div>
 
@@ -643,15 +699,23 @@ const Transactions = () => {
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-6 px-1">
                 <p className="text-[9px] text-white/25 font-bold">
-                  {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered.length)} of {filtered.length}
+                  {(page - 1) * PAGE_SIZE + 1}–
+                  {Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
+                  {filtered.length}
                 </p>
                 <div className="flex gap-2">
-                  <button onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}
-                    className="px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all">
+                  <button
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page === 1}
+                    className="px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all"
+                  >
                     ← Prev
                   </button>
-                  <button onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                    className="px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all">
+                  <button
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page === totalPages}
+                    className="px-3 py-1.5 rounded-lg border border-white/10 text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all"
+                  >
                     Next →
                   </button>
                 </div>
@@ -665,8 +729,11 @@ const Transactions = () => {
       <AnimatePresence>
         {toast.show && (
           <motion.div
-            initial={{ y: 40, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 40, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-salvaGold text-black px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest z-[100] shadow-2xl shadow-salvaGold/20">
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-salvaGold text-black px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest z-[100] shadow-2xl shadow-salvaGold/20"
+          >
             {toast.message}
           </motion.div>
         )}

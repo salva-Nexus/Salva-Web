@@ -2,11 +2,14 @@
 const { Resend } = require("resend");
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const formatAmount = (amount) =>
-  parseFloat(amount).toLocaleString("en-US", {
+const formatAmount = (amount) => {
+  const parsed = parseFloat(amount);
+  if (isNaN(parsed)) return "0.00";
+  return parsed.toLocaleString("en-US", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 6,
   });
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BASE TEMPLATE

@@ -13,20 +13,33 @@ import { QRCodeSVG } from "qrcode.react";
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
-  if (value === null || value === undefined || value === "") return "0";
+  if (value === null || value === undefined || value === "") {
+    return "0";
+  }
+
   const num = Number(value);
-  if (!Number.isFinite(num)) return "0";
+
+  if (!Number.isFinite(num)) {
+    return "0";
+  }
+
   const factor = 10 ** maxDecimals;
-  const truncated = Math.trunc(num * factor) / factor; // ← truncate, not round
+
+  const truncated = Math.trunc(num * factor) / factor;
+
   return truncated.toLocaleString("en-US", {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
   });
 };
-
 // Safe decimal string addition — no float garbage
 const addDecimals = (a, b) => {
-  const sum = Number(a || 0) + Number(b || 0);
+  const ai = Number(a || 0);
+  const bi = Number(b || 0);
+
+  const sum = ai + bi;
+
+  // preserve precision safely
   return sum.toFixed(6).replace(/\.?0+$/, "");
 };
 
@@ -192,7 +205,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
 // ── Balance Spinner ────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
   <span className="inline-flex items-center gap-1.5">
-    <span className="w-4 h-4 border-2 border-yellow-400/30 border-t-yellow-400 rounded-full animate-spin inline-block flex-shrink-0" />
+    <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
     <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
@@ -482,6 +495,8 @@ const BalanceCard = ({
   showBalance,
   balanceLoading,
   onToggleVisibility,
+  onSend,
+  onReceive,
 }) => {
   const totalNgn = addDecimals(ngnBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
@@ -489,16 +504,16 @@ const BalanceCard = ({
 
   return (
     <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
-      <div className="h-px bg-gradient-to-r from-transparent via-[#D4AF37]/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
 
-      {/* NGN */}
+      {/* NGN — TOP */}
       <div className="px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-[#D4AF37] block"
+              className="w-1.5 h-1.5 rounded-full bg-salvaGold block"
             />
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
               NGN
@@ -506,7 +521,7 @@ const BalanceCard = ({
           </div>
           <button
             onClick={onToggleVisibility}
-            className="text-white/60 hover:text-white/80 transition-colors text-sm leading-none"
+            className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
           >
             {showBalance ? "👁" : "👁‍🗨"}
           </button>
@@ -520,7 +535,7 @@ const BalanceCard = ({
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
                 fontSize:
-                  showBalance && formatNumber(totalNgn).length > 10
+                  showBalance && String(totalNgn).length > 10
                     ? "clamp(1rem, 5vw, 1.75rem)"
                     : "1.875rem",
               }}
@@ -541,8 +556,8 @@ const BalanceCard = ({
         )}
       </div>
 
-      {/* USD */}
-      <div className="px-5 sm:px-7 pt-4 pb-5 sm:pb-7">
+      {/* USD — BOTTOM */}
+      <div className="px-5 sm:px-7 pt-4 pb-5 sm:pb-6">
         <div className="flex items-center gap-1.5 mb-3">
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
@@ -581,6 +596,22 @@ const BalanceCard = ({
               : "•••• USDT · •••• USDC"}
           </p>
         )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pb-5 sm:pb-7">
+        <button
+          onClick={onSend}
+          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
+        >
+          <span className="text-base leading-none">↑</span> Send
+        </button>
+        <button
+          onClick={onReceive}
+          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-3.5 rounded-2xl text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+        >
+          <span className="text-base leading-none">↓</span> Receive
+        </button>
       </div>
     </div>
   );
@@ -1765,11 +1796,11 @@ const Dashboard = () => {
     }
   });
 
-  const [ngnBalance, setNgnBalance] = useState("0.00");
-  const [cNgnBalance, setCNgnBalance] = useState("0.00");
-  const [usdtBalance, setUsdtBalance] = useState("0.00");
-  const [usdcBalance, setUsdcBalance] = useState("0.00");
-  const [balanceLoading, setBalanceLoading] = useState(false);
+  const [ngnBalance, setBalance] = useState(null);
+  const [cNgnBalance, setCNgnBalance] = useState(null);
+  const [usdtBalance, setUsdtBalance] = useState(null);
+  const [usdcBalance, setUsdcBalance] = useState(null);
+  const [balanceLoading, setBalanceLoading] = useState(true);
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
   const [isScanOpen, setIsScanOpen] = useState(false);
@@ -1876,24 +1907,27 @@ const Dashboard = () => {
     }
   }, [user?.email]);
 
-  const fetchBalance = useCallback(async (address, showSpinner = false) => {
-    if (!address) return;
-    if (showSpinner) setBalanceLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      setNgnBalance(data.ngnBalance ?? "0.00"); // ← was data.balance
-      setCNgnBalance(data.cNgnBalance ?? "0.00");
-      setUsdtBalance(data.usdtBalance ?? "0.00");
-      setUsdcBalance(data.usdcBalance ?? "0.00");
-    } catch {
-      /* keep existing values */
-    } finally {
-      if (showSpinner) setBalanceLoading(false);
-    }
-  }, []);
-
+const fetchBalance = useCallback(async (address, showSpinner = false) => {
+  if (!address) return;
+  if (showSpinner) setBalanceLoading(true);
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    setBalance(data.ngnBalance ?? "0");
+    setCNgnBalance(data.cNgnBalance ?? "0");
+    setUsdtBalance(data.usdtBalance ?? "0");
+    setUsdcBalance(data.usdcBalance ?? "0");
+    // Silently trigger queue processor on every balance poll
+    fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
+      method: "POST",
+    }).catch(() => {});
+  } catch {
+    /* keep existing */
+  } finally {
+    if (showSpinner) setBalanceLoading(false);
+  }
+}, []);
   const syncIncoming = useCallback(async (address) => {
     if (!address) return;
     try {
@@ -2627,7 +2661,7 @@ const Dashboard = () => {
                   {balanceLoading
                     ? "…"
                     : showBalance
-                      ? formatNumber(currentCoinBalance)
+                      ? formatNumber(currentCoinBalance, { minDecimals: 3, maxDecimals: 6 })
                       : "••••"}{" "}
                   {coinSymbol}
                 </p>
@@ -2823,7 +2857,10 @@ const Dashboard = () => {
                 <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
                   <p className="text-[10px] text-white/60 mb-1">You Send</p>
                   <p className="font-black text-xl text-white">
-                    {formatNumber(confirmationData.amount)}{" "}
+                    {formatNumber(confirmationData.amount, {
+                      minDecimals: 0,
+                      maxDecimals: 6,
+                    })}{" "}
                     <span className="text-salvaGold">
                       {confirmationData.coin === "NGN"
                         ? "NGNs"

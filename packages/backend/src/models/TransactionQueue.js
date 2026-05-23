@@ -1,4 +1,3 @@
-// Salva-Digital-Tech/packages/backend/src/models/TransactionQueue.js
 const mongoose = require("mongoose");
 
 const TransactionQueueSchema = new mongoose.Schema({
@@ -9,10 +8,14 @@ const TransactionQueueSchema = new mongoose.Schema({
     lowercase: true,
   },
   status: {
-    type: String,
-    enum: ["PENDING", "SENDING", "CONFIRMED", "FAILED"],
-    default: "PENDING",
-    index: true,
+  type: String,
+  enum: ["PENDING", "SENDING", "FAILED_ONCHAIN"],
+  default: "PENDING",
+  index: true,
+},
+  submittedOnchain: {
+    type: Boolean,
+    default: false,
   },
   type: {
     type: String,
