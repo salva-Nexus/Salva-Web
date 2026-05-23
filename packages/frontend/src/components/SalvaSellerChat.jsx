@@ -812,7 +812,7 @@ const SalvaSellerChat = ({ user }) => {
 
   useEffect(() => {
     fetchBadge();
-    badgePollRef.current = setInterval(fetchBadge, 15000);
+    badgePollRef.current = setInterval(fetchBadge, 20000);
     return () => clearInterval(badgePollRef.current);
   }, [fetchBadge]);
 
@@ -846,7 +846,7 @@ const SalvaSellerChat = ({ user }) => {
   useEffect(() => {
     if (view === "list") {
       fetchList();
-      listPollRef.current = setInterval(fetchList, 10000);
+      listPollRef.current = setInterval(fetchList, 30000);
     } else clearInterval(listPollRef.current);
     return () => clearInterval(listPollRef.current);
   }, [view, fetchList]);

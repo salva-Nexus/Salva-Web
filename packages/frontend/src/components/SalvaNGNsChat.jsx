@@ -477,7 +477,7 @@ const SalvaNGNsChat = ({ user }) => {
         `${SALVA_API_URL}/api/balance/${user.safeAddress}`,
       );
       const data = await res.json();
-      setNgnBalance(parseFloat(data.balance || 0));
+      setNgnBalance(parseFloat(data.ngnBalance || 0));
     } catch {
       /* ignore */
     }

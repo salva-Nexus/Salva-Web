@@ -705,8 +705,13 @@ router.get("/all-requests", async (req, res) => {
       { $group: { _id: "$userSafeAddress", doc: { $first: "$$ROOT" } } },
       { $replaceRoot: { newRoot: "$doc" } },
       { $sort: { updatedAt: -1 } },
-      { $limit: 100 },
-      { $project: { receiptImageBase64: 0 } },
+      { $limit: 50 },
+      {
+        $project: {
+          receiptImageBase64: 0,
+          "messages.imageUrl": 0,
+        },
+      },
     ]);
 
     return res.json({ requests });
