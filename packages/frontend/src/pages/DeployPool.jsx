@@ -1,13 +1,18 @@
+// src/pages/DeployPool.jsx  (Base Chain / L2)
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SALVA_API_URL } from "../config";
 
-// ─── Shared dark input style ──────────────────────────────────────────────────
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 const darkInput =
   "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
+// Parse raw pool value safely — always returns a number, never touches formatted strings
+const toNum = (v) => parseFloat(v || 0) || 0;
+
+// Full precision display (for tooltip / title)
 const smartFmt = (n) => {
-  const num = parseFloat(n || 0);
+  const num = toNum(n);
   if (isNaN(num)) return "0";
   const str = num.toString();
   if (!str.includes(".")) return num.toLocaleString("en-US");
@@ -16,6 +21,26 @@ const smartFmt = (n) => {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
+};
+
+// Compact display for tight cells — abbreviates large numbers, truncates long decimals
+const compactFmt = (n) => {
+  const num = toNum(n);
+  if (num >= 1_000_000)
+    return (
+      (num / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) +
+      "M"
+    );
+  if (num >= 100_000)
+    return (
+      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "K"
+    );
+  if (num >= 10_000)
+    return (
+      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) + "K"
+    );
+  if (num === Math.floor(num)) return num.toLocaleString("en-US");
+  return num.toLocaleString("en-US", { maximumFractionDigits: 4 });
 };
 
 // ─── Registry Dropdown ────────────────────────────────────────────────────────
@@ -298,14 +323,18 @@ const SubBadge = ({ pool }) => {
   );
 };
 
-// ─── Stat Cell ────────────────────────────────────────────────────────────────
+// ─── Stat Cell — responsive, shows compact number with full value in title ────
 const StatCell = ({ label, value, color }) => (
-  <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center">
-    <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
+  <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
+    <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1 truncate">
       {label}
     </p>
-    <p className="font-black text-sm" style={{ color }}>
-      {value}
+    <p
+      className="font-black text-xs sm:text-sm truncate"
+      style={{ color }}
+      title={smartFmt(value)}
+    >
+      {compactFmt(value)}
     </p>
   </div>
 );
@@ -332,15 +361,11 @@ const SectionTabs = ({ active, onChange }) => (
 // ─── Pool Manage Panel ────────────────────────────────────────────────────────
 const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [activeSection, setActiveSection] = useState("liquidity");
-  const [liqAsset, setLiqAsset] = useState("NGN");
+  const [liqAsset, setLiqAsset] = useState("NGNS");
   const [liqAmount, setLiqAmount] = useState("");
   const [liqMode, setLiqMode] = useState("provide");
-  const [buyRate, setBuyRate] = useState(
-    parseFloat(pool.buyRate || 0).toString(),
-  );
-  const [sellRate, setSellRate] = useState(
-    parseFloat(pool.sellRate || 0).toString(),
-  );
+  const [buyRate, setBuyRate] = useState(toNum(pool.buyRate).toString());
+  const [sellRate, setSellRate] = useState(toNum(pool.sellRate).toString());
   const [minNgn, setMinNgn] = useState("");
   const [minToken, setMinToken] = useState("");
   const [pinVisible, setPinVisible] = useState(false);
@@ -348,14 +373,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
 
-  const assets = ["NGN", "CNGN", "USDT", "USDC"];
+  const assets = ["NGNS", "CNGN", "USDT", "USDC"];
 
-  const availableForAsset = (asset) => {
-    if (asset === "NGN") return smartFmt(pool.ngnLiquidity) || "0";
-    if (asset === "CNGN") return smartFmt(pool.cNgnLiquidity) || "0";
-    if (asset === "USDT") return smartFmt(pool.usdtLiquidity) || "0";
-    if (asset === "USDC") return smartFmt(pool.usdcLiquidity) || "0";
-    return "0";
+  // Returns raw float — never a formatted string (fixes parseFloat-on-comma bug)
+  const rawBalanceForAsset = (asset) => {
+    if (asset === "NGNS") return toNum(pool.ngnsLiquidity);
+    if (asset === "CNGN") return toNum(pool.cNgnLiquidity);
+    if (asset === "USDT") return toNum(pool.usdtLiquidity);
+    if (asset === "USDC") return toNum(pool.usdcLiquidity);
+    return 0;
   };
 
   const verifyPin = async (pin) => {
@@ -583,6 +609,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setPinVisible(true);
   };
 
+  // Accumulated totals — numeric addition, NOT string concatenation
+  const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
+  const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity); // FIX: was usdtLiquidity twice
+
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
       <motion.div
@@ -623,26 +653,28 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               ✕
             </button>
           </div>
+          {/* Accumulated totals — single number each, not "A + B" string */}
           <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
-              <p className="text-[9px] uppercase tracking-widest text-white/60 font-black mb-0.5">
-                NGN
+            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
+                NGN Total
               </p>
-              <p className="font-black text-sm text-salvaGold">
-                {
-                  smartFmt(pool.ngnLiquidity) +
-                  smartFmt(pool.cNgnLiquidity)
-                }
+              <p
+                className="font-black text-sm text-salvaGold truncate"
+                title={smartFmt(totalNgn)}
+              >
+                {compactFmt(totalNgn)}
               </p>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
-              <p className="text-[9px] uppercase tracking-widest text-white/60 font-black mb-0.5">
-                USD
+            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
+                USD Total
               </p>
-              <p className="font-black text-sm text-green-400">
-                {smartFmt(pool.usdtLiquidity) + 
-                 smartFmt(pool.usdtLiquidity)
-                }
+              <p
+                className="font-black text-sm text-green-400 truncate"
+                title={smartFmt(totalUsd)}
+              >
+                {compactFmt(totalUsd)}
               </p>
             </div>
           </div>
@@ -680,14 +712,14 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 ))}
               </div>
 
-              {/* Token selector */}
+              {/* Token selector — shows raw balance, compact-formatted */}
               <div>
                 <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                   Token
                 </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-4 gap-1.5">
                   {assets.map((a) => {
-                    const avail = parseFloat(availableForAsset(a));
+                    const raw = rawBalanceForAsset(a); // always a float
                     return (
                       <button
                         key={a}
@@ -695,7 +727,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                           setLiqAsset(a);
                           setLiqAmount("");
                         }}
-                        className={`py-3 rounded-xl border transition-all flex flex-col items-center gap-0.5 ${
+                        className={`py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 ${
                           liqAsset === a
                             ? "bg-salvaGold/10 border-salvaGold/40 text-salvaGold"
                             : "border-white/[0.06] bg-white/5 text-white/60 hover:text-white/60"
@@ -704,10 +736,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                         <span className="text-xs font-black uppercase">
                           {a}
                         </span>
-                        <span className="text-[9px] text-white/60">
-                          {avail.toLocaleString(undefined, {
-                            maximumFractionDigits: 6,
-                          })}
+                        {/* compactFmt on the raw float — no parseFloat on a formatted string */}
+                        <span
+                          className="text-[9px] text-white/60 truncate w-full text-center px-1"
+                          title={smartFmt(raw)}
+                        >
+                          {compactFmt(raw)}
                         </span>
                       </button>
                     );
@@ -724,7 +758,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   {liqMode === "remove" && (
                     <button
                       type="button"
-                      onClick={() => setLiqAmount(availableForAsset(liqAsset))}
+                      onClick={() =>
+                        setLiqAmount(String(rawBalanceForAsset(liqAsset)))
+                      }
                       className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
                     >
                       Max
@@ -796,8 +832,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       Buy Rate
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{parseFloat(pool.buyRate || 0).toLocaleString()}{" "}
-                      · Used when users sell USDT/USDC to pool
+                      Current: ₦{toNum(pool.buyRate).toLocaleString()} · Used
+                      when users sell USDT/USDC to pool
                     </p>
                   </div>
                   <div className="relative">
@@ -834,8 +870,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       Sell Rate
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦
-                      {parseFloat(pool.sellRate || 0).toLocaleString()} · Used
+                      Current: ₦{toNum(pool.sellRate).toLocaleString()} · Used
                       when users buy USDT/USDC with NGNs
                     </p>
                   </div>
@@ -909,13 +944,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       Min NGNs Per Swap
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current:{" "}
-                      {parseFloat(pool.minNgnAmount || 0).toLocaleString()} NGNs
+                      Current: {toNum(pool.minNgnAmount).toLocaleString()} NGNs
                     </p>
                   </div>
                   <input
                     type="number"
-                    placeholder={`e.g. ${parseFloat(pool.minNgnAmount || 0).toLocaleString()}`}
+                    placeholder={`e.g. ${toNum(pool.minNgnAmount).toLocaleString()}`}
                     value={minNgn}
                     onChange={(e) => setMinNgn(e.target.value)}
                     className={darkInput}
@@ -942,14 +976,13 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       Min Stablecoin Per Swap
                     </p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: $
-                      {parseFloat(pool.minTokenAmount || 0).toLocaleString()}{" "}
+                      Current: ${toNum(pool.minTokenAmount).toLocaleString()}{" "}
                       USD
                     </p>
                   </div>
                   <input
                     type="number"
-                    placeholder={`e.g. ${parseFloat(pool.minTokenAmount || 0).toLocaleString()}`}
+                    placeholder={`e.g. ${toNum(pool.minTokenAmount).toLocaleString()}`}
                     value={minToken}
                     onChange={(e) => setMinToken(e.target.value)}
                     className={darkInput}
@@ -988,6 +1021,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
 
 // ─── Pool Card ────────────────────────────────────────────────────────────────
 const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
+  // Numeric totals — arithmetic on raw floats
+  const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
+  const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity);
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -1015,33 +1052,65 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
                   Expires{" "}
                   {new Date(pool.subscriptionExpiresAt).toLocaleDateString(
                     "en-US",
-                    { day: "numeric", month: "short", year: "numeric" },
+                    {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    },
                   )}
                 </p>
               )}
           </div>
         </div>
 
-        {/* Liquidity stats */}
-        <div className="grid grid-cols-3 gap-2">
+        {/* ── 4-cell individual breakdown: NGNs, cNGN, USDT, USDC ── */}
+        <div className="grid grid-cols-4 gap-1.5">
           <StatCell
             label="NGNs"
-            value={
-              smartFmt(pool.ngnLiquidity) +
-              smartFmt(pool.cNgnLiquidity)
-             }
+            value={toNum(pool.ngnsLiquidity)}
             color="#D4AF37"
           />
           <StatCell
+            label="cNGN"
+            value={toNum(pool.cNgnLiquidity)}
+            color="#b59030"
+          />
+          <StatCell
             label="USDT"
-            value={smartFmt(pool.usdtLiquidity)}
+            value={toNum(pool.usdtLiquidity)}
             color="#22c55e"
           />
           <StatCell
             label="USDC"
-            value={smartFmt(pool.usdcLiquidity)}
+            value={toNum(pool.usdcLiquidity)}
             color="#3b82f6"
           />
+        </div>
+
+        {/* Accumulated summary */}
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-between gap-2 min-w-0">
+            <span className="text-[9px] uppercase tracking-widest text-salvaGold/60 font-black flex-shrink-0">
+              NGN Total
+            </span>
+            <span
+              className="text-xs font-black text-salvaGold truncate"
+              title={smartFmt(totalNgn)}
+            >
+              {compactFmt(totalNgn)}
+            </span>
+          </div>
+          <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-between gap-2 min-w-0">
+            <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black flex-shrink-0">
+              USD Total
+            </span>
+            <span
+              className="text-xs font-black text-green-400 truncate"
+              title={smartFmt(totalUsd)}
+            >
+              {compactFmt(totalUsd)}
+            </span>
+          </div>
         </div>
 
         {/* Rate stats */}
@@ -1051,7 +1120,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
               Buy Rate
             </p>
             <p className="font-black text-sm text-green-400">
-              ₦{parseFloat(pool.buyRate || 0).toLocaleString()}
+              ₦{toNum(pool.buyRate).toLocaleString()}
               <span className="text-[10px] text-white/60 font-normal">
                 /USD
               </span>
@@ -1062,7 +1131,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
               Sell Rate
             </p>
             <p className="font-black text-sm text-blue-400">
-              ₦{parseFloat(pool.sellRate || 0).toLocaleString()}
+              ₦{toNum(pool.sellRate).toLocaleString()}
               <span className="text-[10px] text-white/60 font-normal">
                 /USD
               </span>
@@ -1106,6 +1175,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [subFees, setSubFees] = useState(null);
   const [managingPool, setManagingPool] = useState(null);
   const [pinVisible, setPinVisible] = useState(false);
@@ -1140,6 +1210,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     async (silent = false) => {
       if (!user?.safeAddress) return;
       if (!silent) setLoading(true);
+      else setRefreshing(true);
       try {
         const res = await fetch(
           `${SALVA_API_URL}/api/pool/my/${user.safeAddress}`,
@@ -1150,6 +1221,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         setPools([]);
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
     },
     [user?.safeAddress],
@@ -1397,7 +1469,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             }),
           },
         );
-        const unlinkData = await unlinkRes.json();
         if (!unlinkRes.ok) {
           showMsg("Failed to unlink old name", "error");
           resetRenameModal();
@@ -1419,7 +1490,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           userPrivateKey: privateKey,
         }),
       });
-      const execData = await execRes.json();
       if (!execRes.ok) {
         showMsg("Failed to link new name", "error");
         resetRenameModal();
@@ -1456,10 +1526,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl">🏊</span>
+            <span className="text-2xl">⚙️</span>
           </div>
           <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black">
-            Salva V3 Pools
+            Salva V3
           </p>
           <p className="text-xl font-black text-white">Coming Soon</p>
           <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
@@ -1482,15 +1552,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             href="/l1"
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
           >
-            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">ETH CHAIN</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">
+              ETH CHAIN
+            </span>
             <span className="text-blue-400 text-[9px]">↗</span>
           </a>
           <button
             onClick={() => fetchMyPools(true)}
-            disabled={loading}
+            disabled={loading || refreshing}
             className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
           >
-            {loading ? (
+            {loading || refreshing ? (
               <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
             ) : (
               <span className="text-salvaGold text-lg leading-none">↻</span>
@@ -1642,11 +1714,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     <button
                       key={tier.months}
                       onClick={() => setSubTier(tier.months)}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
-                        subTier === tier.months
-                          ? "border-salvaGold bg-salvaGold/10"
-                          : "border-white/10 bg-white/5 hover:border-salvaGold/30"
-                      }`}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${subTier === tier.months ? "border-salvaGold bg-salvaGold/10" : "border-white/10 bg-white/5 hover:border-salvaGold/30"}`}
                     >
                       <span className="font-black text-sm text-white">
                         {tier.label}
@@ -1844,7 +1912,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             >
               <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
-
               <div className="px-6 pt-5 pb-4 border-b border-white/[0.05] flex items-center justify-between">
                 <div>
                   <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-0.5">
@@ -1924,7 +1991,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                           setRenameRegistry(r);
                           setRenameError("");
                         }}
-                        placeholder="Search wallet service…"
                       />
                     </div>
                     {renameError && (
@@ -1966,7 +2032,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         {renameCheckResult.welded}
                       </p>
                     </div>
-
                     {renameFeeLoading ? (
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
                         <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
@@ -1976,12 +2041,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       </div>
                     ) : renameFee !== null && renameFee > 0 ? (
                       <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-                        <div className="flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-red-400 block" />
-                          <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
-                            Registration Fee
-                          </p>
-                        </div>
+                        <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
+                          Registration Fee
+                        </p>
                         <p className="font-black text-white text-sm">
                           {renameFee?.toLocaleString()}{" "}
                           <span className="text-salvaGold text-xs">NGNs</span>
@@ -1997,7 +2059,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         </p>
                       </div>
                     ) : null}
-
                     {renamingPool.poolName && (
                       <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
                         <p className="text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-2">
@@ -2018,7 +2079,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         </p>
                       </div>
                     )}
-
                     {renameError && (
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-xs">⚠</span>
@@ -2027,7 +2087,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         </p>
                       </div>
                     )}
-
                     <div className="flex gap-3 pt-1">
                       <button
                         onClick={() => setRenameStep("form")}

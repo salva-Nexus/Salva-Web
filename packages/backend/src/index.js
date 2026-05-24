@@ -1540,7 +1540,7 @@ app.get("/api/balance/:address", async (req, res) => {
 
     const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
 
-    const ngnContract = new ethers.Contract(
+    const ngnsContract = new ethers.Contract(
       process.env.NGN_TOKEN_ADDRESS,
       ERC20_ABI,
       provider,
@@ -1561,15 +1561,15 @@ app.get("/api/balance/:address", async (req, res) => {
       provider,
     );
 
-    const [ngnWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
-      retryRPCCall(() => ngnContract.balanceOf(address)).catch(() => 0n),
+    const [ngnsWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
+      retryRPCCall(() => ngnsContract.balanceOf(address)).catch(() => 0n),
       retryRPCCall(() => cNgnContract.balanceOf(address)).catch(() => 0n),
       retryRPCCall(() => usdtContract.balanceOf(address)).catch(() => 0n),
       retryRPCCall(() => usdcContract.balanceOf(address)).catch(() => 0n),
     ]);
 
     res.json({
-      ngnBalance: ethers.formatUnits(ngnWei, 6),
+      ngnsBalance: ethers.formatUnits(ngnsWei, 6),
       cNgnBalance: ethers.formatUnits(cNgnWei, 6),
       usdtBalance: ethers.formatUnits(usdtWei, 6),
       usdcBalance: ethers.formatUnits(usdcWei, 6),
@@ -1577,7 +1577,7 @@ app.get("/api/balance/:address", async (req, res) => {
   } catch (error) {
     console.error("❌ Balance Fetch Failed:", error.message);
     res.status(200).json({
-      ngnBalance: "0.00",
+      ngnsBalance: "0.00",
       cNgnBalance: "0.00",
       usdtBalance: "0.00",
       usdcBalance: "0.00",
@@ -1643,7 +1643,7 @@ app.get("/api/l1-balance/:address", async (req, res) => {
       }
     };
 
-    const [ngnBalance, cNgnBalance, usdtBalance, usdcBalance] =
+    const [ngnsBalance, cNgnBalance, usdtBalance, usdcBalance] =
       await Promise.all([
         fetchTokenBalance(NGN_ADDRESS, 18),
         fetchTokenBalance(CNGN_ADDRESS, 18),
@@ -1651,12 +1651,12 @@ app.get("/api/l1-balance/:address", async (req, res) => {
         fetchTokenBalance(USDC_ADDRESS, 6),
       ]);
 
-    return res.json({ ngnBalance, cNgnBalance, usdtBalance, usdcBalance });
+    return res.json({ ngnsBalance, cNgnBalance, usdtBalance, usdcBalance });
   } catch (err) {
     console.error("L1 balance fetch error:", err);
     return res.status(500).json({
       error: "Failed to fetch L1 balances",
-      ngnBalance: "0.00",
+      ngnsBalance: "0.00",
       cNgnBalance: "0.00",
       usdtBalance: "0.00",
       usdcBalance: "0.00",
@@ -1705,7 +1705,7 @@ app.get("/api/seller-info", (req, res) => {
 app.get("/api/l1-config", (req, res) => {
   const isProd = process.env.NODE_ENV === "production";
   res.json({
-    ngnTokenAddress: isProd
+    ngnsTokenAddress: isProd
       ? process.env.L1_NGN_TOKEN_ADDRESS || ""
       : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS || "",
     cngnContractAddress: isProd
@@ -2468,22 +2468,40 @@ app.post("/api/queue/process/:address", async (req, res) => {
 setImmediate(async () => {
   try {
     const {
-      safeAddress, userPrivateKey, recipientAddress,
-      actualAmountWei, actualFeeWei, tokenAddress,
-      coin, amount, feeHuman, toInput, senderDisplayIdentifier,
+      safeAddress,
+      userPrivateKey,
+      recipientAddress,
+      actualAmountWei,
+      actualFeeWei,
+      tokenAddress,
+      coin,
+      amount,
+      feeHuman,
+      toInput,
+      senderDisplayIdentifier,
     } = entry.payload;
 
-    const senderUser = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    const recipientUser = await User.findOne({ safeAddress: recipientAddress.toLowerCase() });
+    const senderUser = await User.findOne({
+      safeAddress: safeAddress.toLowerCase(),
+    });
+    const recipientUser = await User.findOne({
+      safeAddress: recipientAddress.toLowerCase(),
+    });
 
     let result;
     try {
       result = await sponsorSafeTransfer(
-        safeAddress, userPrivateKey, recipientAddress,
-        BigInt(actualAmountWei), BigInt(actualFeeWei), tokenAddress,
+        safeAddress,
+        userPrivateKey,
+        recipientAddress,
+        BigInt(actualAmountWei),
+        BigInt(actualFeeWei),
+        tokenAddress,
       );
     } catch (broadcastErr) {
-      console.warn(`⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
+      console.warn(
+        `⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`,
+      );
       entry.status = "PENDING";
       entry.errorMessage = broadcastErr.message;
       entry.updatedAt = new Date();
@@ -2529,19 +2547,37 @@ setImmediate(async () => {
       await applyCooldown(safeAddress, 20);
       console.log(`✅ Processed and removed: ${result.txHash}`);
       if (senderUser?.email) {
-        try { await sendTransactionEmailToSender(senderUser.email, senderUser.username, toInput, amount, "successful", coin); } catch {}
+        try {
+          await sendTransactionEmailToSender(
+            senderUser.email,
+            senderUser.username,
+            toInput,
+            amount,
+            "successful",
+            coin,
+          );
+        } catch {}
       }
       if (recipientUser?.email) {
-        try { await sendTransactionEmailToReceiver(recipientUser.email, recipientUser.username, safeAddress, amount, coin); } catch {}
+        try {
+          await sendTransactionEmailToReceiver(
+            recipientUser.email,
+            recipientUser.username,
+            safeAddress,
+            amount,
+            coin,
+          );
+        } catch {}
       }
     } else {
       entry.status = "FAILED_ONCHAIN";
       entry.errorMessage = taskStatus.reason || "Transaction reverted on-chain";
       entry.updatedAt = new Date();
       await entry.save();
-      console.error(`❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`);
+      console.error(
+        `❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`,
+      );
     }
-
   } catch (err) {
     console.error("❌ Queue processor crashed:", err.message);
     try {

@@ -81,17 +81,17 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
 
   // L1 uses ETH RPC + L1 token addresses + balanceOf (raw transfer approach)
   // L2 uses Base RPC + L2 token addresses + availableLiquidity (internal accounting)
-  let ngnAddr, cNgnAddr, usdtAddr, usdcAddr, poolProvider;
+  let ngnsAddr, cNgnAddr, usdtAddr, usdcAddr, poolProvider;
 
   if (isL1) {
-    ngnAddr  = cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS);
+    ngnsAddr  = cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS);
     cNgnAddr = cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS);
     usdtAddr = cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS);
     usdcAddr = cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS   : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS);
     const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
     poolProvider = new ethers.JsonRpcProvider(l1Rpc);
   } else {
-    ngnAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
+    ngnsAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
     cNgnAddr = cleanAddr(process.env.CNGN_CONTRACT_ADDRESS);
     usdtAddr = cleanAddr(process.env.USDT_CONTRACT_ADDRESS);
     usdcAddr = cleanAddr(process.env.USDC_CONTRACT_ADDRESS);
@@ -105,7 +105,7 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
   if (isL1) {
     // L1: tokens were sent via raw transfer — read balanceOf on each token contract
     const settled = await Promise.allSettled([
-      ngnAddr  ? new ethers.Contract(ethers.getAddress(ngnAddr),  ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
+      ngnsAddr  ? new ethers.Contract(ethers.getAddress(ngnsAddr),  ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
       cNgnAddr ? new ethers.Contract(ethers.getAddress(cNgnAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
       usdtAddr ? new ethers.Contract(ethers.getAddress(usdtAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
       usdcAddr ? new ethers.Contract(ethers.getAddress(usdcAddr), ERC20_BAL_ABI, poolProvider).balanceOf(poolAddr) : Promise.resolve(0n),
@@ -116,10 +116,10 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
     ]);
 
     const val = (r) => (r.status === "fulfilled" ? r.value : 0n);
-    const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
+    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
 
     return {
-      ngnLiquidity:   ethers.formatUnits(ngnLiq,   6),
+      ngnsLiquidity:   ethers.formatUnits(ngnsLiq,   6),
       cNgnLiquidity:  ethers.formatUnits(cNgnLiq,  6),
       usdtLiquidity:  ethers.formatUnits(usdtLiq,  6),
       usdcLiquidity:  ethers.formatUnits(usdcLiq,  6),
@@ -131,7 +131,7 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
   } else {
     // L2: uses availableLiquidity internal accounting
     const settled = await Promise.allSettled([
-      poolContract.availableLiquidity(ngnAddr),
+      poolContract.availableLiquidity(ngnsAddr),
       poolContract.availableLiquidity(cNgnAddr),
       poolContract.availableLiquidity(usdtAddr),
       poolContract.availableLiquidity(usdcAddr),
@@ -142,10 +142,10 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
     ]);
 
     const val = (r) => (r.status === "fulfilled" ? r.value : 0n);
-    const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
+    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled.map(val);
 
     return {
-      ngnLiquidity:   ethers.formatUnits(ngnLiq,   6),
+      ngnsLiquidity:   ethers.formatUnits(ngnsLiq,   6),
       cNgnLiquidity:  ethers.formatUnits(cNgnLiq,  6),
       usdtLiquidity:  ethers.formatUnits(usdtLiq,  6),
       usdcLiquidity:  ethers.formatUnits(usdcLiq,  6),
@@ -592,10 +592,10 @@ router.post("/subscribe", async (req, res) => {
     const totalFee   = monthlyFee * m;
     const feeWei     = ethers.parseUnits(String(totalFee), 6);
 
-    const ngnAddr = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
-    if (!ngnAddr) return res.status(500).json({ message: "NGN_TOKEN_ADDRESS not configured" });
+    const ngnsAddr = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
+    if (!ngnsAddr) return res.status(500).json({ message: "NGNs_TOKEN_ADDRESS not configured" });
 
-    const ngnContract = new ethers.Contract(ethers.getAddress(ngnAddr), ERC20_ABI, provider);
+    const ngnContract = new ethers.Contract(ethers.getAddress(ngnsAddr), ERC20_ABI, provider);
     const balance = await ngnContract.balanceOf(ethers.getAddress(cleanOwner));
     if (balance < feeWei)
       return res.status(400).json({
@@ -703,7 +703,7 @@ router.get("/published", async (req, res) => {
     // Requirements: NGN liquidity > 0 AND sellRate > 0
     const sellPools = enriched
       .filter((p) =>
-        parseFloat(p.ngnLiquidity || 0) > 0 &&
+        parseFloat(p.ngnsLiquidity || 0) > 0 &&
         parseFloat(p.sellRate     || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
@@ -903,15 +903,15 @@ router.post("/delete", async (req, res) => {
     if (!pool) return res.status(404).json({ message: "Pool not found" });
 
     // ── Liquidity gate (unchanged) ─────────────────────────────────────────
-    const ngnAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
+    const ngnsAddr  = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
 const cNgnAddr = cleanAddr(process.env.CNGN_CONTRACT_ADDRESS);
 const usdtAddr = cleanAddr(process.env.USDT_CONTRACT_ADDRESS);
 const usdcAddr = cleanAddr(process.env.USDC_CONTRACT_ADDRESS);
 
 const poolContract = new ethers.Contract(ethers.getAddress(cleanPool), POOL_VIEW_ABI, provider);
 
-const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq] = await Promise.all([
-  poolContract.availableLiquidity(ngnAddr).catch(() => 0n),
+const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq] = await Promise.all([
+  poolContract.availableLiquidity(ngnsAddr).catch(() => 0n),
   poolContract.availableLiquidity(cNgnAddr).catch(() => 0n),
   poolContract.availableLiquidity(usdtAddr).catch(() => 0n),
   poolContract.availableLiquidity(usdcAddr).catch(() => 0n),
@@ -920,9 +920,9 @@ const [ngnLiq, cNgnLiq, usdtLiq, usdcLiq] = await Promise.all([
     const MAX_NGN = ethers.parseUnits("1000", 6);
     const MAX_USD = ethers.parseUnits("1",    6);
 
-    if (ngnLiq > MAX_NGN)
+    if (ngnsLiq > MAX_NGN)
       return res.status(400).json({
-        message: `Pool has ${ethers.formatUnits(ngnLiq, 6)} NGNs. Withdraw below 1,000 NGNs before deleting.`,
+        message: `Pool has ${ethers.formatUnits(ngnsLiq, 6)} NGNs. Withdraw below 1,000 NGNs before deleting.`,
       });
     if (usdtLiq > MAX_USD || usdcLiq > MAX_USD)
       return res.status(400).json({
@@ -1157,6 +1157,9 @@ router.post("/register", async (req, res) => {
     if (!cleanPool || !cleanOwner)
       return res.status(400).json({ message: "Missing poolAddress or ownerSafeAddress" });
 
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+
     const { PoolL1 } = getL1Models();
 
     const existing = await PoolL1.findOne({ poolAddress: cleanPool });
@@ -1194,6 +1197,9 @@ router.post("/subscribe-direct", async (req, res) => {
     const m = Number(months);
     if (!validMonths.includes(m))
       return res.status(400).json({ message: "months must be 1, 2, 6, or 12" });
+
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
 
     const { PoolL1, PoolSubL1 } = getL1Models();
 
@@ -1264,6 +1270,9 @@ router.post("/delete-direct", async (req, res) => {
     if (!cleanPool || !cleanOwner)
       return res.status(400).json({ message: "Missing poolAddress or ownerSafeAddress" });
 
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+
     const { PoolL1 } = getL1Models();
 
     const pool = await PoolL1.findOne({
@@ -1294,6 +1303,9 @@ router.get("/l1/my/:ownerAddress", async (req, res) => {
   try {
     const cleanOwner = cleanAddr(req.params.ownerAddress);
     if (!cleanOwner) return res.status(400).json({ message: "Invalid address" });
+
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
 
     const { PoolL1 } = getL1Models();
 
@@ -1330,6 +1342,9 @@ router.post("/l1/set-name", async (req, res) => {
     if (!cleanPool || !cleanOwner || !poolName)
       return res.status(400).json({ message: "Missing poolAddress, ownerSafeAddress, or poolName" });
 
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+
     const { PoolL1 } = getL1Models();
 
     const pool = await PoolL1.findOne({
@@ -1357,6 +1372,9 @@ router.get("/l1/published", async (req, res) => {
   try {
     const { search } = req.query;
     const now = new Date();
+
+    const l1DB = require("../services/l1db");
+if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
 
     const { PoolL1 } = getL1Models();
 
@@ -1400,7 +1418,7 @@ router.get("/l1/published", async (req, res) => {
 
     const sellPools = enriched
       .filter((p) =>
-        parseFloat(p.ngnLiquidity || 0) > 0 &&
+        parseFloat(p.ngnsLiquidity || 0) > 0 &&
         parseFloat(p.sellRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
@@ -1468,6 +1486,8 @@ router.get("/l1/trust-status", async (req, res) => {
         .status(400)
         .json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
 
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
     const { TrustedPoolL1 } = getL1Models();
 
     const record = await TrustedPoolL1.findOne({
@@ -1513,6 +1533,9 @@ router.post("/l1/trust", async (req, res) => {
 
     const cleanToken = resolveL1Token(tokenSymbol);
     if (!cleanToken) return res.status(400).json({ message: `Unknown tokenSymbol: ${tokenSymbol}` });
+
+    const l1DB = require("../services/l1db");
+    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
 
     const { TrustedPoolL1 } = getL1Models();
 

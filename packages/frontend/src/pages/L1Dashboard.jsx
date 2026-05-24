@@ -108,7 +108,7 @@ const BalanceSpinner = () => (
 
 // ── L1 Balance Card ───────────────────────────────────────────────────────────
 const L1BalanceCard = ({
-  ngnBalance,
+  ngnsBalance,
   cNgnBalance,
   usdtBalance,
   usdcBalance,
@@ -116,7 +116,7 @@ const L1BalanceCard = ({
   balanceLoading,
   onToggleVisibility,
 }) => {
-  const totalNgn = addDecimals(ngnBalance, cNgnBalance);
+  const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
   const MASK = "••••••";
 
@@ -172,7 +172,7 @@ const L1BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(ngnBalance, {
+              ? `${formatNumber(ngnsBalance, {
                   minDecimals: 3,
                   maxDecimals: 3,
                 })} NGNs · ${formatNumber(cNgnBalance, {
@@ -427,7 +427,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
   });
 
   // ── Balance state ────────────────────────────────────────────────────────
-  const [ngnBalance, setNgnBalance] = useState("0.00");
+  const [ngnsBalance, setNgnsBalance] = useState("0.00");
   const [cNgnBalance, setCNgnBalance] = useState("0.00");
   const [usdtBalance, setUsdtBalance] = useState("0.00");
   const [usdcBalance, setUsdcBalance] = useState("0.00");
@@ -460,7 +460,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
       const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${address}`);
       if (!res.ok) return;
       const data = await res.json();
-      setNgnBalance(data.ngnBalance ?? "0.00");
+      setNgnsBalance(data.ngnsBalance ?? "0.00");
       setCNgnBalance(data.cNgnBalance ?? "0.00");
       setUsdtBalance(data.usdtBalance ?? "0.00");
       setUsdcBalance(data.usdcBalance ?? "0.00");
@@ -563,7 +563,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
 
         {/* ── L1 Balance Card ── */}
         <L1BalanceCard
-          ngnBalance={ngnBalance}
+          ngnsBalance={ngnsBalance}
           cNgnBalance={cNgnBalance}
           usdtBalance={usdtBalance}
           usdcBalance={usdcBalance}

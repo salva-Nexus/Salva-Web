@@ -675,8 +675,8 @@ const Home = () => {
           badge="🔄"
           tag="Salva V3 DEX"
           title="Swap between NGN & USD stablecoins Instantly."
-          headline="Permissionless OTC liquidity pools — anyone can be an LP."
-          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between NGNs, USDT, and USDC in seconds via their Safe smart wallet — no bridges, no CEX, no delay."
+          headline="Permissionless liquidity pools — anyone can be an LP."
+          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between Naira Stablecoins, USDT, and USDC in seconds via their Safe smart wallet — no bridges, no CEX, no delay."
           extContent={
             <div className="space-y-4">
               <p>
@@ -684,7 +684,7 @@ const Home = () => {
                   Become an LP.
                 </strong>{" "}
                 Deploy your own pool, add NGNs or stablecoins, set your buy/sell
-                rates, and subscribe to list it on the marketplace. Earn on
+                rates, get listed on the swap marketplace. Earn on
                 every swap through your spread.
               </p>
             </div>

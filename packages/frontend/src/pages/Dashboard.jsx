@@ -488,7 +488,7 @@ const SalvaNotification = ({ notification, onClose }) => {
 
 // ── Dual Balance Card ─────────────────────────────────────────────────────────
 const BalanceCard = ({
-  ngnBalance,
+  ngnsBalance,
   cNgnBalance,
   usdtBalance,
   usdcBalance,
@@ -498,7 +498,7 @@ const BalanceCard = ({
   onSend,
   onReceive,
 }) => {
-  const totalNgn = addDecimals(ngnBalance, cNgnBalance);
+  const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
   const MASK = "••••••";
 
@@ -550,7 +550,7 @@ const BalanceCard = ({
         {!balanceLoading && (
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(ngnBalance, { minDecimals: 3, maxDecimals: 3 })} NGNs · ${formatNumber(cNgnBalance, { minDecimals: 3, maxDecimals: 3 })} cNGN`
+              ? `${formatNumber(ngnsBalance, { minDecimals: 3, maxDecimals: 3 })} NGNs · ${formatNumber(cNgnBalance, { minDecimals: 3, maxDecimals: 3 })} cNGN`
               : "•••• NGNs · •••• cNGN"}
           </p>
         )}
@@ -1796,7 +1796,7 @@ const Dashboard = () => {
     }
   });
 
-  const [ngnBalance, setBalance] = useState(null);
+  const [ngnsBalance, setBalance] = useState(null);
   const [cNgnBalance, setCNgnBalance] = useState(null);
   const [usdtBalance, setUsdtBalance] = useState(null);
   const [usdcBalance, setUsdcBalance] = useState(null);
@@ -1914,7 +1914,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
     if (!res.ok) return;
     const data = await res.json();
-    setBalance(data.ngnBalance ?? "0");
+    setBalance(data.ngnsBalance ?? "0");
     setCNgnBalance(data.cNgnBalance ?? "0");
     setUsdtBalance(data.usdtBalance ?? "0");
     setUsdcBalance(data.usdcBalance ?? "0");
@@ -1970,7 +1970,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
       if (selectedCoin === "NGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(ngnBalance ?? "0"));
+        setAmountError(!isNaN(amt) && amt > parseFloat(ngnsBalance ?? "0"));
       else if (selectedCoin === "CNGN")
         setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? "0"));
       else if (selectedCoin === "USDT")
@@ -1981,7 +1981,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     }
   }, [
     transferAmount,
-    ngnBalance,
+    ngnsBalance,
     cNgnBalance,
     usdtBalance,
     usdcBalance,
@@ -2304,7 +2304,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
   const showRegistryDropdown = inputType === "name";
   const currentCoinBalance =
     selectedCoin === "NGN"
-      ? (ngnBalance ?? "0.00")
+      ? (ngnsBalance ?? "0.00")
       : selectedCoin === "CNGN"
         ? (cNgnBalance ?? "0.00")
         : selectedCoin === "USDT"
@@ -2340,7 +2340,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
 
         {/* ── Balance Card ── */}
         <BalanceCard
-          ngnBalance={ngnBalance ?? "0.00"}
+          ngnsBalance={ngnsBalance ?? "0.00"}
           cNgnBalance={cNgnBalance ?? "0.00"}
           usdtBalance={usdtBalance ?? "0.00"}
           usdcBalance={usdcBalance ?? "0.00"}
@@ -2661,7 +2661,10 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
                   {balanceLoading
                     ? "…"
                     : showBalance
-                      ? formatNumber(currentCoinBalance, { minDecimals: 3, maxDecimals: 6 })
+                      ? formatNumber(currentCoinBalance, {
+                          minDecimals: 3,
+                          maxDecimals: 6,
+                        })
                       : "••••"}{" "}
                   {coinSymbol}
                 </p>
@@ -3143,10 +3146,10 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
       </AnimatePresence>
 
       {/* ── Floating Buy NGNs Chat ── */}
-      {!user.isSeller && <SalvaNGNsChat user={user} />}
+      {!user.isSeller && activeTab === "buy" && <SalvaNGNsChat user={user} />}
 
       {/* ── Seller Mint Inbox ── */}
-      {user.isSeller && <SalvaSellerChat user={user} />}
+      {user.isSeller && activeTab === "buy" && <SalvaSellerChat user={user} />}
     </div>
   );
 };
