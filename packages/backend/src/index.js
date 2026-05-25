@@ -58,6 +58,7 @@ const AccountNumberCounter = require("./models/AccountNumberCounter");
 const WalletRegistry = require("./models/WalletRegistry");
 const Proposal = require("./models/Proposal");
 const FeeConfig = require("./models/FeeConfig");
+const OtcConfig = require("./models/OtcConfig");
 
 // ===============================================
 // SECURITY PACKAGES
@@ -363,6 +364,14 @@ async function connectDB() {
         .then(() => console.log("✅ FeeConfig synced"))
         .catch((e) => console.error("❌ FeeConfig sync failed:", e.message));
 
+      OtcConfig.findOneAndUpdate(
+        { _id: "main" },
+        { $setOnInsert: { minNgn: 10000, maxNgn: 200000, feePercent: 0.2 } },
+        { upsert: true },
+      )
+        .then(() => console.log("✅ OtcConfig seeded"))
+        .catch((e) => console.error("❌ OtcConfig seed failed:", e.message));
+
       conn.connection.on("disconnected", () => {
         console.warn(
           "⚠️  MongoDB disconnected — will reconnect on next request",
@@ -623,6 +632,20 @@ app.get("/api/registries", async (req, res) => {
 // ===============================================
 // GET FEE CONFIG (for frontend to preview fees)
 // ===============================================
+app.get("/api/otc-config", async (req, res) => {
+  try {
+    let config = await OtcConfig.findById("main");
+    if (!config) config = await OtcConfig.create({ _id: "main" });
+    res.json({
+      minNgn: config.minNgn,
+      maxNgn: config.maxNgn,
+      feePercent: config.feePercent,
+    });
+  } catch (e) {
+    res.json({ minNgn: 10000, maxNgn: 200000, feePercent: 0.2 });
+  }
+});
+
 app.get("/api/fee-config", async (req, res) => {
   try {
     let config = await FeeConfig.findById("main");
@@ -2465,133 +2488,134 @@ app.post("/api/queue/process/:address", async (req, res) => {
 
     res.json({ processing: true, queueId: entry._id });
 
-setImmediate(async () => {
-  try {
-    const {
-      safeAddress,
-      userPrivateKey,
-      recipientAddress,
-      actualAmountWei,
-      actualFeeWei,
-      tokenAddress,
-      coin,
-      amount,
-      feeHuman,
-      toInput,
-      senderDisplayIdentifier,
-    } = entry.payload;
+    setImmediate(async () => {
+      try {
+        const {
+          safeAddress,
+          userPrivateKey,
+          recipientAddress,
+          actualAmountWei,
+          actualFeeWei,
+          tokenAddress,
+          coin,
+          amount,
+          feeHuman,
+          toInput,
+          senderDisplayIdentifier,
+        } = entry.payload;
 
-    const senderUser = await User.findOne({
-      safeAddress: safeAddress.toLowerCase(),
-    });
-    const recipientUser = await User.findOne({
-      safeAddress: recipientAddress.toLowerCase(),
-    });
+        const senderUser = await User.findOne({
+          safeAddress: safeAddress.toLowerCase(),
+        });
+        const recipientUser = await User.findOne({
+          safeAddress: recipientAddress.toLowerCase(),
+        });
 
-    let result;
-    try {
-      result = await sponsorSafeTransfer(
-        safeAddress,
-        userPrivateKey,
-        recipientAddress,
-        BigInt(actualAmountWei),
-        BigInt(actualFeeWei),
-        tokenAddress,
-      );
-    } catch (broadcastErr) {
-      console.warn(
-        `⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`,
-      );
-      entry.status = "PENDING";
-      entry.errorMessage = broadcastErr.message;
-      entry.updatedAt = new Date();
-      await entry.save();
-      return;
-    }
-
-    if (!result || !result.txHash) {
-      entry.status = "PENDING";
-      entry.errorMessage = "No txHash returned from broadcast";
-      entry.updatedAt = new Date();
-      await entry.save();
-      return;
-    }
-
-    entry.submittedOnchain = true;
-    entry.txHash = result.txHash;
-    entry.taskId = result.txHash;
-    entry.updatedAt = new Date();
-    await entry.save();
-
-    const taskStatus = await waitForTxReceipt(result.txHash);
-
-    await new Transaction({
-      fromAddress: safeAddress.toLowerCase(),
-      fromUsername: senderUser?.username || null,
-      fromNameAlias: senderUser?.nameAlias || null,
-      toAddress: recipientAddress.toLowerCase(),
-      toUsername: recipientUser?.username || null,
-      toNameAlias: recipientUser?.nameAlias || null,
-      senderDisplayIdentifier: senderDisplayIdentifier || toInput,
-      amount,
-      fee: feeHuman > 0 ? String(feeHuman) : null,
-      coin,
-      status: taskStatus.success ? "successful" : "failed",
-      taskId: result.txHash,
-      type: "transfer",
-      date: new Date(),
-    }).save();
-
-    if (taskStatus.success) {
-      await TransactionQueue.deleteOne({ _id: entry._id });
-      await applyCooldown(safeAddress, 20);
-      console.log(`✅ Processed and removed: ${result.txHash}`);
-      if (senderUser?.email) {
+        let result;
         try {
-          await sendTransactionEmailToSender(
-            senderUser.email,
-            senderUser.username,
-            toInput,
-            amount,
-            "successful",
-            coin,
-          );
-        } catch {}
-      }
-      if (recipientUser?.email) {
-        try {
-          await sendTransactionEmailToReceiver(
-            recipientUser.email,
-            recipientUser.username,
+          result = await sponsorSafeTransfer(
             safeAddress,
-            amount,
-            coin,
+            userPrivateKey,
+            recipientAddress,
+            BigInt(actualAmountWei),
+            BigInt(actualFeeWei),
+            tokenAddress,
           );
-        } catch {}
+        } catch (broadcastErr) {
+          console.warn(
+            `⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`,
+          );
+          entry.status = "PENDING";
+          entry.errorMessage = broadcastErr.message;
+          entry.updatedAt = new Date();
+          await entry.save();
+          return;
+        }
+
+        if (!result || !result.txHash) {
+          entry.status = "PENDING";
+          entry.errorMessage = "No txHash returned from broadcast";
+          entry.updatedAt = new Date();
+          await entry.save();
+          return;
+        }
+
+        entry.submittedOnchain = true;
+        entry.txHash = result.txHash;
+        entry.taskId = result.txHash;
+        entry.updatedAt = new Date();
+        await entry.save();
+
+        const taskStatus = await waitForTxReceipt(result.txHash);
+
+        await new Transaction({
+          fromAddress: safeAddress.toLowerCase(),
+          fromUsername: senderUser?.username || null,
+          fromNameAlias: senderUser?.nameAlias || null,
+          toAddress: recipientAddress.toLowerCase(),
+          toUsername: recipientUser?.username || null,
+          toNameAlias: recipientUser?.nameAlias || null,
+          senderDisplayIdentifier: senderDisplayIdentifier || toInput,
+          amount,
+          fee: feeHuman > 0 ? String(feeHuman) : null,
+          coin,
+          status: taskStatus.success ? "successful" : "failed",
+          taskId: result.txHash,
+          type: "transfer",
+          date: new Date(),
+        }).save();
+
+        if (taskStatus.success) {
+          await TransactionQueue.deleteOne({ _id: entry._id });
+          await applyCooldown(safeAddress, 20);
+          console.log(`✅ Processed and removed: ${result.txHash}`);
+          if (senderUser?.email) {
+            try {
+              await sendTransactionEmailToSender(
+                senderUser.email,
+                senderUser.username,
+                toInput,
+                amount,
+                "successful",
+                coin,
+              );
+            } catch {}
+          }
+          if (recipientUser?.email) {
+            try {
+              await sendTransactionEmailToReceiver(
+                recipientUser.email,
+                recipientUser.username,
+                safeAddress,
+                amount,
+                coin,
+              );
+            } catch {}
+          }
+        } else {
+          entry.status = "FAILED_ONCHAIN";
+          entry.errorMessage =
+            taskStatus.reason || "Transaction reverted on-chain";
+          entry.updatedAt = new Date();
+          await entry.save();
+          console.error(
+            `❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`,
+          );
+        }
+      } catch (err) {
+        console.error("❌ Queue processor crashed:", err.message);
+        try {
+          const freshEntry = await TransactionQueue.findById(entry._id);
+          if (!freshEntry) return;
+          freshEntry.status = "PENDING";
+          freshEntry.errorMessage = `Processor error: ${err.message}`;
+          freshEntry.updatedAt = new Date();
+          await freshEntry.save();
+        } catch (saveErr) {
+          console.error("❌ Could not save after crash:", saveErr.message);
+        }
       }
-    } else {
-      entry.status = "FAILED_ONCHAIN";
-      entry.errorMessage = taskStatus.reason || "Transaction reverted on-chain";
-      entry.updatedAt = new Date();
-      await entry.save();
-      console.error(
-        `❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`,
-      );
-    }
-  } catch (err) {
-    console.error("❌ Queue processor crashed:", err.message);
-    try {
-      const freshEntry = await TransactionQueue.findById(entry._id);
-      if (!freshEntry) return;
-      freshEntry.status = "PENDING";
-      freshEntry.errorMessage = `Processor error: ${err.message}`;
-      freshEntry.updatedAt = new Date();
-      await freshEntry.save();
-    } catch (saveErr) {
-      console.error("❌ Could not save after crash:", saveErr.message);
-    }
-  }
-});
+    });
   } catch (error) {
     return handleError(error, res, "Failed to process queue");
   }

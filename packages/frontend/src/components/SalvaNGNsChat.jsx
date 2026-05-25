@@ -10,8 +10,8 @@ const fmtInput = (raw) => {
   return p.length > 1 ? p[0] + "." + p[1] : p[0];
 };
 
-function calcFee(amt) {
-  return Math.round(amt * 0.005); // 0.5%
+function calcFee(amt, feePercent = 0.5) {
+  return Math.round(amt * (feePercent / 100));
 }
 
 function RichText({ text }) {
@@ -32,7 +32,6 @@ function RichText({ text }) {
   );
 }
 
-// ── Copy button ────────────────────────────────────────────────────────────
 const CopyBtn = ({ value, label }) => {
   const [copied, setCopied] = useState(false);
   const copy = () => {
@@ -63,7 +62,6 @@ const CopyBtn = ({ value, label }) => {
   );
 };
 
-// ── Message Input ──────────────────────────────────────────────────────────
 const MessageInput = memo(
   ({ onSend, onImage, disabled, placeholder = "Ask a question…" }) => {
     const [text, setText] = useState("");
@@ -216,7 +214,6 @@ const MessageInput = memo(
   },
 );
 
-// ── Bubble ─────────────────────────────────────────────────────────────────
 const Bubble = memo(({ msg }) => {
   const isMe = msg.sender === "user";
 
@@ -386,15 +383,19 @@ const Bubble = memo(({ msg }) => {
   );
 });
 
-// ══════════════════════════════════════════════════════════════════════════════
-// MAIN COMPONENT
-// ══════════════════════════════════════════════════════════════════════════════
 const SalvaNGNsChat = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [mode, setMode] = useState(null); // null | "buy" | "sell"
+  const [mode, setMode] = useState(null);
+
+  // ── OTC Config ────────────────────────────────────────────────────────────
+  const [otcConfig, setOtcConfig] = useState({
+    minNgn: 10000,
+    maxNgn: 200000,
+    feePercent: 0.2,
+  });
 
   // ── Buy state ────────────────────────────────────────────────────────────
-  const [buyPhase, setBuyPhase] = useState("amount"); // amount | confirm | chat
+  const [buyPhase, setBuyPhase] = useState("amount");
   const [amountDisplay, setAmountDisplay] = useState("");
   const [amountRaw, setAmountRaw] = useState(0);
   const [initiating, setInitiating] = useState(false);
@@ -402,7 +403,6 @@ const SalvaNGNsChat = ({ user }) => {
   const [sellerInfo, setSellerInfo] = useState(null);
 
   // ── Sell state ───────────────────────────────────────────────────────────
-  // sellPhase: "amount" → "redemption" → "bank" → "chat"
   const [sellPhase, setSellPhase] = useState("amount");
   const [sellAmountDisplay, setSellAmountDisplay] = useState("");
   const [sellAmountRaw, setSellAmountRaw] = useState(0);
@@ -430,15 +430,23 @@ const SalvaNGNsChat = ({ user }) => {
   const chatContainerRef = useRef(null);
   const prevMessageCount = useRef(0);
 
-  const fee = calcFee(amountRaw);
+  const fee = calcFee(amountRaw, otcConfig.feePercent);
   const mintAmt = amountRaw - fee;
+  const sellFee = calcFee(sellAmountRaw, otcConfig.feePercent);
+  const sellPayout = sellAmountRaw - sellFee;
   const status = mintRequest?.status;
   const canChat = status === "pending" || status === "paid";
   const isMinted = status === "minted";
   const isRejected = status === "rejected";
-  const isBurned = status === "burned";
+  const isBurned = status === "burned" || status === "sell_completed";
 
-  // ── Scroll to bottom on new messages ─────────────────────────────────────
+  const buyValid =
+    amountRaw >= otcConfig.minNgn && amountRaw <= otcConfig.maxNgn;
+  const sellValid =
+    sellAmountRaw >= otcConfig.minNgn &&
+    sellAmountRaw <= otcConfig.maxNgn &&
+    !sellAmountError;
+
   useEffect(() => {
     const newCount = messages.length;
     if (newCount > prevMessageCount.current && isNearBottom.current) {
@@ -447,7 +455,6 @@ const SalvaNGNsChat = ({ user }) => {
     prevMessageCount.current = newCount;
   }, [messages]);
 
-  // ── Load active request + seller info on open ─────────────────────────────
   const loadRequest = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
@@ -495,15 +502,24 @@ const SalvaNGNsChat = ({ user }) => {
     }
   }, []);
 
+  const fetchOtcConfig = useCallback(async () => {
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/otc-config`);
+      if (res.ok) setOtcConfig(await res.json());
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
     if (isOpen) {
       loadRequest();
       fetchBalance();
       fetchSellerInfo();
+      fetchOtcConfig();
     }
-  }, [isOpen, loadRequest, fetchBalance, fetchSellerInfo]);
+  }, [isOpen, loadRequest, fetchBalance, fetchSellerInfo, fetchOtcConfig]);
 
-  // ── Chat polling ───────────────────────────────────────────────────────────
   useEffect(() => {
     const activeChat =
       (mode === "buy" && buyPhase === "chat") ||
@@ -522,12 +538,10 @@ const SalvaNGNsChat = ({ user }) => {
           setMintRequest(data.request);
           setMessages(data.request.messages || []);
         }
-        failCount = 0; // reset on success
+        failCount = 0;
       } catch {
         failCount++;
-        // back off: after 3 failures slow down significantly
       }
-      // Dynamic interval: normal=8s, degraded=20s after 3 failures
       const next = failCount >= 3 ? 20000 : 8000;
       pollRef.current = setTimeout(poll, next);
     };
@@ -536,7 +550,6 @@ const SalvaNGNsChat = ({ user }) => {
     return () => clearTimeout(pollRef.current);
   }, [mode, buyPhase, sellPhase, mintRequest?._id, isOpen, user?.safeAddress]);
 
-  // ── Buy: initiate ─────────────────────────────────────────────────────────
   const handleBuyInitiate = async () => {
     setInitError("");
     setInitiating(true);
@@ -551,7 +564,9 @@ const SalvaNGNsChat = ({ user }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setInitError("Could not start your request. Please try again.");
+        setInitError(
+          data.message || "Could not start your request. Please try again.",
+        );
         return;
       }
       await loadRequest();
@@ -562,27 +577,27 @@ const SalvaNGNsChat = ({ user }) => {
     }
   };
 
-  // ── Sell: initiate ─────────────────────────────────────────────────────────
   const handleSellInitiate = async () => {
     setSellError("");
     setSellInitiating(true);
     try {
-      const body = {
-        safeAddress: user.safeAddress,
-        amountNgn: sellAmountRaw,
-        bankName,
-        accountNumber,
-        accountName,
-      };
-
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/initiate-sell`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          safeAddress: user.safeAddress,
+          amountNgn: sellAmountRaw,
+          bankName,
+          accountNumber,
+          accountName,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        setSellError("Could not process your sell request. Please try again.");
+        setSellError(
+          data.message ||
+            "Could not process your sell request. Please try again.",
+        );
         return;
       }
       await loadRequest();
@@ -593,7 +608,6 @@ const SalvaNGNsChat = ({ user }) => {
     }
   };
 
-  // ── Chat: send text ───────────────────────────────────────────────────────
   const handleSend = async (text) => {
     if (!mintRequest?._id) return;
     const optimistic = {
@@ -660,7 +674,6 @@ const SalvaNGNsChat = ({ user }) => {
     }
   };
 
-  // ── Receipt upload ─────────────────────────────────────────────────────────
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -706,7 +719,6 @@ const SalvaNGNsChat = ({ user }) => {
     reader.readAsDataURL(receiptFile);
   };
 
-  // ── Reset all state ────────────────────────────────────────────────────────
   const resetAll = () => {
     setMode(null);
     setBuyPhase("amount");
@@ -724,7 +736,6 @@ const SalvaNGNsChat = ({ user }) => {
     setMessages([]);
   };
 
-  // ── Spinner ────────────────────────────────────────────────────────────────
   const Spinner = ({ color = "#000" }) => (
     <span
       style={{
@@ -739,7 +750,6 @@ const SalvaNGNsChat = ({ user }) => {
     />
   );
 
-  // ── Section label helper ───────────────────────────────────────────────────
   const SectionLabel = ({ children, color = "rgba(212,175,55,0.6)" }) => (
     <label
       style={{
@@ -756,7 +766,6 @@ const SalvaNGNsChat = ({ user }) => {
     </label>
   );
 
-  // ── FAB ────────────────────────────────────────────────────────────────────
   if (!isOpen) {
     return (
       <div
@@ -805,10 +814,8 @@ const SalvaNGNsChat = ({ user }) => {
     );
   }
 
-  // ── Main Window ────────────────────────────────────────────────────────────
   return (
     <>
-      {/* Receipt upload overlay */}
       <AnimatePresence>
         {showReceiptUpload && (
           <motion.div
@@ -1018,21 +1025,23 @@ const SalvaNGNsChat = ({ user }) => {
               flexShrink: 0,
             }}
           >
-            {/* Back arrow */}
             {mode &&
               (buyPhase === "amount" ||
                 buyPhase === "confirm" ||
                 sellPhase === "amount" ||
-                sellPhase === "redemption" ||
                 sellPhase === "bank") && (
                 <button
                   onClick={() => {
                     if (mode === "buy") {
-                      if (buyPhase === "amount") { setMode(null); setBuyPhase("amount"); }
-                      else setBuyPhase("amount");
+                      if (buyPhase === "amount") {
+                        setMode(null);
+                        setBuyPhase("amount");
+                      } else setBuyPhase("amount");
                     } else {
-                      if (sellPhase === "amount") { setMode(null); setSellPhase("amount"); }
-                      else if (sellPhase === "bank") setSellPhase("amount");
+                      if (sellPhase === "amount") {
+                        setMode(null);
+                        setSellPhase("amount");
+                      } else if (sellPhase === "bank") setSellPhase("amount");
                     }
                   }}
                   style={{
@@ -1153,9 +1162,7 @@ const SalvaNGNsChat = ({ user }) => {
             </button>
           </div>
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* MODE SELECTOR                                                 */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── MODE SELECTOR ── */}
           {!mode && (
             <div
               style={{
@@ -1301,9 +1308,7 @@ const SalvaNGNsChat = ({ user }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* BUY: AMOUNT                                                   */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── BUY: AMOUNT ── */}
           {mode === "buy" && buyPhase === "amount" && (
             <div
               style={{
@@ -1344,7 +1349,7 @@ const SalvaNGNsChat = ({ user }) => {
                   <input
                     type="text"
                     inputMode="decimal"
-                    placeholder="e.g. 10,000"
+                    placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
                     value={amountDisplay}
                     onChange={(e) => {
                       const f = fmtInput(e.target.value);
@@ -1385,8 +1390,18 @@ const SalvaNGNsChat = ({ user }) => {
                     NGNs
                   </span>
                 </div>
+                <p
+                  style={{
+                    color: "rgba(255,255,255,0.3)",
+                    fontSize: "10px",
+                    margin: "5px 0 0",
+                  }}
+                >
+                  Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
+                  {otcConfig.maxNgn.toLocaleString()}
+                </p>
               </div>
-              {amountRaw >= 100 && (
+              {buyValid && (
                 <div
                   style={{
                     background: "rgba(212,175,55,0.05)",
@@ -1463,21 +1478,20 @@ const SalvaNGNsChat = ({ user }) => {
                 </div>
               )}
               <button
-                onClick={() => amountRaw >= 100 && setBuyPhase("confirm")}
-                disabled={amountRaw < 100}
+                onClick={() => buyValid && setBuyPhase("confirm")}
+                disabled={!buyValid}
                 style={{
                   width: "100%",
                   padding: "13px",
-                  background:
-                    amountRaw >= 100
-                      ? "linear-gradient(135deg, #D4AF37, #b8941e)"
-                      : "rgba(212,175,55,0.2)",
+                  background: buyValid
+                    ? "linear-gradient(135deg, #D4AF37, #b8941e)"
+                    : "rgba(212,175,55,0.2)",
                   border: "none",
                   borderRadius: "12px",
-                  color: amountRaw >= 100 ? "#000" : "rgba(212,175,55,0.4)",
+                  color: buyValid ? "#000" : "rgba(212,175,55,0.4)",
                   fontSize: "13px",
                   fontWeight: "900",
-                  cursor: amountRaw >= 100 ? "pointer" : "not-allowed",
+                  cursor: buyValid ? "pointer" : "not-allowed",
                   textTransform: "uppercase",
                 }}
               >
@@ -1486,9 +1500,7 @@ const SalvaNGNsChat = ({ user }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* BUY: CONFIRM                                                  */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── BUY: CONFIRM ── */}
           {mode === "buy" && buyPhase === "confirm" && (
             <div
               style={{
@@ -1623,9 +1635,7 @@ const SalvaNGNsChat = ({ user }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* SELL: AMOUNT                                                  */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── SELL: AMOUNT ── */}
           {mode === "sell" && sellPhase === "amount" && (
             <div
               style={{
@@ -1675,7 +1685,7 @@ const SalvaNGNsChat = ({ user }) => {
                     <input
                       type="text"
                       inputMode="decimal"
-                      placeholder="e.g. 5,000"
+                      placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
                       value={sellAmountDisplay}
                       onChange={(e) => {
                         const f = fmtInput(e.target.value);
@@ -1683,7 +1693,13 @@ const SalvaNGNsChat = ({ user }) => {
                         const raw = parseFloat(f.replace(/,/g, "")) || 0;
                         setSellAmountRaw(raw);
                         setSellAmountError(
-                          raw > ngnBalance ? "Insufficient NGNs balance" : "",
+                          raw > ngnBalance
+                            ? "Insufficient NGNs balance"
+                            : raw > 0 && raw < otcConfig.minNgn
+                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
+                              : raw > otcConfig.maxNgn
+                                ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
+                                : "",
                         );
                       }}
                       style={{
@@ -1736,13 +1752,67 @@ const SalvaNGNsChat = ({ user }) => {
                   <p
                     style={{
                       color: "rgba(255,255,255,0.3)",
-                      fontSize: "9px",
+                      fontSize: "10px",
                       margin: "5px 0 0",
                     }}
                   >
-                    This exact amount will be burned on-chain immediately
+                    Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
+                    {otcConfig.maxNgn.toLocaleString()}
                   </p>
                 </div>
+
+                {sellValid && (
+                  <div
+                    style={{
+                      background: "rgba(212,175,55,0.05)",
+                      border: "1px solid rgba(212,175,55,0.15)",
+                      borderRadius: "12px",
+                      padding: "12px 14px",
+                    }}
+                  >
+                    {[
+                      ["You Burn", `${sellAmountRaw.toLocaleString()} NGNs`],
+                      ["Fee", `-${sellFee.toLocaleString()} NGNs`],
+                      ["You Receive (fiat)", `₦${sellPayout.toLocaleString()}`],
+                    ].map(([l, v], i) => (
+                      <div
+                        key={l}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          marginBottom: i < 2 ? "6px" : 0,
+                          paddingTop: i === 2 ? "8px" : 0,
+                          borderTop:
+                            i === 2 ? "1px solid rgba(212,175,55,0.1)" : "none",
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: "rgba(255,255,255,0.45)",
+                            fontSize: "11px",
+                          }}
+                        >
+                          {l}
+                        </span>
+                        <span
+                          style={{
+                            color:
+                              i === 1
+                                ? "#ef4444"
+                                : i === 2
+                                  ? "#D4AF37"
+                                  : "#f5f0e8",
+                            fontWeight: i === 2 ? "900" : "700",
+                            fontSize: i === 2 ? "14px" : "11px",
+                          }}
+                        >
+                          {v}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <div
                   style={{
                     padding: "10px 12px",
@@ -1765,31 +1835,20 @@ const SalvaNGNsChat = ({ user }) => {
                 }}
               >
                 <button
-                  onClick={() =>
-                    sellAmountRaw > 0 &&
-                    !sellAmountError &&
-                    setSellPhase("bank")
-                  }
-                  disabled={!sellAmountRaw || !!sellAmountError}
+                  onClick={() => sellValid && setSellPhase("bank")}
+                  disabled={!sellValid}
                   style={{
                     width: "100%",
                     padding: "13px",
-                    background:
-                      !sellAmountRaw || sellAmountError
-                        ? "rgba(239,68,68,0.2)"
-                        : "linear-gradient(135deg, #ef4444, #b91c1c)",
+                    background: !sellValid
+                      ? "rgba(239,68,68,0.2)"
+                      : "linear-gradient(135deg, #ef4444, #b91c1c)",
                     border: "none",
                     borderRadius: "12px",
-                    color:
-                      !sellAmountRaw || sellAmountError
-                        ? "rgba(239,68,68,0.4)"
-                        : "#fff",
+                    color: !sellValid ? "rgba(239,68,68,0.4)" : "#fff",
                     fontSize: "13px",
                     fontWeight: "900",
-                    cursor:
-                      !sellAmountRaw || sellAmountError
-                        ? "not-allowed"
-                        : "pointer",
+                    cursor: !sellValid ? "not-allowed" : "pointer",
                     textTransform: "uppercase",
                   }}
                 >
@@ -1799,9 +1858,7 @@ const SalvaNGNsChat = ({ user }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* SELL: BANK DETAILS                                            */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── SELL: BANK DETAILS ── */}
           {mode === "sell" && sellPhase === "bank" && (
             <div
               style={{
@@ -1835,8 +1892,14 @@ const SalvaNGNsChat = ({ user }) => {
                   >
                     Your Bank Details
                   </h3>
-                  <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "11px", margin: 0 }}>
-                    Seller will pay ₦{sellAmountRaw.toLocaleString()} here
+                  <p
+                    style={{
+                      color: "rgba(255,255,255,0.4)",
+                      fontSize: "11px",
+                      margin: 0,
+                    }}
+                  >
+                    Seller will pay ₦{sellPayout.toLocaleString()} here
                   </p>
                 </div>
                 {[
@@ -1897,7 +1960,8 @@ const SalvaNGNsChat = ({ user }) => {
                 >
                   <p style={{ color: "#ef4444", fontSize: "11px", margin: 0 }}>
                     ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned
-                    immediately. Double-check details.
+                    immediately. You receive ₦{sellPayout.toLocaleString()}.
+                    Double-check details.
                   </p>
                 </div>
                 {sellError && (
@@ -1994,9 +2058,7 @@ const SalvaNGNsChat = ({ user }) => {
             </div>
           )}
 
-          {/* ══════════════════════════════════════════════════════════════ */}
-          {/* SHARED CHAT                                                   */}
-          {/* ══════════════════════════════════════════════════════════════ */}
+          {/* ── SHARED CHAT ── */}
           {((mode === "buy" && buyPhase === "chat") ||
             (mode === "sell" && sellPhase === "chat")) && (
             <>
@@ -2037,7 +2099,6 @@ const SalvaNGNsChat = ({ user }) => {
                   <Bubble key={msg._id || i} msg={msg} />
                 ))}
 
-                {/* ── BUY: Seller bank details so user knows where to pay ── */}
                 {mode === "buy" && status === "pending" && sellerInfo && (
                   <div
                     style={{
@@ -2124,7 +2185,6 @@ const SalvaNGNsChat = ({ user }) => {
                   </div>
                 )}
 
-                {/* ── BUY: I Have Paid button ── */}
                 {mode === "buy" &&
                   status === "pending" &&
                   messages.length > 0 &&
@@ -2157,7 +2217,6 @@ const SalvaNGNsChat = ({ user }) => {
                     </motion.div>
                   )}
 
-                {/* ── Minting indicator ── */}
                 {status === "minting" && (
                   <div
                     style={{
@@ -2194,7 +2253,6 @@ const SalvaNGNsChat = ({ user }) => {
                   </div>
                 )}
 
-                {/* ── Done ── */}
                 {(isMinted || isRejected || isBurned) && (
                   <button
                     onClick={resetAll}

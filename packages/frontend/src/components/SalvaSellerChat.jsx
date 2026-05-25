@@ -1575,7 +1575,7 @@ const SalvaSellerChat = ({ user }) => {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      Pay: ₦{(selected.amountNgn || 0).toLocaleString()}
+                      Pay: ₦{(selected.mintAmountNgn || 0).toLocaleString()}
                     </span>
                   </>
                 ) : selected.type !== "sell" ? (
@@ -1945,7 +1945,7 @@ const SalvaSellerChat = ({ user }) => {
                     >
                       🔥 NGNs burned on-chain. Send ₦
                       {(
-                        (selected.amountNgn || 0) +
+                        (selected.mintAmountNgn || 0) +
                         (hasRedemption
                           ? selected.pointsRedemption.pointsToRedeem
                           : 0)

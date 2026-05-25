@@ -27,8 +27,16 @@ const ERC20_BURN_ABI = [
   "function balanceOf(address) view returns (uint256)",
 ];
 
-function computeFee(amountNgn) {
-  return Math.round(amountNgn * 0.005); // 0.5%
+const OtcConfig = require("../models/OtcConfig");
+
+async function getOtcConfig() {
+  let config = await OtcConfig.findById("main");
+  if (!config) config = await OtcConfig.create({ _id: "main" });
+  return config;
+}
+
+function computeFee(amountNgn, feePercent) {
+  return Math.round(amountNgn * (feePercent / 100));
 }
 
 function getBackendSigner(isL1 = false) {
@@ -318,16 +326,17 @@ router.post("/initiate", async (req, res) => {
     if (!safeAddress || !safeAddress.startsWith("0x"))
       return res.status(400).json({ message: "Invalid safeAddress" });
 
-    const amount = parseFloat(amountNgn);
-    if (isNaN(amount) || amount < 100)
-      return res.status(400).json({ message: "Minimum purchase is ₦100" });
-    if (amount > 10_000_000)
-      return res.status(400).json({ message: "Maximum is ₦10,000,000 per request" });
+    const otcConfig = await getOtcConfig();
+const amount = parseFloat(amountNgn);
+if (isNaN(amount) || amount < otcConfig.minNgn)
+  return res.status(400).json({ message: `Minimum purchase is ₦${otcConfig.minNgn.toLocaleString()}` });
+if (amount > otcConfig.maxNgn)
+  return res.status(400).json({ message: `Maximum is ₦${otcConfig.maxNgn.toLocaleString()} per request` });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
+const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+if (!user) return res.status(404).json({ message: "User not found" });
 
-    const feeNgn = computeFee(amount);
+const feeNgn = computeFee(amount, otcConfig.feePercent);
     const mintAmount = amount - feeNgn;
     const acctName = process.env.SELLER_ACCOUNT_NAME || "Salva Digital Tech";
     const acctNum = process.env.SELLER_ACCOUNT_NUMBER || "0000000000";
@@ -764,14 +773,17 @@ router.post("/initiate-sell", async (req, res) => {
     if (!safeAddress || !safeAddress.startsWith("0x"))
       return res.status(400).json({ message: "Invalid safeAddress" });
 
-    const amount = parseFloat(amountNgn);
-    if (isNaN(amount) || amount <= 0)
-      return res.status(400).json({ message: "Invalid amount" });
+const otcConfig = await getOtcConfig();
+const amount = parseFloat(amountNgn);
+if (isNaN(amount) || amount < otcConfig.minNgn)
+  return res.status(400).json({ message: `Minimum sell is ₦${otcConfig.minNgn.toLocaleString()}` });
+if (amount > otcConfig.maxNgn)
+  return res.status(400).json({ message: `Maximum sell is ₦${otcConfig.maxNgn.toLocaleString()} per request` });
 
-    if (!bankName?.trim() || !accountNumber?.trim() || !accountName?.trim())
-      return res.status(400).json({ message: "Bank name, account number and account name are required" });
+if (!bankName?.trim() || !accountNumber?.trim() || !accountName?.trim())
+  return res.status(400).json({ message: "Bank name, account number and account name are required" });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const ngnTokenAddress = isL1
@@ -782,6 +794,8 @@ router.post("/initiate-sell", async (req, res) => {
 
     // For L1: burn from the connected EOA wallet, not the L2 Safe
     const burnTarget = (isL1 && burnFromAddress) ? burnFromAddress.toLowerCase() : safeAddress.toLowerCase();
+    const feeNgn = computeFee(amount, otcConfig.feePercent);
+    const payoutAmount = amount - feeNgn;
 
     const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_BURN_ABI, signer);
@@ -842,7 +856,7 @@ router.post("/initiate-sell", async (req, res) => {
     const sellMsg = {
       sender: "user",
       isBurned: true,
-      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
+      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n💰 Fee: **${feeNgn.toLocaleString()} NGNs**\n✅ You receive: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
       createdAt: new Date(),
     };
 
@@ -856,8 +870,8 @@ router.post("/initiate-sell", async (req, res) => {
       mintRequest.chain = chain;
       mintRequest.status = "paid";
       mintRequest.amountNgn = amount;
-      mintRequest.feeNgn = 0;
-      mintRequest.mintAmountNgn = amount;
+      mintRequest.feeNgn = feeNgn;
+      mintRequest.mintAmountNgn = payoutAmount;
       mintRequest.bankDetails = { bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountName: accountName.trim() };
       mintRequest.receiptImageBase64 = null;
       mintRequest.sellerRead = false;
@@ -866,7 +880,7 @@ router.post("/initiate-sell", async (req, res) => {
       mintRequest.messages.push(sellMsg);
       await mintRequest.save();
     } else {
-      mintRequest = await MintRequest.create({
+mintRequest = await MintRequest.create({
         userSafeAddress: safeAddress.toLowerCase(),
         userEmail: user.email,
         username: user.username,
@@ -874,8 +888,8 @@ router.post("/initiate-sell", async (req, res) => {
         isL1,
         chain,
         amountNgn: amount,
-        feeNgn: 0,
-        mintAmountNgn: amount,
+        feeNgn: feeNgn,
+        mintAmountNgn: payoutAmount,
         bankDetails: { bankName: bankName.trim(), accountNumber: accountNumber.trim(), accountName: accountName.trim() },
         status: "paid",
         sellerRead: false,
@@ -957,7 +971,7 @@ router.post("/complete-sell", async (req, res) => {
     if (mintRequest.status !== "paid" || mintRequest.type !== "sell")
       return res.status(400).json({ message: "Cannot complete at this stage" });
 
-    const totalPaid = mintRequest.amountNgn || 0;
+    const totalPaid = mintRequest.mintAmountNgn || 0;
 
     mintRequest.status = "sell_completed";
     mintRequest.messages.push({
