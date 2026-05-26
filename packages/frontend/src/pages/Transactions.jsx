@@ -1,6 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Transactions.jsx
 import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import Stars from "../components/Stars";
@@ -257,6 +257,8 @@ const Transactions = () => {
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState({ show: false, message: "" });
 
+const pollRef = useRef(null);
+
   useEffect(() => {
     const saved = localStorage.getItem("salva_user");
     if (saved) {
@@ -266,8 +268,11 @@ const Transactions = () => {
         fetchTransactions(parsed.safeAddress);
       } catch { window.location.href = "/login"; }
     } else { window.location.href = "/login"; }
-  }, []);
 
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
   useEffect(() => {
     if (toast.show) {
       const t = setTimeout(() => setToast((n) => ({ ...n, show: false })), 3500);
@@ -275,23 +280,69 @@ const Transactions = () => {
     }
   }, [toast]);
 
-const fetchTransactions = async (address) => {
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
-    const data = await res.json();
-    setTransactions(Array.isArray(data) ? data : []);
-    // Trigger queue processor silently — don't await
-    fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
-      method: "POST",
-    }).catch(() => {});
-  } catch {
-    setTransactions([]);
-  } finally {
-    setLoading(false);
-  }
-};
+const fetchTransactions = async (address, prevTxs = null) => {
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
+      const data = await res.json();
+      const txList = Array.isArray(data) ? data : [];
 
-  const showMsg = (msg) => setToast({ show: true, message: msg });
+      // Detect transitions: pending → sent (success)
+      if (prevTxs !== null) {
+        const prevPendingIds = new Set(
+          prevTxs.filter((t) => t.displayType === "pending").map((t) => String(t._id))
+        );
+        const nowSuccessful = txList.filter(
+          (t) =>
+            t.displayType === "sent" &&
+            new Date(t.date) > new Date(Date.now() - 300_000)
+        );
+        // If something that was pending is now successful
+        if (prevPendingIds.size > 0 && nowSuccessful.length > 0) {
+          showMsg("✅ Transfer Successful!");
+        }
+        // If something was pending and is now failed
+        const wasOnlyFailed =
+          prevPendingIds.size > 0 &&
+          txList.every((t) => t.displayType !== "pending") &&
+          txList.some((t) => t.displayType === "failed" && new Date(t.date) > new Date(Date.now() - 300_000));
+        if (wasOnlyFailed) {
+          showMsg("❌ Transaction failed on-chain", "error");
+        }
+      }
+
+      setTransactions(txList);
+
+      // Trigger queue processor
+      fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
+        method: "POST",
+      }).catch(() => {});
+
+      // Start or stop polling based on whether pending txs exist
+      const hasPending = txList.some((t) => t.displayType === "pending");
+      if (hasPending) {
+        if (!pollRef.current) {
+          pollRef.current = setInterval(() => {
+            setTransactions((current) => {
+              // pass current as prevTxs so we can detect changes
+              fetchTransactions(address, current);
+              return current;
+            });
+          }, 8000);
+        }
+      } else {
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
+      }
+    } catch {
+      setTransactions([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const showMsg = (msg, type = "success") => setToast({ show: true, message: msg, type });
 
   const filtered = useMemo(() => {
     let list = [...transactions];
@@ -732,7 +783,7 @@ const fetchTransactions = async (address) => {
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-salvaGold text-black px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest z-[100] shadow-2xl shadow-salvaGold/20"
+            className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-5 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest z-[100] shadow-2xl ${toast.type === "error" ? "bg-red-500 text-white shadow-red-500/20" : "bg-salvaGold text-black shadow-salvaGold/20"}`}
           >
             {toast.message}
           </motion.div>

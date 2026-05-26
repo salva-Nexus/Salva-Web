@@ -54,6 +54,7 @@ function detectInputType(val) {
   const t = val.trim();
   if (!t) return "empty";
   if (t.startsWith("0x")) return "address";
+  if (t.includes("@")) return "fullname";
   return "name";
 }
 
@@ -2023,14 +2024,56 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     }
   };
 
-  const handleRecipientChange = (val) => {
+const handleRecipientChange = (val) => {
+  // 1. Lowercase everything
+  let cleaned = val.toLowerCase();
+  // Don't filter 0x wallet addresses
+  if (cleaned.startsWith("0x") || val.startsWith("0x")) {
     setRecipientInput(val);
-    const type = detectInputType(val);
-    setInputType(type);
-    if (type === "address") setSelectedRegistry(null);
-    else if (type === "name" && registries.length === 1)
-      setSelectedRegistry(registries[0]);
-  };
+    setInputType("address");
+    setSelectedRegistry(null);
+    return;
+  }
+  // ── Early-exit: full name with @ detected (handles paste) ──
+  // Check BEFORE stripping — if the raw lowercased value already contains @,
+  // treat it as a fullname immediately without waiting for char-by-char typing
+  if (cleaned.includes("@")) {
+    // Still sanitize but preserve the @ and valid chars
+    cleaned = cleaned.replace(/[^a-z2-9_@]/g, "");
+    // Collapse multiple @'s to the first one only
+    const atIndex = cleaned.indexOf("@");
+    if (atIndex !== -1) {
+      cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, "");
+    }
+    setRecipientInput(cleaned);
+    setInputType("fullname");
+    setSelectedRegistry(null);
+    return;
+  }
+  // 2. Block 0, 1, and any symbol except a-z, 2-9, _, @
+  cleaned = cleaned.replace(/[^a-z2-9_@]/g, "");
+  // 3. Allow only one underscore
+  const firstUnderscore = cleaned.indexOf("_");
+  if (firstUnderscore !== -1) {
+    cleaned =
+      cleaned.slice(0, firstUnderscore + 1) +
+      cleaned.slice(firstUnderscore + 1).replace(/_/g, "");
+  }
+  // 4. Allow only one @
+  const firstAt = cleaned.indexOf("@");
+  if (firstAt !== -1) {
+    cleaned =
+      cleaned.slice(0, firstAt + 1) +
+      cleaned.slice(firstAt + 1).replace(/@/g, "");
+  }
+  setRecipientInput(cleaned);
+  const type = detectInputType(cleaned);
+  setInputType(type);
+  if (type === "address") setSelectedRegistry(null);
+  else if (type === "fullname") setSelectedRegistry(null);
+  else if (type === "name" && registries.length === 1)
+    setSelectedRegistry(registries[0]);
+};
 
   const handleTransferClick = () => {
     if (isAccountLocked) return showMsg(lockMessage, "error");
@@ -2047,57 +2090,81 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     setSelectedCoin("NGN");
   };
 
-  const resolveAndConfirm = async () => {
-    if (!recipientInput || !transferAmount)
-      return showMsg("Fill all fields", "error");
-    const type = detectInputType(recipientInput);
-    if (type === "name" && !selectedRegistry)
-      return showMsg("Select a wallet service", "error");
-    setLoading(true);
-    try {
-      let resolvedAddress = null;
-      let displayIdentifier = recipientInput.trim();
-      if (type === "address") {
-        resolvedAddress = recipientInput.trim().toLowerCase();
-      } else {
-        const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            input: recipientInput.trim(),
-            registryAddress: selectedRegistry.registryAddress,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.resolvedAddress) {
-          showMsg("Recipient not found. Check the name or address.", "error");
-          return;
-        }
-        resolvedAddress = data.resolvedAddress.toLowerCase();
-        displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
-      }
-      setConfirmationData({
-        resolvedAddress,
-        displayIdentifier,
-        amount: transferAmount,
-        registryAddress: selectedRegistry?.registryAddress || null,
-        walletName: selectedRegistry?.name || null,
-        inputType: type,
-        rawInput: recipientInput.trim(),
-        feeNGN: feePreview.feeNGN,
-        feeUsd: feePreview.feeUsd,
-        coin: selectedCoin,
+const resolveAndConfirm = async () => {
+  if (!recipientInput || !transferAmount)
+    return showMsg("Fill all fields", "error");
+  const type = detectInputType(recipientInput);
+  if (type === "name" && !selectedRegistry)
+    return showMsg("Select a wallet service", "error");
+  // fullname: validate it has a non-empty namespace after "@"
+  if (type === "fullname") {
+    const parts = recipientInput.trim().split("@");
+    if (parts.length !== 2 || !parts[0] || !parts[1])
+      return showMsg("Invalid name format. Use name@wallet (e.g. charles@salva)", "error");
+  }
+  setLoading(true);
+  try {
+    let resolvedAddress = null;
+    let displayIdentifier = recipientInput.trim();
+    if (type === "address") {
+      resolvedAddress = recipientInput.trim().toLowerCase();
+    } else if (type === "fullname") {
+      // Full name: pass as-is, backend resolves using REGISTRY_CONTRACT_ADDRESS
+      // No welding needed — the full welded name is already in the input
+      const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fullName: recipientInput.trim(),
+        }),
       });
-      setIsConfirmModalOpen(true);
-    } catch {
-      showMsg(
-        "Could not find that recipient. Double-check and try again.",
-        "error",
-      );
-    } finally {
-      setLoading(false);
+      const data = await res.json();
+      if (!res.ok || !data.resolvedAddress) {
+        showMsg(data.message || "Recipient not found. Check the name or address.", "error");
+        return;
+      }
+      resolvedAddress = data.resolvedAddress.toLowerCase();
+      displayIdentifier = recipientInput.trim();
+    } else {
+      // type === "name": existing flow — weld with selected registry namespace
+      const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: recipientInput.trim(),
+          registryAddress: selectedRegistry.registryAddress,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.resolvedAddress) {
+        showMsg("Recipient not found. Check the name or address.", "error");
+        return;
+      }
+      resolvedAddress = data.resolvedAddress.toLowerCase();
+      displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
     }
-  };
+    setConfirmationData({
+      resolvedAddress,
+      displayIdentifier,
+      amount: transferAmount,
+      registryAddress: selectedRegistry?.registryAddress || null,
+      walletName: selectedRegistry?.name || null,
+      inputType: type,
+      rawInput: recipientInput.trim(),
+      feeNGN: feePreview.feeNGN,
+      feeUsd: feePreview.feeUsd,
+      coin: selectedCoin,
+    });
+    setIsConfirmModalOpen(true);
+  } catch {
+    showMsg(
+      "Could not find that recipient. Double-check and try again.",
+      "error",
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   const executeTransfer = async (privateKey, capturedData) => {
     setIsPinModalOpen(false);
@@ -2121,12 +2188,47 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
         }),
       });
       const data = await res.json();
-      if (res.ok) {
+      if (res.ok && data.queued) {
+        showMsg("⏳ Transaction queued — processing…", "info");
+        // Poll for completion — check every 6s, up to ~3 minutes
+        let attempts = 0;
+        const maxAttempts = 30;
+        const pollInterval = setInterval(async () => {
+          attempts++;
+          try {
+            // Trigger processor
+            await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
+              method: "POST",
+            }).catch(() => {});
+            // Check tx history for a new successful tx
+            const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
+            const txData = await txRes.json();
+            const hasPending = Array.isArray(txData) && txData.some(
+              (tx) => tx.displayType === "pending"
+            );
+            const hasNewSuccess = Array.isArray(txData) && txData.some(
+              (tx) => tx.displayType === "sent" && 
+              new Date(tx.date) > new Date(Date.now() - 300_000) // within last 5 min
+            );
+            if (!hasPending && hasNewSuccess) {
+              clearInterval(pollInterval);
+              showMsg("✅ Transfer Successful!");
+              fetchBalance(user.safeAddress);
+            } else if (attempts >= maxAttempts) {
+              clearInterval(pollInterval);
+              // Still show balance refresh even if we timed out polling
+              fetchBalance(user.safeAddress);
+            }
+          } catch {
+            // ignore poll errors
+          }
+        }, 6000);
+      } else if (res.ok) {
         showMsg("✅ Transfer Successful!");
-        setTimeout(() => {
-          fetchBalance(user.safeAddress);
-        }, 3500);
-      } else showMsg("Transaction failed. Please try again.", "error");
+        fetchBalance(user.safeAddress);
+      } else {
+        showMsg("Transaction failed. Please try again.", "error");
+      }
     } catch {
       showMsg("Connection error. Check your network and try again.", "error");
     }
@@ -2316,9 +2418,7 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
       : selectedCoin === "CNGN"
         ? "cNGN"
         : selectedCoin;
-  const recipientNameError =
-    inputType === "name" &&
-    (/[A-Z]/.test(recipientInput) || /[01]/.test(recipientInput));
+  const recipientNameError = false;
   const darkInput =
     "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
@@ -2689,17 +2789,15 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
                     className={`${darkInput} ${recipientNameError ? "border-red-500" : ""}`}
                   />
                   {inputType !== "empty" && (
-                    <p className="text-[10px] text-white/60 font-bold ml-1">
-                      {inputType === "address"
-                        ? "✓ Wallet address — sending directly"
-                        : "Name alias — select a wallet below"}
-                    </p>
-                  )}
-                  {recipientNameError && (
-                    <p className="text-[10px] text-red-400 font-bold ml-1 animate-pulse">
-                      ⚠️ Name must be lowercase — no digits 0 or 1 allowed
-                    </p>
-                  )}
+  <p className="text-[10px] text-white/60 font-bold ml-1">
+    {inputType === "address"
+      ? "✓ Wallet address — sending directly"
+      : inputType === "fullname"
+        ? "✓ Full name detected — resolving directly"
+        : "Name alias — select a wallet below"}
+  </p>
+)}
+                  
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
                       <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">

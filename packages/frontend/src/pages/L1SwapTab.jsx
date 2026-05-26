@@ -59,7 +59,12 @@ const TokenPills = ({ options, value, onChange, accentColor }) => (
 // ── Trust Modal ───────────────────────────────────────────────────────────────
 const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
   <div className="fixed inset-0 z-[85] flex items-center justify-center px-4">
-    <motion.div className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} onClick={onCancel} />
+    <motion.div
+      className="absolute inset-0 bg-black/95 backdrop-blur-md"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      onClick={onCancel}
+    />
     <motion.div
       className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
       initial={{ opacity: 0, scale: 0.92, y: 16 }}
@@ -74,29 +79,53 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
           <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🔓</span>
           </div>
-          <h3 className="text-xl font-black text-white mb-1">Approve {tokenLabel}?</h3>
+          <h3 className="text-xl font-black text-white mb-1">
+            Approve {tokenLabel}?
+          </h3>
           <p className="text-xs text-white/60">
-            <span className="text-blue-400 font-black">{pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}</span>
+            <span className="text-blue-400 font-black">
+              {pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}
+            </span>
           </p>
         </div>
         <div className="space-y-3 mb-6">
           <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-            <p className="text-xs font-black text-green-400 mb-1">✅ Unlimited — Recommended</p>
-            <p className="text-[11px] text-white/60 leading-relaxed">
-              Sign once. Future swaps skip this step entirely. One MetaMask prompt total.
+            <p className="text-xs font-black text-green-400 mb-1">
+              ✅ Exact amount only — Recommended
             </p>
-          </div>
-          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-xs font-black text-white/60 mb-1">⚠️ Exact amount only</p>
             <p className="text-[11px] text-white/60 leading-relaxed">
               Approve only what's needed now. You'll be asked again next swap.
             </p>
           </div>
+          <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+            <p className="text-xs font-black text-yellow-400 mb-1">
+              ⚠️ Unlimited — Use with caution
+            </p>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              Sign once, skip approvals forever. Grants full spending access to
+              this pool.
+            </p>
+          </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={onCancel} className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all">Cancel</button>
-          <button onClick={onSkip} className="py-3.5 px-4 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all">Exact</button>
-          <button onClick={onTrust} className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all">Unlimited</button>
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onSkip}
+            className="py-3.5 px-4 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all"
+          >
+            Exact
+          </button>
+          <button
+            onClick={onTrust}
+            className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
+          >
+            Unlimited
+          </button>
         </div>
       </div>
     </motion.div>
@@ -159,7 +188,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   const resolveTokenAddress = (sym) => {
     if (!l1Config) return null;
     switch (sym.toUpperCase()) {
-      case "NGNS": return l1Config.ngnTokenAddress;
+      case "NGNS": return l1Config.ngnsTokenAddress;
       case "CNGN": return l1Config.cngnContractAddress;
       case "USDT": return l1Config.usdtContractAddress;
       case "USDC": return l1Config.usdcContractAddress;
@@ -177,7 +206,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
     fetch(`${SALVA_API_URL}/api/l1-balance/${l1Account}`)
       .then((r) => r.json())
       .then((d) => setUserBal({
-        NGNS: parseFloat(d.ngnBalance || 0),
+        NGNS: parseFloat(d.ngnsBalance || 0),
         CNGN: parseFloat(d.cNgnBalance || 0),
         USDT: parseFloat(d.usdtBalance || 0),
         USDC: parseFloat(d.usdcBalance || 0),

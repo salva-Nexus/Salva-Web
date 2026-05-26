@@ -117,22 +117,22 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
           </p>
         </div>
         <div className="space-y-3 mb-6">
-          <div className="p-4 rounded-xl bg-green-500/5 border border-green-500/20">
-            <p className="text-xs font-black text-green-400 mb-1">
-              ✅ Trust Pool — Recommended
-            </p>
-            <p className="text-[11px] text-white/60 leading-relaxed">
-              Approve unlimited {tokenLabel} spending once. Future swaps skip
-              the approval step.
-            </p>
-          </div>
           <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
             <p className="text-xs font-black text-white/60 mb-1">
-              ⚠️ This swap only
+              ✅ This swap only — Recommended
             </p>
             <p className="text-[11px] text-white/60 leading-relaxed">
               Approve exact amount for this swap. You'll be asked again next
               time.
+            </p>
+          </div>
+          <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+            <p className="text-xs font-black text-yellow-400 mb-1">
+              ⚠️ Trust Pool — Use with caution
+            </p>
+            <p className="text-[11px] text-white/60 leading-relaxed">
+              Approve unlimited {tokenLabel} spending. Future swaps skip the
+              approval step, but grants full spending access.
             </p>
           </div>
         </div>
@@ -201,7 +201,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
   const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
   const hasUSDC = parseFloat(pool.usdcLiquidity || 0) > 0;
-  const hasNGNs = parseFloat(pool.ngnLiquidity || 0) > 0;
+  const hasNGNs = parseFloat(pool.ngnsLiquidity || 0) > 0;
   const hasCNGN = parseFloat(pool.cNgnLiquidity || 0) > 0;
   const [stableToken, setStableToken] = useState(hasUSDT ? "USDT" : "USDC");
   const [ngnToken, setNgnToken] = useState(hasNGNs ? "NGN" : "CNGN");
@@ -239,7 +239,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
       .then((r) => r.json())
       .then((d) => setUserBal({
-        NGN:  parseFloat(d.balance      || 0),
+        NGN:  parseFloat(d.ngnsBalance  || 0),
         CNGN: parseFloat(d.cNgnBalance  || 0),
         USDT: parseFloat(d.usdtBalance  || 0),
         USDC: parseFloat(d.usdcBalance  || 0),
@@ -252,7 +252,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const poolReceiveBal = tokenOut === "USDT" ? parseFloat(pool.usdtLiquidity || 0)
     : tokenOut === "USDC"  ? parseFloat(pool.usdcLiquidity  || 0)
     : tokenOut === "cNGN"  ? parseFloat(pool.cNgnLiquidity  || 0)
-    : parseFloat(pool.ngnLiquidity || 0);
+    : parseFloat(pool.ngnsLiquidity || 0);
 
   useEffect(() => {
     setTrustChecked(false);
@@ -793,7 +793,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
     section === "buy"
       ? parseFloat(pool.buyRate || 0)
       : parseFloat(pool.sellRate || 0);
-  const ngnAvail = parseFloat(pool.ngnLiquidity || 0);
+  const ngnsAvail = parseFloat(pool.ngnsLiquidity || 0);
   const cNgnAvail = parseFloat(pool.cNgnLiquidity || 0);
   const usdtAvail = parseFloat(pool.usdtLiquidity || 0);
   const usdcAvail = parseFloat(pool.usdcLiquidity || 0);
@@ -889,7 +889,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
                 NGNs
               </p>
               <p className="font-black text-sm text-salvaGold">
-                {fmt(ngnAvail, 0)}
+                {fmt(ngnsAvail, 0)}
               </p>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">

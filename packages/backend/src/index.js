@@ -1835,6 +1835,48 @@ app.post("/api/resolve-recipient", async (req, res) => {
   }
 });
 
+app.post("/api/resolve-full-name", async (req, res) => {
+  try {
+    const { fullName } = req.body;
+
+    if (!fullName || typeof fullName !== "string")
+      return res.status(400).json({ message: "fullName is required" });
+
+    const trimmed = fullName.trim();
+
+    const parts = trimmed.split("@");
+    if (parts.length !== 2 || !parts[0] || !parts[1]) {
+      return res.status(400).json({
+        message: "Invalid name format. Expected: name@wallet (e.g. charles@salva)",
+      });
+    }
+
+    const envRegistryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
+
+    let resolvedAddress;
+    try {
+      resolvedAddress = await resolveToAddress(trimmed, envRegistryAddress);
+    } catch (err) {
+      return res.status(404).json({
+        message: err.message || "Name not found. Make sure the name is registered.",
+      });
+    }
+
+    const recipientUser = await User.findOne({
+      safeAddress: resolvedAddress.toLowerCase(),
+    });
+
+    res.json({
+      resolvedAddress,
+      weldedName: trimmed,
+      displayName: recipientUser?.username || null,
+    });
+  } catch (error) {
+    console.error("❌ resolve-full-name error:", error);
+    return handleError(error, res, "Failed to resolve full name");
+  }
+});
+
 // ===============================================
 // TRANSFER — supports NGN, USDT, USDC
 // coin param determines which token to send and which fee tier to use.
@@ -1874,21 +1916,26 @@ app.post("/api/transfer", async (req, res) => {
 
     try {
       if (!finalToInput.startsWith("0x")) {
-        if (!registryAddress) {
-          return res.status(400).json({
-            message: "Registry selection required for name resolution",
-          });
-        }
-        const registryDoc = await WalletRegistry.findOne({
-          registryAddress: registryAddress.toLowerCase(),
-        });
-        if (!registryDoc)
-          return res
-            .status(404)
-            .json({ message: "Selected Registry not found in database" });
-        finalToInput = weldName(finalToInput, registryDoc.nspace);
-        console.log(`🔗 Welded Recipient: ${finalToInput}`);
-      }
+  if (inputType === "fullname") {
+    // Already a welded name like charles@salva — resolve directly, no welding
+    console.log(`🔗 Full name input (pre-welded): ${finalToInput}`);
+  } else {
+    if (!registryAddress) {
+      return res.status(400).json({
+        message: "Registry selection required for name resolution",
+      });
+    }
+    const registryDoc = await WalletRegistry.findOne({
+      registryAddress: registryAddress.toLowerCase(),
+    });
+    if (!registryDoc)
+      return res
+        .status(404)
+        .json({ message: "Selected Registry not found in database" });
+    finalToInput = weldName(finalToInput, registryDoc.nspace);
+    console.log(`🔗 Welded Recipient: ${finalToInput}`);
+  }
+}
       recipientAddress = await resolveToAddress(
         finalToInput,
         envRegistryAddress,

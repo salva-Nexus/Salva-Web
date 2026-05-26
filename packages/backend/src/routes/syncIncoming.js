@@ -10,8 +10,8 @@ const { sendTransactionEmailToReceiver } = require("../services/emailService");
 // ── Provider ──────────────────────────────────────────────────────────────────
 const rpcUrl =
   process.env.NODE_ENV === "production"
-    ? process.env.BASE_MAINNET_RPC_URL
-    : "https://sepolia.base.org";
+    ? "https://base-rpc.publicnode.com"
+    : "https://base-sepolia-rpc.publicnode.com";
 
 const provider = new ethers.JsonRpcProvider(rpcUrl);
 
@@ -51,7 +51,7 @@ router.get("/:safeAddress", async (req, res) => {
 
     // ── 2. Block range: last 1,000 blocks (~33 min on Base) ──────────────────
     const latestBlock = await provider.getBlockNumber();
-    const blockRange = 1000;
+    const blockRange = 500;
     const fromBlock = Math.max(0, latestBlock - blockRange);
 
     let synced = 0;
