@@ -2653,9 +2653,24 @@ const Dashboard = () => {
                   )}
                 </div>
                 <div>
-                  <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">
-                    Amount ({coinSymbol})
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] uppercase text-white/60 font-bold">
+                      Amount ({coinSymbol})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const raw = parseFloat(currentCoinBalance) || 0;
+                        const fmt = raw.toLocaleString('en-US', { maximumFractionDigits: 6 }).replace(/,/g, ',');
+                        setTransferAmountDisplay(formatAmountInput(String(raw)));
+                        setTransferAmount(String(raw));
+                        computeFeePreview(String(raw), selectedCoin);
+                      }}
+                      className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
+                    >
+                      Max
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       required

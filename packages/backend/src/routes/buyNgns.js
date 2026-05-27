@@ -353,7 +353,7 @@ router.post('/initiate', async (req, res) => {
     const mintToDisplay = isL1 ? mintToAddress : mintToAddress;
     const bankMsg = {
       sender: 'seller',
-      text: `👋 Hi **${user.username}**! Transfer exactly **₦${amount.toLocaleString()}** to:\n\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n${feeNgn > 0 ? `⚡ Fee: **${feeNgn} NGNs** deducted → you receive **${mintAmount.toLocaleString()} NGNs**` : `✅ No fee → you receive **${mintAmount.toLocaleString()} NGNs**`}\n\n🌐 Network: **${networkLabel}**\n📍 Minting to: \`${mintToDisplay.slice(0, 10)}…${mintToDisplay.slice(-6)}\`\n\nTap **"I Have Paid"** after sending.`,
+      text: `👋 Hi **${user.username}**!\n\n💳 Billed: **₦${amount.toLocaleString()}** (includes ₦${feeNgn.toLocaleString()} fee)\n🪙 Will mint: **${mintAmount.toLocaleString()} NGNs**\n\nTransfer **₦${amount.toLocaleString()}** to:\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n🌐 Network: **${networkLabel}**\n📍 Minting to: \`${mintToDisplay.slice(0, 10)}…${mintToDisplay.slice(-6)}\`\n\nTap **"I Have Paid"** after sending.`,
       createdAt: new Date(),
     };
 
@@ -899,7 +899,7 @@ router.post('/initiate-sell', async (req, res) => {
     const sellMsg = {
       sender: 'user',
       isBurned: true,
-      text: `💸 Sell request: **${amount.toLocaleString()} NGNs** burned on-chain.\n\n💰 Fee: **${feeNgn.toLocaleString()} NGNs**\n✅ You receive: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
+      text: `🔥 Sell request submitted!\n\n💸 Burned from wallet: **${amount.toLocaleString()} NGNs** (includes ${feeNgn.toLocaleString()} NGNs fee)\n💵 Send to user: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
       createdAt: new Date(),
     };
 

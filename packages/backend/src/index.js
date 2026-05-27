@@ -1221,6 +1221,30 @@ app.post('/api/alias/unlink-name', async (req, res) => {
     }
     await user.save();
 
+    // Clear poolName on any Pool that held this name
+   // Clear poolName on any Pool that held this name
+    // aliasEntry.wallet is the pool address (works for both L2 and L1)
+    const linkedPoolAddress = aliasEntry.wallet?.toLowerCase();
+    const Pool = require('./models/Pool');
+
+    await Pool.updateOne(
+      { poolAddress: linkedPoolAddress, poolName: weldedName },
+      { $set: { poolName: null } }
+    ).catch((e) => console.error('⚠️ L2 pool name clear failed:', e.message));
+
+    try {
+      const l1DB = require('./services/l1db');
+      if (l1DB.readyState === 1) {
+        const PoolL1 = l1DB.models.Pool || l1DB.model('Pool', require('./models/Pool').schema);
+        await PoolL1.updateOne(
+          { poolAddress: linkedPoolAddress, poolName: weldedName },
+          { $set: { poolName: null } }
+        ).catch((e) => console.error('⚠️ L1 pool name clear failed:', e.message));
+      }
+    } catch (e) {
+      console.error('⚠️ L1 pool name clear skipped:', e.message);
+    }
+
     console.log(`✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash})`);
     res.json({ success: true, txHash: tx.hash, removedAlias: weldedName });
   } catch (error) {
