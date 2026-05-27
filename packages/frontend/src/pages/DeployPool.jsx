@@ -1,11 +1,11 @@
 // src/pages/DeployPool.jsx  (Base Chain / L2)
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { SALVA_API_URL } from "../config";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SALVA_API_URL } from '../config';
 
 // ─── Shared helpers ───────────────────────────────────────────────────────────
 const darkInput =
-  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+  'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
 // Parse raw pool value safely — always returns a number, never touches formatted strings
 const toNum = (v) => parseFloat(v || 0) || 0;
@@ -13,11 +13,11 @@ const toNum = (v) => parseFloat(v || 0) || 0;
 // Full precision display (for tooltip / title)
 const smartFmt = (n) => {
   const num = toNum(n);
-  if (isNaN(num)) return "0";
+  if (isNaN(num)) return '0';
   const str = num.toString();
-  if (!str.includes(".")) return num.toLocaleString("en-US");
-  const decimals = str.split(".")[1].replace(/0+$/, "").length;
-  return num.toLocaleString("en-US", {
+  if (!str.includes('.')) return num.toLocaleString('en-US');
+  const decimals = str.split('.')[1].replace(/0+$/, '').length;
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -27,20 +27,13 @@ const smartFmt = (n) => {
 const compactFmt = (n) => {
   const num = toNum(n);
   if (num >= 1_000_000)
-    return (
-      (num / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) +
-      "M"
-    );
+    return (num / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
   if (num >= 100_000)
-    return (
-      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "K"
-    );
+    return (num / 1_000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'K';
   if (num >= 10_000)
-    return (
-      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) + "K"
-    );
-  if (num === Math.floor(num)) return num.toLocaleString("en-US");
-  return num.toLocaleString("en-US", { maximumFractionDigits: 4 });
+    return (num / 1_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'K';
+  if (num === Math.floor(num)) return num.toLocaleString('en-US');
+  return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
 };
 
 // ─── Registry Dropdown ────────────────────────────────────────────────────────
@@ -48,28 +41,28 @@ const RegistryDropdown = ({
   registries,
   value,
   onChange,
-  placeholder = "Search wallet service…",
+  placeholder = 'Search wallet service…',
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const ref = React.useRef(null);
   const inputRef = React.useRef(null);
 
   const filtered = registries.filter(
     (r) =>
       r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || "").toLowerCase().includes(query.toLowerCase()),
+      (r.nspace || '').toLowerCase().includes(query.toLowerCase())
   );
 
   React.useEffect(() => {
     const h = (e) => {
       if (ref.current && !ref.current.contains(e.target)) {
         setOpen(false);
-        setQuery("");
+        setQuery('');
       }
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
   return (
@@ -79,16 +72,16 @@ const RegistryDropdown = ({
         onClick={() => {
           if (!value) {
             setOpen(true);
-            setQuery("");
+            setQuery('');
             setTimeout(() => inputRef.current?.focus(), 50);
           }
         }}
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${
           open
-            ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
+            ? 'border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30'
             : value
-              ? "border-salvaGold/40 bg-salvaGold/5"
-              : "border-white/10 bg-white/5 hover:border-salvaGold/40"
+              ? 'border-salvaGold/40 bg-salvaGold/5'
+              : 'border-white/10 bg-white/5 hover:border-salvaGold/40'
         }`}
       >
         {value ? (
@@ -99,12 +92,8 @@ const RegistryDropdown = ({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">
-                {value.name}
-              </p>
-              <p className="text-[10px] text-white/60 font-mono truncate">
-                {value.nspace}
-              </p>
+              <p className="font-black text-sm truncate text-white">{value.name}</p>
+              <p className="text-[10px] text-white/60 font-mono truncate">{value.nspace}</p>
             </div>
           </div>
         ) : (
@@ -117,7 +106,7 @@ const RegistryDropdown = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(null);
-                setQuery("");
+                setQuery('');
               }}
               className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
@@ -128,13 +117,13 @@ const RegistryDropdown = ({
             type="button"
             onClick={() => {
               setOpen((o) => !o);
-              setQuery("");
+              setQuery('');
               setTimeout(() => inputRef.current?.focus(), 50);
             }}
             className="w-5 h-5 flex items-center justify-center"
           >
             <svg
-              className={`w-3 h-3 text-white/60 transition-transform ${open ? "rotate-180" : ""}`}
+              className={`w-3 h-3 text-white/60 transition-transform ${open ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -168,11 +157,7 @@ const RegistryDropdown = ({
                   viewBox="0 0 24 24"
                 >
                   <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
-                  <path
-                    d="m21 21-4.35-4.35"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
+                  <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round" />
                 </svg>
                 <input
                   ref={inputRef}
@@ -185,7 +170,7 @@ const RegistryDropdown = ({
                 {query && (
                   <button
                     type="button"
-                    onClick={() => setQuery("")}
+                    onClick={() => setQuery('')}
                     className="text-white/60 hover:text-white/80 text-[10px]"
                   >
                     ✕
@@ -193,7 +178,7 @@ const RegistryDropdown = ({
                 )}
               </div>
             </div>
-            <div style={{ maxHeight: "160px", overflowY: "auto" }}>
+            <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
               {filtered.length === 0 ? (
                 <div className="px-4 py-5 text-center text-xs text-white/60 font-bold">
                   No services found
@@ -206,9 +191,9 @@ const RegistryDropdown = ({
                     onClick={() => {
                       onChange(reg);
                       setOpen(false);
-                      setQuery("");
+                      setQuery('');
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-salvaGold/10' : ''}`}
                   >
                     <div className="w-8 h-8 rounded-lg bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
                       <span className="text-salvaGold text-xs font-black">
@@ -216,12 +201,8 @@ const RegistryDropdown = ({
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">
-                        {reg.name}
-                      </p>
-                      <p className="text-[10px] font-mono text-white/60">
-                        {reg.nspace}
-                      </p>
+                      <p className="font-black text-sm text-white">{reg.name}</p>
+                      <p className="text-[10px] font-mono text-white/60">{reg.nspace}</p>
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
                       <span className="text-salvaGold text-sm">✓</span>
@@ -239,7 +220,7 @@ const RegistryDropdown = ({
 
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
 const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
-  const [pin, setPin] = useState("");
+  const [pin, setPin] = useState('');
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
       <motion.div
@@ -253,7 +234,7 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
         initial={{ opacity: 0, scale: 0.92, y: 16 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92 }}
-        transition={{ type: "spring", stiffness: 380, damping: 28 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
@@ -262,15 +243,13 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             <span className="text-2xl">🔐</span>
           </div>
           <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-xs text-white/60 mb-6 leading-relaxed">
-            {subtitle}
-          </p>
+          <p className="text-xs text-white/60 mb-6 leading-relaxed">{subtitle}</p>
           <input
             type="password"
             inputMode="numeric"
             maxLength="4"
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
             className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
@@ -291,7 +270,7 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
               {loading && (
                 <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               )}
-              {loading ? "Verifying…" : "Confirm"}
+              {loading ? 'Verifying…' : 'Confirm'}
             </button>
           </div>
         </div>
@@ -303,9 +282,7 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
 // ─── Subscription Badge ───────────────────────────────────────────────────────
 const SubBadge = ({ pool }) => {
   const now = new Date();
-  const expiry = pool.subscriptionExpiresAt
-    ? new Date(pool.subscriptionExpiresAt)
-    : null;
+  const expiry = pool.subscriptionExpiresAt ? new Date(pool.subscriptionExpiresAt) : null;
   const active = expiry && expiry > now;
   const msLeft = active ? expiry - now : 0;
   const mins = Math.ceil(msLeft / 60_000);
@@ -329,11 +306,7 @@ const StatCell = ({ label, value, color }) => (
     <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1 truncate">
       {label}
     </p>
-    <p
-      className="font-black text-xs sm:text-sm truncate"
-      style={{ color }}
-      title={smartFmt(value)}
-    >
+    <p className="font-black text-xs sm:text-sm truncate" style={{ color }} title={smartFmt(value)}>
       {compactFmt(value)}
     </p>
   </div>
@@ -342,14 +315,14 @@ const StatCell = ({ label, value, color }) => (
 // ─── Section Tab Row ──────────────────────────────────────────────────────────
 const SectionTabs = ({ active, onChange }) => (
   <div className="flex gap-1.5">
-    {["liquidity", "rates", "controls"].map((s) => (
+    {['liquidity', 'rates', 'controls'].map((s) => (
       <button
         key={s}
         onClick={() => onChange(s)}
         className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
           active === s
-            ? "bg-salvaGold text-black shadow-lg shadow-salvaGold/20"
-            : "bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60"
+            ? 'bg-salvaGold text-black shadow-lg shadow-salvaGold/20'
+            : 'bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60'
         }`}
       >
         {s}
@@ -360,27 +333,27 @@ const SectionTabs = ({ active, onChange }) => (
 
 // ─── Pool Manage Panel ────────────────────────────────────────────────────────
 const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
-  const [activeSection, setActiveSection] = useState("liquidity");
-  const [liqAsset, setLiqAsset] = useState("NGNS");
-  const [liqAmount, setLiqAmount] = useState("");
-  const [liqMode, setLiqMode] = useState("provide");
+  const [activeSection, setActiveSection] = useState('liquidity');
+  const [liqAsset, setLiqAsset] = useState('NGNS');
+  const [liqAmount, setLiqAmount] = useState('');
+  const [liqMode, setLiqMode] = useState('provide');
   const [buyRate, setBuyRate] = useState(toNum(pool.buyRate).toString());
   const [sellRate, setSellRate] = useState(toNum(pool.sellRate).toString());
-  const [minNgn, setMinNgn] = useState("");
-  const [minToken, setMinToken] = useState("");
+  const [minNgn, setMinNgn] = useState('');
+  const [minToken, setMinToken] = useState('');
   const [pinVisible, setPinVisible] = useState(false);
   const [pinAction, setPinAction] = useState(null);
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
 
-  const assets = ["NGNS", "CNGN", "USDT", "USDC"];
+  const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
   // Returns raw float — never a formatted string (fixes parseFloat-on-comma bug)
   const rawBalanceForAsset = (asset) => {
-    if (asset === "NGNS") return toNum(pool.ngnsLiquidity);
-    if (asset === "CNGN") return toNum(pool.cNgnLiquidity);
-    if (asset === "USDT") return toNum(pool.usdtLiquidity);
-    if (asset === "USDC") return toNum(pool.usdcLiquidity);
+    if (asset === 'NGNS') return toNum(pool.ngnsLiquidity);
+    if (asset === 'CNGN') return toNum(pool.cNgnLiquidity);
+    if (asset === 'USDT') return toNum(pool.usdtLiquidity);
+    if (asset === 'USDC') return toNum(pool.usdcLiquidity);
     return 0;
   };
 
@@ -388,45 +361,39 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setPinLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showMsg("Invalid PIN", "error");
+        showMsg('Invalid PIN', 'error');
         return;
       }
       setPinVisible(false);
-      if (pinAction === "provide")
-        await executeProvideLiquidity(data.privateKey);
-      else if (pinAction === "remove")
-        await executeRemoveLiquidity(data.privateKey);
-      else if (pinAction === "buyRate")
-        await executeUpdateBuyRate(data.privateKey);
-      else if (pinAction === "sellRate")
-        await executeUpdateSellRate(data.privateKey);
-      else if (pinAction === "pause")
-        await executeTogglePause(data.privateKey, true);
-      else if (pinAction === "unpause")
-        await executeTogglePause(data.privateKey, false);
-      else if (pinAction === "minNgn") await executeSetMinNgn(data.privateKey);
-      else if (pinAction === "minToken")
-        await executeSetMinToken(data.privateKey);
+      if (pinAction === 'provide') await executeProvideLiquidity(data.privateKey);
+      else if (pinAction === 'remove') await executeRemoveLiquidity(data.privateKey);
+      else if (pinAction === 'buyRate') await executeUpdateBuyRate(data.privateKey);
+      else if (pinAction === 'sellRate') await executeUpdateSellRate(data.privateKey);
+      else if (pinAction === 'pause') await executeTogglePause(data.privateKey, true);
+      else if (pinAction === 'unpause') await executeTogglePause(data.privateKey, false);
+      else if (pinAction === 'minNgn') await executeSetMinNgn(data.privateKey);
+      else if (pinAction === 'minToken') await executeSetMinToken(data.privateKey);
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setPinLoading(false);
     }
   };
 
   const executeProvideLiquidity = async (privateKey) => {
+    console.log('provide liq called:', { liqAmount, liqAsset, pool: pool.poolAddress });
     if (!liqAmount || parseFloat(liqAmount) <= 0) return;
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/provide-liquidity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -436,12 +403,13 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+      if (!res.ok) throw new Error(data.message || 'Failed');
       showMsg(`${liqAmount} ${liqAsset} sent to pool!`);
-      setLiqAmount("");
+      setLiqAmount('');
       onRefresh();
-    } catch {
-      showMsg("Failed", "error");
+    } catch (err) {
+      console.error('provide liq error:', err);
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -452,8 +420,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/remove-liquidity`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -463,24 +431,24 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
+      if (!res.ok) throw new Error(data.message || 'Failed');
       showMsg(`${liqAmount} ${liqAsset} withdrawn!`);
-      setLiqAmount("");
+      setLiqAmount('');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
   };
 
   const executeUpdateBuyRate = async (privateKey) => {
-    if (buyRate === "" || buyRate === undefined) return;
+    if (buyRate === '' || buyRate === undefined) return;
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/update-rates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -490,23 +458,23 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg("Buy rate updated!");
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      showMsg('Buy rate updated!');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
   };
 
   const executeUpdateSellRate = async (privateKey) => {
-    if (sellRate === "" || sellRate === undefined) return;
+    if (sellRate === '' || sellRate === undefined) return;
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/update-rates`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -516,11 +484,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg("Sell rate updated!");
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      showMsg('Sell rate updated!');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -530,8 +498,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/toggle-pause`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -540,11 +508,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg(pause ? "Pool paused." : "Pool unpaused.");
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      showMsg(pause ? 'Pool paused.' : 'Pool unpaused.');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -555,8 +523,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/set-mins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -566,12 +534,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg("Min NGNs updated!");
-      setMinNgn("");
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      showMsg('Min NGNs updated!');
+      setMinNgn('');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -582,8 +550,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/set-mins`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
@@ -593,12 +561,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed");
-      showMsg("Min token amount updated!");
-      setMinToken("");
+      if (!res.ok) throw new Error(data.message || 'Failed');
+      showMsg('Min token amount updated!');
+      setMinToken('');
       onRefresh();
     } catch {
-      showMsg("Failed", "error");
+      showMsg('Failed', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -623,10 +591,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       />
       <motion.div
         className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[92vh] flex flex-col overflow-hidden"
-        initial={{ y: "100%" }}
+        initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
@@ -640,7 +608,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 Manage Pool
               </p>
               <p className="font-black text-lg text-white truncate">
-                {pool.poolName || "Unnamed Pool"}
+                {pool.poolName || 'Unnamed Pool'}
               </p>
               <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
                 {pool.poolAddress}
@@ -659,10 +627,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
                 NGN Total
               </p>
-              <p
-                className="font-black text-sm text-salvaGold truncate"
-                title={smartFmt(totalNgn)}
-              >
+              <p className="font-black text-sm text-salvaGold truncate" title={smartFmt(totalNgn)}>
                 {compactFmt(totalNgn)}
               </p>
             </div>
@@ -670,10 +635,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
                 USD Total
               </p>
-              <p
-                className="font-black text-sm text-green-400 truncate"
-                title={smartFmt(totalUsd)}
-              >
+              <p className="font-black text-sm text-green-400 truncate" title={smartFmt(totalUsd)}>
                 {compactFmt(totalUsd)}
               </p>
             </div>
@@ -687,7 +649,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {/* ── LIQUIDITY ── */}
-          {activeSection === "liquidity" && (
+          {activeSection === 'liquidity' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -695,19 +657,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             >
               {/* Mode toggle */}
               <div className="flex gap-2">
-                {["provide", "remove"].map((m) => (
+                {['provide', 'remove'].map((m) => (
                   <button
                     key={m}
                     onClick={() => setLiqMode(m)}
                     className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
                       liqMode === m
-                        ? m === "provide"
-                          ? "bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20"
-                          : "bg-red-500/10 border-red-500/30 text-red-400"
-                        : "border-white/10 bg-white/5 text-white/60 hover:text-white/50"
+                        ? m === 'provide'
+                          ? 'bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20'
+                          : 'bg-red-500/10 border-red-500/30 text-red-400'
+                        : 'border-white/10 bg-white/5 text-white/60 hover:text-white/50'
                     }`}
                   >
-                    {m === "provide" ? "↑ Add Liquidity" : "↓ Remove Liquidity"}
+                    {m === 'provide' ? '↑ Add Liquidity' : '↓ Remove Liquidity'}
                   </button>
                 ))}
               </div>
@@ -725,17 +687,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                         key={a}
                         onClick={() => {
                           setLiqAsset(a);
-                          setLiqAmount("");
+                          setLiqAmount('');
                         }}
                         className={`py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 ${
                           liqAsset === a
-                            ? "bg-salvaGold/10 border-salvaGold/40 text-salvaGold"
-                            : "border-white/[0.06] bg-white/5 text-white/60 hover:text-white/60"
+                            ? 'bg-salvaGold/10 border-salvaGold/40 text-salvaGold'
+                            : 'border-white/[0.06] bg-white/5 text-white/60 hover:text-white/60'
                         }`}
                       >
-                        <span className="text-xs font-black uppercase">
-                          {a}
-                        </span>
+                        <span className="text-xs font-black uppercase">{a}</span>
                         {/* compactFmt on the raw float — no parseFloat on a formatted string */}
                         <span
                           className="text-[9px] text-white/60 truncate w-full text-center px-1"
@@ -755,12 +715,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Amount
                   </label>
-                  {liqMode === "remove" && (
+                  {liqMode === 'remove' && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setLiqAmount(String(rawBalanceForAsset(liqAsset)))
-                      }
+                      onClick={() => setLiqAmount(String(rawBalanceForAsset(liqAsset)))}
                       className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
                     >
                       Max
@@ -779,10 +737,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     {liqAsset}
                   </span>
                 </div>
-                {liqMode === "provide" && (
+                {liqMode === 'provide' && (
                   <p className="text-[10px] text-white/60 mt-1.5 leading-relaxed">
-                    Tokens sent from your Safe wallet directly to the pool
-                    contract.
+                    Tokens sent from your Safe wallet directly to the pool contract.
                   </p>
                 )}
               </div>
@@ -791,17 +748,17 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 onClick={() => triggerPin(liqMode)}
                 disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
                 className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
-                  liqMode === "provide"
-                    ? "bg-salvaGold text-black shadow-salvaGold/20"
-                    : "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white"
+                  liqMode === 'provide'
+                    ? 'bg-salvaGold text-black shadow-salvaGold/20'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'
                 }`}
               >
                 {txLoading && (
                   <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                 )}
                 {txLoading
-                  ? "Processing…"
-                  : liqMode === "provide"
+                  ? 'Processing…'
+                  : liqMode === 'provide'
                     ? `Add ${liqAsset}`
                     : `Remove ${liqAsset}`}
               </button>
@@ -809,7 +766,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
           )}
 
           {/* ── RATES ── */}
-          {activeSection === "rates" && (
+          {activeSection === 'rates' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -817,9 +774,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             >
               <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10">
                 <p className="text-[11px] text-white/60 leading-relaxed">
-                  Rates in{" "}
-                  <span className="font-black text-salvaGold">NGN per USD</span>
-                  . Each rate saves as a separate on-chain transaction.
+                  Rates in <span className="font-black text-salvaGold">NGN per USD</span>. Each rate
+                  saves as a separate on-chain transaction.
                 </p>
               </div>
 
@@ -828,12 +784,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-green-400">
-                      Buy Rate
-                    </p>
+                    <p className="text-xs font-black text-green-400">Buy Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{toNum(pool.buyRate).toLocaleString()} · Used
-                      when users sell USDT/USDC to pool
+                      Current: ₦{toNum(pool.buyRate).toLocaleString()} · Used when users sell
+                      USDT/USDC to pool
                     </p>
                   </div>
                   <div className="relative">
@@ -849,11 +803,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <button
-                    onClick={() => triggerPin("buyRate")}
-                    disabled={txLoading || buyRate === ""}
+                    onClick={() => triggerPin('buyRate')}
+                    disabled={txLoading || buyRate === ''}
                     className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-green-500/10 border border-green-500/25 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-500"
                   >
-                    {txLoading && pinAction === "buyRate" && (
+                    {txLoading && pinAction === 'buyRate' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Buy Rate On-Chain
@@ -866,12 +820,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-blue-400">
-                      Sell Rate
-                    </p>
+                    <p className="text-xs font-black text-blue-400">Sell Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{toNum(pool.sellRate).toLocaleString()} · Used
-                      when users buy USDT/USDC with NGNs
+                      Current: ₦{toNum(pool.sellRate).toLocaleString()} · Used when users buy
+                      USDT/USDC with NGNs
                     </p>
                   </div>
                   <div className="relative">
@@ -887,11 +839,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <button
-                    onClick={() => triggerPin("sellRate")}
-                    disabled={txLoading || sellRate === ""}
+                    onClick={() => triggerPin('sellRate')}
+                    disabled={txLoading || sellRate === ''}
                     className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500 hover:text-black hover:border-blue-500"
                   >
-                    {txLoading && pinAction === "sellRate" && (
+                    {txLoading && pinAction === 'sellRate' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Sell Rate On-Chain
@@ -902,32 +854,29 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
           )}
 
           {/* ── CONTROLS ── */}
-          {activeSection === "controls" && (
+          {activeSection === 'controls' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
               <div className="px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                <p className="text-xs font-black text-yellow-400 mb-0.5">
-                  Emergency Controls
-                </p>
+                <p className="text-xs font-black text-yellow-400 mb-0.5">Emergency Controls</p>
                 <p className="text-[11px] text-white/60 leading-relaxed">
-                  Pausing stops all swaps. Liquidity is safe — only you can
-                  unpause.
+                  Pausing stops all swaps. Liquidity is safe — only you can unpause.
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <button
-                  onClick={() => triggerPin("pause")}
+                  onClick={() => triggerPin('pause')}
                   disabled={txLoading}
                   className="py-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-xs uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ⏸ Pause
                 </button>
                 <button
-                  onClick={() => triggerPin("unpause")}
+                  onClick={() => triggerPin('unpause')}
                   disabled={txLoading}
                   className="py-3.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-black text-xs uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
                 >
@@ -940,9 +889,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-salvaGold">
-                      Min NGNs Per Swap
-                    </p>
+                    <p className="text-xs font-black text-salvaGold">Min NGNs Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
                       Current: {toNum(pool.minNgnAmount).toLocaleString()} NGNs
                     </p>
@@ -955,11 +902,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     className={darkInput}
                   />
                   <button
-                    onClick={() => triggerPin("minNgn")}
+                    onClick={() => triggerPin('minNgn')}
                     disabled={txLoading || !minNgn}
                     className="w-full py-3 rounded-xl bg-salvaGold/10 border border-salvaGold/25 text-salvaGold font-black text-xs uppercase tracking-widest hover:bg-salvaGold hover:text-black hover:border-salvaGold transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                   >
-                    {txLoading && pinAction === "minNgn" && (
+                    {txLoading && pinAction === 'minNgn' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min NGNs
@@ -972,12 +919,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-white/60">
-                      Min Stablecoin Per Swap
-                    </p>
+                    <p className="text-xs font-black text-white/60">Min Stablecoin Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ${toNum(pool.minTokenAmount).toLocaleString()}{" "}
-                      USD
+                      Current: ${toNum(pool.minTokenAmount).toLocaleString()} USD
                     </p>
                   </div>
                   <input
@@ -988,11 +932,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     className={darkInput}
                   />
                   <button
-                    onClick={() => triggerPin("minToken")}
+                    onClick={() => triggerPin('minToken')}
                     disabled={txLoading || !minToken}
                     className="w-full py-3 rounded-xl bg-white/5 border border-white/15 text-white/60 font-black text-xs uppercase tracking-widest hover:bg-white/15 hover:text-white transition-all disabled:opacity-40 flex items-center justify-center gap-2"
                   >
-                    {txLoading && pinAction === "minToken" && (
+                    {txLoading && pinAction === 'minToken' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min Token
@@ -1039,52 +983,30 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <p className="font-black text-salvaGold text-base truncate">
-                {pool.poolName || "Unnamed Pool"}
+                {pool.poolName || 'Unnamed Pool'}
               </p>
               <SubBadge pool={pool} />
             </div>
-            <p className="font-mono text-[10px] text-white/60 truncate">
-              {pool.poolAddress}
-            </p>
-            {pool.subscriptionExpiresAt &&
-              new Date(pool.subscriptionExpiresAt) > new Date() && (
-                <p className="text-[9px] text-white/60 mt-0.5">
-                  Expires{" "}
-                  {new Date(pool.subscriptionExpiresAt).toLocaleDateString(
-                    "en-US",
-                    {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    },
-                  )}
-                </p>
-              )}
+            <p className="font-mono text-[10px] text-white/60 truncate">{pool.poolAddress}</p>
+            {pool.subscriptionExpiresAt && new Date(pool.subscriptionExpiresAt) > new Date() && (
+              <p className="text-[9px] text-white/60 mt-0.5">
+                Expires{' '}
+                {new Date(pool.subscriptionExpiresAt).toLocaleDateString('en-US', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
           </div>
         </div>
 
         {/* ── 4-cell individual breakdown: NGNs, cNGN, USDT, USDC ── */}
         <div className="grid grid-cols-4 gap-1.5">
-          <StatCell
-            label="NGNs"
-            value={toNum(pool.ngnsLiquidity)}
-            color="#D4AF37"
-          />
-          <StatCell
-            label="cNGN"
-            value={toNum(pool.cNgnLiquidity)}
-            color="#b59030"
-          />
-          <StatCell
-            label="USDT"
-            value={toNum(pool.usdtLiquidity)}
-            color="#22c55e"
-          />
-          <StatCell
-            label="USDC"
-            value={toNum(pool.usdcLiquidity)}
-            color="#3b82f6"
-          />
+          <StatCell label="NGNs" value={toNum(pool.ngnsLiquidity)} color="#D4AF37" />
+          <StatCell label="cNGN" value={toNum(pool.cNgnLiquidity)} color="#b59030" />
+          <StatCell label="USDT" value={toNum(pool.usdtLiquidity)} color="#22c55e" />
+          <StatCell label="USDC" value={toNum(pool.usdcLiquidity)} color="#3b82f6" />
         </div>
 
         {/* Accumulated summary */}
@@ -1093,10 +1015,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
             <span className="text-[9px] uppercase tracking-widest text-salvaGold/60 font-black flex-shrink-0">
               NGN Total
             </span>
-            <span
-              className="text-xs font-black text-salvaGold truncate"
-              title={smartFmt(totalNgn)}
-            >
+            <span className="text-xs font-black text-salvaGold truncate" title={smartFmt(totalNgn)}>
               {compactFmt(totalNgn)}
             </span>
           </div>
@@ -1104,10 +1023,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
             <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black flex-shrink-0">
               USD Total
             </span>
-            <span
-              className="text-xs font-black text-green-400 truncate"
-              title={smartFmt(totalUsd)}
-            >
+            <span className="text-xs font-black text-green-400 truncate" title={smartFmt(totalUsd)}>
               {compactFmt(totalUsd)}
             </span>
           </div>
@@ -1121,9 +1037,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
             </p>
             <p className="font-black text-sm text-green-400">
               ₦{toNum(pool.buyRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
+              <span className="text-[10px] text-white/60 font-normal">/USD</span>
             </p>
           </div>
           <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
@@ -1132,9 +1046,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
             </p>
             <p className="font-black text-sm text-blue-400">
               ₦{toNum(pool.sellRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
+              <span className="text-[10px] text-white/60 font-normal">/USD</span>
             </p>
           </div>
         </div>
@@ -1151,13 +1063,13 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
             onClick={onPublish}
             className="flex-1 py-2.5 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-salvaGold/20"
           >
-            {pool.isPublished ? "Extend" : "Publish"}
+            {pool.isPublished ? 'Extend' : 'Publish'}
           </button>
           <button
             onClick={onRename}
             className="py-2.5 px-3.5 rounded-xl border border-salvaGold/25 text-salvaGold font-black text-xs uppercase hover:bg-salvaGold/10 transition-all"
           >
-            {pool.poolName ? "✎" : "Name"}
+            {pool.poolName ? '✎' : 'Name'}
           </button>
           <button
             onClick={onDelete}
@@ -1194,12 +1106,12 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
 
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPool, setRenamingPool] = useState(null);
-  const [renameInput, setRenameInput] = useState("");
+  const [renameInput, setRenameInput] = useState('');
   const [renameRegistry, setRenameRegistry] = useState(null);
-  const [renameStep, setRenameStep] = useState("form");
+  const [renameStep, setRenameStep] = useState('form');
   const [renameCheckResult, setRenameCheckResult] = useState(null);
   const [renamePrepared, setRenamePrepared] = useState(null);
-  const [renameError, setRenameError] = useState("");
+  const [renameError, setRenameError] = useState('');
   const [renameChecking, setRenameChecking] = useState(false);
   const [renameLoading, setRenameLoading] = useState(false);
   const [renameFee, setRenameFee] = useState(null);
@@ -1212,9 +1124,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       if (!silent) setLoading(true);
       else setRefreshing(true);
       try {
-        const res = await fetch(
-          `${SALVA_API_URL}/api/pool/my/${user.safeAddress}`,
-        );
+        const res = await fetch(`${SALVA_API_URL}/api/pool/my/${user.safeAddress}`);
         const data = await res.json();
         setPools(data.pools || []);
       } catch {
@@ -1224,7 +1134,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         setRefreshing(false);
       }
     },
-    [user?.safeAddress],
+    [user?.safeAddress]
   );
 
   const fetchSubFees = useCallback(async () => {
@@ -1248,22 +1158,22 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setPinLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin }),
       });
       const data = await res.json();
       if (!res.ok) {
-        showMsg("Invalid PIN", "error");
+        showMsg('Invalid PIN', 'error');
         return;
       }
       setPinVisible(false);
-      if (pinAction === "deploy") await executeDeploy(data.privateKey);
-      if (pinAction === "subscribe") await executeSubscribe(data.privateKey);
-      if (pinAction === "delete") await executeDelete(data.privateKey);
-      if (pinAction === "rename") await executeRename(data.privateKey);
+      if (pinAction === 'deploy') await executeDeploy(data.privateKey);
+      if (pinAction === 'subscribe') await executeSubscribe(data.privateKey);
+      if (pinAction === 'delete') await executeDelete(data.privateKey);
+      if (pinAction === 'rename') await executeRename(data.privateKey);
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setPinLoading(false);
     }
@@ -1273,21 +1183,21 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setDeploying(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/deploy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerSafeAddress: user.safeAddress,
           ownerPrivateKey: privateKey,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Deploy failed");
-      showMsg("Pool deployed!");
+      if (!res.ok) throw new Error(data.message || 'Deploy failed');
+      showMsg('Pool deployed!');
       await fetchMyPools();
       setNewlyDeployedPool(data.poolAddress);
       setShowNamePrompt(true);
     } catch {
-      showMsg("Pool deployment failed", "error");
+      showMsg('Pool deployment failed', 'error');
     } finally {
       setDeploying(false);
     }
@@ -1298,8 +1208,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setSubscribing(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/subscribe`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: selectedPool.poolAddress,
           ownerSafeAddress: user.safeAddress,
@@ -1308,13 +1218,13 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Subscription failed");
+      if (!res.ok) throw new Error(data.message || 'Subscription failed');
       showMsg(
-        `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}`,
+        `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
       );
       await fetchMyPools();
     } catch {
-      showMsg("Subscription failed", "error");
+      showMsg('Subscription failed', 'error');
     } finally {
       setSubscribing(false);
       setSelectedPool(null);
@@ -1326,8 +1236,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setDeleting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/delete`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: deletingPool.poolAddress,
           ownerSafeAddress: user.safeAddress,
@@ -1335,15 +1245,15 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Delete failed");
+      if (!res.ok) throw new Error(data.message || 'Delete failed');
       showMsg(
         deletingPool.poolName
           ? `Pool deleted & "${deletingPool.poolName}" unlinked.`
-          : "Pool removed.",
+          : 'Pool removed.'
       );
       await fetchMyPools();
     } catch {
-      showMsg("Delete failed", "error");
+      showMsg('Delete failed', 'error');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1352,25 +1262,25 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   };
 
   const resetRenameModal = () => {
-    setRenameInput("");
+    setRenameInput('');
     setRenameRegistry(null);
-    setRenameStep("form");
+    setRenameStep('form');
     setRenameCheckResult(null);
     setRenamePrepared(null);
-    setRenameError("");
+    setRenameError('');
     setRenameFee(null);
     setRenameFeeLoading(false);
   };
 
   const handleRenameCheck = async () => {
     if (!renameInput || !renameRegistry || !renamingPool) return;
-    setRenameError("");
+    setRenameError('');
     setRenameChecking(true);
     setRenameCheckResult(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: renameInput,
           registryAddress: renameRegistry.registryAddress,
@@ -1378,15 +1288,15 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setRenameError(data.message || "Check failed");
+        setRenameError(data.message || 'Check failed');
         return;
       }
       if (data.reserved) {
-        setRenameError("This name is reserved. Choose another.");
+        setRenameError('This name is reserved. Choose another.');
         return;
       }
       if (!data.available) {
-        setRenameError("Name already taken. Try another.");
+        setRenameError('Name already taken. Try another.');
         return;
       }
       setRenameCheckResult(data);
@@ -1401,9 +1311,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       } finally {
         setRenameFeeLoading(false);
       }
-      setRenameStep("confirm");
+      setRenameStep('confirm');
     } catch {
-      setRenameError("Network error. Try again.");
+      setRenameError('Network error. Try again.');
     } finally {
       setRenameChecking(false);
     }
@@ -1414,8 +1324,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setRenameLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           name: renameInput,
@@ -1425,25 +1335,23 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setRenameError(data.message || "Preparation failed");
-        setRenameStep("confirm");
+        setRenameError(data.message || 'Preparation failed');
+        setRenameStep('confirm');
         return;
       }
       if (data.reserved) {
-        setRenameError("Name is reserved.");
+        setRenameError('Name is reserved.');
         return;
       }
       if (data.lowBalance) {
-        setRenameError(
-          data.message || "Insufficient NGNs for registration fee.",
-        );
+        setRenameError(data.message || 'Insufficient NGNs for registration fee.');
         return;
       }
       setRenamePrepared(data);
-      setPinAction("rename");
+      setPinAction('rename');
       setPinVisible(true);
     } catch {
-      setRenameError("Network error during preparation.");
+      setRenameError('Network error during preparation.');
     } finally {
       setRenameLoading(false);
     }
@@ -1452,33 +1360,30 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const executeRename = async (privateKey) => {
     if (!renamingPool || !renamePrepared) return;
     setRenameLoading(true);
-    setRenameStep("renaming");
+    setRenameStep('renaming');
     setShowRenameModal(false);
     try {
       if (renamingPool.poolName) {
-        const unlinkRes = await fetch(
-          `${SALVA_API_URL}/api/alias/unlink-name`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              safeAddress: user.safeAddress,
-              weldedName: renamingPool.poolName.trim(),
-              registryAddress: renamePrepared.registryAddress,
-              userPrivateKey: privateKey,
-            }),
-          },
-        );
+        const unlinkRes = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            safeAddress: user.safeAddress,
+            weldedName: renamingPool.poolName.trim(),
+            registryAddress: renamePrepared.registryAddress,
+            userPrivateKey: privateKey,
+          }),
+        });
         if (!unlinkRes.ok) {
-          showMsg("Failed to unlink old name", "error");
+          showMsg('Failed to unlink old name', 'error');
           resetRenameModal();
           setRenameLoading(false);
           return;
         }
       }
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           pureName: renamePrepared.pureName,
@@ -1491,14 +1396,14 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         }),
       });
       if (!execRes.ok) {
-        showMsg("Failed to link new name", "error");
+        showMsg('Failed to link new name', 'error');
         resetRenameModal();
         setRenameLoading(false);
         return;
       }
       await fetch(`${SALVA_API_URL}/api/pool/set-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: renamingPool.poolAddress,
           ownerSafeAddress: user.safeAddress,
@@ -1508,7 +1413,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       showMsg(`Pool renamed to "${renamePrepared.weldedName}"!`);
       await fetchMyPools();
     } catch {
-      showMsg("Rename failed", "error");
+      showMsg('Rename failed', 'error');
     } finally {
       resetRenameModal();
       setRenamingPool(null);
@@ -1517,11 +1422,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-5 relative"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
       {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
       <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
@@ -1570,7 +1471,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
           <button
             onClick={() => {
-              setPinAction("deploy");
+              setPinAction('deploy');
               setPinVisible(true);
             }}
             disabled={deploying}
@@ -1579,7 +1480,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             {deploying && (
               <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             )}
-            {deploying ? "Deploying…" : "+ Deploy"}
+            {deploying ? 'Deploying…' : '+ Deploy'}
           </button>
         </div>
       </div>
@@ -1588,13 +1489,11 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
         <p className="text-xs font-black text-salvaGold mb-1">How it works</p>
         <p className="text-[11px] text-white/60 leading-relaxed">
-          Deploy your pool, add liquidity, set rates, then publish it. A
-          subscription of{" "}
+          Deploy your pool, add liquidity, set rates, then publish it. A subscription of{' '}
           <span className="font-black text-salvaGold">
-            {subFees?.monthly?.toLocaleString() || "5,000"} NGN/month
-          </span>{" "}
-          keeps it visible on the swap marketplace. Time rolls over if you
-          extend before expiry.
+            {subFees?.monthly?.toLocaleString() || '5,000'} NGN/month
+          </span>{' '}
+          keeps it visible on the swap marketplace. Time rolls over if you extend before expiry.
         </p>
       </div>
 
@@ -1632,14 +1531,12 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               onRename={() => {
                 if (pool.poolName) {
                   setRenamingPool(pool);
-                  setRenameInput("");
-                  setRenameRegistry(
-                    registries.length === 1 ? registries[0] : null,
-                  );
-                  setRenameStep("form");
+                  setRenameInput('');
+                  setRenameRegistry(registries.length === 1 ? registries[0] : null);
+                  setRenameStep('form');
                   setRenameCheckResult(null);
                   setRenamePrepared(null);
-                  setRenameError("");
+                  setRenameError('');
                   setShowRenameModal(true);
                 } else {
                   setNewlyDeployedPool(pool.poolAddress);
@@ -1665,12 +1562,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             onClose={() => setManagingPool(null)}
             onRefresh={async () => {
               await fetchMyPools(true);
-              const res = await fetch(
-                `${SALVA_API_URL}/api/pool/my/${user.safeAddress}`,
-              );
+              const res = await fetch(`${SALVA_API_URL}/api/pool/my/${user.safeAddress}`);
               const data = await res.json();
               const fresh = (data.pools || []).find(
-                (p) => p.poolAddress === managingPool.poolAddress,
+                (p) => p.poolAddress === managingPool.poolAddress
               );
               if (fresh) setManagingPool(fresh);
             }}
@@ -1694,7 +1589,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
@@ -1702,25 +1597,21 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
                   Marketplace
                 </p>
-                <h3 className="text-xl font-black mb-1 text-white">
-                  Publish Pool
-                </h3>
+                <h3 className="text-xl font-black mb-1 text-white">Publish Pool</h3>
                 <p className="text-xs text-white/60 mb-5 leading-relaxed">
                   Subscribe to list your pool on the SWAP marketplace.
-                  {selectedPool.isPublished && " Remaining time is preserved."}
+                  {selectedPool.isPublished && ' Remaining time is preserved.'}
                 </p>
                 <div className="space-y-2 mb-5">
                   {subFees?.tiers?.map((tier) => (
                     <button
                       key={tier.months}
                       onClick={() => setSubTier(tier.months)}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${subTier === tier.months ? "border-salvaGold bg-salvaGold/10" : "border-white/10 bg-white/5 hover:border-salvaGold/30"}`}
+                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${subTier === tier.months ? 'border-salvaGold bg-salvaGold/10' : 'border-white/10 bg-white/5 hover:border-salvaGold/30'}`}
                     >
-                      <span className="font-black text-sm text-white">
-                        {tier.label}
-                      </span>
+                      <span className="font-black text-sm text-white">{tier.label}</span>
                       <span
-                        className={`font-black text-sm ${subTier === tier.months ? "text-salvaGold" : "text-white/60"}`}
+                        className={`font-black text-sm ${subTier === tier.months ? 'text-salvaGold' : 'text-white/60'}`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
@@ -1737,7 +1628,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <button
                     onClick={() => {
                       setShowSubModal(false);
-                      setPinAction("subscribe");
+                      setPinAction('subscribe');
                       setPinVisible(true);
                     }}
                     disabled={subscribing}
@@ -1768,7 +1659,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
@@ -1776,14 +1667,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🏷️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">
-                  Name Your Pool?
-                </h3>
+                <h3 className="text-xl font-black mb-2 text-white">Name Your Pool?</h3>
                 <p className="text-xs text-white/60 mb-2 leading-relaxed">
-                  Give it a human-readable identity like{" "}
-                  <span className="text-salvaGold font-black">
-                    mypool@salva
-                  </span>
+                  Give it a human-readable identity like{' '}
+                  <span className="text-salvaGold font-black">mypool@salva</span>
                 </p>
                 <p className="font-mono text-[10px] text-white/60 mb-6 break-all">
                   {newlyDeployedPool}
@@ -1828,7 +1715,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
@@ -1836,9 +1723,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">
-                  Delete Pool?
-                </h3>
+                <h3 className="text-xl font-black mb-2 text-white">Delete Pool?</h3>
                 <p className="text-xs text-white/60 mb-1 leading-relaxed">
                   Removes from registry. Contract stays on-chain.
                 </p>
@@ -1851,9 +1736,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       Linked Name Detected
                     </p>
                     <p className="text-xs text-white/60 leading-relaxed">
-                      <span className="text-salvaGold font-black">
-                        {deletingPool.poolName}
-                      </span>{" "}
+                      <span className="text-salvaGold font-black">{deletingPool.poolName}</span>{' '}
                       will be automatically unlinked on-chain.
                     </p>
                   </div>
@@ -1869,7 +1752,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     onClick={() => {
                       setShowDeleteConfirm(false);
                       if (deletingPool.poolName) {
-                        setPinAction("delete");
+                        setPinAction('delete');
                         setPinVisible(true);
                       } else executeDelete(null);
                     }}
@@ -1879,7 +1762,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {deleting && (
                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    {deleting ? "Deleting…" : "Yes, Delete"}
+                    {deleting ? 'Deleting…' : 'Yes, Delete'}
                   </button>
                 </div>
               </div>
@@ -1904,10 +1787,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             />
             <motion.div
               className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
-              initial={{ y: "100%" }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
@@ -1948,7 +1831,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   </div>
                 )}
 
-                {renameStep === "form" && (
+                {renameStep === 'form' && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1963,12 +1846,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         placeholder="newpoolname"
                         value={renameInput}
                         onChange={(e) => {
-                          setRenameInput(
-                            e.target.value
-                              .toLowerCase()
-                              .replace(/[^a-z2-9_]/g, ""),
-                          );
-                          setRenameError("");
+                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                          setRenameError('');
                         }}
                         maxLength={32}
                         className={darkInput}
@@ -1989,36 +1868,30 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         value={renameRegistry}
                         onChange={(r) => {
                           setRenameRegistry(r);
-                          setRenameError("");
+                          setRenameError('');
                         }}
                       />
                     </div>
                     {renameError && (
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
-                        <span className="text-red-400 text-xs flex-shrink-0">
-                          ⚠
-                        </span>
-                        <p className="text-xs text-red-400 font-bold">
-                          {renameError}
-                        </p>
+                        <span className="text-red-400 text-xs flex-shrink-0">⚠</span>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
                     <button
                       onClick={handleRenameCheck}
-                      disabled={
-                        renameChecking || !renameInput || !renameRegistry
-                      }
+                      disabled={renameChecking || !renameInput || !renameRegistry}
                       className="w-full py-4 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
                     >
                       {renameChecking && (
                         <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                       )}
-                      {renameChecking ? "Checking…" : "Check Availability"}
+                      {renameChecking ? 'Checking…' : 'Check Availability'}
                     </button>
                   </motion.div>
                 )}
 
-                {renameStep === "confirm" && renameCheckResult && (
+                {renameStep === 'confirm' && renameCheckResult && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2045,18 +1918,14 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                           Registration Fee
                         </p>
                         <p className="font-black text-white text-sm">
-                          {renameFee?.toLocaleString()}{" "}
+                          {renameFee?.toLocaleString()}{' '}
                           <span className="text-salvaGold text-xs">NGNs</span>
                         </p>
                       </div>
                     ) : renameFee === 0 ? (
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-                        <span className="text-green-400 text-sm flex-shrink-0">
-                          ✦
-                        </span>
-                        <p className="text-xs font-black text-green-400">
-                          Free Registration
-                        </p>
+                        <span className="text-green-400 text-sm flex-shrink-0">✦</span>
+                        <p className="text-xs font-black text-green-400">Free Registration</p>
                       </div>
                     ) : null}
                     {renamingPool.poolName && (
@@ -2065,16 +1934,14 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                           What Happens
                         </p>
                         <p className="text-xs text-white/60 leading-relaxed">
-                          1.{" "}
-                          <span className="text-red-400 font-black">
-                            {renamingPool.poolName}
-                          </span>{" "}
+                          1.{' '}
+                          <span className="text-red-400 font-black">{renamingPool.poolName}</span>{' '}
                           unlinked on-chain
                           <br />
-                          2.{" "}
+                          2.{' '}
                           <span className="text-salvaGold font-black">
                             {renameCheckResult.welded}
-                          </span>{" "}
+                          </span>{' '}
                           linked to this pool
                         </p>
                       </div>
@@ -2082,14 +1949,12 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {renameError && (
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-xs">⚠</span>
-                        <p className="text-xs text-red-400 font-bold">
-                          {renameError}
-                        </p>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
                     <div className="flex gap-3 pt-1">
                       <button
-                        onClick={() => setRenameStep("form")}
+                        onClick={() => setRenameStep('form')}
                         className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white hover:bg-white/5 transition-all"
                       >
                         Back
@@ -2102,13 +1967,13 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         {renameLoading && (
                           <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                         )}
-                        {renameLoading ? "Preparing…" : "Confirm & Enter PIN"}
+                        {renameLoading ? 'Preparing…' : 'Confirm & Enter PIN'}
                       </button>
                     </div>
                   </motion.div>
                 )}
 
-                {renameStep === "renaming" && (
+                {renameStep === 'renaming' && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -2118,9 +1983,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
                       <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-                        <span className="text-salvaGold text-sm font-black">
-                          ₦
-                        </span>
+                        <span className="text-salvaGold text-sm font-black">₦</span>
                       </div>
                     </div>
                     <p className="font-black text-white">Renaming on-chain…</p>
@@ -2141,15 +2004,15 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           <PinModal
             title="Enter Transaction PIN"
             subtitle={
-              pinAction === "deploy"
-                ? "Sign pool deployment via your Safe"
-                : pinAction === "subscribe"
-                  ? "Authorize subscription payment from your Safe"
-                  : pinAction === "delete"
-                    ? "Authorize pool deletion via your Safe"
-                    : pinAction === "rename"
-                      ? "Sign rename — unlink old, link new"
-                      : "Enter your PIN"
+              pinAction === 'deploy'
+                ? 'Sign pool deployment via your Safe'
+                : pinAction === 'subscribe'
+                  ? 'Authorize subscription payment from your Safe'
+                  : pinAction === 'delete'
+                    ? 'Authorize pool deletion via your Safe'
+                    : pinAction === 'rename'
+                      ? 'Sign rename — unlink old, link new'
+                      : 'Enter your PIN'
             }
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const TransactionQueueSchema = new mongoose.Schema({
   walletAddress: {
@@ -8,18 +8,18 @@ const TransactionQueueSchema = new mongoose.Schema({
     lowercase: true,
   },
   status: {
-  type: String,
-  enum: ["PENDING", "SENDING", "FAILED_ONCHAIN"],
-  default: "PENDING",
-  index: true,
-},
+    type: String,
+    enum: ['PENDING', 'SENDING', 'FAILED_ONCHAIN'],
+    default: 'PENDING',
+    index: true,
+  },
   submittedOnchain: {
     type: Boolean,
     default: false,
   },
   type: {
     type: String,
-    enum: ["transfer"],
+    enum: ['transfer'],
     required: true,
   },
   payload: {
@@ -55,4 +55,4 @@ const TransactionQueueSchema = new mongoose.Schema({
 
 TransactionQueueSchema.index({ walletAddress: 1, status: 1 });
 
-module.exports = mongoose.model("TransactionQueue", TransactionQueueSchema);
+module.exports = mongoose.model('TransactionQueue', TransactionQueueSchema);

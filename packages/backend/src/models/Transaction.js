@@ -1,5 +1,5 @@
 // Salva-Digital-Tech/packages/backend/src/models/Transaction.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const TransactionSchema = new mongoose.Schema({
   // ── Sender ──────────────────────────────────────────────────────────────
@@ -25,13 +25,13 @@ const TransactionSchema = new mongoose.Schema({
   // Human-readable fee taken (e.g. "50" NGNs or "0.015" USDC). null = free.
   fee: { type: String, default: null },
   // Token used: "NGN" | "USDT" | "USDC"
-  coin: { type: String, default: "NGN" },
+  coin: { type: String, default: 'NGN' },
 
   // ── Status & type ────────────────────────────────────────────────────────
-  status: { type: String, default: "pending" },
+  status: { type: String, default: 'pending' },
   taskId: { type: String, default: null },
-  type: { type: String, default: "transfer" },
+  type: { type: String, default: 'transfer' },
   date: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model("Transaction", TransactionSchema);
+module.exports = mongoose.model('Transaction', TransactionSchema);

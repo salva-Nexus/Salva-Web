@@ -1,18 +1,11 @@
 // Salva-Digital-Tech/packages/backend/src/models/Proposal.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const ProposalSchema = new mongoose.Schema({
   // "registry" | "validator" | "upgrade" | "signerUpdate" | "ImplUpdate" | "unpause"
   type: {
     type: String,
-    enum: [
-      "registry",
-      "validator",
-      "upgrade",
-      "signerUpdate",
-      "ImplUpdate",
-      "unpause",
-    ],
+    enum: ['registry', 'validator', 'upgrade', 'signerUpdate', 'ImplUpdate', 'unpause'],
     required: true,
   },
 
@@ -51,4 +44,4 @@ ProposalSchema.index({ type: 1, addr: 1 }, { sparse: true });
 ProposalSchema.index({ type: 1, newImpl: 1 }, { sparse: true });
 ProposalSchema.index({ type: 1, proxy: 1 }, { sparse: true });
 
-module.exports = mongoose.model("Proposal", ProposalSchema);
+module.exports = mongoose.model('Proposal', ProposalSchema);

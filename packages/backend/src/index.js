@@ -1,36 +1,31 @@
 // Salva-Digital-Tech/packages/backend/src/index.js
-require("dotenv").config({
-  path: require("path").resolve(__dirname, "../.env"),
+require('dotenv').config({
+  path: require('path').resolve(__dirname, '../.env'),
 });
 // Initialize L1 DB connection early so it's ready when pool routes are loaded
-require("./services/l1db");
+require('./services/l1db');
 
 function cleanEnvAddr(raw) {
   if (!raw) return null;
-  let s = raw.trim().replace(/^["']|["']$/g, "");
+  let s = raw.trim().replace(/^["']|["']$/g, '');
   const match = s.match(/(0x[0-9a-fA-F]{40})/);
   if (match) return match[1];
   return s.trim() || null;
 }
-const express = require("express");
-const cors = require("cors");
-const bcrypt = require("bcryptjs");
-const { ethers } = require("ethers");
-const { wallet, provider } = require("./services/walletSigner");
-const { generateAndDeploySalvaIdentity } = require("./services/userService");
-const { sponsorSafeTransfer } = require("./services/relayService");
-const Transaction = require("./models/Transaction");
-const mongoose = require("mongoose");
-const { Resend } = require("resend");
-const OtpStore = require("./models/OtpStore");
-const {
-  encryptPrivateKey,
-  decryptPrivateKey,
-  hashPin,
-  verifyPin,
-} = require("./utils/encryption");
-const crypto = require("crypto");
-const TransactionQueue = require("./models/TransactionQueue");
+const express = require('express');
+const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const { ethers } = require('ethers');
+const { wallet, provider } = require('./services/walletSigner');
+const { generateAndDeploySalvaIdentity } = require('./services/userService');
+const { sponsorSafeTransfer } = require('./services/relayService');
+const Transaction = require('./models/Transaction');
+const mongoose = require('mongoose');
+const { Resend } = require('resend');
+const OtpStore = require('./models/OtpStore');
+const { encryptPrivateKey, decryptPrivateKey, hashPin, verifyPin } = require('./utils/encryption');
+const crypto = require('crypto');
+const TransactionQueue = require('./models/TransactionQueue');
 const {
   sendWelcomeEmail,
   sendTransactionEmailToSender,
@@ -39,9 +34,9 @@ const {
   sendApprovalEmailToSpender,
   sendSecurityChangeEmail,
   sendEmailChangeConfirmation,
-} = require("./services/emailService");
+} = require('./services/emailService');
 
-const { isReservedName } = require("./models/ReservedNames");
+const { isReservedName } = require('./models/ReservedNames');
 const {
   isNameAlias,
   resolveToAddress,
@@ -50,24 +45,24 @@ const {
   unlinkName,
   weldName,
   getNamespace,
-} = require("./services/registryResolver");
+} = require('./services/registryResolver');
 
-const User = require("./models/User");
-const AccountNumberCounter = require("./models/AccountNumberCounter");
+const User = require('./models/User');
+const AccountNumberCounter = require('./models/AccountNumberCounter');
 
-const WalletRegistry = require("./models/WalletRegistry");
-const Proposal = require("./models/Proposal");
-const FeeConfig = require("./models/FeeConfig");
-const OtcConfig = require("./models/OtcConfig");
+const WalletRegistry = require('./models/WalletRegistry');
+const Proposal = require('./models/Proposal');
+const FeeConfig = require('./models/FeeConfig');
+const OtcConfig = require('./models/OtcConfig');
 
 // ===============================================
 // SECURITY PACKAGES
 // ===============================================
-const rateLimit = require("express-rate-limit");
-const helmet = require("helmet");
-const validator = require("validator");
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const validator = require('validator');
 
-const adminRoutes = require("./routes/admin");
+const adminRoutes = require('./routes/admin');
 
 // ===============================================
 // HELPER: ENSURE ADDRESS MATCHING
@@ -83,7 +78,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 const app = express();
 
 // ✅ Trust proxy - Required for Render/Heroku/behind load balancers
-app.set("trust proxy", 1);
+app.set('trust proxy', 1);
 
 // ===============================================
 // SECURITY: Helmet (Security Headers)
@@ -96,18 +91,14 @@ app.use(
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: [
-          "'self'",
-          "'unsafe-inline'",
-          "https://cdnjs.cloudflare.com",
-        ],
+        scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdnjs.cloudflare.com'],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", "data:", "https:"],
+        imgSrc: ["'self'", 'data:', 'https:'],
         connectSrc: [
           "'self'",
-          "http://localhost:3001",
-          "ws://localhost:3001",
-          "https://salva-web.vercel.app", // Allow your live API too
+          'http://localhost:3001',
+          'ws://localhost:3001',
+          'https://salva-web.vercel.app', // Allow your live API too
           process.env.BASE_MAINNET_RPC_URL,
         ],
       },
@@ -120,24 +111,23 @@ app.use(
           preload: true,
         }
       : false,
-  }),
+  })
 );
 
-app.use(express.json({ limit: "10mb" }));
-app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Manual MongoDB injection protection
 function sanitizeObject(obj) {
-  if (typeof obj !== "object" || obj === null) return obj;
+  if (typeof obj !== 'object' || obj === null) return obj;
 
   const sanitized = Array.isArray(obj) ? [] : {};
 
   for (const key in obj) {
     // Remove keys starting with $ or containing .
-    if (key.startsWith("$") || key.includes(".")) continue;
+    if (key.startsWith('$') || key.includes('.')) continue;
 
-    sanitized[key] =
-      typeof obj[key] === "object" ? sanitizeObject(obj[key]) : obj[key];
+    sanitized[key] = typeof obj[key] === 'object' ? sanitizeObject(obj[key]) : obj[key];
   }
 
   return sanitized;
@@ -155,14 +145,14 @@ app.use((req, res, next) => {
 // ===============================================
 // Replace your current app.use(cors(...)) with this:
 const allowedOrigins = [
-  "https://salva-nexus.org",
-  "https://www.salva-nexus.org",
-  "https://salva-web.vercel.app",
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:5173",
-  "http://localhost:3001", // Add the backend port too
+  'https://salva-nexus.org',
+  'https://www.salva-nexus.org',
+  'https://salva-web.vercel.app',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:5173',
+  'http://localhost:3001', // Add the backend port too
 ];
 
 // ===============================================
@@ -173,15 +163,15 @@ app.use(
     origin: function (origin, callback) {
       // Allow everything on localhost for development + production domains
       const allowed = [
-        "https://salva-nexus.org",
-        "https://www.salva-nexus.org",
-        "https://salva-web.vercel.app",
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://localhost:3001",
-        "http://127.0.0.1:3001",
+        'https://salva-nexus.org',
+        'https://www.salva-nexus.org',
+        'https://salva-web.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:5173',
+        'http://localhost:3001',
+        'http://127.0.0.1:3001',
       ];
 
       if (!origin || allowed.includes(origin)) {
@@ -192,9 +182,9 @@ app.use(
       return callback(null, true); // ← Temporarily allow all on localhost to debug
     },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  }),
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
 );
 
 // Ensure DB is connected before every API call
@@ -203,28 +193,26 @@ app.use(async (req, res, next) => {
     await connectDB();
     next();
   } catch (err) {
-    console.error("DB connect middleware:", err.message);
-    res
-      .status(503)
-      .json({ message: "Service temporarily unavailable. Please retry." });
+    console.error('DB connect middleware:', err.message);
+    res.status(503).json({ message: 'Service temporarily unavailable. Please retry.' });
   }
 });
 
-app.use("/api/admin", adminRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ===============================================
 // SECURITY: Rate Limiters
 // ===============================================
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === "development" ? 100 : 5,
-  message: "Too many authentication attempts. Please try again in 15 minutes.",
+  max: process.env.NODE_ENV === 'development' ? 100 : 5,
+  message: 'Too many authentication attempts. Please try again in 15 minutes.',
   standardHeaders: true,
   legacyHeaders: false,
   handler: (req, res) => {
     console.warn(`⚠️ Rate limit exceeded for IP: ${req.ip} on ${req.path}`);
     res.status(429).json({
-      message: "Too many attempts. Please try again in 15 minutes.",
+      message: 'Too many attempts. Please try again in 15 minutes.',
     });
   },
 });
@@ -232,23 +220,23 @@ const authLimiter = rateLimit({
 const generalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000,
   max: 100,
-  message: "Too many requests. Please slow down.",
+  message: 'Too many requests. Please slow down.',
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-app.use("/api/", generalLimiter);
+app.use('/api/', generalLimiter);
 
 // ===============================================
 // SECURITY: Input Validation
 // ===============================================
 function sanitizeEmail(email) {
-  if (typeof email !== "string") {
-    throw new Error("Invalid email format");
+  if (typeof email !== 'string') {
+    throw new Error('Invalid email format');
   }
   const sanitized = email.trim().toLowerCase();
   if (!validator.isEmail(sanitized)) {
-    throw new Error("Invalid email format");
+    throw new Error('Invalid email format');
   }
   return sanitized;
 }
@@ -262,14 +250,13 @@ function validateRegistration(req, res, next) {
 
     if (!username || !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       return res.status(400).json({
-        message: "Username must be 3-20 alphanumeric characters",
+        message: 'Username must be 3-20 alphanumeric characters',
       });
     }
 
     if (!password || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
       return res.status(400).json({
-        message:
-          "Password must be at least 8 characters with uppercase, lowercase, and number",
+        message: 'Password must be at least 8 characters with uppercase, lowercase, and number',
       });
     }
 
@@ -282,14 +269,14 @@ function validateRegistration(req, res, next) {
 function validateAmount(amount) {
   const num = parseFloat(amount);
   if (isNaN(num) || num <= 0 || num > 1000000000) {
-    throw new Error("Invalid amount");
+    throw new Error('Invalid amount');
   }
   return num;
 }
 
 function validatePin(pin) {
   if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-    throw new Error("PIN must be exactly 4 digits");
+    throw new Error('PIN must be exactly 4 digits');
   }
   return true;
 }
@@ -301,10 +288,10 @@ function validatePin(pin) {
 // ===============================================
 // SECURITY: Error Handler
 // ===============================================
-function handleError(error, res, userMessage = "An error occurred") {
-  console.error("Error:", error);
+function handleError(error, res, userMessage = 'An error occurred') {
+  console.error('Error:', error);
 
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === 'production') {
     return res.status(500).json({ message: userMessage });
   } else {
     return res.status(500).json({
@@ -341,11 +328,11 @@ async function connectDB() {
     .then((conn) => {
       cache.isConnected = true;
       cache.promise = null;
-      console.log("🍃 MongoDB Connected");
+      console.log('🍃 MongoDB Connected');
 
       // Sync FeeConfig immediately after connection is confirmed
       FeeConfig.findOneAndUpdate(
-        { _id: "main" },
+        { _id: 'main' },
         {
           $set: {
             tier0Max: 999,
@@ -359,35 +346,33 @@ async function connectDB() {
             usdTierMin: 5,
           },
         },
-        { upsert: true },
+        { upsert: true }
       )
-        .then(() => console.log("✅ FeeConfig synced"))
-        .catch((e) => console.error("❌ FeeConfig sync failed:", e.message));
+        .then(() => console.log('✅ FeeConfig synced'))
+        .catch((e) => console.error('❌ FeeConfig sync failed:', e.message));
 
       OtcConfig.findOneAndUpdate(
-        { _id: "main" },
+        { _id: 'main' },
         { $setOnInsert: { minNgn: 10000, maxNgn: 200000, feePercent: 0.2 } },
-        { upsert: true },
+        { upsert: true }
       )
-        .then(() => console.log("✅ OtcConfig seeded"))
-        .catch((e) => console.error("❌ OtcConfig seed failed:", e.message));
+        .then(() => console.log('✅ OtcConfig seeded'))
+        .catch((e) => console.error('❌ OtcConfig seed failed:', e.message));
 
-      conn.connection.on("disconnected", () => {
-        console.warn(
-          "⚠️  MongoDB disconnected — will reconnect on next request",
-        );
+      conn.connection.on('disconnected', () => {
+        console.warn('⚠️  MongoDB disconnected — will reconnect on next request');
         cache.isConnected = false;
         cache.promise = null;
       });
 
-      conn.connection.on("error", (err) => {
-        console.error("❌ MongoDB connection error:", err.message);
+      conn.connection.on('error', (err) => {
+        console.error('❌ MongoDB connection error:', err.message);
         cache.isConnected = false;
         cache.promise = null;
       });
     })
     .catch((err) => {
-      console.error("❌ MongoDB Connection Failed:", err.message);
+      console.error('❌ MongoDB Connection Failed:', err.message);
       cache.isConnected = false;
       cache.promise = null;
       throw err;
@@ -397,30 +382,25 @@ async function connectDB() {
 }
 
 connectDB().catch((err) =>
-  console.error("❌ Initial MongoDB connection attempt failed:", err.message),
+  console.error('❌ Initial MongoDB connection attempt failed:', err.message)
 );
 
 // ===============================================
 // HELPERS
 // ===============================================
-async function delayBeforeBlockchain(
-  walletAddress,
-  message = "Preparing transaction...",
-) {
+async function delayBeforeBlockchain(walletAddress, message = 'Preparing transaction...') {
   console.log(`⏳ ${message}`);
 
   // Check for active transactions
   if (await hasActiveTransaction(walletAddress)) {
-    throw new Error("Another transaction is already in progress");
+    throw new Error('Another transaction is already in progress');
   }
 
   // Check cooldown
   const cooldownStatus = await checkCooldown(walletAddress);
   if (!cooldownStatus.ready) {
     console.log(`⏱️ Cooldown active, waiting ${cooldownStatus.delay}s...`);
-    await new Promise((resolve) =>
-      setTimeout(resolve, cooldownStatus.delay * 1000),
-    );
+    await new Promise((resolve) => setTimeout(resolve, cooldownStatus.delay * 1000));
   }
 
   console.log(`✅ Queue clear, proceeding with transaction`);
@@ -453,33 +433,28 @@ async function waitForTxReceipt(txHash, timeoutMs = 120_000) {
       console.error(`❌ No receipt returned for tx ${txHash} (timeout)`);
       return {
         success: false,
-        status: "failed",
-        reason: "Transaction confirmation timeout after 2 minutes",
+        status: 'failed',
+        reason: 'Transaction confirmation timeout after 2 minutes',
       };
     }
 
     if (receipt.status === 1) {
-      console.log(
-        `✅ Transaction ${txHash} CONFIRMED on-chain (block ${receipt.blockNumber})`,
-      );
-      return { success: true, status: "successful" };
+      console.log(`✅ Transaction ${txHash} CONFIRMED on-chain (block ${receipt.blockNumber})`);
+      return { success: true, status: 'successful' };
     } else {
       console.error(`❌ Transaction ${txHash} REVERTED on-chain`);
       return {
         success: false,
-        status: "failed",
-        reason: "Transaction reverted on-chain",
+        status: 'failed',
+        reason: 'Transaction reverted on-chain',
       };
     }
   } catch (error) {
-    console.error(
-      `❌ Error waiting for tx receipt (${txHash}):`,
-      error.message,
-    );
+    console.error(`❌ Error waiting for tx receipt (${txHash}):`, error.message);
     return {
       success: false,
-      status: "failed",
-      reason: error.message || "Could not confirm transaction",
+      status: 'failed',
+      reason: error.message || 'Could not confirm transaction',
     };
   }
 }
@@ -492,9 +467,7 @@ async function retryRPCCall(fn, maxRetries = 3, baseDelay = 1500) {
       if (i === maxRetries - 1) throw error;
       // Exponential backoff: 1.5s → 3s → 6s, prevents RPC flood
       const wait = baseDelay * Math.pow(2, i);
-      console.log(
-        `⚠️ RPC call failed, retrying (${i + 1}/${maxRetries}) in ${wait}ms...`,
-      );
+      console.log(`⚠️ RPC call failed, retrying (${i + 1}/${maxRetries}) in ${wait}ms...`);
       await new Promise((resolve) => setTimeout(resolve, wait));
     }
   }
@@ -502,7 +475,7 @@ async function retryRPCCall(fn, maxRetries = 3, baseDelay = 1500) {
 
 // Check if wallet has active transaction
 async function hasActiveTransaction(walletAddress) {
-  const activeStates = ["PENDING", "SENDING"];
+  const activeStates = ['PENDING', 'SENDING'];
   const activeTx = await TransactionQueue.findOne({
     walletAddress: walletAddress.toLowerCase(),
     status: { $in: activeStates },
@@ -546,32 +519,32 @@ async function applyCooldown(walletAddress, seconds = 20) {
   await TransactionQueue.updateOne(
     {
       walletAddress: walletAddress.toLowerCase(),
-      status: { $in: ["CONFIRMED", "FAILED"] },
+      status: { $in: ['CONFIRMED', 'FAILED'] },
     },
     {
       cooldownUntil: cooldownUntil,
       updatedAt: new Date(),
     },
-    { sort: { updatedAt: -1 } },
+    { sort: { updatedAt: -1 } }
   );
 }
 
 async function cleanupStaleQueueEntries() {
   const stuckDate = new Date(Date.now() - 10 * 60 * 1000);
   await TransactionQueue.updateMany(
-    { status: "SENDING", updatedAt: { $lt: stuckDate } },
+    { status: 'SENDING', updatedAt: { $lt: stuckDate } },
     {
       $set: {
-        status: "PENDING",
-        errorMessage: "Stuck in SENDING — reverted for retry",
+        status: 'PENDING',
+        errorMessage: 'Stuck in SENDING — reverted for retry',
         updatedAt: new Date(),
       },
-    },
+    }
   );
 
   const oldFailedDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   await TransactionQueue.deleteMany({
-    status: "FAILED_ONCHAIN",
+    status: 'FAILED_ONCHAIN',
     updatedAt: { $lt: oldFailedDate },
   });
 }
@@ -580,19 +553,19 @@ async function cleanupStaleQueueEntries() {
 // Returns fee info for a given amount and coin.
 // NGN: uses new 3-tier system from FeeConfig.
 // USDT/USDC: flat $0.015 for >= $5.
-async function getFeeForAmount(amountHuman, coin = "NGN") {
-  if (coin === "USDT" || coin === "USDC") {
+async function getFeeForAmount(amountHuman, coin = 'NGN') {
+  if (coin === 'USDT' || coin === 'USDC') {
     const amount = parseFloat(amountHuman);
     if (amount >= 5) {
-      const feeWei = ethers.parseUnits("0.015", 6);
+      const feeWei = ethers.parseUnits('0.015', 6);
       return { feeNGN: 0, feeUsd: 0.015, feeWei };
     }
     return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
   }
 
   // NGN and CNGN path
-  let config = await FeeConfig.findById("main");
-  if (!config) config = await FeeConfig.create({ _id: "main" });
+  let config = await FeeConfig.findById('main');
+  if (!config) config = await FeeConfig.create({ _id: 'main' });
 
   const amount = parseFloat(amountHuman);
 
@@ -617,25 +590,25 @@ async function getFeeForAmount(amountHuman, coin = "NGN") {
 // ===============================================
 // GET ALL ACTIVE REGISTRIES (for frontend dropdown)
 // ===============================================
-app.get("/api/registries", async (req, res) => {
+app.get('/api/registries', async (req, res) => {
   try {
     const registries = await WalletRegistry.find({ active: true }).select(
-      "name registryAddress description nspace",
+      'name registryAddress description nspace'
     );
     res.json(registries);
   } catch (error) {
-    console.error("❌ Failed to fetch registries:", error);
-    return handleError(error, res, "Failed to fetch registries");
+    console.error('❌ Failed to fetch registries:', error);
+    return handleError(error, res, 'Failed to fetch registries');
   }
 });
 
 // ===============================================
 // GET FEE CONFIG (for frontend to preview fees)
 // ===============================================
-app.get("/api/otc-config", async (req, res) => {
+app.get('/api/otc-config', async (req, res) => {
   try {
-    let config = await OtcConfig.findById("main");
-    if (!config) config = await OtcConfig.create({ _id: "main" });
+    let config = await OtcConfig.findById('main');
+    if (!config) config = await OtcConfig.create({ _id: 'main' });
     res.json({
       minNgn: config.minNgn,
       maxNgn: config.maxNgn,
@@ -646,11 +619,11 @@ app.get("/api/otc-config", async (req, res) => {
   }
 });
 
-app.get("/api/fee-config", async (req, res) => {
+app.get('/api/fee-config', async (req, res) => {
   try {
-    let config = await FeeConfig.findById("main");
+    let config = await FeeConfig.findById('main');
     if (!config) {
-      config = await FeeConfig.create({ _id: "main" });
+      config = await FeeConfig.create({ _id: 'main' });
     }
     res.json({
       tier0Max: config.tier0Max,
@@ -662,37 +635,30 @@ app.get("/api/fee-config", async (req, res) => {
       tier2Fee: config.tier2Fee,
     });
   } catch (error) {
-    return handleError(error, res, "Failed to fetch fee config");
+    return handleError(error, res, 'Failed to fetch fee config');
   }
 });
 
-app.get("/api/registry-fee", async (req, res) => {
+app.get('/api/registry-fee', async (req, res) => {
   try {
     const factoryAddr = cleanEnvAddr(process.env.REGISTRY_FACTORY);
-    if (!factoryAddr)
-      return res.status(500).json({ message: "REGISTRY_FACTORY not set" });
-    const FACTORY_ABI = [
-      "function getFee() external view returns (uint256 fee)",
-    ];
-    const factoryContract = new ethers.Contract(
-      factoryAddr,
-      FACTORY_ABI,
-      provider,
-    );
+    if (!factoryAddr) return res.status(500).json({ message: 'REGISTRY_FACTORY not set' });
+    const FACTORY_ABI = ['function getFee() external view returns (uint256 fee)'];
+    const factoryContract = new ethers.Contract(factoryAddr, FACTORY_ABI, provider);
     const feeWei = await retryRPCCall(() => factoryContract.getFee());
     const feeHuman = parseFloat(ethers.formatUnits(feeWei, 6));
     console.log(`💰 Registry link fee: ${feeHuman} NGNs`);
     res.json({ fee: feeHuman, feeWei: feeWei.toString() });
   } catch (error) {
-    console.error("❌ Failed to fetch registry fee:", error.message);
-    return handleError(error, res, "Failed to fetch registry fee");
+    console.error('❌ Failed to fetch registry fee:', error.message);
+    return handleError(error, res, 'Failed to fetch registry fee');
   }
 });
 
 // ===============================================
 // AUTH ROUTES
 // ===============================================
-app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
+app.post('/api/auth/send-otp', authLimiter, async (req, res) => {
   try {
     const email = sanitizeEmail(req.body.email);
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -700,13 +666,13 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
     await OtpStore.findOneAndUpdate(
       { email },
       { code: otp, expires: new Date(Date.now() + 600000), verified: false },
-      { upsert: true, new: true },
+      { upsert: true, new: true }
     );
 
     const data = await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
+      from: 'Salva <no-reply@salva-nexus.org>',
       to: email,
-      subject: "Verify your Salva Account",
+      subject: 'Verify your Salva Account',
       html: `
         <div style="background: #0A0A0B; color: white; padding: 40px; font-family: sans-serif; border-radius: 20px;">
           <h1 style="color: #D4AF37; margin-bottom: 20px;">SALVA</h1>
@@ -719,43 +685,38 @@ app.post("/api/auth/send-otp", authLimiter, async (req, res) => {
       `,
     });
 
-    console.log("📧 OTP sent:", data.id);
-    res.json({ message: "OTP sent successfully" });
+    console.log('📧 OTP sent:', data.id);
+    res.json({ message: 'OTP sent successfully' });
   } catch (err) {
-    console.error("❌ RESEND FAIL:", err);
-    return handleError(err, res, "Email service currently unavailable");
+    console.error('❌ RESEND FAIL:', err);
+    return handleError(err, res, 'Email service currently unavailable');
   }
 });
 
-app.post("/api/auth/verify-otp", authLimiter, async (req, res) => {
+app.post('/api/auth/verify-otp', authLimiter, async (req, res) => {
   try {
     const { email, code } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
     const record = await OtpStore.findOne({ email: sanitizedEmail });
 
-    if (!record)
-      return res.status(400).json({ message: "Invalid or expired code" });
+    if (!record) return res.status(400).json({ message: 'Invalid or expired code' });
     if (new Date() > record.expires) {
       await OtpStore.deleteOne({ email: sanitizedEmail });
-      return res.status(400).json({ message: "Invalid or expired code" });
+      return res.status(400).json({ message: 'Invalid or expired code' });
     }
 
-    const isValid = crypto.timingSafeEqual(
-      Buffer.from(record.code),
-      Buffer.from(String(code)),
-    );
-    if (!isValid)
-      return res.status(400).json({ message: "Invalid or expired code" });
+    const isValid = crypto.timingSafeEqual(Buffer.from(record.code), Buffer.from(String(code)));
+    if (!isValid) return res.status(400).json({ message: 'Invalid or expired code' });
 
     record.verified = true;
     await record.save();
     res.json({ success: true });
   } catch (error) {
-    return handleError(error, res, "Verification failed");
+    return handleError(error, res, 'Verification failed');
   }
 });
 
-app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
+app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
   try {
     const { email, newPassword } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
@@ -765,16 +726,12 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
-      return res.status(401).json({ message: "Please verify OTP first" });
+      return res.status(401).json({ message: 'Please verify OTP first' });
     }
 
-    if (
-      !newPassword ||
-      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)
-    ) {
+    if (!newPassword || !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
       return res.status(400).json({
-        message:
-          "Password must be at least 8 characters with uppercase, lowercase, and number",
+        message: 'Password must be at least 8 characters with uppercase, lowercase, and number',
       });
     }
 
@@ -787,111 +744,95 @@ app.post("/api/auth/reset-password", authLimiter, async (req, res) => {
         password: hashedPassword,
         accountLockedUntil: lockoutTime,
       },
-      { new: true },
+      { new: true }
     );
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
-      const accountNum =
-        (await getAccountNumberFromAddress(user.safeAddress)) ||
-        user.safeAddress;
-      await sendSecurityChangeEmail(
-        sanitizedEmail,
-        user.username,
-        "password",
-        accountNum,
-      );
+      const accountNum = (await getAccountNumberFromAddress(user.safeAddress)) || user.safeAddress;
+      await sendSecurityChangeEmail(sanitizedEmail, user.username, 'password', accountNum);
     } catch (emailError) {
-      console.error("❌ Security email error:", emailError.message);
+      console.error('❌ Security email error:', emailError.message);
     }
 
     res.json({
       success: true,
-      message: "Password updated successfully. Account locked for 24 hours.",
+      message: 'Password updated successfully. Account locked for 24 hours.',
       lockedUntil: lockoutTime,
     });
   } catch (err) {
-    console.error("❌ Reset password error:", err);
-    return handleError(err, res, "Password reset failed");
+    console.error('❌ Reset password error:', err);
+    return handleError(err, res, 'Password reset failed');
   }
 });
 
 // ===============================================
 // REGISTER — Deploy Safe only.
 // ===============================================
-app.post(
-  "/api/register",
-  authLimiter,
-  validateRegistration,
-  async (req, res) => {
+app.post('/api/register', authLimiter, validateRegistration, async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+
+    console.log(`📝 Registration attempt: username="${username}" email="${email}"`);
+
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) return res.status(400).json({ message: 'Email already registered' });
+
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) return res.status(400).json({ message: 'Username already taken' });
+
+    const rpcUrl =
+      process.env.NODE_ENV === 'production'
+        ? process.env.BASE_MAINNET_RPC_URL
+        : process.env.BASE_SEPOLIA_RPC_URL;
+
+    console.log(`🔗 Using RPC: ${rpcUrl}`);
+    const identityData = await generateAndDeploySalvaIdentity(rpcUrl);
+    console.log(`✅ Safe deployed: ${identityData.safeAddress}`);
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      safeAddress: identityData.safeAddress,
+      ownerPrivateKey: identityData.ownerPrivateKey,
+    });
+
+    await newUser.save();
+    console.log(`✅ User saved: ${email}`);
+
     try {
-      const { username, email, password } = req.body;
-
-      console.log(
-        `📝 Registration attempt: username="${username}" email="${email}"`,
-      );
-
-      const existingEmail = await User.findOne({ email });
-      if (existingEmail)
-        return res.status(400).json({ message: "Email already registered" });
-
-      const existingUsername = await User.findOne({ username });
-      if (existingUsername)
-        return res.status(400).json({ message: "Username already taken" });
-
-      const rpcUrl =
-        process.env.NODE_ENV === "production"
-          ? process.env.BASE_MAINNET_RPC_URL
-          : process.env.BASE_SEPOLIA_RPC_URL;
-
-      console.log(`🔗 Using RPC: ${rpcUrl}`);
-      const identityData = await generateAndDeploySalvaIdentity(rpcUrl);
-      console.log(`✅ Safe deployed: ${identityData.safeAddress}`);
-
-      const hashedPassword = await bcrypt.hash(password, 10);
-      const newUser = new User({
-        username,
-        email,
-        password: hashedPassword,
-        safeAddress: identityData.safeAddress,
-        ownerPrivateKey: identityData.ownerPrivateKey,
-      });
-
-      await newUser.save();
-      console.log(`✅ User saved: ${email}`);
-
-      try {
-        await sendWelcomeEmail(email, username);
-        console.log(`📧 Welcome email sent to: ${email}`);
-      } catch (emailError) {
-        console.error("❌ Welcome email error:", emailError.message);
-      }
-
-      res.json({
-        username: newUser.username,
-        safeAddress: newUser.safeAddress,
-        accountNumber: null,
-        ownerPrivateKey: newUser.ownerPrivateKey,
-        isValidator: false,
-        nameAlias: null,
-        numberAlias: null,
-      });
-    } catch (error) {
-      console.error("❌ Registration failed:", error.message);
-      return handleError(error, res, "Registration failed");
+      await sendWelcomeEmail(email, username);
+      console.log(`📧 Welcome email sent to: ${email}`);
+    } catch (emailError) {
+      console.error('❌ Welcome email error:', emailError.message);
     }
-  },
-);
+
+    res.json({
+      username: newUser.username,
+      safeAddress: newUser.safeAddress,
+      accountNumber: null,
+      ownerPrivateKey: newUser.ownerPrivateKey,
+      isValidator: false,
+      nameAlias: null,
+      numberAlias: null,
+    });
+  } catch (error) {
+    console.error('❌ Registration failed:', error.message);
+    return handleError(error, res, 'Registration failed');
+  }
+});
 
 // ===============================================
 // LOGIN
 // ===============================================
-app.post("/api/login", authLimiter, async (req, res) => {
+app.post('/api/login', authLimiter, async (req, res) => {
   try {
     await connectDB();
     const email = sanitizeEmail(req.body.email);
@@ -899,12 +840,12 @@ app.post("/api/login", authLimiter, async (req, res) => {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(401).json({ message: "Invalid credentials" });
+      return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     const hasPinAlreadySet = !!user.transactionPin;
@@ -920,18 +861,18 @@ app.post("/api/login", authLimiter, async (req, res) => {
       numberAlias: user.numberAlias || null,
     });
   } catch (error) {
-    return handleError(error, res, "Login failed");
+    return handleError(error, res, 'Login failed');
   }
 });
 
 // ===============================================
 // GET USER STATUS (for dashboard refresh)
 // ===============================================
-app.get("/api/user/status/:email", async (req, res) => {
+app.get('/api/user/status/:email', async (req, res) => {
   try {
     const email = sanitizeEmail(req.params.email);
     const user = await User.findOne({ email });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
     res.json({
       isValidator: user.isValidator || false,
       nameAlias: user.nameAlias || null,
@@ -939,7 +880,7 @@ app.get("/api/user/status/:email", async (req, res) => {
       isSeller: user.isSeller || false,
     });
   } catch (error) {
-    return handleError(error, res, "Failed to get user status");
+    return handleError(error, res, 'Failed to get user status');
   }
 });
 
@@ -947,81 +888,63 @@ app.get("/api/user/status/:email", async (req, res) => {
 // ALIAS: PREPARE LINK — validates, signs, returns prepared data
 // Does NOT execute. Frontend calls /api/alias/execute-link after PIN.
 // ================================================================
-app.post("/api/alias/link-name", async (req, res) => {
+app.post('/api/alias/link-name', async (req, res) => {
   try {
     const { safeAddress, name, walletToLink, registryAddress } = req.body;
 
     // ── Input validation ────────────────────────────────────────────────────
     if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: "Invalid safe address" });
+      return res.status(400).json({ message: 'Invalid safe address' });
     if (!walletToLink || !ethers.isAddress(walletToLink))
-      return res
-        .status(400)
-        .json({ message: "Invalid wallet address to link" });
+      return res.status(400).json({ message: 'Invalid wallet address to link' });
     if (!registryAddress || !ethers.isAddress(registryAddress))
-      return res.status(400).json({ message: "Invalid registry address" });
-    if (!name || typeof name !== "string")
-      return res.status(400).json({ message: "Name is required" });
+      return res.status(400).json({ message: 'Invalid registry address' });
+    if (!name || typeof name !== 'string')
+      return res.status(400).json({ message: 'Name is required' });
 
     const pureName = name.trim().toLowerCase();
 
     if (!/^[a-z2-9_]{1,32}$/.test(pureName))
       return res.status(400).json({
-        message:
-          "Invalid name. Use lowercase a–z, digits 2–9, one underscore max.",
+        message: 'Invalid name. Use lowercase a–z, digits 2–9, one underscore max.',
       });
     if ((pureName.match(/_/g) || []).length > 1)
-      return res.status(400).json({ message: "Only one underscore allowed." });
-    if (pureName.includes("0") || pureName.includes("1"))
-      return res
-        .status(400)
-        .json({ message: "Digits 0 and 1 are not allowed." });
-    if (pureName.startsWith("_") || pureName.endsWith("_"))
-      return res
-        .status(400)
-        .json({ message: "Name cannot start or end with underscore." });
+      return res.status(400).json({ message: 'Only one underscore allowed.' });
+    if (pureName.includes('0') || pureName.includes('1'))
+      return res.status(400).json({ message: 'Digits 0 and 1 are not allowed.' });
+    if (pureName.startsWith('_') || pureName.endsWith('_'))
+      return res.status(400).json({ message: 'Name cannot start or end with underscore.' });
     if (pureName.length < 2)
-      return res
-        .status(400)
-        .json({ message: "Name must be at least 2 characters." });
+      return res.status(400).json({ message: 'Name must be at least 2 characters.' });
 
     // ── Reserved name check ─────────────────────────────────────────────────
     if (isReservedName(pureName)) {
       return res.status(200).json({
         reserved: true,
         message:
-          "This is a reserved name. Enter your email address so we can reach out to discuss eligibility.",
+          'This is a reserved name. Enter your email address so we can reach out to discuss eligibility.',
       });
     }
 
     // ── Find user ───────────────────────────────────────────────────────────
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     // ── Balance gate ─────────────────────────────────────────────────────────
     const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
-    if (!ngnAddr)
-      return res
-        .status(500)
-        .json({ message: "NGN_TOKEN_ADDRESS not configured" });
+    if (!ngnAddr) return res.status(500).json({ message: 'NGN_TOKEN_ADDRESS not configured' });
 
     // Read live fee from RegistryFactory contract
     let feeWei = 0n;
     try {
       const factoryAddr = cleanEnvAddr(process.env.REGISTRY_FACTORY);
       if (factoryAddr) {
-        const FACTORY_ABI = [
-          "function getFee() external view returns (uint256 fee)",
-        ];
-        const factoryContract = new ethers.Contract(
-          factoryAddr,
-          FACTORY_ABI,
-          provider,
-        );
+        const FACTORY_ABI = ['function getFee() external view returns (uint256 fee)'];
+        const factoryContract = new ethers.Contract(factoryAddr, FACTORY_ABI, provider);
         feeWei = await retryRPCCall(() => factoryContract.getFee());
       }
     } catch (e) {
-      console.error("⚠️ Could not read registry fee from contract:", e.message);
+      console.error('⚠️ Could not read registry fee from contract:', e.message);
       // proceed with feeWei = 0n — transaction will still work, just no balance gate
     }
 
@@ -1030,7 +953,7 @@ app.post("/api/alias/link-name", async (req, res) => {
 
     // Only gate if fee > 0
     if (feeWei > 0n) {
-      const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+      const ERC20_ABI = ['function balanceOf(address) view returns (uint256)'];
       const ngnContract = new ethers.Contract(ngnAddr, ERC20_ABI, provider);
       const ngnWei = await ngnContract.balanceOf(safeAddress).catch(() => 0n);
 
@@ -1048,11 +971,11 @@ app.post("/api/alias/link-name", async (req, res) => {
     console.log(`💰 Registry link fee: ${feeHuman} NGNs (feeWei=${feeWeiStr})`);
 
     // ── Underscore collision check ──────────────────────────────────────────
-    if (pureName.includes("_")) {
-      const parts = pureName.split("_");
+    if (pureName.includes('_')) {
+      const parts = pureName.split('_');
       const reversed = `${parts[1]}_${parts[0]}`;
       const collisionCheck = await User.findOne({
-        "nameAliases.name": {
+        'nameAliases.name': {
           $in: [
             new RegExp(`^${parts[0]}@`),
             new RegExp(`^${parts[1]}@`),
@@ -1070,15 +993,13 @@ app.post("/api/alias/link-name", async (req, res) => {
     // ── On-chain availability check ─────────────────────────────────────────
     const namespace = await getNamespace(registryAddress);
     const weldedName = weldName(pureName, namespace);
-    console.log("DEBUG: pureName is:", pureName);
-    console.log("DEBUG: namespace found is:", namespace);
-    console.log("DEBUG: weldedName resulting is:", weldedName);
+    console.log('DEBUG: pureName is:', pureName);
+    console.log('DEBUG: namespace found is:', namespace);
+    console.log('DEBUG: weldedName resulting is:', weldedName);
 
     const available = await checkNameAvailability(weldedName, registryAddress);
     if (!available)
-      return res
-        .status(409)
-        .json({ message: "This name is already taken on-chain." });
+      return res.status(409).json({ message: 'This name is already taken on-chain.' });
 
     // ── Backend signs (nameBytes ++ wallet) ─────────────────────────────────
     // Matches the assembly packing in BaseRegistry.link():
@@ -1089,20 +1010,13 @@ app.post("/api/alias/link-name", async (req, res) => {
     // Equivalent in JS: keccak256(concat(nameBytes, walletBytes20))
     const nameBytes = ethers.toUtf8Bytes(pureName);
     const walletAddress = ethers.getAddress(walletToLink);
-    const rawPacked = ethers.concat([
-      nameBytes,
-      ethers.getBytes(walletAddress),
-    ]);
+    const rawPacked = ethers.concat([nameBytes, ethers.getBytes(walletAddress)]);
     const messageHash = ethers.keccak256(rawPacked);
     // wallet.signMessage applies the Ethereum prefix → toEthSignedMessageHash
     const signature = await wallet.signMessage(ethers.getBytes(messageHash));
 
-    console.log(
-      `✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`,
-    );
-    console.log(
-      `   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`,
-    );
+    console.log(`✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`);
+    console.log(`   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`);
 
     return res.json({
       prepared: true,
@@ -1115,8 +1029,8 @@ app.post("/api/alias/link-name", async (req, res) => {
       feeWei: feeWei.toString(), // pass to execute-link so relay knows whether to approve
     });
   } catch (error) {
-    console.error("❌ link-name prepare error:", error);
-    return handleError(error, res, "Failed to prepare name link");
+    console.error('❌ link-name prepare error:', error);
+    return handleError(error, res, 'Failed to prepare name link');
   }
 });
 
@@ -1124,7 +1038,7 @@ app.post("/api/alias/link-name", async (req, res) => {
 // ALIAS: EXECUTE LINK — fires the Safe multicall after PIN verification
 // Receives prepared data from /api/alias/link-name + userPrivateKey from PIN
 // ================================================================
-app.post("/api/alias/execute-link", async (req, res) => {
+app.post('/api/alias/execute-link', async (req, res) => {
   try {
     const {
       safeAddress,
@@ -1139,29 +1053,22 @@ app.post("/api/alias/execute-link", async (req, res) => {
 
     // ── Input validation ────────────────────────────────────────────────────
     if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: "Invalid safe address" });
-    if (!userPrivateKey)
-      return res.status(400).json({ message: "Private key required" });
-    if (
-      !pureName ||
-      !weldedName ||
-      !walletToLink ||
-      !registryAddress ||
-      !signature
-    )
-      return res.status(400).json({ message: "Missing prepared link data" });
+      return res.status(400).json({ message: 'Invalid safe address' });
+    if (!userPrivateKey) return res.status(400).json({ message: 'Private key required' });
+    if (!pureName || !weldedName || !walletToLink || !registryAddress || !signature)
+      return res.status(400).json({ message: 'Missing prepared link data' });
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const nameBytes = ethers.toUtf8Bytes(pureName);
     const walletAddress = ethers.getAddress(walletToLink);
 
-    const { sponsorLinkNameBase } = require("./services/relayService");
+    const { sponsorLinkNameBase } = require('./services/relayService');
 
     console.log(`🔗 Executing link: "${weldedName}" → ${walletAddress}`);
     console.log(
-      `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || "0"}`,
+      `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || '0'}`
     );
 
     const result = await sponsorLinkNameBase(
@@ -1170,20 +1077,18 @@ app.post("/api/alias/execute-link", async (req, res) => {
       registryAddress,
       nameBytes,
       walletAddress,
-      BigInt(feeWei || "0"),
-      signature,
+      BigInt(feeWei || '0'),
+      signature
     );
 
     if (!result || !result.txHash)
-      return res
-        .status(400)
-        .json({ message: "Link transaction failed to broadcast" });
+      return res.status(400).json({ message: 'Link transaction failed to broadcast' });
 
     const taskStatus = await waitForTxReceipt(result.txHash);
 
     if (!taskStatus.success)
       return res.status(400).json({
-        message: taskStatus.reason || "Link transaction reverted on-chain",
+        message: taskStatus.reason || 'Link transaction reverted on-chain',
       });
 
     // ── Save to DB ──────────────────────────────────────────────────────────
@@ -1197,9 +1102,7 @@ app.post("/api/alias/execute-link", async (req, res) => {
     if (!user.nameAlias) user.nameAlias = weldedName;
     await user.save();
 
-    console.log(
-      `✅ "${weldedName}" linked to ${walletAddress} (tx: ${result.txHash})`,
-    );
+    console.log(`✅ "${weldedName}" linked to ${walletAddress} (tx: ${result.txHash})`);
 
     return res.json({
       success: true,
@@ -1207,8 +1110,8 @@ app.post("/api/alias/execute-link", async (req, res) => {
       alias: aliasEntry,
     });
   } catch (error) {
-    console.error("❌ execute-link error:", error);
-    return handleError(error, res, "Failed to execute name link");
+    console.error('❌ execute-link error:', error);
+    return handleError(error, res, 'Failed to execute name link');
   }
 });
 
@@ -1216,46 +1119,37 @@ app.post("/api/alias/execute-link", async (req, res) => {
 // ALIAS: UNLINK NAME — single alias by name+wallet pair
 // Receives: safeAddress, weldedName, userPrivateKey
 // ================================================================
-app.post("/api/alias/unlink-name", async (req, res) => {
+app.post('/api/alias/unlink-name', async (req, res) => {
   try {
-    const { safeAddress, weldedName, registryAddress, userPrivateKey } =
-      req.body;
+    const { safeAddress, weldedName, registryAddress, userPrivateKey } = req.body;
 
     if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: "Invalid safe address" });
-    if (!weldedName || typeof weldedName !== "string")
-      return res.status(400).json({ message: "weldedName is required" });
+      return res.status(400).json({ message: 'Invalid safe address' });
+    if (!weldedName || typeof weldedName !== 'string')
+      return res.status(400).json({ message: 'weldedName is required' });
     if (!userPrivateKey)
-      return res
-        .status(400)
-        .json({ message: "Private key required (unlock with PIN first)" });
+      return res.status(400).json({ message: 'Private key required (unlock with PIN first)' });
 
     const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const aliasIndex = (user.nameAliases || []).findIndex(
-      (a) => a.name.toLowerCase() === weldedName.toLowerCase(),
+      (a) => a.name.toLowerCase() === weldedName.toLowerCase()
     );
     if (aliasIndex === -1)
-      return res
-        .status(404)
-        .json({ message: "This name is not in your linked names list." });
+      return res.status(404).json({ message: 'This name is not in your linked names list.' });
 
     const aliasEntry = user.nameAliases[aliasIndex];
     const targetRegistryAddress =
-      registryAddress ||
-      aliasEntry.registryAddress ||
-      process.env.REGISTRY_CONTRACT_ADDRESS;
+      registryAddress || aliasEntry.registryAddress || process.env.REGISTRY_CONTRACT_ADDRESS;
 
     if (!targetRegistryAddress || !ethers.isAddress(targetRegistryAddress))
-      return res
-        .status(400)
-        .json({ message: "Could not resolve registry address for this alias" });
+      return res.status(400).json({ message: 'Could not resolve registry address for this alias' });
 
     // Strip namespace to get the pure name — registry resolves namespace internally
     // e.g. "charles@salva" → "charles"
-    const pureName = weldedName.includes("@")
-      ? weldedName.substring(0, weldedName.indexOf("@"))
+    const pureName = weldedName.includes('@')
+      ? weldedName.substring(0, weldedName.indexOf('@'))
       : weldedName;
 
     // Convert pure name to UTF-8 bytes — contract takes `bytes calldata _name`
@@ -1264,19 +1158,15 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     console.log(`🔓 Unlink: pureName="${pureName}" nameBytes=${nameBytesHex}`);
 
     // ABI encode the unlink call
-    const REGISTRY_ABI = [
-      "function unlink(bytes calldata _name) external returns (bool)",
-    ];
+    const REGISTRY_ABI = ['function unlink(bytes calldata _name) external returns (bool)'];
     const registryIface = new ethers.Interface(REGISTRY_ABI);
-    const unlinkCalldata = registryIface.encodeFunctionData("unlink", [
-      nameBytesHex,
-    ]);
+    const unlinkCalldata = registryIface.encodeFunctionData('unlink', [nameBytesHex]);
 
     // Execute via the user's Safe — Safe is msg.sender on the registry
     // Backend wallet pays gas. No fee charged to the user.
-    const Safe = require("@safe-global/protocol-kit").default;
+    const Safe = require('@safe-global/protocol-kit').default;
     const rpcUrl =
-      process.env.NODE_ENV === "production"
+      process.env.NODE_ENV === 'production'
         ? process.env.BASE_MAINNET_RPC_URL
         : process.env.BASE_SEPOLIA_RPC_URL;
 
@@ -1291,7 +1181,7 @@ app.post("/api/alias/unlink-name", async (req, res) => {
         {
           to: ethers.getAddress(targetRegistryAddress),
           data: unlinkCalldata,
-          value: "0",
+          value: '0',
           operation: 0, // regular call — msg.sender = Safe
         },
       ],
@@ -1300,29 +1190,29 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     const signedTx = await protocolKit.signTransaction(safeTransaction);
 
     const SAFE_ABI = [
-      "function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)",
+      'function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)',
     ];
     const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
 
     const tx = await safeContract.execTransaction(
       signedTx.data.to,
-      BigInt(signedTx.data.value || "0"),
+      BigInt(signedTx.data.value || '0'),
       signedTx.data.data,
       Number(signedTx.data.operation || 0),
-      BigInt(signedTx.data.safeTxGas || "0"),
-      BigInt(signedTx.data.baseGas || "0"),
-      BigInt(signedTx.data.gasPrice || "0"),
+      BigInt(signedTx.data.safeTxGas || '0'),
+      BigInt(signedTx.data.baseGas || '0'),
+      BigInt(signedTx.data.gasPrice || '0'),
       signedTx.data.gasToken || ethers.ZeroAddress,
       signedTx.data.refundReceiver || ethers.ZeroAddress,
       signedTx.encodedSignatures(),
-      { gasLimit: 300_000 },
+      { gasLimit: 300_000 }
     );
 
     console.log(`⏳ Unlink TX submitted: ${tx.hash}`);
     const receipt = await tx.wait();
 
     if (!receipt || receipt.status === 0)
-      return res.status(400).json({ message: "On-chain unlink failed." });
+      return res.status(400).json({ message: 'On-chain unlink failed.' });
 
     // Remove from DB
     user.nameAliases.splice(aliasIndex, 1);
@@ -1331,39 +1221,35 @@ app.post("/api/alias/unlink-name", async (req, res) => {
     }
     await user.save();
 
-    console.log(
-      `✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash})`,
-    );
+    console.log(`✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash})`);
     res.json({ success: true, txHash: tx.hash, removedAlias: weldedName });
   } catch (error) {
-    console.error("❌ unlink-name error:", error);
-    return handleError(error, res, "Failed to unlink name");
+    console.error('❌ unlink-name error:', error);
+    return handleError(error, res, 'Failed to unlink name');
   }
 });
 
-const buyNgnsRoutes = require("./routes/buyNgns");
-app.use("/api/buy-ngns", buyNgnsRoutes);
+const buyNgnsRoutes = require('./routes/buyNgns');
+app.use('/api/buy-ngns', buyNgnsRoutes);
 
-const poolRoutes = require("./routes/pool");
-app.use("/api/pool", poolRoutes);
+const poolRoutes = require('./routes/pool');
+app.use('/api/pool', poolRoutes);
 
-app.use("/api/sync-incoming", require("./routes/syncIncoming"));
+app.use('/api/sync-incoming', require('./routes/syncIncoming'));
 
 // ===============================================
 // CHECK NAME AVAILABILITY
 // ===============================================
-app.post("/api/alias/check-name", async (req, res) => {
+app.post('/api/alias/check-name', async (req, res) => {
   try {
     const { name, registryAddress } = req.body;
 
     // 1. Basic validation
-    if (!name || typeof name !== "string") {
-      return res.status(400).json({ message: "Name is required" });
+    if (!name || typeof name !== 'string') {
+      return res.status(400).json({ message: 'Name is required' });
     }
     if (!registryAddress || !ethers.isAddress(registryAddress)) {
-      return res
-        .status(400)
-        .json({ message: "A valid registry address is required" });
+      return res.status(400).json({ message: 'A valid registry address is required' });
     }
 
     const pureName = name.trim().toLowerCase();
@@ -1371,55 +1257,46 @@ app.post("/api/alias/check-name", async (req, res) => {
     // 2. Character rules: a-z, 2-9, one underscore max, no 0/1, min length 2
     if (!/^[a-z2-9_]{1,32}$/.test(pureName)) {
       return res.status(400).json({
-        message:
-          "Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.",
+        message: 'Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.',
       });
     }
     if ((pureName.match(/_/g) || []).length > 1) {
-      return res.status(400).json({ message: "Only one underscore allowed." });
+      return res.status(400).json({ message: 'Only one underscore allowed.' });
     }
-    if (pureName.startsWith("_") || pureName.endsWith("_")) {
-      return res
-        .status(400)
-        .json({ message: "Name cannot start or end with underscore." });
+    if (pureName.startsWith('_') || pureName.endsWith('_')) {
+      return res.status(400).json({ message: 'Name cannot start or end with underscore.' });
     }
     if (pureName.length < 2) {
-      return res
-        .status(400)
-        .json({ message: "Name must be at least 2 characters." });
+      return res.status(400).json({ message: 'Name must be at least 2 characters.' });
     }
 
     // 3. Reserved name check
-    const { isReservedName } = require("./models/ReservedNames");
+    const { isReservedName } = require('./models/ReservedNames');
     if (isReservedName(pureName)) {
       return res.json({
         available: false,
         reserved: true,
         welded: null,
-        message: "This is a reserved name.",
+        message: 'This is a reserved name.',
       });
     }
 
     // 4. Get Namespace from DB (Matches link-name logic)
-    const WalletRegistry = require("./models/WalletRegistry");
+    const WalletRegistry = require('./models/WalletRegistry');
     const registryDoc = await WalletRegistry.findOne({
       registryAddress: registryAddress.toLowerCase(),
       active: true,
     });
 
     if (!registryDoc) {
-      return res
-        .status(404)
-        .json({ message: "Selected wallet registry not found or inactive" });
+      return res.status(404).json({ message: 'Selected wallet registry not found or inactive' });
     }
 
     // Use nspace from DB. Note: If your DB stores it without the '@', weldName handles it.
-    const namespace = registryDoc.nspace || "";
+    const namespace = registryDoc.nspace || '';
     const welded = weldName(pureName, namespace);
 
-    console.log(
-      `🔍 Checking: pure='${pureName}' + ns='${namespace}' -> welded='${welded}'`,
-    );
+    console.log(`🔍 Checking: pure='${pureName}' + ns='${namespace}' -> welded='${welded}'`);
 
     // 5. On-chain availability check
     const available = await checkNameAvailability(welded, registryAddress);
@@ -1433,37 +1310,35 @@ app.post("/api/alias/check-name", async (req, res) => {
       registryAddress: registryDoc.registryAddress,
     });
   } catch (error) {
-    console.error("❌ check-name error:", error);
-    return handleError(error, res, "Failed to check name availability");
+    console.error('❌ check-name error:', error);
+    return handleError(error, res, 'Failed to check name availability');
   }
 });
 
 // ================================================================
 // ALIAS: NOTIFY ADMINS OF RESERVED NAME REQUEST
 // ================================================================
-app.post("/api/alias/notify-reserved", async (req, res) => {
+app.post('/api/alias/notify-reserved', async (req, res) => {
   try {
     const { name, requesterEmail } = req.body;
 
     if (!name || !requesterEmail) {
-      return res.status(400).json({ message: "Name and email are required" });
+      return res.status(400).json({ message: 'Name and email are required' });
     }
 
     // Validate email
     const sanitizedEmail = sanitizeEmail(requesterEmail);
 
     // Find all validators to notify
-    const validators = await User.find({ isValidator: true }).select(
-      "email username",
-    );
+    const validators = await User.find({ isValidator: true }).select('email username');
 
-    const { sendValidatorProposalEmail } = require("./services/emailService");
+    const { sendValidatorProposalEmail } = require('./services/emailService');
 
     for (const v of validators) {
       if (v.email) {
         try {
           await resend.emails.send({
-            from: "SALVA Admin <no-reply@salva-nexus.org>",
+            from: 'SALVA Admin <no-reply@salva-nexus.org>',
             to: v.email,
             subject: `[SALVA] Reserved Name Request: "${name}"`,
             html: `
@@ -1486,30 +1361,27 @@ app.post("/api/alias/notify-reserved", async (req, res) => {
 
     res.json({
       success: true,
-      message:
-        "Your request has been sent to our team. We will reach out to you shortly.",
+      message: 'Your request has been sent to our team. We will reach out to you shortly.',
     });
   } catch (error) {
-    return handleError(error, res, "Failed to send notification");
+    return handleError(error, res, 'Failed to send notification');
   }
 });
 
 // ===============================================
 // RESOLVE ACCOUNT NUMBER TO USERNAME
 // ===============================================
-app.post("/api/resolve-account-info", async (req, res) => {
+app.post('/api/resolve-account-info', async (req, res) => {
   try {
     const { accountNumberOrAddress } = req.body;
 
     if (!accountNumberOrAddress) {
-      return res
-        .status(400)
-        .json({ message: "Account number or address required" });
+      return res.status(400).json({ message: 'Account number or address required' });
     }
 
     let user;
 
-    if (accountNumberOrAddress.toLowerCase().startsWith("0x")) {
+    if (accountNumberOrAddress.toLowerCase().startsWith('0x')) {
       user = await User.findOne({
         safeAddress: normalizeAddress(accountNumberOrAddress),
       });
@@ -1521,7 +1393,7 @@ app.post("/api/resolve-account-info", async (req, res) => {
 
     if (!user) {
       return res.status(404).json({
-        message: "Account not found",
+        message: 'Account not found',
         found: false,
       });
     }
@@ -1533,19 +1405,19 @@ app.post("/api/resolve-account-info", async (req, res) => {
       safeAddress: user.safeAddress,
     });
   } catch (error) {
-    console.error("❌ Resolve account error:", error);
-    return handleError(error, res, "Failed to resolve account");
+    console.error('❌ Resolve account error:', error);
+    return handleError(error, res, 'Failed to resolve account');
   }
 });
 
 // ===============================================
 // BALANCE
 // ===============================================
-app.get("/api/balance/:address", async (req, res) => {
+app.get('/api/balance/:address', async (req, res) => {
   try {
     const { address } = req.params;
     if (!ethers.isAddress(address)) {
-      return res.status(400).json({ message: "Invalid address format" });
+      return res.status(400).json({ message: 'Invalid address format' });
     }
 
     // ── ADD THESE CHECKS ──────────────────────────────────────────────
@@ -1554,34 +1426,28 @@ app.get("/api/balance/:address", async (req, res) => {
       !process.env.USDT_CONTRACT_ADDRESS ||
       !process.env.USDC_CONTRACT_ADDRESS
     ) {
-      console.error("❌ Missing token contract addresses in .env");
-      return res
-        .status(200)
-        .json({ balance: "0.00", usdtBalance: "0.00", usdcBalance: "0.00" });
+      console.error('❌ Missing token contract addresses in .env');
+      return res.status(200).json({ balance: '0.00', usdtBalance: '0.00', usdcBalance: '0.00' });
     }
     // ──────────────────────────────────────────────────────────────────
 
-    const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+    const ERC20_ABI = ['function balanceOf(address) view returns (uint256)'];
 
-    const ngnsContract = new ethers.Contract(
-      process.env.NGN_TOKEN_ADDRESS,
-      ERC20_ABI,
-      provider,
-    );
+    const ngnsContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, ERC20_ABI, provider);
     const cNgnContract = new ethers.Contract(
       process.env.CNGN_CONTRACT_ADDRESS,
       ERC20_ABI,
-      provider,
+      provider
     );
     const usdtContract = new ethers.Contract(
       process.env.USDT_CONTRACT_ADDRESS,
       ERC20_ABI,
-      provider,
+      provider
     );
     const usdcContract = new ethers.Contract(
       process.env.USDC_CONTRACT_ADDRESS,
       ERC20_ABI,
-      provider,
+      provider
     );
 
     const [ngnsWei, cNgnWei, usdtWei, usdcWei] = await Promise.all([
@@ -1598,28 +1464,26 @@ app.get("/api/balance/:address", async (req, res) => {
       usdcBalance: ethers.formatUnits(usdcWei, 6),
     });
   } catch (error) {
-    console.error("❌ Balance Fetch Failed:", error.message);
+    console.error('❌ Balance Fetch Failed:', error.message);
     res.status(200).json({
-      ngnsBalance: "0.00",
-      cNgnBalance: "0.00",
-      usdtBalance: "0.00",
-      usdcBalance: "0.00",
+      ngnsBalance: '0.00',
+      cNgnBalance: '0.00',
+      usdtBalance: '0.00',
+      usdcBalance: '0.00',
     });
   }
 });
 
-app.get("/api/l1-balance/:address", async (req, res) => {
+app.get('/api/l1-balance/:address', async (req, res) => {
   const { address } = req.params;
 
-  if (!address || !address.startsWith("0x") || address.length !== 42) {
-    return res.status(400).json({ error: "Invalid address" });
+  if (!address || !address.startsWith('0x') || address.length !== 42) {
+    return res.status(400).json({ error: 'Invalid address' });
   }
 
-  const isProd = process.env.NODE_ENV === "production";
+  const isProd = process.env.NODE_ENV === 'production';
 
-  const rpcUrl = isProd
-    ? process.env.ETH_MAINNET_RPC_URL
-    : process.env.ETH_SEPOLIA_RPC_URL;
+  const rpcUrl = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
 
   const NGN_ADDRESS = isProd
     ? process.env.L1_NGN_TOKEN_ADDRESS
@@ -1635,64 +1499,55 @@ app.get("/api/l1-balance/:address", async (req, res) => {
     : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS;
 
   const L1_ERC20_ABI = [
-    "function balanceOf(address owner) view returns (uint256)",
-    "function decimals() view returns (uint8)",
+    'function balanceOf(address owner) view returns (uint256)',
+    'function decimals() view returns (uint8)',
   ];
 
   try {
     const l1Provider = new ethers.JsonRpcProvider(rpcUrl);
 
     const fetchTokenBalance = async (tokenAddress, fallbackDecimals = 18) => {
-      if (
-        !tokenAddress ||
-        tokenAddress.startsWith("0xYOUR") ||
-        tokenAddress.length !== 42
-      ) {
-        return "0";
+      if (!tokenAddress || tokenAddress.startsWith('0xYOUR') || tokenAddress.length !== 42) {
+        return '0';
       }
       try {
-        const contract = new ethers.Contract(
-          tokenAddress,
-          L1_ERC20_ABI,
-          l1Provider,
-        );
+        const contract = new ethers.Contract(tokenAddress, L1_ERC20_ABI, l1Provider);
         const [raw, decimals] = await Promise.all([
           contract.balanceOf(address),
           contract.decimals().catch(() => fallbackDecimals),
         ]);
         return ethers.formatUnits(raw, decimals); // ← return raw string, no rounding
       } catch {
-        return "0";
+        return '0';
       }
     };
 
-    const [ngnsBalance, cNgnBalance, usdtBalance, usdcBalance] =
-      await Promise.all([
-        fetchTokenBalance(NGN_ADDRESS, 18),
-        fetchTokenBalance(CNGN_ADDRESS, 18),
-        fetchTokenBalance(USDT_ADDRESS, 6),
-        fetchTokenBalance(USDC_ADDRESS, 6),
-      ]);
+    const [ngnsBalance, cNgnBalance, usdtBalance, usdcBalance] = await Promise.all([
+      fetchTokenBalance(NGN_ADDRESS, 18),
+      fetchTokenBalance(CNGN_ADDRESS, 18),
+      fetchTokenBalance(USDT_ADDRESS, 6),
+      fetchTokenBalance(USDC_ADDRESS, 6),
+    ]);
 
     return res.json({ ngnsBalance, cNgnBalance, usdtBalance, usdcBalance });
   } catch (err) {
-    console.error("L1 balance fetch error:", err);
+    console.error('L1 balance fetch error:', err);
     return res.status(500).json({
-      error: "Failed to fetch L1 balances",
-      ngnsBalance: "0.00",
-      cNgnBalance: "0.00",
-      usdtBalance: "0.00",
-      usdcBalance: "0.00",
+      error: 'Failed to fetch L1 balances',
+      ngnsBalance: '0.00',
+      cNgnBalance: '0.00',
+      usdtBalance: '0.00',
+      usdcBalance: '0.00',
     });
   }
 });
 
-app.get("/api/alias/list/:safeAddress", async (req, res) => {
+app.get('/api/alias/list/:safeAddress', async (req, res) => {
   try {
     const user = await User.findOne({
       safeAddress: req.params.safeAddress.toLowerCase(),
     });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Migrate legacy single nameAlias if nameAliases array is empty
     let aliases = user.nameAliases || [];
@@ -1701,22 +1556,22 @@ app.get("/api/alias/list/:safeAddress", async (req, res) => {
         {
           name: user.nameAlias,
           wallet: user.safeAddress,
-          registryAddress: process.env.REGISTRY_CONTRACT_ADDRESS || "",
+          registryAddress: process.env.REGISTRY_CONTRACT_ADDRESS || '',
         },
       ];
     }
 
     res.json({ aliases });
   } catch (error) {
-    return handleError(error, res, "Failed to get alias list");
+    return handleError(error, res, 'Failed to get alias list');
   }
 });
 
-app.get("/api/seller-info", (req, res) => {
+app.get('/api/seller-info', (req, res) => {
   res.json({
-    bankName: process.env.SELLER_BANK_NAME || "",
-    accountName: process.env.SELLER_ACCOUNT_NAME || "",
-    accountNumber: process.env.SELLER_ACCOUNT_NUMBER || "",
+    bankName: process.env.SELLER_BANK_NAME || '',
+    accountName: process.env.SELLER_ACCOUNT_NAME || '',
+    accountNumber: process.env.SELLER_ACCOUNT_NUMBER || '',
   });
 });
 
@@ -1725,46 +1580,42 @@ app.get("/api/seller-info", (req, res) => {
 // NODE_ENV=production → Ethereum Mainnet addresses
 // NODE_ENV=development → Ethereum Sepolia addresses
 // ===============================================
-app.get("/api/l1-config", (req, res) => {
-  const isProd = process.env.NODE_ENV === "production";
+app.get('/api/l1-config', (req, res) => {
+  const isProd = process.env.NODE_ENV === 'production';
   res.json({
     ngnsTokenAddress: isProd
-      ? process.env.L1_NGN_TOKEN_ADDRESS || ""
-      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS || "",
+      ? process.env.L1_NGN_TOKEN_ADDRESS || ''
+      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS || '',
     cngnContractAddress: isProd
-      ? process.env.L1_CNGN_CONTRACT_ADDRESS || ""
-      : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS || "",
+      ? process.env.L1_CNGN_CONTRACT_ADDRESS || ''
+      : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS || '',
     usdtContractAddress: isProd
-      ? process.env.L1_USDT_CONTRACT_ADDRESS || ""
-      : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS || "",
+      ? process.env.L1_USDT_CONTRACT_ADDRESS || ''
+      : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS || '',
     usdcContractAddress: isProd
-      ? process.env.L1_USDC_CONTRACT_ADDRESS || ""
-      : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS || "",
+      ? process.env.L1_USDC_CONTRACT_ADDRESS || ''
+      : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS || '',
     poolFactoryAddress: isProd
-      ? process.env.L1_POOL_FACTORY_ADDRESS || ""
-      : process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS || "",
+      ? process.env.L1_POOL_FACTORY_ADDRESS || ''
+      : process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS || '',
     treasuryAddress: isProd
-      ? process.env.L1_TREASURY_CONTRACT_ADDRESS || ""
-      : process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS || "",
-    rpcUrl: isProd
-      ? process.env.ETH_MAINNET_RPC_URL || ""
-      : process.env.ETH_SEPOLIA_RPC_URL || "",
+      ? process.env.L1_TREASURY_CONTRACT_ADDRESS || ''
+      : process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS || '',
+    rpcUrl: isProd ? process.env.ETH_MAINNET_RPC_URL || '' : process.env.ETH_SEPOLIA_RPC_URL || '',
     chainId: isProd ? 1 : 11155111,
-    explorerUrl: isProd
-      ? "https://etherscan.io"
-      : "https://sepolia.etherscan.io",
+    explorerUrl: isProd ? 'https://etherscan.io' : 'https://sepolia.etherscan.io',
   });
 });
 
 // ================================================================
 // ALIAS: GET status (kept for backward compat with existing dashboard code)
 // ================================================================
-app.get("/api/alias/status/:safeAddress", async (req, res) => {
+app.get('/api/alias/status/:safeAddress', async (req, res) => {
   try {
     const user = await User.findOne({
       safeAddress: req.params.safeAddress.toLowerCase(),
     });
-    if (!user) return res.status(404).json({ message: "User not found" });
+    if (!user) return res.status(404).json({ message: 'User not found' });
 
     const aliases = user.nameAliases || [];
     // Legacy compat: expose first alias as nameAlias
@@ -1776,24 +1627,22 @@ app.get("/api/alias/status/:safeAddress", async (req, res) => {
       hasName: aliases.length > 0 || !!user.nameAlias,
     });
   } catch (error) {
-    return handleError(error, res, "Failed to get alias status");
+    return handleError(error, res, 'Failed to get alias status');
   }
 });
 
-app.post("/api/resolve-recipient", async (req, res) => {
+app.post('/api/resolve-recipient', async (req, res) => {
   try {
     const { input, registryAddress } = req.body;
 
-    if (!input) return res.status(400).json({ message: "Input required" });
+    if (!input) return res.status(400).json({ message: 'Input required' });
 
-    if (input.trim().startsWith("0x")) {
-      return res
-        .status(400)
-        .json({ message: "Address inputs do not need resolution" });
+    if (input.trim().startsWith('0x')) {
+      return res.status(400).json({ message: 'Address inputs do not need resolution' });
     }
 
     if (!registryAddress) {
-      return res.status(400).json({ message: "Registry selection required" });
+      return res.status(400).json({ message: 'Registry selection required' });
     }
 
     const registryDoc = await WalletRegistry.findOne({
@@ -1801,9 +1650,7 @@ app.post("/api/resolve-recipient", async (req, res) => {
     });
 
     if (!registryDoc) {
-      return res
-        .status(404)
-        .json({ message: "Selected Registry not found in database" });
+      return res.status(404).json({ message: 'Selected Registry not found in database' });
     }
 
     const weldedInput = `${input.trim()}${registryDoc.nspace}`;
@@ -1816,9 +1663,7 @@ app.post("/api/resolve-recipient", async (req, res) => {
     try {
       resolvedAddress = await resolveToAddress(weldedInput, envRegistryAddress);
     } catch (err) {
-      return res
-        .status(404)
-        .json({ message: err.message || "Recipient not found" });
+      return res.status(404).json({ message: err.message || 'Recipient not found' });
     }
 
     const recipientUser = await User.findOne({
@@ -1830,24 +1675,24 @@ app.post("/api/resolve-recipient", async (req, res) => {
       displayName: recipientUser?.username || null,
     });
   } catch (error) {
-    console.error("❌ Resolve recipient error:", error);
-    return res.status(500).json({ message: "Failed to resolve recipient" });
+    console.error('❌ Resolve recipient error:', error);
+    return res.status(500).json({ message: 'Failed to resolve recipient' });
   }
 });
 
-app.post("/api/resolve-full-name", async (req, res) => {
+app.post('/api/resolve-full-name', async (req, res) => {
   try {
     const { fullName } = req.body;
 
-    if (!fullName || typeof fullName !== "string")
-      return res.status(400).json({ message: "fullName is required" });
+    if (!fullName || typeof fullName !== 'string')
+      return res.status(400).json({ message: 'fullName is required' });
 
     const trimmed = fullName.trim();
 
-    const parts = trimmed.split("@");
+    const parts = trimmed.split('@');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       return res.status(400).json({
-        message: "Invalid name format. Expected: name@wallet (e.g. charles@salva)",
+        message: 'Invalid name format. Expected: name@wallet (e.g. charles@salva)',
       });
     }
 
@@ -1858,7 +1703,7 @@ app.post("/api/resolve-full-name", async (req, res) => {
       resolvedAddress = await resolveToAddress(trimmed, envRegistryAddress);
     } catch (err) {
       return res.status(404).json({
-        message: err.message || "Name not found. Make sure the name is registered.",
+        message: err.message || 'Name not found. Make sure the name is registered.',
       });
     }
 
@@ -1872,8 +1717,8 @@ app.post("/api/resolve-full-name", async (req, res) => {
       displayName: recipientUser?.username || null,
     });
   } catch (error) {
-    console.error("❌ resolve-full-name error:", error);
-    return handleError(error, res, "Failed to resolve full name");
+    console.error('❌ resolve-full-name error:', error);
+    return handleError(error, res, 'Failed to resolve full name');
   }
 });
 
@@ -1881,7 +1726,7 @@ app.post("/api/resolve-full-name", async (req, res) => {
 // TRANSFER — supports NGN, USDT, USDC
 // coin param determines which token to send and which fee tier to use.
 // ===============================================
-app.post("/api/transfer", async (req, res) => {
+app.post('/api/transfer', async (req, res) => {
   try {
     const {
       userPrivateKey,
@@ -1890,7 +1735,7 @@ app.post("/api/transfer", async (req, res) => {
       amount,
       registryAddress,
       inputType,
-      coin = "NGN",
+      coin = 'NGN',
     } = req.body;
 
     validateAmount(amount);
@@ -1899,15 +1744,13 @@ app.post("/api/transfer", async (req, res) => {
 
     // Determine token contract address from env based on coin
     let tokenAddress;
-    if (coin === "USDT") tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
-    else if (coin === "USDC") tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
-    else if (coin === "CNGN") tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
+    if (coin === 'USDT') tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
+    else if (coin === 'USDC') tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
+    else if (coin === 'CNGN') tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
     else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
 
     if (!tokenAddress) {
-      return res
-        .status(400)
-        .json({ message: `Token address not configured for coin: ${coin}` });
+      return res.status(400).json({ message: `Token address not configured for coin: ${coin}` });
     }
 
     // ── 1. Resolve Recipient ─────────────────────────────────────────────────
@@ -1915,31 +1758,26 @@ app.post("/api/transfer", async (req, res) => {
     let finalToInput = toInput.trim();
 
     try {
-      if (!finalToInput.startsWith("0x")) {
-  if (inputType === "fullname") {
-    // Already a welded name like charles@salva — resolve directly, no welding
-    console.log(`🔗 Full name input (pre-welded): ${finalToInput}`);
-  } else {
-    if (!registryAddress) {
-      return res.status(400).json({
-        message: "Registry selection required for name resolution",
-      });
-    }
-    const registryDoc = await WalletRegistry.findOne({
-      registryAddress: registryAddress.toLowerCase(),
-    });
-    if (!registryDoc)
-      return res
-        .status(404)
-        .json({ message: "Selected Registry not found in database" });
-    finalToInput = weldName(finalToInput, registryDoc.nspace);
-    console.log(`🔗 Welded Recipient: ${finalToInput}`);
-  }
-}
-      recipientAddress = await resolveToAddress(
-        finalToInput,
-        envRegistryAddress,
-      );
+      if (!finalToInput.startsWith('0x')) {
+        if (inputType === 'fullname') {
+          // Already a welded name like charles@salva — resolve directly, no welding
+          console.log(`🔗 Full name input (pre-welded): ${finalToInput}`);
+        } else {
+          if (!registryAddress) {
+            return res.status(400).json({
+              message: 'Registry selection required for name resolution',
+            });
+          }
+          const registryDoc = await WalletRegistry.findOne({
+            registryAddress: registryAddress.toLowerCase(),
+          });
+          if (!registryDoc)
+            return res.status(404).json({ message: 'Selected Registry not found in database' });
+          finalToInput = weldName(finalToInput, registryDoc.nspace);
+          console.log(`🔗 Welded Recipient: ${finalToInput}`);
+        }
+      }
+      recipientAddress = await resolveToAddress(finalToInput, envRegistryAddress);
     } catch (error) {
       return res.status(404).json({ message: error.message });
     }
@@ -1949,12 +1787,8 @@ app.post("/api/transfer", async (req, res) => {
     const amountNum = parseFloat(amount);
 
     // Check balance of the selected token
-    const TOKEN_ABI = ["function balanceOf(address) view returns (uint256)"];
-    const tokenContract = new ethers.Contract(
-      tokenAddress,
-      TOKEN_ABI,
-      provider,
-    );
+    const TOKEN_ABI = ['function balanceOf(address) view returns (uint256)'];
+    const tokenContract = new ethers.Contract(tokenAddress, TOKEN_ABI, provider);
     const balanceWei = await tokenContract.balanceOf(safeAddress);
     const decimals = 6;
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, decimals));
@@ -1963,7 +1797,7 @@ app.post("/api/transfer", async (req, res) => {
     let actualFeeWei;
     let recipientReceives;
 
-    const feeHuman = coin === "NGN" || coin === "CNGN" ? feeNGN : feeUsd;
+    const feeHuman = coin === 'NGN' || coin === 'CNGN' ? feeNGN : feeUsd;
 
     if (feeHuman === 0) {
       actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
@@ -1976,16 +1810,11 @@ app.post("/api/transfer", async (req, res) => {
     } else if (balanceNum >= amountNum) {
       recipientReceives = amountNum - feeHuman;
       if (recipientReceives <= 0)
-        return res
-          .status(400)
-          .json({ message: "Amount too small to cover fee" });
-      actualAmountWei = ethers.parseUnits(
-        recipientReceives.toFixed(6),
-        decimals,
-      );
+        return res.status(400).json({ message: 'Amount too small to cover fee' });
+      actualAmountWei = ethers.parseUnits(recipientReceives.toFixed(6), decimals);
       actualFeeWei = feeWei;
     } else {
-      return res.status(400).json({ message: "Insufficient balance" });
+      return res.status(400).json({ message: 'Insufficient balance' });
     }
 
     // ── 3. Metadata ──────────────────────────────────────────────────────────
@@ -1999,9 +1828,9 @@ app.post("/api/transfer", async (req, res) => {
     // ── 4. Queue the transaction — processor picks it up via /api/queue/process ──
     await new TransactionQueue({
       walletAddress: safeAddress.toLowerCase(),
-      status: "PENDING",
+      status: 'PENDING',
       submittedOnchain: false,
-      type: "transfer",
+      type: 'transfer',
       payload: {
         safeAddress,
         userPrivateKey,
@@ -2013,25 +1842,22 @@ app.post("/api/transfer", async (req, res) => {
         amount,
         feeHuman,
         toInput: finalToInput,
-        senderDisplayIdentifier:
-          req.body.senderDisplayIdentifier || finalToInput,
+        senderDisplayIdentifier: req.body.senderDisplayIdentifier || finalToInput,
       },
     }).save();
 
     return res.json({
       success: true,
       queued: true,
-      message: "Transaction queued. It will be processed shortly.",
+      message: 'Transaction queued. It will be processed shortly.',
       feeNGN,
       feeUsd,
       recipientReceives,
       coin,
     });
   } catch (error) {
-    console.error("❌ Transfer failed:", error.message);
-    return res
-      .status(500)
-      .json({ message: error.message || "Transfer failed" });
+    console.error('❌ Transfer failed:', error.message);
+    return res.status(500).json({ message: error.message || 'Transfer failed' });
   }
 });
 
@@ -2057,12 +1883,12 @@ app.post("/api/transfer", async (req, res) => {
 // "successful" status — but removing the status filter from toAddress
 // ensures nothing is ever silently hidden.
 // ===============================================
-app.get("/api/transactions/:address", async (req, res) => {
+app.get('/api/transactions/:address', async (req, res) => {
   try {
     const address = req.params.address.toLowerCase();
 
     if (!ethers.isAddress(address)) {
-      return res.status(400).json({ message: "Invalid address format" });
+      return res.status(400).json({ message: 'Invalid address format' });
     }
 
     // Pull completed transactions
@@ -2075,37 +1901,37 @@ app.get("/api/transactions/:address", async (req, res) => {
     // Pull active queue entries — PENDING and SENDING show as pending in history
     const queueEntries = await TransactionQueue.find({
       walletAddress: address,
-      status: { $in: ["PENDING", "SENDING", "FAILED_ONCHAIN"] },
+      status: { $in: ['PENDING', 'SENDING', 'FAILED_ONCHAIN'] },
     }).sort({ createdAt: -1 });
 
     const pendingTxs = queueEntries.map((q) => ({
       _id: q._id,
       fromAddress: address,
       toAddress: q.payload?.recipientAddress || null,
-      amount: q.payload?.amount || "0",
-      coin: q.payload?.coin || "NGN",
-      status: q.status === "FAILED_ONCHAIN" ? "failed" : "pending",
-      displayType: q.status === "FAILED_ONCHAIN" ? "failed" : "pending",
-      displayPartner: q.payload?.toInput || q.payload?.recipientAddress || "—",
+      amount: q.payload?.amount || '0',
+      coin: q.payload?.coin || 'NGN',
+      status: q.status === 'FAILED_ONCHAIN' ? 'failed' : 'pending',
+      displayType: q.status === 'FAILED_ONCHAIN' ? 'failed' : 'pending',
+      displayPartner: q.payload?.toInput || q.payload?.recipientAddress || '—',
       date: q.createdAt,
       taskId: q.txHash || null,
       fee: null,
-      isPending: q.status !== "FAILED_ONCHAIN",
+      isPending: q.status !== 'FAILED_ONCHAIN',
       submittedOnchain: q.submittedOnchain || false,
       canCancel: false,
     }));
     const formatted = transactions.map((tx) => {
       const isFromMe = tx.fromAddress?.toLowerCase() === address;
       const isToMe = tx.toAddress?.toLowerCase() === address;
-      const isSuccessful = tx.status === "successful";
+      const isSuccessful = tx.status === 'successful';
 
       let displayType;
       if (isFromMe) {
-        displayType = isSuccessful ? "sent" : "failed";
+        displayType = isSuccessful ? 'sent' : 'failed';
       } else if (isToMe && isSuccessful) {
-        displayType = "receive";
+        displayType = 'receive';
       } else {
-        displayType = "hidden";
+        displayType = 'hidden';
       }
 
       // Display partner: prefer username, fall back to wallet address
@@ -2120,49 +1946,43 @@ app.get("/api/transactions/:address", async (req, res) => {
       };
     });
 
-    const visible = formatted.filter((tx) => tx.displayType !== "hidden");
+    const visible = formatted.filter((tx) => tx.displayType !== 'hidden');
 
     // Merge pending queue entries at the top, dedup by txHash if confirmed
-    const confirmedHashes = new Set(
-      visible.map((tx) => tx.taskId).filter(Boolean),
-    );
-    const filteredPending = pendingTxs.filter(
-      (p) => !p.taskId || !confirmedHashes.has(p.taskId),
-    );
+    const confirmedHashes = new Set(visible.map((tx) => tx.taskId).filter(Boolean));
+    const filteredPending = pendingTxs.filter((p) => !p.taskId || !confirmedHashes.has(p.taskId));
 
     res.json([...filteredPending, ...visible]);
   } catch (error) {
-    console.error("❌ History Fetch Error:", error);
-    return handleError(error, res, "Failed to fetch transactions");
+    console.error('❌ History Fetch Error:', error);
+    return handleError(error, res, 'Failed to fetch transactions');
   }
 });
 
 // ===============================================
 // PIN MANAGEMENT
 // ===============================================
-app.get("/api/user/pin-status/:email", async (req, res) => {
+app.get('/api/user/pin-status/:email', async (req, res) => {
   try {
     const email = sanitizeEmail(req.params.email);
     const user = await User.findOne({ email });
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     res.json({
       hasPin: !!user.transactionPin,
       pinSetupCompleted: user.pinSetupCompleted || false,
-      isLocked:
-        user.accountLockedUntil &&
-        new Date(user.accountLockedUntil) > new Date(),
+      isLocked: user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date(),
       lockedUntil: user.accountLockedUntil,
     });
   } catch (error) {
-    return handleError(error, res, "Failed to check PIN status");
+    return handleError(error, res, 'Failed to check PIN status');
   }
 });
 
-app.post("/api/user/set-pin", authLimiter, async (req, res) => {
+app.post('/api/user/set-pin', authLimiter, async (req, res) => {
   try {
     const { email, pin } = req.body;
 
@@ -2176,13 +1996,11 @@ app.post("/api/user/set-pin", authLimiter, async (req, res) => {
     }
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (user.transactionPin) {
-      return res
-        .status(400)
-        .json({ message: "PIN already set. Use reset-pin instead." });
+      return res.status(400).json({ message: 'PIN already set. Use reset-pin instead.' });
     }
 
     const hashedPin = hashPin(pin);
@@ -2194,14 +2012,14 @@ app.post("/api/user/set-pin", authLimiter, async (req, res) => {
     await user.save();
 
     console.log(`✅ PIN set for user: ${user.email || user.username}`);
-    res.json({ success: true, message: "Transaction PIN set successfully!" });
+    res.json({ success: true, message: 'Transaction PIN set successfully!' });
   } catch (error) {
-    console.error("❌ Set PIN error:", error);
-    return handleError(error, res, "Failed to set PIN");
+    console.error('❌ Set PIN error:', error);
+    return handleError(error, res, 'Failed to set PIN');
   }
 });
 
-app.post("/api/user/verify-pin", authLimiter, async (req, res) => {
+app.post('/api/user/verify-pin', authLimiter, async (req, res) => {
   try {
     const { email, pin } = req.body;
 
@@ -2215,27 +2033,22 @@ app.post("/api/user/verify-pin", authLimiter, async (req, res) => {
     }
 
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (!user.transactionPin) {
-      return res
-        .status(400)
-        .json({ message: "No PIN set. Please set PIN first." });
+      return res.status(400).json({ message: 'No PIN set. Please set PIN first.' });
     }
 
     const isValid = verifyPin(pin, user.transactionPin);
 
     if (!isValid) {
-      return res.status(401).json({ success: false, message: "Invalid PIN" });
+      return res.status(401).json({ success: false, message: 'Invalid PIN' });
     }
 
-    if (
-      user.accountLockedUntil &&
-      new Date(user.accountLockedUntil) > new Date()
-    ) {
+    if (user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date()) {
       const hoursLeft = Math.ceil(
-        (new Date(user.accountLockedUntil) - new Date()) / (1000 * 60 * 60),
+        (new Date(user.accountLockedUntil) - new Date()) / (1000 * 60 * 60)
       );
       return res.status(403).json({
         message: `Account locked for ${hoursLeft} more hours due to recent security changes.`,
@@ -2249,7 +2062,7 @@ app.post("/api/user/verify-pin", authLimiter, async (req, res) => {
     } catch (error) {
       return res.status(401).json({
         success: false,
-        message: "Invalid PIN or corrupted key",
+        message: 'Invalid PIN or corrupted key',
       });
     }
 
@@ -2258,15 +2071,15 @@ app.post("/api/user/verify-pin", authLimiter, async (req, res) => {
       privateKey: decryptedKey,
     });
   } catch (error) {
-    console.error("❌ Verify PIN error:", error);
+    console.error('❌ Verify PIN error:', error);
     return res.status(401).json({
       success: false,
-      message: "Invalid PIN or corrupted key",
+      message: 'Invalid PIN or corrupted key',
     });
   }
 });
 
-app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
+app.post('/api/user/reset-pin', authLimiter, async (req, res) => {
   try {
     const { email, oldPin, newPin } = req.body;
 
@@ -2277,7 +2090,7 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
-      return res.status(401).json({ message: "Please verify OTP first" });
+      return res.status(401).json({ message: 'Please verify OTP first' });
     }
 
     validatePin(oldPin);
@@ -2285,20 +2098,16 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
 
     const user = await User.findOne({ email: sanitizedEmail });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     if (!user.transactionPin) {
-      return res
-        .status(400)
-        .json({ message: "No PIN set. Please use set-pin instead." });
+      return res.status(400).json({ message: 'No PIN set. Please use set-pin instead.' });
     }
 
     const isOldPinValid = verifyPin(oldPin, user.transactionPin);
     if (!isOldPinValid) {
-      return res
-        .status(401)
-        .json({ message: "Invalid old PIN. Reset failed." });
+      return res.status(401).json({ message: 'Invalid old PIN. Reset failed.' });
     }
 
     let privateKey;
@@ -2306,7 +2115,7 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
       privateKey = decryptPrivateKey(user.ownerPrivateKey, oldPin);
     } catch (error) {
       return res.status(401).json({
-        message: "Failed to decrypt private key with old PIN.",
+        message: 'Failed to decrypt private key with old PIN.',
       });
     }
 
@@ -2323,32 +2132,25 @@ app.post("/api/user/reset-pin", authLimiter, async (req, res) => {
     await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
-      const accountNum =
-        (await getAccountNumberFromAddress(user.safeAddress)) ||
-        user.safeAddress;
-      await sendSecurityChangeEmail(
-        sanitizedEmail,
-        user.username,
-        "pin",
-        accountNum,
-      );
+      const accountNum = (await getAccountNumberFromAddress(user.safeAddress)) || user.safeAddress;
+      await sendSecurityChangeEmail(sanitizedEmail, user.username, 'pin', accountNum);
     } catch (emailError) {
-      console.error("❌ Security email error:", emailError.message);
+      console.error('❌ Security email error:', emailError.message);
     }
 
     console.log(`✅ PIN reset for user: ${sanitizedEmail}`);
     res.json({
       success: true,
-      message: "PIN reset successful. Account locked for 24 hours.",
+      message: 'PIN reset successful. Account locked for 24 hours.',
       lockedUntil: lockoutTime,
     });
   } catch (error) {
-    console.error("❌ Reset PIN error:", error);
-    return handleError(error, res, "Failed to reset PIN");
+    console.error('❌ Reset PIN error:', error);
+    return handleError(error, res, 'Failed to reset PIN');
   }
 });
 
-app.post("/api/user/update-email", authLimiter, async (req, res) => {
+app.post('/api/user/update-email', authLimiter, async (req, res) => {
   try {
     const { oldEmail, newEmail } = req.body;
 
@@ -2360,17 +2162,17 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
-      return res.status(401).json({ message: "Please verify OTP first" });
+      return res.status(401).json({ message: 'Please verify OTP first' });
     }
 
     const user = await User.findOne({ email: sanitizedOldEmail });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     const existingUser = await User.findOne({ email: sanitizedNewEmail });
     if (existingUser) {
-      return res.status(400).json({ message: "Email already in use" });
+      return res.status(400).json({ message: 'Email already in use' });
     }
 
     const lockoutTime = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -2382,38 +2184,27 @@ app.post("/api/user/update-email", authLimiter, async (req, res) => {
     await OtpStore.deleteOne({ email: sanitizedOldEmail });
 
     try {
-      const accountNum =
-        (await getAccountNumberFromAddress(user.safeAddress)) ||
-        user.safeAddress;
+      const accountNum = (await getAccountNumberFromAddress(user.safeAddress)) || user.safeAddress;
 
-      await sendSecurityChangeEmail(
-        sanitizedOldEmail,
-        user.username,
-        "email",
-        accountNum,
-      );
+      await sendSecurityChangeEmail(sanitizedOldEmail, user.username, 'email', accountNum);
 
-      await sendEmailChangeConfirmation(
-        sanitizedNewEmail,
-        user.username,
-        accountNum,
-      );
+      await sendEmailChangeConfirmation(sanitizedNewEmail, user.username, accountNum);
     } catch (emailError) {
-      console.error("❌ Email notification error:", emailError.message);
+      console.error('❌ Email notification error:', emailError.message);
     }
 
     res.json({
       success: true,
-      message: "Email updated. Account locked for 24 hours.",
+      message: 'Email updated. Account locked for 24 hours.',
       lockedUntil: lockoutTime,
     });
   } catch (error) {
-    console.error("❌ Update email error:", error);
-    return handleError(error, res, "Failed to update email");
+    console.error('❌ Update email error:', error);
+    return handleError(error, res, 'Failed to update email');
   }
 });
 
-app.post("/api/user/update-password", authLimiter, async (req, res) => {
+app.post('/api/user/update-password', authLimiter, async (req, res) => {
   try {
     const { email, newPassword } = req.body;
 
@@ -2424,19 +2215,18 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
-      return res.status(401).json({ message: "Please verify OTP first" });
+      return res.status(401).json({ message: 'Please verify OTP first' });
     }
 
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
       return res.status(400).json({
-        message:
-          "Password must be at least 8 characters with uppercase, lowercase, and number",
+        message: 'Password must be at least 8 characters with uppercase, lowercase, and number',
       });
     }
 
     const user = await User.findOne({ email: sanitizedEmail });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -2449,31 +2239,24 @@ app.post("/api/user/update-password", authLimiter, async (req, res) => {
     await OtpStore.deleteOne({ email: sanitizedEmail });
 
     try {
-      const accountNum =
-        (await getAccountNumberFromAddress(user.safeAddress)) ||
-        user.safeAddress;
-      await sendSecurityChangeEmail(
-        sanitizedEmail,
-        user.username,
-        "password",
-        accountNum,
-      );
+      const accountNum = (await getAccountNumberFromAddress(user.safeAddress)) || user.safeAddress;
+      await sendSecurityChangeEmail(sanitizedEmail, user.username, 'password', accountNum);
     } catch (emailError) {
-      console.error("❌ Security email error:", emailError.message);
+      console.error('❌ Security email error:', emailError.message);
     }
 
     res.json({
       success: true,
-      message: "Password updated. Account locked for 24 hours.",
+      message: 'Password updated. Account locked for 24 hours.',
       lockedUntil: lockoutTime,
     });
   } catch (error) {
-    console.error("❌ Update password error:", error);
-    return handleError(error, res, "Failed to update password");
+    console.error('❌ Update password error:', error);
+    return handleError(error, res, 'Failed to update password');
   }
 });
 
-app.post("/api/user/update-username", async (req, res) => {
+app.post('/api/user/update-username', async (req, res) => {
   try {
     const { email, newUsername } = req.body;
 
@@ -2481,55 +2264,55 @@ app.post("/api/user/update-username", async (req, res) => {
 
     if (!newUsername || !/^[a-zA-Z0-9_]{3,20}$/.test(newUsername)) {
       return res.status(400).json({
-        message: "Username must be 3-20 alphanumeric characters",
+        message: 'Username must be 3-20 alphanumeric characters',
       });
     }
 
     const user = await User.findOne({ email: sanitizedEmail });
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ message: 'User not found' });
     }
 
     const existingUser = await User.findOne({ username: newUsername });
     if (existingUser && existingUser._id.toString() !== user._id.toString()) {
-      return res.status(400).json({ message: "Username already taken" });
+      return res.status(400).json({ message: 'Username already taken' });
     }
 
     user.username = newUsername;
     await user.save();
 
-    res.json({ success: true, message: "Username updated successfully!" });
+    res.json({ success: true, message: 'Username updated successfully!' });
   } catch (error) {
-    console.error("❌ Update username error:", error);
-    return handleError(error, res, "Failed to update username");
+    console.error('❌ Update username error:', error);
+    return handleError(error, res, 'Failed to update username');
   }
 });
 
 // ===============================================
 // PROCESS QUEUE
 // ===============================================
-app.post("/api/queue/process/:address", async (req, res) => {
+app.post('/api/queue/process/:address', async (req, res) => {
   try {
     const address = req.params.address.toLowerCase();
 
     const inFlight = await TransactionQueue.findOne({
       walletAddress: address,
-      status: "SENDING",
+      status: 'SENDING',
     });
     if (inFlight) {
-      return res.json({ processing: false, reason: "Already in-flight" });
+      return res.json({ processing: false, reason: 'Already in-flight' });
     }
 
     const entry = await TransactionQueue.findOne({
       walletAddress: address,
-      status: "PENDING",
+      status: 'PENDING',
     }).sort({ createdAt: 1 });
 
     if (!entry) {
-      return res.json({ processing: false, reason: "No pending transactions" });
+      return res.json({ processing: false, reason: 'No pending transactions' });
     }
 
-    entry.status = "SENDING";
+    entry.status = 'SENDING';
     entry.updatedAt = new Date();
     await entry.save();
 
@@ -2566,13 +2349,11 @@ app.post("/api/queue/process/:address", async (req, res) => {
             recipientAddress,
             BigInt(actualAmountWei),
             BigInt(actualFeeWei),
-            tokenAddress,
+            tokenAddress
           );
         } catch (broadcastErr) {
-          console.warn(
-            `⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`,
-          );
-          entry.status = "PENDING";
+          console.warn(`⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
+          entry.status = 'PENDING';
           entry.errorMessage = broadcastErr.message;
           entry.updatedAt = new Date();
           await entry.save();
@@ -2580,8 +2361,8 @@ app.post("/api/queue/process/:address", async (req, res) => {
         }
 
         if (!result || !result.txHash) {
-          entry.status = "PENDING";
-          entry.errorMessage = "No txHash returned from broadcast";
+          entry.status = 'PENDING';
+          entry.errorMessage = 'No txHash returned from broadcast';
           entry.updatedAt = new Date();
           await entry.save();
           return;
@@ -2606,9 +2387,9 @@ app.post("/api/queue/process/:address", async (req, res) => {
           amount,
           fee: feeHuman > 0 ? String(feeHuman) : null,
           coin,
-          status: taskStatus.success ? "successful" : "failed",
+          status: taskStatus.success ? 'successful' : 'failed',
           taskId: result.txHash,
-          type: "transfer",
+          type: 'transfer',
           date: new Date(),
         }).save();
 
@@ -2623,8 +2404,8 @@ app.post("/api/queue/process/:address", async (req, res) => {
                 senderUser.username,
                 toInput,
                 amount,
-                "successful",
-                coin,
+                'successful',
+                coin
               );
             } catch {}
           }
@@ -2635,68 +2416,59 @@ app.post("/api/queue/process/:address", async (req, res) => {
                 recipientUser.username,
                 safeAddress,
                 amount,
-                coin,
+                coin
               );
             } catch {}
           }
         } else {
-          entry.status = "FAILED_ONCHAIN";
-          entry.errorMessage =
-            taskStatus.reason || "Transaction reverted on-chain";
+          entry.status = 'FAILED_ONCHAIN';
+          entry.errorMessage = taskStatus.reason || 'Transaction reverted on-chain';
           entry.updatedAt = new Date();
           await entry.save();
-          console.error(
-            `❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`,
-          );
+          console.error(`❌ On-chain failure for ${safeAddress}: ${taskStatus.reason}`);
         }
       } catch (err) {
-        console.error("❌ Queue processor crashed:", err.message);
+        console.error('❌ Queue processor crashed:', err.message);
         try {
           const freshEntry = await TransactionQueue.findById(entry._id);
           if (!freshEntry) return;
-          freshEntry.status = "PENDING";
+          freshEntry.status = 'PENDING';
           freshEntry.errorMessage = `Processor error: ${err.message}`;
           freshEntry.updatedAt = new Date();
           await freshEntry.save();
         } catch (saveErr) {
-          console.error("❌ Could not save after crash:", saveErr.message);
+          console.error('❌ Could not save after crash:', saveErr.message);
         }
       }
     });
   } catch (error) {
-    return handleError(error, res, "Failed to process queue");
+    return handleError(error, res, 'Failed to process queue');
   }
 });
 
 // ===============================================
 // STATS
 // ===============================================
-app.get("/api/stats", async (req, res) => {
+app.get('/api/stats', async (req, res) => {
   try {
     await connectDB();
     const citizenCount = await User.countDocuments();
-    let totalSupply = "0";
+    let totalSupply = '0';
 
     try {
-      const TOKEN_ABI = ["function totalSupply() view returns (uint256)"];
-      const tokenContract = new ethers.Contract(
-        process.env.NGN_TOKEN_ADDRESS,
-        TOKEN_ABI,
-        provider,
-      );
-      const supplyWei = await retryRPCCall(
-        async () => await tokenContract.totalSupply(),
-      );
+      const TOKEN_ABI = ['function totalSupply() view returns (uint256)'];
+      const tokenContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
+      const supplyWei = await retryRPCCall(async () => await tokenContract.totalSupply());
       totalSupply = ethers.formatUnits(supplyWei, 6);
     } catch (rpcError) {
-      console.error("Failed to fetch total supply:", rpcError.message);
-      totalSupply = "0";
+      console.error('Failed to fetch total supply:', rpcError.message);
+      totalSupply = '0';
     }
 
     res.json({ userCount: citizenCount.toString(), totalMinted: totalSupply });
   } catch (error) {
-    console.error("Stats fetch error:", error);
-    res.status(200).json({ userCount: "0", totalMinted: "0" });
+    console.error('Stats fetch error:', error);
+    res.status(200).json({ userCount: '0', totalMinted: '0' });
   }
 });
 
@@ -2704,13 +2476,13 @@ app.get("/api/stats", async (req, res) => {
 // ERROR HANDLER
 // ===============================================
 app.use((err, req, res, next) => {
-  console.error("Final Catch-All Error:", err.stack);
+  console.error('Final Catch-All Error:', err.stack);
 
-  if (process.env.NODE_ENV === "production") {
-    res.status(500).json({ message: "Internal Server Error" });
+  if (process.env.NODE_ENV === 'production') {
+    res.status(500).json({ message: 'Internal Server Error' });
   } else {
     res.status(500).json({
-      message: "Internal Server Error",
+      message: 'Internal Server Error',
       error: err.message,
       stack: err.stack,
     });
@@ -2722,7 +2494,7 @@ app.use((err, req, res, next) => {
 // ===============================================
 const PORT = process.env.PORT || 3001;
 
-app.listen(PORT, "0.0.0.0", () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SALVA BACKEND ACTIVE ON PORT ${PORT}`);
   console.log(`🔒 Security features enabled:`);
   console.log(`   ✅ MongoDB injection protection`);
@@ -2741,12 +2513,12 @@ app.listen(PORT, "0.0.0.0", () => {
 // KEEP-ALIVE
 // ===============================================
 const INTERVAL = 10 * 60 * 1000;
-const URL = "https://salva-web.vercel.app/api/stats";
+const URL = 'https://salva-web.vercel.app/api/stats';
 
 function reloadWebsite() {
   fetch(URL)
-    .then(() => console.log("⚓ Keep-Alive: Side-ping successful"))
-    .catch((err) => console.error("⚓ Keep-Alive Error:", err.message));
+    .then(() => console.log('⚓ Keep-Alive: Side-ping successful'))
+    .catch((err) => console.error('⚓ Keep-Alive Error:', err.message));
 }
 
 setInterval(reloadWebsite, INTERVAL);

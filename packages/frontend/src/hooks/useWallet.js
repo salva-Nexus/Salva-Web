@@ -12,35 +12,32 @@
 //   • tx.wait() with configurable timeout so swaps never hang forever
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { ethers } from "ethers";
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { ethers } from 'ethers';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const TARGET_CHAIN_ID =
-  process.env.NODE_ENV === "production" ? 1 : 11155111; // Mainnet : Sepolia
+const TARGET_CHAIN_ID = process.env.NODE_ENV === 'production' ? 1 : 11155111; // Mainnet : Sepolia
 
 const CHAIN_PARAMS = {
   1: {
-    chainId: "0x1",
-    chainName: "Ethereum Mainnet",
-    nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: ["https://cloudflare-eth.com"],
-    blockExplorerUrls: ["https://etherscan.io"],
+    chainId: '0x1',
+    chainName: 'Ethereum Mainnet',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: ['https://cloudflare-eth.com'],
+    blockExplorerUrls: ['https://etherscan.io'],
   },
   11155111: {
-    chainId: "0xaa36a7",
-    chainName: "Sepolia Testnet",
-    nativeCurrency: { name: "Sepolia Ether", symbol: "ETH", decimals: 18 },
-    rpcUrls: ["https://rpc.sepolia.org"],
-    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+    chainId: '0xaa36a7',
+    chainName: 'Sepolia Testnet',
+    nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: ['https://rpc.sepolia.org'],
+    blockExplorerUrls: ['https://sepolia.etherscan.io'],
   },
 };
 
 // ── Mobile detection ──────────────────────────────────────────────────────────
 export function isMobile() {
-  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(
-    navigator.userAgent,
-  );
+  return /Android|iPhone|iPad|iPod|Opera Mini|IEMobile|WPDesktop/i.test(navigator.userAgent);
 }
 
 // ── Detect what wallet type is injected ───────────────────────────────────────
@@ -48,10 +45,10 @@ export function detectInjectedWallet() {
   const eth = window.ethereum;
   if (!eth) return null;
 
-  if (eth.isCoinbaseWallet) return "coinbase";
-  if (eth.isBraveWallet) return "brave";
-  if (eth.isMetaMask) return "metamask";
-  return "unknown";
+  if (eth.isCoinbaseWallet) return 'coinbase';
+  if (eth.isBraveWallet) return 'brave';
+  if (eth.isMetaMask) return 'metamask';
+  return 'unknown';
 }
 
 // ── Build a MetaMask Mobile deep link ─────────────────────────────────────────
@@ -65,10 +62,7 @@ export async function waitWithTimeout(tx, confirmations = 1, timeoutMs = 90_000)
   return Promise.race([
     tx.wait(confirmations),
     new Promise((_, reject) =>
-      setTimeout(
-        () => reject(new Error("Transaction confirmation timed out after 90s")),
-        timeoutMs,
-      ),
+      setTimeout(() => reject(new Error('Transaction confirmation timed out after 90s')), timeoutMs)
     ),
   ]);
 }
@@ -77,7 +71,7 @@ export async function waitWithTimeout(tx, confirmations = 1, timeoutMs = 90_000)
 export function useWallet() {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
-  const [status, setStatus] = useState("idle"); // idle | connecting | connected | error | no_wallet
+  const [status, setStatus] = useState('idle'); // idle | connecting | connected | error | no_wallet
   const [error, setError] = useState(null);
   const [walletType, setWalletType] = useState(null);
 
@@ -94,7 +88,7 @@ export function useWallet() {
   // ── Get or create signer (never re-prompts if already connected) ──────────
   const getSigner = useCallback(async () => {
     if (signerRef.current) return signerRef.current;
-    if (!window.ethereum) throw new Error("No wallet found");
+    if (!window.ethereum) throw new Error('No wallet found');
 
     if (!providerRef.current) {
       providerRef.current = new ethers.BrowserProvider(window.ethereum);
@@ -112,28 +106,28 @@ export function useWallet() {
 
     // Mobile with no injected wallet → deep link to MetaMask Mobile
     if (isMobile() && !detected) {
-      setStatus("no_wallet");
+      setStatus('no_wallet');
       return;
     }
 
     // Desktop with no wallet → show install prompt
     if (!detected) {
-      setStatus("no_wallet");
+      setStatus('no_wallet');
       return;
     }
 
-    setStatus("connecting");
+    setStatus('connecting');
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
       providerRef.current = provider;
 
       // eth_requestAccounts — MetaMask shows popup ONCE here
       const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
+        method: 'eth_requestAccounts',
       });
 
       if (!accounts || accounts.length === 0) {
-        throw new Error("No accounts returned from wallet");
+        throw new Error('No accounts returned from wallet');
       }
 
       const address = ethers.getAddress(accounts[0]);
@@ -142,18 +136,18 @@ export function useWallet() {
       setAccount(address);
       setChainId(Number(network.chainId));
       setWalletType(detected);
-      setStatus("connected");
+      setStatus('connected');
 
       // Eagerly get signer so it's cached before first tx
       signerRef.current = await provider.getSigner();
     } catch (err) {
       bustCache();
       if (err.code === 4001) {
-        setError("Connection rejected by user.");
+        setError('Connection rejected by user.');
       } else {
-        setError(err.message || "Failed to connect wallet");
+        setError(err.message || 'Failed to connect wallet');
       }
-      setStatus("error");
+      setStatus('error');
     }
   }, [bustCache]);
 
@@ -163,14 +157,14 @@ export function useWallet() {
     const params = CHAIN_PARAMS[TARGET_CHAIN_ID];
     try {
       await window.ethereum.request({
-        method: "wallet_switchEthereumChain",
+        method: 'wallet_switchEthereumChain',
         params: [{ chainId: params.chainId }],
       });
     } catch (err) {
       // Chain not added yet (error 4902) → add it
       if (err.code === 4902) {
         await window.ethereum.request({
-          method: "wallet_addEthereumChain",
+          method: 'wallet_addEthereumChain',
           params: [params],
         });
       } else {
@@ -188,7 +182,7 @@ export function useWallet() {
       bustCache();
       if (accounts.length === 0) {
         setAccount(null);
-        setStatus("idle");
+        setStatus('idle');
       } else {
         const address = ethers.getAddress(accounts[0]);
         setAccount(address);
@@ -206,12 +200,12 @@ export function useWallet() {
       }
     };
 
-    eth.on("accountsChanged", onAccountsChanged);
-    eth.on("chainChanged", onChainChanged);
+    eth.on('accountsChanged', onAccountsChanged);
+    eth.on('chainChanged', onChainChanged);
 
     // Check if already connected (e.g. page refresh)
     eth
-      .request({ method: "eth_accounts" })
+      .request({ method: 'eth_accounts' })
       .then((accounts) => {
         if (accounts && accounts.length > 0) {
           const address = ethers.getAddress(accounts[0]);
@@ -220,7 +214,7 @@ export function useWallet() {
             setAccount(address);
             setChainId(Number(net.chainId));
             setWalletType(detectInjectedWallet());
-            setStatus("connected");
+            setStatus('connected');
             providerRef.current.getSigner().then((s) => {
               signerRef.current = s;
             });
@@ -230,12 +224,12 @@ export function useWallet() {
       .catch(() => {});
 
     return () => {
-      eth.removeListener("accountsChanged", onAccountsChanged);
-      eth.removeListener("chainChanged", onChainChanged);
+      eth.removeListener('accountsChanged', onAccountsChanged);
+      eth.removeListener('chainChanged', onChainChanged);
     };
   }, [bustCache]);
 
-  const isConnected = status === "connected" && !!account;
+  const isConnected = status === 'connected' && !!account;
   const wrongChain = isConnected && chainId !== TARGET_CHAIN_ID;
 
   return {

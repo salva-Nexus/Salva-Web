@@ -1,13 +1,13 @@
 // Salva-Digital-Tech/packages/frontend/src/components/SalvaNGNsChat.jsx
-import React, { useState, useEffect, useRef, useCallback, memo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { SALVA_API_URL } from "../config";
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SALVA_API_URL } from '../config';
 
 const fmtInput = (raw) => {
-  const d = raw.replace(/[^0-9.]/g, "");
-  const p = d.split(".");
-  p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return p.length > 1 ? p[0] + "." + p[1] : p[0];
+  const d = raw.replace(/[^0-9.]/g, '');
+  const p = d.split('.');
+  p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return p.length > 1 ? p[0] + '.' + p[1] : p[0];
 };
 
 function calcFee(amt, feePercent = 0.5) {
@@ -21,12 +21,12 @@ function RichText({ text }) {
     <span>
       {parts.map((p, i) =>
         i % 2 === 1 ? (
-          <strong key={i} style={{ color: "#D4AF37" }}>
+          <strong key={i} style={{ color: '#D4AF37' }}>
             {p}
           </strong>
         ) : (
           <span key={i}>{p}</span>
-        ),
+        )
       )}
     </span>
   );
@@ -43,179 +43,173 @@ const CopyBtn = ({ value, label }) => {
     <button
       onClick={copy}
       style={{
-        padding: "3px 9px",
-        borderRadius: "6px",
-        background: copied ? "rgba(34,197,94,0.2)" : "rgba(212,175,55,0.12)",
-        border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : "rgba(212,175,55,0.3)"}`,
-        color: copied ? "#22c55e" : "#D4AF37",
-        fontSize: "9px",
-        fontWeight: "700",
-        cursor: "pointer",
-        textTransform: "uppercase",
-        letterSpacing: "0.06em",
-        transition: "all 0.2s",
+        padding: '3px 9px',
+        borderRadius: '6px',
+        background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(212,175,55,0.12)',
+        border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(212,175,55,0.3)'}`,
+        color: copied ? '#22c55e' : '#D4AF37',
+        fontSize: '9px',
+        fontWeight: '700',
+        cursor: 'pointer',
+        textTransform: 'uppercase',
+        letterSpacing: '0.06em',
+        transition: 'all 0.2s',
         flexShrink: 0,
       }}
     >
-      {copied ? "✓ Copied" : label || "Copy"}
+      {copied ? '✓ Copied' : label || 'Copy'}
     </button>
   );
 };
 
-const MessageInput = memo(
-  ({ onSend, onImage, disabled, placeholder = "Ask a question…" }) => {
-    const [text, setText] = useState("");
-    const ref = useRef(null);
-    const fileRef = useRef(null);
+const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a question…' }) => {
+  const [text, setText] = useState('');
+  const ref = useRef(null);
+  const fileRef = useRef(null);
 
-    const resize = () => {
-      if (!ref.current) return;
-      ref.current.style.height = "auto";
-      ref.current.style.height = Math.min(ref.current.scrollHeight, 100) + "px";
-    };
+  const resize = () => {
+    if (!ref.current) return;
+    ref.current.style.height = 'auto';
+    ref.current.style.height = Math.min(ref.current.scrollHeight, 100) + 'px';
+  };
 
-    const submit = () => {
-      const t = text.trim();
-      if (!t || disabled) return;
-      onSend(t);
-      setText("");
-      if (ref.current) {
-        ref.current.style.height = "auto";
-        ref.current.focus();
-      }
-    };
+  const submit = () => {
+    const t = text.trim();
+    if (!t || disabled) return;
+    onSend(t);
+    setText('');
+    if (ref.current) {
+      ref.current.style.height = 'auto';
+      ref.current.focus();
+    }
+  };
 
-    const handleFile = (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      if (file.size > 6 * 1024 * 1024) {
-        alert("Max 6MB");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onload = (ev) => onImage(ev.target.result);
-      reader.readAsDataURL(file);
-      e.target.value = "";
-    };
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) {
+      alert('Max 6MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => onImage(ev.target.result);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
-    return (
-      <div
-        style={{
-          padding: "10px 12px",
-          background: "#0d0d0e",
-          borderTop: "1px solid rgba(212,175,55,0.15)",
-          flexShrink: 0,
-        }}
-      >
-        <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={disabled}
-            style={{
-              flexShrink: 0,
-              width: "36px",
-              height: "36px",
-              borderRadius: "9px",
-              background: "rgba(212,175,55,0.12)",
-              border: "1px solid rgba(212,175,55,0.2)",
-              cursor: disabled ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-            title="Upload image"
+  return (
+    <div
+      style={{
+        padding: '10px 12px',
+        background: '#0d0d0e',
+        borderTop: '1px solid rgba(212,175,55,0.15)',
+        flexShrink: 0,
+      }}
+    >
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+        <button
+          onClick={() => fileRef.current?.click()}
+          disabled={disabled}
+          style={{
+            flexShrink: 0,
+            width: '36px',
+            height: '36px',
+            borderRadius: '9px',
+            background: 'rgba(212,175,55,0.12)',
+            border: '1px solid rgba(212,175,55,0.2)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+          title="Upload image"
+        >
+          <svg
+            width="14"
+            height="14"
+            fill="none"
+            stroke="#D4AF37"
+            strokeWidth="2"
+            viewBox="0 0 24 24"
           >
-            <svg
-              width="14"
-              height="14"
-              fill="none"
-              stroke="#D4AF37"
-              strokeWidth="2"
-              viewBox="0 0 24 24"
-            >
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <circle cx="8.5" cy="8.5" r="1.5" />
-              <path d="m21 15-5-5L5 21" />
-            </svg>
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            style={{ display: "none" }}
-            onChange={handleFile}
-          />
-          <textarea
-            ref={ref}
-            value={text}
-            onChange={(e) => {
-              setText(e.target.value);
-              resize();
-            }}
-            placeholder={placeholder}
-            disabled={disabled}
-            rows={1}
-            style={{
-              flex: 1,
-              padding: "9px 12px",
-              borderRadius: "12px",
-              border: "1px solid rgba(212,175,55,0.2)",
-              background: "#1a1a1b",
-              color: "#f5f0e8",
-              fontSize: "13px",
-              outline: "none",
-              resize: "none",
-              overflowY: "hidden",
-              lineHeight: "1.5",
-              fontFamily: "inherit",
-              minHeight: "38px",
-              maxHeight: "100px",
-              transition: "border-color 0.2s",
-            }}
-            onFocus={(e) =>
-              (e.target.style.borderColor = "rgba(212,175,55,0.6)")
-            }
-            onBlur={(e) =>
-              (e.target.style.borderColor = "rgba(212,175,55,0.2)")
-            }
-          />
-          <button
-            onClick={submit}
-            disabled={disabled || !text.trim()}
-            style={{
-              flexShrink: 0,
-              width: "36px",
-              height: "36px",
-              borderRadius: "10px",
-              background:
-                disabled || !text.trim()
-                  ? "rgba(212,175,55,0.2)"
-                  : "linear-gradient(135deg, #D4AF37, #b8941e)",
-              border: "none",
-              cursor: disabled || !text.trim() ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-            }}
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="m21 15-5-5L5 21" />
+          </svg>
+        </button>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleFile}
+        />
+        <textarea
+          ref={ref}
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            resize();
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+          rows={1}
+          style={{
+            flex: 1,
+            padding: '9px 12px',
+            borderRadius: '12px',
+            border: '1px solid rgba(212,175,55,0.2)',
+            background: '#1a1a1b',
+            color: '#f5f0e8',
+            fontSize: '13px',
+            outline: 'none',
+            resize: 'none',
+            overflowY: 'hidden',
+            lineHeight: '1.5',
+            fontFamily: 'inherit',
+            minHeight: '38px',
+            maxHeight: '100px',
+            transition: 'border-color 0.2s',
+          }}
+          onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.6)')}
+          onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.2)')}
+        />
+        <button
+          onClick={submit}
+          disabled={disabled || !text.trim()}
+          style={{
+            flexShrink: 0,
+            width: '36px',
+            height: '36px',
+            borderRadius: '10px',
+            background:
+              disabled || !text.trim()
+                ? 'rgba(212,175,55,0.2)'
+                : 'linear-gradient(135deg, #D4AF37, #b8941e)',
+            border: 'none',
+            cursor: disabled || !text.trim() ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
+          }}
+        >
+          <svg
+            width="14"
+            height="14"
+            fill={disabled || !text.trim() ? 'rgba(212,175,55,0.4)' : '#000'}
+            viewBox="0 0 24 24"
           >
-            <svg
-              width="14"
-              height="14"
-              fill={disabled || !text.trim() ? "rgba(212,175,55,0.4)" : "#000"}
-              viewBox="0 0 24 24"
-            >
-              <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-            </svg>
-          </button>
-        </div>
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+          </svg>
+        </button>
       </div>
-    );
-  },
-);
+    </div>
+  );
+});
 
 const Bubble = memo(({ msg }) => {
-  const isMe = msg.sender === "user";
+  const isMe = msg.sender === 'user';
 
   if (msg.isMinted) {
     return (
@@ -223,32 +217,31 @@ const Bubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: "8px 0",
-          padding: "14px 16px",
-          borderRadius: "16px",
-          background:
-            "linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))",
-          border: "1px solid rgba(34,197,94,0.4)",
-          textAlign: "center",
+          margin: '8px 0',
+          padding: '14px 16px',
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))',
+          border: '1px solid rgba(34,197,94,0.4)',
+          textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: "28px", marginBottom: "6px" }}>🎉</div>
+        <div style={{ fontSize: '28px', marginBottom: '6px' }}>🎉</div>
         <p
           style={{
-            color: "#22c55e",
-            fontWeight: "900",
-            fontSize: "13px",
-            margin: "0 0 4px",
+            color: '#22c55e',
+            fontWeight: '900',
+            fontSize: '13px',
+            margin: '0 0 4px',
           }}
         >
           NGNs Minted!
         </p>
         <p
           style={{
-            color: "rgba(255,255,255,0.6)",
-            fontSize: "11px",
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '11px',
             margin: 0,
-            whiteSpace: "pre-line",
+            whiteSpace: 'pre-line',
           }}
         >
           <RichText text={msg.text} />
@@ -263,32 +256,31 @@ const Bubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: "8px 0",
-          padding: "14px 16px",
-          borderRadius: "16px",
-          background:
-            "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))",
-          border: "1px solid rgba(239,68,68,0.35)",
-          textAlign: "center",
+          margin: '8px 0',
+          padding: '14px 16px',
+          borderRadius: '16px',
+          background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))',
+          border: '1px solid rgba(239,68,68,0.35)',
+          textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: "28px", marginBottom: "6px" }}>🔥</div>
+        <div style={{ fontSize: '28px', marginBottom: '6px' }}>🔥</div>
         <p
           style={{
-            color: "#ef4444",
-            fontWeight: "900",
-            fontSize: "13px",
-            margin: "0 0 4px",
+            color: '#ef4444',
+            fontWeight: '900',
+            fontSize: '13px',
+            margin: '0 0 4px',
           }}
         >
           Sell Request Submitted
         </p>
         <p
           style={{
-            color: "rgba(255,255,255,0.6)",
-            fontSize: "11px",
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '11px',
             margin: 0,
-            whiteSpace: "pre-line",
+            whiteSpace: 'pre-line',
           }}
         >
           <RichText text={msg.text} />
@@ -300,26 +292,26 @@ const Bubble = memo(({ msg }) => {
   return (
     <div
       style={{
-        display: "flex",
-        justifyContent: isMe ? "flex-end" : "flex-start",
-        alignItems: "flex-end",
-        gap: "6px",
+        display: 'flex',
+        justifyContent: isMe ? 'flex-end' : 'flex-start',
+        alignItems: 'flex-end',
+        gap: '6px',
       }}
     >
       {!isMe && (
         <div
           style={{
-            width: "26px",
-            height: "26px",
-            borderRadius: "8px",
+            width: '26px',
+            height: '26px',
+            borderRadius: '8px',
             flexShrink: 0,
-            background: "linear-gradient(135deg, #D4AF37, #b8941e)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "10px",
-            fontWeight: "900",
-            color: "#000",
+            background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '10px',
+            fontWeight: '900',
+            color: '#000',
           }}
         >
           ₦
@@ -327,13 +319,11 @@ const Bubble = memo(({ msg }) => {
       )}
       <div
         style={{
-          maxWidth: "78%",
-          padding: "10px 13px",
-          borderRadius: isMe ? "16px 16px 4px 16px" : "16px 16px 16px 4px",
-          background: isMe
-            ? "linear-gradient(135deg, #D4AF37, #b8941e)"
-            : "rgba(255,255,255,0.05)",
-          border: isMe ? "none" : "1px solid rgba(212,175,55,0.15)",
+          maxWidth: '78%',
+          padding: '10px 13px',
+          borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          background: isMe ? 'linear-gradient(135deg, #D4AF37, #b8941e)' : 'rgba(255,255,255,0.05)',
+          border: isMe ? 'none' : '1px solid rgba(212,175,55,0.15)',
         }}
       >
         {msg.imageUrl && (
@@ -341,24 +331,24 @@ const Bubble = memo(({ msg }) => {
             src={msg.imageUrl}
             alt="attachment"
             style={{
-              maxWidth: "100%",
-              maxHeight: "180px",
-              borderRadius: "10px",
-              marginBottom: msg.text ? "6px" : 0,
-              display: "block",
-              objectFit: "contain",
+              maxWidth: '100%',
+              maxHeight: '180px',
+              borderRadius: '10px',
+              marginBottom: msg.text ? '6px' : 0,
+              display: 'block',
+              objectFit: 'contain',
             }}
           />
         )}
         {msg.text && (
           <p
             style={{
-              fontSize: "12.5px",
-              color: isMe ? "#000" : "#f5f0e8",
+              fontSize: '12.5px',
+              color: isMe ? '#000' : '#f5f0e8',
               margin: 0,
-              lineHeight: "1.55",
-              wordBreak: "break-word",
-              whiteSpace: "pre-line",
+              lineHeight: '1.55',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-line',
             }}
           >
             <RichText text={msg.text} />
@@ -366,17 +356,17 @@ const Bubble = memo(({ msg }) => {
         )}
         <p
           style={{
-            fontSize: "9px",
-            color: isMe ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.35)",
-            margin: "4px 0 0",
-            textAlign: "right",
+            fontSize: '9px',
+            color: isMe ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.35)',
+            margin: '4px 0 0',
+            textAlign: 'right',
           }}
         >
           {new Date(msg.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
+            hour: '2-digit',
+            minute: '2-digit',
           })}
-          {isMe && <span style={{ marginLeft: "4px" }}>✓</span>}
+          {isMe && <span style={{ marginLeft: '4px' }}>✓</span>}
         </p>
       </div>
     </div>
@@ -395,22 +385,22 @@ const SalvaNGNsChat = ({ user }) => {
   });
 
   // ── Buy state ────────────────────────────────────────────────────────────
-  const [buyPhase, setBuyPhase] = useState("amount");
-  const [amountDisplay, setAmountDisplay] = useState("");
+  const [buyPhase, setBuyPhase] = useState('amount');
+  const [amountDisplay, setAmountDisplay] = useState('');
   const [amountRaw, setAmountRaw] = useState(0);
   const [initiating, setInitiating] = useState(false);
-  const [initError, setInitError] = useState("");
+  const [initError, setInitError] = useState('');
   const [sellerInfo, setSellerInfo] = useState(null);
 
   // ── Sell state ───────────────────────────────────────────────────────────
-  const [sellPhase, setSellPhase] = useState("amount");
-  const [sellAmountDisplay, setSellAmountDisplay] = useState("");
+  const [sellPhase, setSellPhase] = useState('amount');
+  const [sellAmountDisplay, setSellAmountDisplay] = useState('');
   const [sellAmountRaw, setSellAmountRaw] = useState(0);
-  const [sellAmountError, setSellAmountError] = useState("");
-  const [bankName, setBankName] = useState("");
-  const [accountNumber, setAccountNumber] = useState("");
-  const [accountName, setAccountName] = useState("");
-  const [sellError, setSellError] = useState("");
+  const [sellAmountError, setSellAmountError] = useState('');
+  const [bankName, setBankName] = useState('');
+  const [accountNumber, setAccountNumber] = useState('');
+  const [accountName, setAccountName] = useState('');
+  const [sellError, setSellError] = useState('');
   const [sellInitiating, setSellInitiating] = useState(false);
   const [ngnBalance, setNgnBalance] = useState(0);
 
@@ -435,22 +425,19 @@ const SalvaNGNsChat = ({ user }) => {
   const sellFee = calcFee(sellAmountRaw, otcConfig.feePercent);
   const sellPayout = sellAmountRaw - sellFee;
   const status = mintRequest?.status;
-  const canChat = status === "pending" || status === "paid";
-  const isMinted = status === "minted";
-  const isRejected = status === "rejected";
-  const isBurned = status === "burned" || status === "sell_completed";
+  const canChat = status === 'pending' || status === 'paid';
+  const isMinted = status === 'minted';
+  const isRejected = status === 'rejected';
+  const isBurned = status === 'burned' || status === 'sell_completed';
 
-  const buyValid =
-    amountRaw >= otcConfig.minNgn && amountRaw <= otcConfig.maxNgn;
+  const buyValid = amountRaw >= otcConfig.minNgn && amountRaw <= otcConfig.maxNgn;
   const sellValid =
-    sellAmountRaw >= otcConfig.minNgn &&
-    sellAmountRaw <= otcConfig.maxNgn &&
-    !sellAmountError;
+    sellAmountRaw >= otcConfig.minNgn && sellAmountRaw <= otcConfig.maxNgn && !sellAmountError;
 
   useEffect(() => {
     const newCount = messages.length;
     if (newCount > prevMessageCount.current && isNearBottom.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     prevMessageCount.current = newCount;
   }, [messages]);
@@ -458,19 +445,14 @@ const SalvaNGNsChat = ({ user }) => {
   const loadRequest = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/my-request/${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/my-request/${user.safeAddress}`);
       const data = await res.json();
-      if (
-        data.request &&
-        ["pending", "paid", "minting"].includes(data.request.status)
-      ) {
+      if (data.request && ['pending', 'paid', 'minting'].includes(data.request.status)) {
         setMintRequest(data.request);
         setMessages(data.request.messages || []);
-        setMode(data.request.type || "buy");
-        setBuyPhase("chat");
-        setSellPhase("chat");
+        setMode(data.request.type || 'buy');
+        setBuyPhase('chat');
+        setSellPhase('chat');
       }
     } catch {
       /* ignore */
@@ -480,9 +462,7 @@ const SalvaNGNsChat = ({ user }) => {
   const fetchBalance = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/balance/${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`);
       const data = await res.json();
       setNgnBalance(parseFloat(data.ngnsBalance || 0));
     } catch {
@@ -522,17 +502,14 @@ const SalvaNGNsChat = ({ user }) => {
 
   useEffect(() => {
     const activeChat =
-      (mode === "buy" && buyPhase === "chat") ||
-      (mode === "sell" && sellPhase === "chat");
+      (mode === 'buy' && buyPhase === 'chat') || (mode === 'sell' && sellPhase === 'chat');
     if (!activeChat || !mintRequest?._id || !isOpen) return;
 
     let failCount = 0;
     const poll = async () => {
       try {
-        const res = await fetch(
-          `${SALVA_API_URL}/api/buy-ngns/my-request/${user.safeAddress}`,
-        );
-        if (!res.ok) throw new Error("bad response");
+        const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/my-request/${user.safeAddress}`);
+        if (!res.ok) throw new Error('bad response');
         const data = await res.json();
         if (data.request) {
           setMintRequest(data.request);
@@ -551,12 +528,12 @@ const SalvaNGNsChat = ({ user }) => {
   }, [mode, buyPhase, sellPhase, mintRequest?._id, isOpen, user?.safeAddress]);
 
   const handleBuyInitiate = async () => {
-    setInitError("");
+    setInitError('');
     setInitiating(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/initiate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           amountNgn: amountRaw,
@@ -564,26 +541,24 @@ const SalvaNGNsChat = ({ user }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setInitError(
-          data.message || "Could not start your request. Please try again.",
-        );
+        setInitError(data.message || 'Could not start your request. Please try again.');
         return;
       }
       await loadRequest();
     } catch {
-      setInitError("Connection error. Check your network and try again.");
+      setInitError('Connection error. Check your network and try again.');
     } finally {
       setInitiating(false);
     }
   };
 
   const handleSellInitiate = async () => {
-    setSellError("");
+    setSellError('');
     setSellInitiating(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/initiate-sell`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           amountNgn: sellAmountRaw,
@@ -594,15 +569,12 @@ const SalvaNGNsChat = ({ user }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setSellError(
-          data.message ||
-            "Could not process your sell request. Please try again.",
-        );
+        setSellError(data.message || 'Could not process your sell request. Please try again.');
         return;
       }
       await loadRequest();
     } catch {
-      setSellError("Network error. Please try again.");
+      setSellError('Network error. Please try again.');
     } finally {
       setSellInitiating(false);
     }
@@ -612,7 +584,7 @@ const SalvaNGNsChat = ({ user }) => {
     if (!mintRequest?._id) return;
     const optimistic = {
       _id: `tmp-${Date.now()}`,
-      sender: "user",
+      sender: 'user',
       text,
       createdAt: new Date(),
       _optimistic: true,
@@ -621,19 +593,19 @@ const SalvaNGNsChat = ({ user }) => {
     setSending(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: mintRequest._id,
           safeAddress: user.safeAddress,
           text,
-          sender: "user",
+          sender: 'user',
         }),
       });
       const data = await res.json();
       if (res.ok)
         setMessages((prev) =>
-          prev.map((m) => (m._id === optimistic._id ? { ...data.message } : m)),
+          prev.map((m) => (m._id === optimistic._id ? { ...data.message } : m))
         );
       else setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
     } catch {
@@ -646,7 +618,7 @@ const SalvaNGNsChat = ({ user }) => {
     if (!mintRequest?._id) return;
     const optimistic = {
       _id: `tmp-${Date.now()}`,
-      sender: "user",
+      sender: 'user',
       imageUrl: imageBase64,
       createdAt: new Date(),
       _optimistic: true,
@@ -654,19 +626,19 @@ const SalvaNGNsChat = ({ user }) => {
     setMessages((prev) => [...prev, optimistic]);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-image`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: mintRequest._id,
           safeAddress: user.safeAddress,
           imageBase64,
-          sender: "user",
+          sender: 'user',
         }),
       });
       const data = await res.json();
       if (res.ok)
         setMessages((prev) =>
-          prev.map((m) => (m._id === optimistic._id ? { ...data.message } : m)),
+          prev.map((m) => (m._id === optimistic._id ? { ...data.message } : m))
         );
       else setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
     } catch {
@@ -678,7 +650,7 @@ const SalvaNGNsChat = ({ user }) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 6 * 1024 * 1024) {
-      alert("File must be under 6MB");
+      alert('File must be under 6MB');
       return;
     }
     setReceiptFile(file);
@@ -697,8 +669,8 @@ const SalvaNGNsChat = ({ user }) => {
     reader.onload = async (ev) => {
       try {
         const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/claim-paid`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             requestId: mintRequest._id,
             safeAddress: user.safeAddress,
@@ -721,45 +693,45 @@ const SalvaNGNsChat = ({ user }) => {
 
   const resetAll = () => {
     setMode(null);
-    setBuyPhase("amount");
-    setAmountDisplay("");
+    setBuyPhase('amount');
+    setAmountDisplay('');
     setAmountRaw(0);
-    setInitError("");
-    setSellPhase("amount");
-    setSellAmountDisplay("");
+    setInitError('');
+    setSellPhase('amount');
+    setSellAmountDisplay('');
     setSellAmountRaw(0);
-    setBankName("");
-    setAccountNumber("");
-    setAccountName("");
-    setSellError("");
+    setBankName('');
+    setAccountNumber('');
+    setAccountName('');
+    setSellError('');
     setMintRequest(null);
     setMessages([]);
   };
 
-  const Spinner = ({ color = "#000" }) => (
+  const Spinner = ({ color = '#000' }) => (
     <span
       style={{
-        width: "10px",
-        height: "10px",
+        width: '10px',
+        height: '10px',
         border: `2px solid ${color}30`,
         borderTopColor: color,
-        borderRadius: "50%",
-        display: "inline-block",
-        animation: "spin 0.6s linear infinite",
+        borderRadius: '50%',
+        display: 'inline-block',
+        animation: 'spin 0.6s linear infinite',
       }}
     />
   );
 
-  const SectionLabel = ({ children, color = "rgba(212,175,55,0.6)" }) => (
+  const SectionLabel = ({ children, color = 'rgba(212,175,55,0.6)' }) => (
     <label
       style={{
         color,
-        fontSize: "9px",
-        textTransform: "uppercase",
-        letterSpacing: "0.15em",
-        fontWeight: "700",
-        display: "block",
-        marginBottom: "6px",
+        fontSize: '9px',
+        textTransform: 'uppercase',
+        letterSpacing: '0.15em',
+        fontWeight: '700',
+        display: 'block',
+        marginBottom: '6px',
       }}
     >
       {children}
@@ -770,9 +742,9 @@ const SalvaNGNsChat = ({ user }) => {
     return (
       <div
         style={{
-          position: "fixed",
-          bottom: "24px",
-          right: "24px",
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
           zIndex: 9000,
         }}
       >
@@ -781,32 +753,29 @@ const SalvaNGNsChat = ({ user }) => {
           whileTap={{ scale: 0.95 }}
           onClick={() => setIsOpen(true)}
           style={{
-            width: "54px",
-            height: "54px",
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #D4AF37, #b8941e)",
-            border: "none",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow:
-              "0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)",
-            position: "relative",
+            width: '54px',
+            height: '54px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)',
+            position: 'relative',
           }}
         >
-          <span style={{ fontSize: "20px", color: "#000", fontWeight: "900" }}>
-            ₦
-          </span>
+          <span style={{ fontSize: '20px', color: '#000', fontWeight: '900' }}>₦</span>
           <motion.div
             animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
             transition={{ repeat: Infinity, duration: 2 }}
             style={{
-              position: "absolute",
+              position: 'absolute',
               inset: 0,
-              borderRadius: "50%",
-              border: "2px solid #D4AF37",
-              pointerEvents: "none",
+              borderRadius: '50%',
+              border: '2px solid #D4AF37',
+              pointerEvents: 'none',
             }}
           />
         </motion.button>
@@ -822,19 +791,17 @@ const SalvaNGNsChat = ({ user }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={(e) =>
-              e.target === e.currentTarget && setShowReceiptUpload(false)
-            }
+            onClick={(e) => e.target === e.currentTarget && setShowReceiptUpload(false)}
             style={{
-              position: "fixed",
+              position: 'fixed',
               inset: 0,
               zIndex: 10001,
-              background: "rgba(0,0,0,0.8)",
-              backdropFilter: "blur(8px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "16px",
+              background: 'rgba(0,0,0,0.8)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '16px',
             }}
           >
             <motion.div
@@ -842,29 +809,29 @@ const SalvaNGNsChat = ({ user }) => {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.85, opacity: 0 }}
               style={{
-                width: "100%",
-                maxWidth: "360px",
-                background: "#111112",
-                border: "1px solid rgba(212,175,55,0.3)",
-                borderRadius: "20px",
-                overflow: "hidden",
-                boxShadow: "0 32px 80px rgba(0,0,0,0.8)",
+                width: '100%',
+                maxWidth: '360px',
+                background: '#111112',
+                border: '1px solid rgba(212,175,55,0.3)',
+                borderRadius: '20px',
+                overflow: 'hidden',
+                boxShadow: '0 32px 80px rgba(0,0,0,0.8)',
               }}
             >
               <div
                 style={{
-                  padding: "16px 20px",
-                  borderBottom: "1px solid rgba(212,175,55,0.15)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  padding: '16px 20px',
+                  borderBottom: '1px solid rgba(212,175,55,0.15)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
                 }}
               >
                 <p
                   style={{
-                    color: "#f5f0e8",
-                    fontSize: "13px",
-                    fontWeight: "700",
+                    color: '#f5f0e8',
+                    fontSize: '13px',
+                    fontWeight: '700',
                     margin: 0,
                   }}
                 >
@@ -873,26 +840,26 @@ const SalvaNGNsChat = ({ user }) => {
                 <button
                   onClick={() => setShowReceiptUpload(false)}
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: "20px",
-                    cursor: "pointer",
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: '20px',
+                    cursor: 'pointer',
                   }}
                 >
                   ×
                 </button>
               </div>
-              <div style={{ padding: "20px" }}>
+              <div style={{ padding: '20px' }}>
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   style={{
-                    border: `2px dashed ${receiptPreview ? "rgba(34,197,94,0.5)" : "rgba(212,175,55,0.3)"}`,
-                    borderRadius: "14px",
-                    padding: "24px",
-                    cursor: "pointer",
-                    textAlign: "center",
-                    marginBottom: "14px",
+                    border: `2px dashed ${receiptPreview ? 'rgba(34,197,94,0.5)' : 'rgba(212,175,55,0.3)'}`,
+                    borderRadius: '14px',
+                    padding: '24px',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    marginBottom: '14px',
                   }}
                 >
                   {receiptPreview ? (
@@ -900,21 +867,19 @@ const SalvaNGNsChat = ({ user }) => {
                       src={receiptPreview}
                       alt="Preview"
                       style={{
-                        maxHeight: "140px",
-                        borderRadius: "10px",
-                        margin: "0 auto",
-                        display: "block",
+                        maxHeight: '140px',
+                        borderRadius: '10px',
+                        margin: '0 auto',
+                        display: 'block',
                       }}
                     />
                   ) : (
                     <>
-                      <div style={{ fontSize: "28px", marginBottom: "8px" }}>
-                        📎
-                      </div>
+                      <div style={{ fontSize: '28px', marginBottom: '8px' }}>📎</div>
                       <p
                         style={{
-                          color: "rgba(212,175,55,0.7)",
-                          fontSize: "12px",
+                          color: 'rgba(212,175,55,0.7)',
+                          fontSize: '12px',
                           margin: 0,
                         }}
                       >
@@ -927,10 +892,10 @@ const SalvaNGNsChat = ({ user }) => {
                   ref={fileInputRef}
                   type="file"
                   accept="image/*,application/pdf"
-                  style={{ display: "none" }}
+                  style={{ display: 'none' }}
                   onChange={handleFileChange}
                 />
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => {
                       setShowReceiptUpload(false);
@@ -939,48 +904,40 @@ const SalvaNGNsChat = ({ user }) => {
                     }}
                     style={{
                       flex: 1,
-                      padding: "11px",
-                      borderRadius: "12px",
-                      background: "rgba(255,255,255,0.05)",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      color: "rgba(255,255,255,0.6)",
-                      fontSize: "12px",
-                      cursor: "pointer",
+                      padding: '11px',
+                      borderRadius: '12px',
+                      background: 'rgba(255,255,255,0.05)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'rgba(255,255,255,0.6)',
+                      fontSize: '12px',
+                      cursor: 'pointer',
                     }}
                   >
                     Cancel
                   </button>
                   <button
-                    onClick={
-                      receiptFile
-                        ? handleClaimPaid
-                        : () => fileInputRef.current?.click()
-                    }
+                    onClick={receiptFile ? handleClaimPaid : () => fileInputRef.current?.click()}
                     disabled={claimingPaid}
                     style={{
                       flex: 1,
-                      padding: "11px",
-                      borderRadius: "12px",
+                      padding: '11px',
+                      borderRadius: '12px',
                       background: receiptFile
-                        ? "linear-gradient(135deg, #D4AF37, #b8941e)"
-                        : "rgba(212,175,55,0.2)",
-                      border: "none",
-                      color: receiptFile ? "#000" : "rgba(212,175,55,0.6)",
-                      fontSize: "12px",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
+                        ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
+                        : 'rgba(212,175,55,0.2)',
+                      border: 'none',
+                      color: receiptFile ? '#000' : 'rgba(212,175,55,0.6)',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
                     }}
                   >
                     {claimingPaid && <Spinner />}
-                    {claimingPaid
-                      ? "Sending…"
-                      : receiptFile
-                        ? "Submit"
-                        : "Choose File"}
+                    {claimingPaid ? 'Sending…' : receiptFile ? 'Submit' : 'Choose File'}
                   </button>
                 </div>
               </div>
@@ -993,87 +950,87 @@ const SalvaNGNsChat = ({ user }) => {
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         style={{
-          position: "fixed",
-          bottom: "24px",
-          right: "24px",
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
           zIndex: 9000,
-          width: "360px",
-          maxWidth: "calc(100vw - 2rem)",
+          width: '360px',
+          maxWidth: 'calc(100vw - 2rem)',
         }}
       >
         <div
           style={{
-            height: "580px",
-            background: "#0d0d0e",
-            border: "1px solid rgba(212,175,55,0.2)",
-            borderRadius: "22px",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 28px 72px rgba(0,0,0,0.8)",
+            height: '580px',
+            background: '#0d0d0e',
+            border: '1px solid rgba(212,175,55,0.2)',
+            borderRadius: '22px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 28px 72px rgba(0,0,0,0.8)',
           }}
         >
           {/* ── HEADER ── */}
           <div
             style={{
-              background: "linear-gradient(135deg, #1a1500, #111100)",
-              borderBottom: "1px solid rgba(212,175,55,0.25)",
-              padding: "14px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
+              background: 'linear-gradient(135deg, #1a1500, #111100)',
+              borderBottom: '1px solid rgba(212,175,55,0.25)',
+              padding: '14px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
               flexShrink: 0,
             }}
           >
             {mode &&
-              (buyPhase === "amount" ||
-                buyPhase === "confirm" ||
-                sellPhase === "amount" ||
-                sellPhase === "bank") && (
+              (buyPhase === 'amount' ||
+                buyPhase === 'confirm' ||
+                sellPhase === 'amount' ||
+                sellPhase === 'bank') && (
                 <button
                   onClick={() => {
-                    if (mode === "buy") {
-                      if (buyPhase === "amount") {
+                    if (mode === 'buy') {
+                      if (buyPhase === 'amount') {
                         setMode(null);
-                        setBuyPhase("amount");
-                      } else setBuyPhase("amount");
+                        setBuyPhase('amount');
+                      } else setBuyPhase('amount');
                     } else {
-                      if (sellPhase === "amount") {
+                      if (sellPhase === 'amount') {
                         setMode(null);
-                        setSellPhase("amount");
-                      } else if (sellPhase === "bank") setSellPhase("amount");
+                        setSellPhase('amount');
+                      } else if (sellPhase === 'bank') setSellPhase('amount');
                     }
                   }}
                   style={{
-                    background: "none",
-                    border: "none",
-                    color: "rgba(212,175,55,0.6)",
-                    fontSize: "18px",
-                    cursor: "pointer",
-                    padding: "2px 6px 2px 0",
+                    background: 'none',
+                    border: 'none',
+                    color: 'rgba(212,175,55,0.6)',
+                    fontSize: '18px',
+                    cursor: 'pointer',
+                    padding: '2px 6px 2px 0',
                     lineHeight: 1,
                   }}
                 >
                   ←
                 </button>
               )}
-            {((mode === "buy" && buyPhase === "chat") ||
-              (mode === "sell" && sellPhase === "chat")) && (
+            {((mode === 'buy' && buyPhase === 'chat') ||
+              (mode === 'sell' && sellPhase === 'chat')) && (
               <button
                 onClick={() => {
                   setMintRequest(null);
                   setMessages([]);
-                  setBuyPhase("amount");
-                  setSellPhase("amount");
+                  setBuyPhase('amount');
+                  setSellPhase('amount');
                   setMode(null);
                 }}
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "rgba(212,175,55,0.6)",
-                  fontSize: "18px",
-                  cursor: "pointer",
-                  padding: "2px 6px 2px 0",
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(212,175,55,0.6)',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  padding: '2px 6px 2px 0',
                   lineHeight: 1,
                 }}
               >
@@ -1082,20 +1039,20 @@ const SalvaNGNsChat = ({ user }) => {
             )}
             <div
               style={{
-                width: "36px",
-                height: "36px",
-                borderRadius: "10px",
+                width: '36px',
+                height: '36px',
+                borderRadius: '10px',
                 background:
-                  mode === "sell"
-                    ? "linear-gradient(135deg, #ef4444, #b91c1c)"
-                    : "linear-gradient(135deg, #D4AF37, #b8941e)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                  mode === 'sell'
+                    ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
+                    : 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 flexShrink: 0,
-                fontSize: "16px",
-                fontWeight: "900",
-                color: "#fff",
+                fontSize: '16px',
+                fontWeight: '900',
+                color: '#fff',
               }}
             >
               ₦
@@ -1103,58 +1060,54 @@ const SalvaNGNsChat = ({ user }) => {
             <div style={{ flex: 1, minWidth: 0 }}>
               <p
                 style={{
-                  color: "#f5f0e8",
-                  fontSize: "13px",
-                  fontWeight: "900",
+                  color: '#f5f0e8',
+                  fontSize: '13px',
+                  fontWeight: '900',
                   margin: 0,
                 }}
               >
-                {!mode
-                  ? "NGNs Exchange"
-                  : mode === "sell"
-                    ? "Sell NGNs"
-                    : "Buy NGNs"}
+                {!mode ? 'NGNs Exchange' : mode === 'sell' ? 'Sell NGNs' : 'Buy NGNs'}
               </p>
               <p
                 style={{
-                  color: "rgba(212,175,55,0.6)",
-                  fontSize: "10px",
+                  color: 'rgba(212,175,55,0.6)',
+                  fontSize: '10px',
                   margin: 0,
                 }}
               >
                 {!mode
-                  ? "Choose an option"
-                  : mode === "buy"
-                    ? buyPhase === "chat"
-                      ? status === "pending"
-                        ? "Awaiting payment"
-                        : status === "paid"
-                          ? "Verifying…"
-                          : status === "minting"
-                            ? "Minting…"
-                            : status === "minted"
-                              ? "Complete ✓"
-                              : "Rejected"
-                      : "Salva · Online"
-                    : sellPhase === "chat"
-                      ? "Sell request active"
-                      : "Salva · Online"}
+                  ? 'Choose an option'
+                  : mode === 'buy'
+                    ? buyPhase === 'chat'
+                      ? status === 'pending'
+                        ? 'Awaiting payment'
+                        : status === 'paid'
+                          ? 'Verifying…'
+                          : status === 'minting'
+                            ? 'Minting…'
+                            : status === 'minted'
+                              ? 'Complete ✓'
+                              : 'Rejected'
+                      : 'Salva · Online'
+                    : sellPhase === 'chat'
+                      ? 'Sell request active'
+                      : 'Salva · Online'}
               </p>
             </div>
             <button
               onClick={() => setIsOpen(false)}
               style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.07)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                cursor: "pointer",
-                color: "rgba(255,255,255,0.5)",
-                fontSize: "16px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.07)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                cursor: 'pointer',
+                color: 'rgba(255,255,255,0.5)',
+                fontSize: '16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
@@ -1167,20 +1120,20 @@ const SalvaNGNsChat = ({ user }) => {
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "24px",
-                gap: "16px",
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '24px',
+                gap: '16px',
               }}
             >
-              <div style={{ fontSize: "40px" }}>₦</div>
+              <div style={{ fontSize: '40px' }}>₦</div>
               <h3
                 style={{
-                  color: "#f5f0e8",
-                  fontSize: "18px",
-                  fontWeight: "900",
+                  color: '#f5f0e8',
+                  fontSize: '18px',
+                  fontWeight: '900',
                   margin: 0,
                 }}
               >
@@ -1188,33 +1141,33 @@ const SalvaNGNsChat = ({ user }) => {
               </h3>
               <p
                 style={{
-                  color: "rgba(255,255,255,0.4)",
-                  fontSize: "11px",
+                  color: 'rgba(255,255,255,0.4)',
+                  fontSize: '11px',
                   margin: 0,
-                  textAlign: "center",
+                  textAlign: 'center',
                 }}
               >
                 Buy NGNs with fiat or sell NGNs for fiat
               </p>
-              <div style={{ display: "flex", gap: "12px", width: "100%" }}>
+              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                 <button
                   onClick={() => {
                     setMintRequest(null);
                     setMessages([]);
-                    setBuyPhase("amount");
-                    setMode("buy");
+                    setBuyPhase('amount');
+                    setMode('buy');
                   }}
                   style={{
                     flex: 1,
-                    padding: "16px",
-                    borderRadius: "14px",
-                    background: "linear-gradient(135deg, #D4AF37, #b8941e)",
-                    border: "none",
-                    color: "#000",
-                    fontSize: "14px",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                    boxShadow: "0 0 20px rgba(212,175,55,0.3)",
+                    padding: '16px',
+                    borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                    border: 'none',
+                    color: '#000',
+                    fontSize: '14px',
+                    fontWeight: '900',
+                    cursor: 'pointer',
+                    boxShadow: '0 0 20px rgba(212,175,55,0.3)',
                   }}
                 >
                   🛒 Buy NGNs
@@ -1223,21 +1176,21 @@ const SalvaNGNsChat = ({ user }) => {
                   onClick={() => {
                     setMintRequest(null);
                     setMessages([]);
-                    setSellPhase("amount");
-                    setMode("sell");
+                    setSellPhase('amount');
+                    setMode('sell');
                     fetchBalance();
                   }}
                   style={{
                     flex: 1,
-                    padding: "16px",
-                    borderRadius: "14px",
-                    background: "linear-gradient(135deg, #ef4444, #b91c1c)",
-                    border: "none",
-                    color: "#fff",
-                    fontSize: "14px",
-                    fontWeight: "900",
-                    cursor: "pointer",
-                    boxShadow: "0 0 20px rgba(239,68,68,0.3)",
+                    padding: '16px',
+                    borderRadius: '14px',
+                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '14px',
+                    fontWeight: '900',
+                    cursor: 'pointer',
+                    boxShadow: '0 0 20px rgba(239,68,68,0.3)',
                   }}
                 >
                   💸 Sell NGNs
@@ -1245,50 +1198,50 @@ const SalvaNGNsChat = ({ user }) => {
               </div>
               <div
                 style={{
-                  background: "rgba(255,255,255,0.03)",
-                  borderRadius: "10px",
-                  padding: "12px",
-                  width: "100%",
-                  boxSizing: "border-box",
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  width: '100%',
+                  boxSizing: 'border-box',
                 }}
               >
                 <p
                   style={{
-                    color: "rgba(212,175,55,0.5)",
-                    fontSize: "9px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.15em",
-                    margin: "0 0 8px",
-                    fontWeight: "700",
+                    color: 'rgba(212,175,55,0.5)',
+                    fontSize: '9px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.15em',
+                    margin: '0 0 8px',
+                    fontWeight: '700',
                   }}
                 >
                   How it works
                 </p>
                 {[
-                  "Buy: Transfer fiat → receive NGNs in wallet",
-                  "Sell: Burn NGNs → receive fiat in bank account",
+                  'Buy: Transfer fiat → receive NGNs in wallet',
+                  'Sell: Burn NGNs → receive fiat in bank account',
                 ].map((s, i) => (
                   <div
                     key={i}
                     style={{
-                      display: "flex",
-                      gap: "8px",
-                      marginBottom: "5px",
-                      alignItems: "center",
+                      display: 'flex',
+                      gap: '8px',
+                      marginBottom: '5px',
+                      alignItems: 'center',
                     }}
                   >
                     <span
                       style={{
-                        width: "16px",
-                        height: "16px",
-                        borderRadius: "50%",
-                        background: "rgba(212,175,55,0.2)",
-                        color: "#D4AF37",
-                        fontSize: "9px",
-                        fontWeight: "900",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
+                        width: '16px',
+                        height: '16px',
+                        borderRadius: '50%',
+                        background: 'rgba(212,175,55,0.2)',
+                        color: '#D4AF37',
+                        fontSize: '9px',
+                        fontWeight: '900',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
                         flexShrink: 0,
                       }}
                     >
@@ -1296,8 +1249,8 @@ const SalvaNGNsChat = ({ user }) => {
                     </span>
                     <span
                       style={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: "11px",
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '11px',
                       }}
                     >
                       {s}
@@ -1309,34 +1262,34 @@ const SalvaNGNsChat = ({ user }) => {
           )}
 
           {/* ── BUY: AMOUNT ── */}
-          {mode === "buy" && buyPhase === "amount" && (
+          {mode === 'buy' && buyPhase === 'amount' && (
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                padding: "24px 20px",
-                gap: "16px",
-                overflowY: "auto",
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '24px 20px',
+                gap: '16px',
+                overflowY: 'auto',
               }}
             >
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "36px", marginBottom: "8px" }}>🛒</div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '36px', marginBottom: '8px' }}>🛒</div>
                 <h3
                   style={{
-                    color: "#f5f0e8",
-                    fontSize: "17px",
-                    fontWeight: "900",
-                    margin: "0 0 4px",
+                    color: '#f5f0e8',
+                    fontSize: '17px',
+                    fontWeight: '900',
+                    margin: '0 0 4px',
                   }}
                 >
                   Buy NGNs
                 </h3>
                 <p
                   style={{
-                    color: "rgba(255,255,255,0.4)",
-                    fontSize: "11px",
+                    color: 'rgba(255,255,255,0.4)',
+                    fontSize: '11px',
                     margin: 0,
                   }}
                 >
@@ -1345,7 +1298,7 @@ const SalvaNGNsChat = ({ user }) => {
               </div>
               <div>
                 <SectionLabel>Amount (NGNs)</SectionLabel>
-                <div style={{ position: "relative" }}>
+                <div style={{ position: 'relative' }}>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -1354,37 +1307,33 @@ const SalvaNGNsChat = ({ user }) => {
                     onChange={(e) => {
                       const f = fmtInput(e.target.value);
                       setAmountDisplay(f);
-                      setAmountRaw(parseFloat(f.replace(/,/g, "")) || 0);
-                      setInitError("");
+                      setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
+                      setInitError('');
                     }}
                     style={{
-                      width: "100%",
-                      padding: "13px 52px 13px 14px",
-                      borderRadius: "12px",
-                      border: "1px solid rgba(212,175,55,0.25)",
-                      background: "#1a1a1b",
-                      color: "#f5f0e8",
-                      fontSize: "18px",
-                      fontWeight: "900",
-                      outline: "none",
-                      boxSizing: "border-box",
+                      width: '100%',
+                      padding: '13px 52px 13px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(212,175,55,0.25)',
+                      background: '#1a1a1b',
+                      color: '#f5f0e8',
+                      fontSize: '18px',
+                      fontWeight: '900',
+                      outline: 'none',
+                      boxSizing: 'border-box',
                     }}
-                    onFocus={(e) =>
-                      (e.target.style.borderColor = "rgba(212,175,55,0.7)")
-                    }
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(212,175,55,0.25)")
-                    }
+                    onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.7)')}
+                    onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.25)')}
                   />
                   <span
                     style={{
-                      position: "absolute",
-                      right: "12px",
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      color: "#D4AF37",
-                      fontWeight: "900",
-                      fontSize: "12px",
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      color: '#D4AF37',
+                      fontWeight: '900',
+                      fontSize: '12px',
                     }}
                   >
                     NGNs
@@ -1392,9 +1341,9 @@ const SalvaNGNsChat = ({ user }) => {
                 </div>
                 <p
                   style={{
-                    color: "rgba(255,255,255,0.3)",
-                    fontSize: "10px",
-                    margin: "5px 0 0",
+                    color: 'rgba(255,255,255,0.3)',
+                    fontSize: '10px',
+                    margin: '5px 0 0',
                   }}
                 >
                   Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
@@ -1404,46 +1353,40 @@ const SalvaNGNsChat = ({ user }) => {
               {buyValid && (
                 <div
                   style={{
-                    background: "rgba(212,175,55,0.05)",
-                    border: "1px solid rgba(212,175,55,0.15)",
-                    borderRadius: "12px",
-                    padding: "12px 14px",
+                    background: 'rgba(212,175,55,0.05)',
+                    border: '1px solid rgba(212,175,55,0.15)',
+                    borderRadius: '12px',
+                    padding: '12px 14px',
                   }}
                 >
                   {[
-                    ["You Send (fiat)", `₦${amountRaw.toLocaleString()}`],
-                    ["Fee", fee > 0 ? `-${fee} NGNs` : "Free"],
-                    ["You Receive", `${mintAmt.toLocaleString()} NGNs`],
+                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`],
+                    ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free'],
+                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`],
                   ].map(([l, v], i) => (
                     <div
                       key={i}
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        marginBottom: i < 2 ? "6px" : 0,
-                        paddingTop: i === 2 ? "8px" : 0,
-                        borderTop:
-                          i === 2 ? "1px solid rgba(212,175,55,0.1)" : "none",
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: i < 2 ? '6px' : 0,
+                        paddingTop: i === 2 ? '8px' : 0,
+                        borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
                       }}
                     >
                       <span
                         style={{
-                          color: "rgba(255,255,255,0.45)",
-                          fontSize: "11px",
+                          color: 'rgba(255,255,255,0.45)',
+                          fontSize: '11px',
                         }}
                       >
                         {l}
                       </span>
                       <span
                         style={{
-                          color:
-                            i === 1 && fee > 0
-                              ? "#ef4444"
-                              : i === 2
-                                ? "#D4AF37"
-                                : "#f5f0e8",
-                          fontWeight: i === 2 ? "900" : "700",
-                          fontSize: i === 2 ? "14px" : "11px",
+                          color: i === 1 && fee > 0 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
+                          fontWeight: i === 2 ? '900' : '700',
+                          fontSize: i === 2 ? '14px' : '11px',
                         }}
                       >
                         {v}
@@ -1455,21 +1398,21 @@ const SalvaNGNsChat = ({ user }) => {
               {initError && (
                 <div
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "10px 14px",
-                    borderRadius: "12px",
-                    background: "rgba(239,68,68,0.1)",
-                    border: "1px solid rgba(239,68,68,0.25)",
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 14px',
+                    borderRadius: '12px',
+                    background: 'rgba(239,68,68,0.1)',
+                    border: '1px solid rgba(239,68,68,0.25)',
                   }}
                 >
-                  <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+                  <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
                   <p
                     style={{
-                      color: "#ef4444",
-                      fontSize: "11px",
-                      fontWeight: "700",
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      fontWeight: '700',
                       margin: 0,
                     }}
                   >
@@ -1478,21 +1421,21 @@ const SalvaNGNsChat = ({ user }) => {
                 </div>
               )}
               <button
-                onClick={() => buyValid && setBuyPhase("confirm")}
+                onClick={() => buyValid && setBuyPhase('confirm')}
                 disabled={!buyValid}
                 style={{
-                  width: "100%",
-                  padding: "13px",
+                  width: '100%',
+                  padding: '13px',
                   background: buyValid
-                    ? "linear-gradient(135deg, #D4AF37, #b8941e)"
-                    : "rgba(212,175,55,0.2)",
-                  border: "none",
-                  borderRadius: "12px",
-                  color: buyValid ? "#000" : "rgba(212,175,55,0.4)",
-                  fontSize: "13px",
-                  fontWeight: "900",
-                  cursor: buyValid ? "pointer" : "not-allowed",
-                  textTransform: "uppercase",
+                    ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
+                    : 'rgba(212,175,55,0.2)',
+                  border: 'none',
+                  borderRadius: '12px',
+                  color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
+                  fontSize: '13px',
+                  fontWeight: '900',
+                  cursor: buyValid ? 'pointer' : 'not-allowed',
+                  textTransform: 'uppercase',
                 }}
               >
                 Continue →
@@ -1501,26 +1444,26 @@ const SalvaNGNsChat = ({ user }) => {
           )}
 
           {/* ── BUY: CONFIRM ── */}
-          {mode === "buy" && buyPhase === "confirm" && (
+          {mode === 'buy' && buyPhase === 'confirm' && (
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "center",
-                padding: "24px 20px",
-                gap: "14px",
-                overflowY: "auto",
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '24px 20px',
+                gap: '14px',
+                overflowY: 'auto',
               }}
             >
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontSize: "36px", marginBottom: "8px" }}>⚡</div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '36px', marginBottom: '8px' }}>⚡</div>
                 <h3
                   style={{
-                    color: "#f5f0e8",
-                    fontSize: "17px",
-                    fontWeight: "900",
-                    margin: "0 0 4px",
+                    color: '#f5f0e8',
+                    fontSize: '17px',
+                    fontWeight: '900',
+                    margin: '0 0 4px',
                   }}
                 >
                   Confirm Purchase
@@ -1528,44 +1471,32 @@ const SalvaNGNsChat = ({ user }) => {
               </div>
               <div
                 style={{
-                  background: "rgba(212,175,55,0.06)",
-                  border: "1px solid rgba(212,175,55,0.2)",
-                  borderRadius: "14px",
-                  padding: "16px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "10px",
+                  background: 'rgba(212,175,55,0.06)',
+                  border: '1px solid rgba(212,175,55,0.2)',
+                  borderRadius: '14px',
+                  padding: '16px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
                 }}
               >
                 {[
-                  [
-                    "You Send (fiat)",
-                    `₦${amountRaw.toLocaleString()}`,
-                    "#f5f0e8",
-                  ],
-                  [
-                    "Fee",
-                    fee > 0 ? `-${fee} NGNs` : "Free",
-                    fee > 0 ? "#ef4444" : "#22c55e",
-                  ],
-                  [
-                    "You Receive",
-                    `${mintAmt.toLocaleString()} NGNs`,
-                    "#D4AF37",
-                  ],
+                  ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
+                  ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
+                  ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
                 ].map(([l, v, c]) => (
                   <div
                     key={l}
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
                     }}
                   >
                     <span
                       style={{
-                        color: "rgba(255,255,255,0.5)",
-                        fontSize: "12px",
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: '12px',
                       }}
                     >
                       {l}
@@ -1573,8 +1504,8 @@ const SalvaNGNsChat = ({ user }) => {
                     <span
                       style={{
                         color: c,
-                        fontWeight: "900",
-                        fontSize: l === "You Receive" ? "16px" : "13px",
+                        fontWeight: '900',
+                        fontSize: l === 'You Receive' ? '16px' : '13px',
                       }}
                     >
                       {v}
@@ -1585,26 +1516,26 @@ const SalvaNGNsChat = ({ user }) => {
               {initError && (
                 <p
                   style={{
-                    color: "#ef4444",
-                    fontSize: "11px",
-                    textAlign: "center",
+                    color: '#ef4444',
+                    fontSize: '11px',
+                    textAlign: 'center',
                   }}
                 >
                   {initError}
                 </p>
               )}
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => setBuyPhase("amount")}
+                  onClick={() => setBuyPhase('amount')}
                   style={{
                     flex: 1,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.6)",
-                    fontSize: "12px",
-                    cursor: "pointer",
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
                   }}
                 >
                   Back
@@ -1614,65 +1545,63 @@ const SalvaNGNsChat = ({ user }) => {
                   disabled={initiating}
                   style={{
                     flex: 2,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    background: "linear-gradient(135deg, #D4AF37, #b8941e)",
-                    border: "none",
-                    color: "#000",
-                    fontSize: "13px",
-                    fontWeight: "900",
-                    cursor: initiating ? "wait" : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                    border: 'none',
+                    color: '#000',
+                    fontSize: '13px',
+                    fontWeight: '900',
+                    cursor: initiating ? 'wait' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
                   }}
                 >
                   {initiating && <Spinner />}
-                  {initiating ? "Starting…" : "Confirm & Start"}
+                  {initiating ? 'Starting…' : 'Confirm & Start'}
                 </button>
               </div>
             </div>
           )}
 
           {/* ── SELL: AMOUNT ── */}
-          {mode === "sell" && sellPhase === "amount" && (
+          {mode === 'sell' && sellPhase === 'amount' && (
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                flexDirection: "column",
+                display: 'flex',
+                flexDirection: 'column',
                 minHeight: 0,
               }}
             >
               <div
                 style={{
                   flex: 1,
-                  overflowY: "auto",
-                  padding: "20px 20px 12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "14px",
+                  overflowY: 'auto',
+                  padding: '20px 20px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '14px',
                 }}
               >
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "36px", marginBottom: "8px" }}>
-                    💸
-                  </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '36px', marginBottom: '8px' }}>💸</div>
                   <h3
                     style={{
-                      color: "#f5f0e8",
-                      fontSize: "17px",
-                      fontWeight: "900",
-                      margin: "0 0 4px",
+                      color: '#f5f0e8',
+                      fontSize: '17px',
+                      fontWeight: '900',
+                      margin: '0 0 4px',
                     }}
                   >
                     Sell NGNs
                   </h3>
                   <p
                     style={{
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: "11px",
+                      color: 'rgba(255,255,255,0.4)',
+                      fontSize: '11px',
                       margin: 0,
                     }}
                   >
@@ -1681,7 +1610,7 @@ const SalvaNGNsChat = ({ user }) => {
                 </div>
                 <div>
                   <SectionLabel>Amount to Burn (NGNs)</SectionLabel>
-                  <div style={{ position: "relative" }}>
+                  <div style={{ position: 'relative' }}>
                     <input
                       type="text"
                       inputMode="decimal"
@@ -1690,48 +1619,46 @@ const SalvaNGNsChat = ({ user }) => {
                       onChange={(e) => {
                         const f = fmtInput(e.target.value);
                         setSellAmountDisplay(f);
-                        const raw = parseFloat(f.replace(/,/g, "")) || 0;
+                        const raw = parseFloat(f.replace(/,/g, '')) || 0;
                         setSellAmountRaw(raw);
                         setSellAmountError(
                           raw > ngnBalance
-                            ? "Insufficient NGNs balance"
+                            ? 'Insufficient NGNs balance'
                             : raw > 0 && raw < otcConfig.minNgn
                               ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
                               : raw > otcConfig.maxNgn
                                 ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
-                                : "",
+                                : ''
                         );
                       }}
                       style={{
-                        width: "100%",
-                        padding: "13px 52px 13px 14px",
-                        borderRadius: "12px",
-                        border: `2px solid ${sellAmountError ? "#ef4444" : "rgba(212,175,55,0.25)"}`,
-                        background: "#1a1a1b",
-                        color: sellAmountError ? "#ef4444" : "#f5f0e8",
-                        fontSize: "18px",
-                        fontWeight: "900",
-                        outline: "none",
-                        boxSizing: "border-box",
+                        width: '100%',
+                        padding: '13px 52px 13px 14px',
+                        borderRadius: '12px',
+                        border: `2px solid ${sellAmountError ? '#ef4444' : 'rgba(212,175,55,0.25)'}`,
+                        background: '#1a1a1b',
+                        color: sellAmountError ? '#ef4444' : '#f5f0e8',
+                        fontSize: '18px',
+                        fontWeight: '900',
+                        outline: 'none',
+                        boxSizing: 'border-box',
                       }}
                       onFocus={(e) => {
-                        if (!sellAmountError)
-                          e.target.style.borderColor = "rgba(212,175,55,0.7)";
+                        if (!sellAmountError) e.target.style.borderColor = 'rgba(212,175,55,0.7)';
                       }}
                       onBlur={(e) => {
-                        if (!sellAmountError)
-                          e.target.style.borderColor = "rgba(212,175,55,0.25)";
+                        if (!sellAmountError) e.target.style.borderColor = 'rgba(212,175,55,0.25)';
                       }}
                     />
                     <span
                       style={{
-                        position: "absolute",
-                        right: "12px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        color: sellAmountError ? "#ef4444" : "#D4AF37",
-                        fontWeight: "900",
-                        fontSize: "12px",
+                        position: 'absolute',
+                        right: '12px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: sellAmountError ? '#ef4444' : '#D4AF37',
+                        fontWeight: '900',
+                        fontSize: '12px',
                       }}
                     >
                       NGNs
@@ -1740,10 +1667,10 @@ const SalvaNGNsChat = ({ user }) => {
                   {sellAmountError && (
                     <p
                       style={{
-                        color: "#ef4444",
-                        fontSize: "10px",
-                        margin: "4px 0 0",
-                        fontWeight: "700",
+                        color: '#ef4444',
+                        fontSize: '10px',
+                        margin: '4px 0 0',
+                        fontWeight: '700',
                       }}
                     >
                       ⚠️ {sellAmountError}
@@ -1751,9 +1678,9 @@ const SalvaNGNsChat = ({ user }) => {
                   )}
                   <p
                     style={{
-                      color: "rgba(255,255,255,0.3)",
-                      fontSize: "10px",
-                      margin: "5px 0 0",
+                      color: 'rgba(255,255,255,0.3)',
+                      fontSize: '10px',
+                      margin: '5px 0 0',
                     }}
                   >
                     Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
@@ -1764,46 +1691,40 @@ const SalvaNGNsChat = ({ user }) => {
                 {sellValid && (
                   <div
                     style={{
-                      background: "rgba(212,175,55,0.05)",
-                      border: "1px solid rgba(212,175,55,0.15)",
-                      borderRadius: "12px",
-                      padding: "12px 14px",
+                      background: 'rgba(212,175,55,0.05)',
+                      border: '1px solid rgba(212,175,55,0.15)',
+                      borderRadius: '12px',
+                      padding: '12px 14px',
                     }}
                   >
                     {[
-                      ["You Burn", `${sellAmountRaw.toLocaleString()} NGNs`],
-                      ["Fee", `-${sellFee.toLocaleString()} NGNs`],
-                      ["You Receive (fiat)", `₦${sellPayout.toLocaleString()}`],
+                      ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`],
+                      ['Fee', `-${sellFee.toLocaleString()} NGNs`],
+                      ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`],
                     ].map(([l, v], i) => (
                       <div
                         key={l}
                         style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          marginBottom: i < 2 ? "6px" : 0,
-                          paddingTop: i === 2 ? "8px" : 0,
-                          borderTop:
-                            i === 2 ? "1px solid rgba(212,175,55,0.1)" : "none",
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          marginBottom: i < 2 ? '6px' : 0,
+                          paddingTop: i === 2 ? '8px' : 0,
+                          borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
                         }}
                       >
                         <span
                           style={{
-                            color: "rgba(255,255,255,0.45)",
-                            fontSize: "11px",
+                            color: 'rgba(255,255,255,0.45)',
+                            fontSize: '11px',
                           }}
                         >
                           {l}
                         </span>
                         <span
                           style={{
-                            color:
-                              i === 1
-                                ? "#ef4444"
-                                : i === 2
-                                  ? "#D4AF37"
-                                  : "#f5f0e8",
-                            fontWeight: i === 2 ? "900" : "700",
-                            fontSize: i === 2 ? "14px" : "11px",
+                            color: i === 1 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
+                            fontWeight: i === 2 ? '900' : '700',
+                            fontSize: i === 2 ? '14px' : '11px',
                           }}
                         >
                           {v}
@@ -1815,13 +1736,13 @@ const SalvaNGNsChat = ({ user }) => {
 
                 <div
                   style={{
-                    padding: "10px 12px",
-                    borderRadius: "10px",
-                    background: "rgba(239,68,68,0.06)",
-                    border: "1px solid rgba(239,68,68,0.15)",
+                    padding: '10px 12px',
+                    borderRadius: '10px',
+                    background: 'rgba(239,68,68,0.06)',
+                    border: '1px solid rgba(239,68,68,0.15)',
                   }}
                 >
-                  <p style={{ color: "#ef4444", fontSize: "10px", margin: 0 }}>
+                  <p style={{ color: '#ef4444', fontSize: '10px', margin: 0 }}>
                     ⚠️ NGNs are burned immediately on-chain. Cannot be undone.
                   </p>
                 </div>
@@ -1829,27 +1750,27 @@ const SalvaNGNsChat = ({ user }) => {
               <div
                 style={{
                   flexShrink: 0,
-                  padding: "12px 20px",
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  background: "#0d0d0e",
+                  padding: '12px 20px',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  background: '#0d0d0e',
                 }}
               >
                 <button
-                  onClick={() => sellValid && setSellPhase("bank")}
+                  onClick={() => sellValid && setSellPhase('bank')}
                   disabled={!sellValid}
                   style={{
-                    width: "100%",
-                    padding: "13px",
+                    width: '100%',
+                    padding: '13px',
                     background: !sellValid
-                      ? "rgba(239,68,68,0.2)"
-                      : "linear-gradient(135deg, #ef4444, #b91c1c)",
-                    border: "none",
-                    borderRadius: "12px",
-                    color: !sellValid ? "rgba(239,68,68,0.4)" : "#fff",
-                    fontSize: "13px",
-                    fontWeight: "900",
-                    cursor: !sellValid ? "not-allowed" : "pointer",
-                    textTransform: "uppercase",
+                      ? 'rgba(239,68,68,0.2)'
+                      : 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                    border: 'none',
+                    borderRadius: '12px',
+                    color: !sellValid ? 'rgba(239,68,68,0.4)' : '#fff',
+                    fontSize: '13px',
+                    fontWeight: '900',
+                    cursor: !sellValid ? 'not-allowed' : 'pointer',
+                    textTransform: 'uppercase',
                   }}
                 >
                   Continue →
@@ -1859,43 +1780,41 @@ const SalvaNGNsChat = ({ user }) => {
           )}
 
           {/* ── SELL: BANK DETAILS ── */}
-          {mode === "sell" && sellPhase === "bank" && (
+          {mode === 'sell' && sellPhase === 'bank' && (
             <div
               style={{
                 flex: 1,
-                display: "flex",
-                flexDirection: "column",
+                display: 'flex',
+                flexDirection: 'column',
                 minHeight: 0,
               }}
             >
               <div
                 style={{
                   flex: 1,
-                  overflowY: "auto",
-                  padding: "16px 20px 12px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "12px",
+                  overflowY: 'auto',
+                  padding: '16px 20px 12px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px',
                 }}
               >
-                <div style={{ textAlign: "center" }}>
-                  <div style={{ fontSize: "32px", marginBottom: "6px" }}>
-                    🏦
-                  </div>
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏦</div>
                   <h3
                     style={{
-                      color: "#f5f0e8",
-                      fontSize: "16px",
-                      fontWeight: "900",
-                      margin: "0 0 3px",
+                      color: '#f5f0e8',
+                      fontSize: '16px',
+                      fontWeight: '900',
+                      margin: '0 0 3px',
                     }}
                   >
                     Your Bank Details
                   </h3>
                   <p
                     style={{
-                      color: "rgba(255,255,255,0.4)",
-                      fontSize: "11px",
+                      color: 'rgba(255,255,255,0.4)',
+                      fontSize: '11px',
                       margin: 0,
                     }}
                   >
@@ -1904,22 +1823,22 @@ const SalvaNGNsChat = ({ user }) => {
                 </div>
                 {[
                   {
-                    label: "Bank Name",
+                    label: 'Bank Name',
                     value: bankName,
                     setter: setBankName,
-                    placeholder: "e.g. OPay, GTBank",
+                    placeholder: 'e.g. OPay, GTBank',
                   },
                   {
-                    label: "Account Number",
+                    label: 'Account Number',
                     value: accountNumber,
                     setter: setAccountNumber,
-                    placeholder: "10-digit account number",
+                    placeholder: '10-digit account number',
                   },
                   {
-                    label: "Account Name",
+                    label: 'Account Name',
                     value: accountName,
                     setter: setAccountName,
-                    placeholder: "Full account name",
+                    placeholder: 'Full account name',
                   },
                 ].map(({ label, value, setter, placeholder }) => (
                   <div key={label}>
@@ -1930,58 +1849,53 @@ const SalvaNGNsChat = ({ user }) => {
                       value={value}
                       onChange={(e) => setter(e.target.value)}
                       style={{
-                        width: "100%",
-                        padding: "11px 14px",
-                        borderRadius: "10px",
-                        border: "1px solid rgba(212,175,55,0.2)",
-                        background: "#1a1a1b",
-                        color: "#f5f0e8",
-                        fontSize: "13px",
-                        outline: "none",
-                        boxSizing: "border-box",
-                        transition: "border-color 0.2s",
+                        width: '100%',
+                        padding: '11px 14px',
+                        borderRadius: '10px',
+                        border: '1px solid rgba(212,175,55,0.2)',
+                        background: '#1a1a1b',
+                        color: '#f5f0e8',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box',
+                        transition: 'border-color 0.2s',
                       }}
-                      onFocus={(e) =>
-                        (e.target.style.borderColor = "rgba(212,175,55,0.6)")
-                      }
-                      onBlur={(e) =>
-                        (e.target.style.borderColor = "rgba(212,175,55,0.2)")
-                      }
+                      onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.6)')}
+                      onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.2)')}
                     />
                   </div>
                 ))}
                 <div
                   style={{
-                    background: "rgba(239,68,68,0.08)",
-                    border: "1px solid rgba(239,68,68,0.2)",
-                    borderRadius: "10px",
-                    padding: "10px 12px",
+                    background: 'rgba(239,68,68,0.08)',
+                    border: '1px solid rgba(239,68,68,0.2)',
+                    borderRadius: '10px',
+                    padding: '10px 12px',
                   }}
                 >
-                  <p style={{ color: "#ef4444", fontSize: "11px", margin: 0 }}>
-                    ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned
-                    immediately. You receive ₦{sellPayout.toLocaleString()}.
-                    Double-check details.
+                  <p style={{ color: '#ef4444', fontSize: '11px', margin: 0 }}>
+                    ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You receive
+                    ₦{sellPayout.toLocaleString()}. Double-check details.
                   </p>
                 </div>
                 {sellError && (
                   <div
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      padding: "10px 14px",
-                      borderRadius: "12px",
-                      background: "rgba(239,68,68,0.1)",
-                      border: "1px solid rgba(239,68,68,0.25)",
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      background: 'rgba(239,68,68,0.1)',
+                      border: '1px solid rgba(239,68,68,0.25)',
                     }}
                   >
-                    <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+                    <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
                     <p
                       style={{
-                        color: "#ef4444",
-                        fontSize: "11px",
-                        fontWeight: "700",
+                        color: '#ef4444',
+                        fontSize: '11px',
+                        fontWeight: '700',
                         margin: 0,
                       }}
                     >
@@ -1993,24 +1907,24 @@ const SalvaNGNsChat = ({ user }) => {
               <div
                 style={{
                   flexShrink: 0,
-                  padding: "12px 20px",
-                  borderTop: "1px solid rgba(255,255,255,0.06)",
-                  background: "#0d0d0e",
-                  display: "flex",
-                  gap: "8px",
+                  padding: '12px 20px',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  background: '#0d0d0e',
+                  display: 'flex',
+                  gap: '8px',
                 }}
               >
                 <button
-                  onClick={() => setSellPhase("amount")}
+                  onClick={() => setSellPhase('amount')}
                   style={{
                     flex: 1,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    color: "rgba(255,255,255,0.6)",
-                    fontSize: "12px",
-                    cursor: "pointer",
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'rgba(255,255,255,0.05)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: '12px',
+                    cursor: 'pointer',
                   }}
                 >
                   Back
@@ -2025,73 +1939,66 @@ const SalvaNGNsChat = ({ user }) => {
                   }
                   style={{
                     flex: 2,
-                    padding: "12px",
-                    borderRadius: "12px",
-                    background: "linear-gradient(135deg, #ef4444, #b91c1c)",
-                    border: "none",
-                    color: "#fff",
-                    fontSize: "13px",
-                    fontWeight: "900",
+                    padding: '12px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                    border: 'none',
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: '900',
                     cursor:
                       sellInitiating ||
                       !bankName.trim() ||
                       !accountNumber.trim() ||
                       !accountName.trim()
-                        ? "not-allowed"
-                        : "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
+                        ? 'not-allowed'
+                        : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
                     opacity:
-                      !bankName.trim() ||
-                      !accountNumber.trim() ||
-                      !accountName.trim()
-                        ? 0.5
-                        : 1,
+                      !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
                   }}
                 >
                   {sellInitiating && <Spinner color="#fff" />}
-                  {sellInitiating ? "Burning…" : "🔥 Burn & Submit"}
+                  {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
                 </button>
               </div>
             </div>
           )}
 
           {/* ── SHARED CHAT ── */}
-          {((mode === "buy" && buyPhase === "chat") ||
-            (mode === "sell" && sellPhase === "chat")) && (
+          {((mode === 'buy' && buyPhase === 'chat') ||
+            (mode === 'sell' && sellPhase === 'chat')) && (
             <>
               <div
                 ref={chatContainerRef}
                 onScroll={(e) => {
                   const el = e.currentTarget;
-                  isNearBottom.current =
-                    el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
                 }}
                 style={{
                   flex: 1,
-                  overflowY: "auto",
-                  padding: "14px",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "8px",
-                  background: "#0a0a0b",
+                  overflowY: 'auto',
+                  padding: '14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  background: '#0a0a0b',
                 }}
               >
                 {messages.length === 0 && (
                   <div
                     style={{
                       flex: 1,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
                       opacity: 0.4,
                     }}
                   >
-                    <p style={{ color: "#D4AF37", fontSize: "12px" }}>
-                      Loading messages…
-                    </p>
+                    <p style={{ color: '#D4AF37', fontSize: '12px' }}>Loading messages…</p>
                   </div>
                 )}
 
@@ -2099,59 +2006,59 @@ const SalvaNGNsChat = ({ user }) => {
                   <Bubble key={msg._id || i} msg={msg} />
                 ))}
 
-                {mode === "buy" && status === "pending" && sellerInfo && (
+                {mode === 'buy' && status === 'pending' && sellerInfo && (
                   <div
                     style={{
-                      padding: "12px 14px",
-                      background: "rgba(212,175,55,0.06)",
-                      border: "1px solid rgba(212,175,55,0.2)",
-                      borderRadius: "12px",
-                      margin: "4px 0",
+                      padding: '12px 14px',
+                      background: 'rgba(212,175,55,0.06)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      borderRadius: '12px',
+                      margin: '4px 0',
                     }}
                   >
                     <p
                       style={{
-                        color: "rgba(212,175,55,0.7)",
-                        fontSize: "9px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.12em",
-                        fontWeight: "700",
-                        margin: "0 0 10px",
+                        color: 'rgba(212,175,55,0.7)',
+                        fontSize: '9px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.12em',
+                        fontWeight: '700',
+                        margin: '0 0 10px',
                       }}
                     >
                       📤 Send your payment to:
                     </p>
                     <div
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "8px",
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
                       }}
                     >
                       {[
-                        { label: "Bank", value: sellerInfo.bankName },
+                        { label: 'Bank', value: sellerInfo.bankName },
                         {
-                          label: "Account Name",
+                          label: 'Account Name',
                           value: sellerInfo.accountName,
                         },
                         {
-                          label: "Account Number",
+                          label: 'Account Number',
                           value: sellerInfo.accountNumber,
                         },
                       ].map(({ label, value }) => (
                         <div
                           key={label}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "8px",
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '8px',
                           }}
                         >
                           <span
                             style={{
-                              color: "rgba(255,255,255,0.35)",
-                              fontSize: "10px",
+                              color: 'rgba(255,255,255,0.35)',
+                              fontSize: '10px',
                               flexShrink: 0,
                             }}
                           >
@@ -2159,23 +2066,23 @@ const SalvaNGNsChat = ({ user }) => {
                           </span>
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
                               minWidth: 0,
                             }}
                           >
                             <span
                               style={{
-                                color: "#f5f0e8",
-                                fontSize: "12px",
-                                fontWeight: "700",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                color: '#f5f0e8',
+                                fontSize: '12px',
+                                fontWeight: '700',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                               }}
                             >
-                              {value || "—"}
+                              {value || '—'}
                             </span>
                             {value && <CopyBtn value={value} />}
                           </div>
@@ -2185,31 +2092,30 @@ const SalvaNGNsChat = ({ user }) => {
                   </div>
                 )}
 
-                {mode === "buy" &&
-                  status === "pending" &&
+                {mode === 'buy' &&
+                  status === 'pending' &&
                   messages.length > 0 &&
                   !showReceiptUpload && (
                     <motion.div
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
-                      style={{ display: "flex", justifyContent: "flex-end" }}
+                      style={{ display: 'flex', justifyContent: 'flex-end' }}
                     >
                       <button
                         onClick={() => setShowReceiptUpload(true)}
                         style={{
-                          padding: "10px 16px",
-                          borderRadius: "12px",
-                          background:
-                            "linear-gradient(135deg, #D4AF37, #b8941e)",
-                          border: "none",
-                          color: "#000",
-                          fontSize: "12px",
-                          fontWeight: "900",
-                          cursor: "pointer",
-                          boxShadow: "0 0 16px rgba(212,175,55,0.4)",
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "6px",
+                          padding: '10px 16px',
+                          borderRadius: '12px',
+                          background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                          border: 'none',
+                          color: '#000',
+                          fontSize: '12px',
+                          fontWeight: '900',
+                          cursor: 'pointer',
+                          boxShadow: '0 0 16px rgba(212,175,55,0.4)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
                         }}
                       >
                         <span>✅</span> I Have Paid
@@ -2217,35 +2123,35 @@ const SalvaNGNsChat = ({ user }) => {
                     </motion.div>
                   )}
 
-                {status === "minting" && (
+                {status === 'minting' && (
                   <div
                     style={{
-                      padding: "12px",
-                      background: "rgba(212,175,55,0.06)",
-                      border: "1px solid rgba(212,175,55,0.2)",
-                      borderRadius: "12px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
+                      padding: '12px',
+                      background: 'rgba(212,175,55,0.06)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      borderRadius: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
                     }}
                   >
                     <div
                       style={{
-                        width: "16px",
-                        height: "16px",
-                        border: "2px solid rgba(212,175,55,0.3)",
-                        borderTopColor: "#D4AF37",
-                        borderRadius: "50%",
-                        animation: "spin 0.8s linear infinite",
+                        width: '16px',
+                        height: '16px',
+                        border: '2px solid rgba(212,175,55,0.3)',
+                        borderTopColor: '#D4AF37',
+                        borderRadius: '50%',
+                        animation: 'spin 0.8s linear infinite',
                         flexShrink: 0,
                       }}
                     />
                     <p
                       style={{
-                        color: "#D4AF37",
-                        fontSize: "12px",
+                        color: '#D4AF37',
+                        fontSize: '12px',
                         margin: 0,
-                        fontWeight: "700",
+                        fontWeight: '700',
                       }}
                     >
                       Minting on-chain… please wait.
@@ -2257,23 +2163,21 @@ const SalvaNGNsChat = ({ user }) => {
                   <button
                     onClick={resetAll}
                     style={{
-                      padding: "11px",
-                      borderRadius: "12px",
-                      background: isMinted
-                        ? "rgba(34,197,94,0.15)"
-                        : "rgba(239,68,68,0.1)",
-                      border: `1px solid ${isMinted ? "rgba(34,197,94,0.3)" : "rgba(239,68,68,0.3)"}`,
-                      color: isMinted ? "#22c55e" : "#ef4444",
-                      fontSize: "12px",
-                      fontWeight: "700",
-                      cursor: "pointer",
+                      padding: '11px',
+                      borderRadius: '12px',
+                      background: isMinted ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${isMinted ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      color: isMinted ? '#22c55e' : '#ef4444',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
                     }}
                   >
                     {isMinted
-                      ? "Buy More NGNs →"
+                      ? 'Buy More NGNs →'
                       : isBurned
-                        ? "New Transaction →"
-                        : "Start New Request →"}
+                        ? 'New Transaction →'
+                        : 'Start New Request →'}
                   </button>
                 )}
 
@@ -2281,11 +2185,7 @@ const SalvaNGNsChat = ({ user }) => {
               </div>
 
               {canChat && (
-                <MessageInput
-                  onSend={handleSend}
-                  onImage={handleSendImage}
-                  disabled={sending}
-                />
+                <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
               )}
             </>
           )}

@@ -1,6 +1,6 @@
 // Salva-Digital-Tech/packages/backend/src/services/registryResolver.js
-const { ethers } = require("ethers");
-const { provider } = require("./walletSigner");
+const { ethers } = require('ethers');
+const { provider } = require('./walletSigner');
 
 // BaseRegistry ABI — updated to match current contract.
 // RULES:
@@ -11,24 +11,20 @@ const { provider } = require("./walletSigner");
 // All strings are converted to UTF-8 bytes before contract calls.
 const BASE_REGISTRY_ABI = [
   // UPDATED: link replaces linkToWallet. Now requires signature param and is payable.
-  "function link(bytes calldata _name, address _wallet, bytes calldata signature) external payable",
-  "function unlink(bytes calldata _name) external returns (bool)",
-  "function resolveAddress(bytes calldata _name) external view returns (address)",
+  'function link(bytes calldata _name, address _wallet, bytes calldata signature) external payable',
+  'function unlink(bytes calldata _name) external returns (bool)',
+  'function resolveAddress(bytes calldata _name) external view returns (address)',
   // UPDATED: view not pure — reads factory state
-  "function namespace() external view returns (string memory)",
+  'function namespace() external view returns (string memory)',
 ];
 
 function getRegistryContract(registryAddress, signerOrProvider) {
   // ADD THIS CHECK
-  if (!registryAddress || registryAddress === "undefined") {
-    throw new Error("Registry address is missing or undefined");
+  if (!registryAddress || registryAddress === 'undefined') {
+    throw new Error('Registry address is missing or undefined');
   }
 
-  return new ethers.Contract(
-    registryAddress,
-    BASE_REGISTRY_ABI,
-    signerOrProvider || provider,
-  );
+  return new ethers.Contract(registryAddress, BASE_REGISTRY_ABI, signerOrProvider || provider);
 }
 
 /** Converts a string to UTF-8 bytes for contract calls. */
@@ -47,14 +43,14 @@ function weldName(pureName, namespace) {
  */
 async function getNamespace(registryAddress) {
   // ADD THIS CHECK
-  if (!registryAddress) return "";
+  if (!registryAddress) return '';
 
   try {
     const reg = getRegistryContract(registryAddress, provider);
     return await reg.namespace();
   } catch (e) {
-    console.error("Failed to get namespace:", e.message);
-    return "";
+    console.error('Failed to get namespace:', e.message);
+    return '';
   }
 }
 
@@ -69,14 +65,12 @@ async function checkNameAvailability(weldedName, registryAddress) {
     const resolved = await reg.resolveAddress(nameToBytes(weldedName));
     const isAvailable = !resolved || resolved === ethers.ZeroAddress;
     console.log(
-      `🔍 Availability '${weldedName}': ${isAvailable ? "AVAILABLE" : "TAKEN"} (resolved: ${resolved})`,
+      `🔍 Availability '${weldedName}': ${isAvailable ? 'AVAILABLE' : 'TAKEN'} (resolved: ${resolved})`
     );
     return isAvailable;
   } catch (err) {
     // Revert means slot was never written — available
-    console.log(
-      `🔍 resolveAddress reverted for '${weldedName}' — treating as available`,
-    );
+    console.log(`🔍 resolveAddress reverted for '${weldedName}' — treating as available`);
     return true;
   }
 }
@@ -95,11 +89,11 @@ async function unlinkName(pureName, registryAddress, signerWallet) {
     console.log(`⏳ unlink TX sent: ${tx.hash} ('${pureName}')`);
   } catch (sendErr) {
     console.error(`❌ unlink send failed:`, sendErr.message);
-    throw new Error("On-chain unlink failed. Please try again.");
+    throw new Error('On-chain unlink failed. Please try again.');
   }
   const receipt = await tx.wait();
   if (!receipt || receipt.status === 0)
-    throw new Error("On-chain unlink failed (receipt status 0).");
+    throw new Error('On-chain unlink failed (receipt status 0).');
   console.log(`✅ '${pureName}' unlinked (tx: ${tx.hash})`);
   return { txHash: tx.hash };
 }
@@ -130,21 +124,19 @@ async function resolveNameToAddress(weldedName, registryAddress) {
  */
 async function resolveToAddress(input, registryAddress) {
   const trimmed = input.trim();
-  if (trimmed.startsWith("0x")) {
-    if (!ethers.isAddress(trimmed))
-      throw new Error(`Invalid wallet address: ${trimmed}`);
+  if (trimmed.startsWith('0x')) {
+    if (!ethers.isAddress(trimmed)) throw new Error(`Invalid wallet address: ${trimmed}`);
     return trimmed.toLowerCase();
   }
-  if (!registryAddress)
-    throw new Error("A registry must be selected to resolve a name");
+  if (!registryAddress) throw new Error('A registry must be selected to resolve a name');
   // Input is expected to already be welded (transfer route welds before calling here)
   return await resolveNameToAddress(trimmed, registryAddress);
 }
 
 /** Returns true if input is a name alias (not a 0x address). */
 function isNameAlias(input) {
-  if (typeof input !== "string") return false;
-  return !input.trim().startsWith("0x");
+  if (typeof input !== 'string') return false;
+  return !input.trim().startsWith('0x');
 }
 
 module.exports = {

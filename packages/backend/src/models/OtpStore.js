@@ -1,5 +1,5 @@
 // packages/backend/src/models/OtpStore.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const OtpStoreSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, index: true },
@@ -11,4 +11,4 @@ const OtpStoreSchema = new mongoose.Schema({
 // MongoDB TTL index — auto-deletes expired OTPs
 OtpStoreSchema.index({ expires: 1 }, { expireAfterSeconds: 0 });
 
-module.exports = mongoose.model("OtpStore", OtpStoreSchema);
+module.exports = mongoose.model('OtpStore', OtpStoreSchema);

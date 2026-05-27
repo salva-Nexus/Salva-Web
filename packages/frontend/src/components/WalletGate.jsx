@@ -7,33 +7,33 @@
 //   • The children when connected + correct chain
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { isMobile, buildMetaMaskDeepLink } from "../hooks/useWallet";
+import React from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { isMobile, buildMetaMaskDeepLink } from '../hooks/useWallet';
 
 const WALLETS = [
   {
-    name: "MetaMask",
-    icon: "🦊",
-    description: "The most popular Ethereum wallet",
-    desktopUrl: "https://metamask.io/download/",
+    name: 'MetaMask',
+    icon: '🦊',
+    description: 'The most popular Ethereum wallet',
+    desktopUrl: 'https://metamask.io/download/',
     mobileUrl: null, // handled via deep link
     deepLink: true,
   },
   {
-    name: "Coinbase Wallet",
-    icon: "🔵",
-    description: "Self-custody wallet by Coinbase",
-    desktopUrl: "https://www.coinbase.com/wallet/downloads",
-    mobileUrl: "https://www.coinbase.com/wallet",
+    name: 'Coinbase Wallet',
+    icon: '🔵',
+    description: 'Self-custody wallet by Coinbase',
+    desktopUrl: 'https://www.coinbase.com/wallet/downloads',
+    mobileUrl: 'https://www.coinbase.com/wallet',
     deepLink: false,
   },
   {
-    name: "Rainbow",
-    icon: "🌈",
-    description: "A fun, simple Ethereum wallet",
-    desktopUrl: "https://rainbow.me/download",
-    mobileUrl: "https://rainbow.me",
+    name: 'Rainbow',
+    icon: '🌈',
+    description: 'A fun, simple Ethereum wallet',
+    desktopUrl: 'https://rainbow.me/download',
+    mobileUrl: 'https://rainbow.me',
     deepLink: false,
   },
 ];
@@ -60,8 +60,8 @@ export const NoWalletCard = ({ onDismiss }) => {
             <h3 className="font-black text-lg text-white">No Wallet Found</h3>
             <p className="text-[11px] text-white/60 mt-0.5">
               {mobile
-                ? "Install a wallet app to sign transactions"
-                : "Install a browser wallet to get started"}
+                ? 'Install a wallet app to sign transactions'
+                : 'Install a browser wallet to get started'}
             </p>
           </div>
         </div>
@@ -88,7 +88,7 @@ export const NoWalletCard = ({ onDismiss }) => {
                   <p className="text-[10px] text-white/50">{w.description}</p>
                 </div>
                 <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  {mobile && w.deepLink ? "Open ↗" : "Install ↗"}
+                  {mobile && w.deepLink ? 'Open ↗' : 'Install ↗'}
                 </span>
               </a>
             );
@@ -98,8 +98,8 @@ export const NoWalletCard = ({ onDismiss }) => {
         {mobile && (
           <div className="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/15 mb-4">
             <p className="text-[11px] text-blue-400/90 font-bold leading-relaxed">
-              📱 On mobile, tap "Open" on MetaMask above. It will open this page
-              inside the MetaMask browser where you can sign transactions.
+              📱 On mobile, tap "Open" on MetaMask above. It will open this page inside the MetaMask
+              browser where you can sign transactions.
             </p>
           </div>
         )}
@@ -122,18 +122,18 @@ export const ConnectWalletButton = ({
   onConnect,
   connecting,
   error,
-  accentColor = "#3b82f6",
-  label = "Connect Wallet",
+  accentColor = '#3b82f6',
+  label = 'Connect Wallet',
   compact = false,
 }) => (
-  <div className={compact ? "" : "space-y-3"}>
+  <div className={compact ? '' : 'space-y-3'}>
     <button
       onClick={onConnect}
       disabled={connecting}
       className="w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98]"
       style={{
         background: accentColor,
-        color: "#000",
+        color: '#000',
         boxShadow: `0 8px 24px ${accentColor}33`,
       }}
     >
@@ -149,16 +149,12 @@ export const ConnectWalletButton = ({
         </>
       )}
     </button>
-    {error && (
-      <p className="text-[11px] text-red-400 font-bold text-center px-2">
-        {error}
-      </p>
-    )}
+    {error && <p className="text-[11px] text-red-400 font-bold text-center px-2">{error}</p>}
   </div>
 );
 
 // ── Switch Chain Button ───────────────────────────────────────────────────────
-export const SwitchChainBanner = ({ onSwitch, chainName = "Ethereum Mainnet" }) => (
+export const SwitchChainBanner = ({ onSwitch, chainName = 'Ethereum Mainnet' }) => (
   <motion.div
     initial={{ opacity: 0, y: -4 }}
     animate={{ opacity: 1, y: 0 }}
@@ -166,9 +162,7 @@ export const SwitchChainBanner = ({ onSwitch, chainName = "Ethereum Mainnet" }) 
   >
     <div>
       <p className="text-sm font-black text-orange-400">Wrong Network</p>
-      <p className="text-[11px] text-orange-400/70 mt-0.5">
-        Switch to {chainName} to continue
-      </p>
+      <p className="text-[11px] text-orange-400/70 mt-0.5">Switch to {chainName} to continue</p>
     </div>
     <button
       onClick={onSwitch}
@@ -181,22 +175,24 @@ export const SwitchChainBanner = ({ onSwitch, chainName = "Ethereum Mainnet" }) 
 
 // ── WalletGate — wrap any section that needs a wallet ────────────────────────
 export const WalletGate = ({
-  wallet,         // object from useWallet()
+  wallet, // object from useWallet()
   accentColor,
   children,
-  label,          // optional connect button label override
+  label, // optional connect button label override
 }) => {
   const [showInstall, setShowInstall] = React.useState(false);
 
-  if (wallet.status === "no_wallet" || showInstall) {
+  if (wallet.status === 'no_wallet' || showInstall) {
     return (
-      <NoWalletCard onDismiss={() => {
-        setShowInstall(false);
-        if (wallet.status === "no_wallet") {
-          // reset status so the connect button shows again
-          wallet.connect?.();
-        }
-      }} />
+      <NoWalletCard
+        onDismiss={() => {
+          setShowInstall(false);
+          if (wallet.status === 'no_wallet') {
+            // reset status so the connect button shows again
+            wallet.connect?.();
+          }
+        }}
+      />
     );
   }
 
@@ -207,10 +203,10 @@ export const WalletGate = ({
           onConnect={async () => {
             await wallet.connect();
           }}
-          connecting={wallet.status === "connecting"}
+          connecting={wallet.status === 'connecting'}
           error={wallet.error}
           accentColor={accentColor}
-          label={label || "Connect Wallet to Continue"}
+          label={label || 'Connect Wallet to Continue'}
         />
         <button
           onClick={() => setShowInstall(true)}
@@ -226,11 +222,7 @@ export const WalletGate = ({
     return (
       <SwitchChainBanner
         onSwitch={wallet.switchChain}
-        chainName={
-          process.env.NODE_ENV === "production"
-            ? "Ethereum Mainnet"
-            : "Sepolia Testnet"
-        }
+        chainName={process.env.NODE_ENV === 'production' ? 'Ethereum Mainnet' : 'Sepolia Testnet'}
       />
     );
   }

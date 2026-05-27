@@ -1,8 +1,8 @@
 // packages/backend/src/models/FeeConfig.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const FeeConfigSchema = new mongoose.Schema({
-  _id: { type: String, default: "main" },
+  _id: { type: String, default: 'main' },
 
   // Tier 0: FREE transfers (< 1,000 NGN) — no fee
   tier0Max: { type: Number, default: 999 },
@@ -24,4 +24,4 @@ const FeeConfigSchema = new mongoose.Schema({
   poolSubscriptionMonthlyFee: { type: Number, default: 5000 },
 });
 
-module.exports = mongoose.model("FeeConfig", FeeConfigSchema);
+module.exports = mongoose.model('FeeConfig', FeeConfigSchema);

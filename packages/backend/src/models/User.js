@@ -1,5 +1,5 @@
 // packages/backend/src/models/User.js
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const LinkedNameSchema = new mongoose.Schema(
   {
@@ -7,7 +7,7 @@ const LinkedNameSchema = new mongoose.Schema(
     wallet: { type: String, required: true, lowercase: true },
     registryAddress: { type: String, required: true, lowercase: true },
   },
-  { _id: false },
+  { _id: false }
 );
 
 const UserSchema = new mongoose.Schema({
@@ -51,4 +51,4 @@ const UserSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now, index: true },
 });
 
-module.exports = mongoose.model("User", UserSchema);
+module.exports = mongoose.model('User', UserSchema);

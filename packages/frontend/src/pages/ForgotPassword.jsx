@@ -17,7 +17,7 @@ const ForgotPassword = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showWarning, setShowWarning] = useState(false); // ✅ NEW STATE
-  
+
   const navigate = useNavigate();
 
   const handleSendOTP = async (e) => {
@@ -27,7 +27,7 @@ const ForgotPassword = () => {
       const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email }),
       });
       if (res.ok) {
         setStep(2);
@@ -49,7 +49,7 @@ const ForgotPassword = () => {
       const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: otp })
+        body: JSON.stringify({ email, code: otp }),
       });
       if (res.ok) {
         // ✅ Show warning instead of directly going to step 3
@@ -80,9 +80,9 @@ const ForgotPassword = () => {
 
     // ✅ Validate password strength
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
-      return setMessage({ 
-        text: 'Password must be 8+ characters with uppercase, lowercase, and number', 
-        type: 'error' 
+      return setMessage({
+        text: 'Password must be 8+ characters with uppercase, lowercase, and number',
+        type: 'error',
       });
     }
 
@@ -91,15 +91,15 @@ const ForgotPassword = () => {
       const res = await fetch(`${SALVA_API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, newPassword })
+        body: JSON.stringify({ email, newPassword }),
       });
 
       const data = await res.json(); // ✅ FIX: Actually parse the response
 
       if (res.ok) {
-        setMessage({ 
-          text: 'Password reset successful! Account locked for 24 hours. Redirecting...', 
-          type: 'success' 
+        setMessage({
+          text: 'Password reset successful! Account locked for 24 hours. Redirecting...',
+          type: 'success',
         });
         setTimeout(() => navigate('/login'), 3000);
       } else {
@@ -117,25 +117,33 @@ const ForgotPassword = () => {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white flex items-center justify-center px-4 relative overflow-hidden">
       <Stars />
-      
-      <motion.div 
+
+      <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 relative z-10"
       >
         <h2 className="text-3xl font-black mb-2 tracking-tighter">RESET PASSWORD</h2>
         <p className="text-xs text-salvaGold uppercase tracking-[0.3em] font-bold mb-8">
-          {step === 1 && "Identify your account"}
-          {step === 2 && "Check your inbox"}
-          {step === 3 && "Secure your vault"}
+          {step === 1 && 'Identify your account'}
+          {step === 2 && 'Check your inbox'}
+          {step === 3 && 'Secure your vault'}
         </p>
 
-        <form onSubmit={step === 1 ? handleSendOTP : step === 2 ? handleVerifyOTP : handleResetPassword} className="space-y-6">
+        <form
+          onSubmit={step === 1 ? handleSendOTP : step === 2 ? handleVerifyOTP : handleResetPassword}
+          className="space-y-6"
+        >
           {step === 1 && (
             <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">Email Address</label>
-              <input 
-                required type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                Email Address
+              </label>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="w-full p-4 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold transition-all"
                 placeholder="charlie@salva.com"
               />
@@ -144,9 +152,15 @@ const ForgotPassword = () => {
 
           {step === 2 && (
             <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">6-Digit Code</label>
-              <input 
-                required type="text" maxLength="6" value={otp} onChange={(e) => setOtp(e.target.value)}
+              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                6-Digit Code
+              </label>
+              <input
+                required
+                type="text"
+                maxLength="6"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
                 className="w-full p-4 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold text-center text-2xl tracking-[0.5em]"
                 placeholder="000000"
               />
@@ -156,12 +170,14 @@ const ForgotPassword = () => {
           {step === 3 && (
             <>
               <div>
-                <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">New Password</label>
+                <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                  New Password
+                </label>
                 <div className="relative">
-                  <input 
-                    required 
-                    type={showNewPassword ? "text" : "password"} 
-                    value={newPassword} 
+                  <input
+                    required
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     className="w-full p-4 pr-12 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold"
                   />
@@ -175,12 +191,14 @@ const ForgotPassword = () => {
                 </div>
               </div>
               <div>
-                <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">Confirm Password</label>
+                <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                  Confirm Password
+                </label>
                 <div className="relative">
-                  <input 
-                    required 
-                    type={showConfirmPassword ? "text" : "password"} 
-                    value={confirmPassword} 
+                  <input
+                    required
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     className="w-full p-4 pr-12 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold"
                   />
@@ -196,24 +214,34 @@ const ForgotPassword = () => {
             </>
           )}
 
-          <button 
+          <button
             disabled={loading}
             className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 transition-all uppercase tracking-widest text-sm"
           >
-            {loading ? "Processing..." : step === 1 ? "Send Code" : step === 2 ? "Verify Code" : "Update Password"}
+            {loading
+              ? 'Processing...'
+              : step === 1
+                ? 'Send Code'
+                : step === 2
+                  ? 'Verify Code'
+                  : 'Update Password'}
           </button>
         </form>
 
         <div className="mt-8 text-center">
-          <Link to="/login" className="text-[10px] uppercase opacity-40 hover:opacity-100 transition-opacity font-bold">
+          <Link
+            to="/login"
+            className="text-[10px] uppercase opacity-40 hover:opacity-100 transition-opacity font-bold"
+          >
             Back to Login
           </Link>
         </div>
 
         <AnimatePresence>
           {message.text && (
-            <motion.p 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               className={`mt-4 text-[10px] uppercase font-bold text-center ${message.type === 'error' ? 'text-red-500' : 'text-salvaGold'}`}
             >
               {message.text}
@@ -226,34 +254,37 @@ const ForgotPassword = () => {
       <AnimatePresence>
         {showWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <motion.div 
-              onClick={() => setShowWarning(false)} 
-              className="absolute inset-0 bg-black/95 backdrop-blur-md" 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              exit={{ opacity: 0 }} 
+            <motion.div
+              onClick={() => setShowWarning(false)}
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
             />
-            <motion.div 
-              onClick={(e) => e.stopPropagation()} 
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl z-10" 
-              initial={{ opacity: 0, scale: 0.95 }} 
-              animate={{ opacity: 1, scale: 1 }} 
+            <motion.div
+              onClick={(e) => e.stopPropagation()}
+              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl z-10"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <h3 className="text-2xl font-black mb-4 text-black dark:text-white">⚠️ Security Warning</h3>
+              <h3 className="text-2xl font-black mb-4 text-black dark:text-white">
+                ⚠️ Security Warning
+              </h3>
               <p className="text-sm opacity-80 mb-6 text-gray-700 dark:text-gray-300">
-                Changing your password will <strong className="text-salvaGold">lock your account for 24 hours</strong>. 
-                You won't be able to perform any transactions during this period.
+                Changing your password will{' '}
+                <strong className="text-salvaGold">lock your account for 24 hours</strong>. You
+                won't be able to perform any transactions during this period.
               </p>
               <div className="flex gap-3">
-                <button 
-                  onClick={() => setShowWarning(false)} 
+                <button
+                  onClick={() => setShowWarning(false)}
                   className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={handleProceedToReset} 
+                <button
+                  onClick={handleProceedToReset}
                   className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110"
                 >
                   OK, PROCEED

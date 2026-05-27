@@ -1,13 +1,13 @@
 // Salva-Digital-Tech/packages/backend/src/services/userService.js
-const { ethers } = require("ethers");
-const Safe = require("@safe-global/protocol-kit").default;
-const { wallet, provider } = require("./walletSigner");
+const { ethers } = require('ethers');
+const Safe = require('@safe-global/protocol-kit').default;
+const { wallet, provider } = require('./walletSigner');
 
 async function generateAndDeploySalvaIdentity(providerUrl) {
-  console.log("🏗️  Starting Safe Wallet Generation & Deployment...");
+  console.log('🏗️  Starting Safe Wallet Generation & Deployment...');
 
   const owner = ethers.Wallet.createRandom();
-  console.log("✅ Owner Address Generated:", owner.address);
+  console.log('✅ Owner Address Generated:', owner.address);
 
   const predictedSafe = {
     safeAccountConfig: {
@@ -15,7 +15,7 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
       threshold: 1,
     },
     safeDeploymentConfig: {
-      safeVersion: "1.3.0",
+      safeVersion: '1.3.0',
     },
   };
 
@@ -26,11 +26,10 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
   });
 
   const safeAddress = await protocolKit.getAddress();
-  console.log("📍 Safe Address (pre-deployment):", safeAddress);
+  console.log('📍 Safe Address (pre-deployment):', safeAddress);
 
-  console.log("🚀 Deploying Safe on-chain (backend pays gas)...");
-  const deploymentTransaction =
-    await protocolKit.createSafeDeploymentTransaction();
+  console.log('🚀 Deploying Safe on-chain (backend pays gas)...');
+  const deploymentTransaction = await protocolKit.createSafeDeploymentTransaction();
 
   const txResponse = await wallet.sendTransaction({
     to: deploymentTransaction.to,
@@ -38,27 +37,25 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     value: deploymentTransaction.value,
   });
 
-  console.log("⏳ Waiting for transaction confirmation...");
+  console.log('⏳ Waiting for transaction confirmation...');
   await txResponse.wait();
-  console.log("✅ Safe Deployed! TX:", txResponse.hash);
+  console.log('✅ Safe Deployed! TX:', txResponse.hash);
 
-  console.log("⏳ Verifying deployment on-chain...");
+  console.log('⏳ Verifying deployment on-chain...');
   await new Promise((resolve) => setTimeout(resolve, 3000));
 
   let code = await provider.getCode(safeAddress);
 
-  if (code === "0x") {
+  if (code === '0x') {
     console.log("🔄 Node hasn't synced yet, retrying verification...");
     await new Promise((resolve) => setTimeout(resolve, 3000));
     code = await provider.getCode(safeAddress);
   }
 
-  if (code === "0x") {
-    throw new Error(
-      "❌ Safe deployment failed - no code at address after retries",
-    );
+  if (code === '0x') {
+    throw new Error('❌ Safe deployment failed - no code at address after retries');
   }
-  console.log("✅ Safe deployment verified on-chain");
+  console.log('✅ Safe deployment verified on-chain');
 
   return {
     ownerAddress: owner.address,

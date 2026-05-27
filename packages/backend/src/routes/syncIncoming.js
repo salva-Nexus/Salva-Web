@@ -1,43 +1,42 @@
 // backend/src/routes/syncIncoming.js
-const express = require("express");
-const { ethers } = require("ethers");
+const express = require('express');
+const { ethers } = require('ethers');
 const router = express.Router();
 
-const Transaction = require("../models/Transaction");
-const User = require("../models/User");
-const { sendTransactionEmailToReceiver } = require("../services/emailService");
+const Transaction = require('../models/Transaction');
+const User = require('../models/User');
+const { sendTransactionEmailToReceiver } = require('../services/emailService');
 
 // ── Provider ──────────────────────────────────────────────────────────────────
 const rpcUrl =
-  process.env.NODE_ENV === "production"
-    ? "https://base-rpc.publicnode.com"
-    : "https://base-sepolia-rpc.publicnode.com";
+  process.env.NODE_ENV === 'production'
+    ? 'https://base-rpc.publicnode.com'
+    : 'https://base-sepolia-rpc.publicnode.com';
 
 const provider = new ethers.JsonRpcProvider(rpcUrl);
 
 // ── ERC20 Transfer(address indexed from, address indexed to, uint256 value) ──
-const TRANSFER_TOPIC = ethers.id("Transfer(address,address,uint256)");
+const TRANSFER_TOPIC = ethers.id('Transfer(address,address,uint256)');
 
 // ── Token list ────────────────────────────────────────────────────────────────
 const getTokens = () => [
-  { address: process.env.NGN_TOKEN_ADDRESS,    symbol: "NGN",  decimals: 6 },
-  { address: process.env.CNGN_CONTRACT_ADDRESS, symbol: "CNGN", decimals: 6 },
-  { address: process.env.USDT_CONTRACT_ADDRESS, symbol: "USDT", decimals: 6 },
-  { address: process.env.USDC_CONTRACT_ADDRESS, symbol: "USDC", decimals: 6 },
+  { address: process.env.NGN_TOKEN_ADDRESS, symbol: 'NGN', decimals: 6 },
+  { address: process.env.CNGN_CONTRACT_ADDRESS, symbol: 'CNGN', decimals: 6 },
+  { address: process.env.USDT_CONTRACT_ADDRESS, symbol: 'USDT', decimals: 6 },
+  { address: process.env.USDC_CONTRACT_ADDRESS, symbol: 'USDC', decimals: 6 },
 ];
 
 // Pad an address into a 32-byte log topic
-const toTopic = (addr) =>
-  "0x" + addr.replace("0x", "").toLowerCase().padStart(64, "0");
+const toTopic = (addr) => '0x' + addr.replace('0x', '').toLowerCase().padStart(64, '0');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /api/sync-incoming/:safeAddress
 // ─────────────────────────────────────────────────────────────────────────────
-router.get("/:safeAddress", async (req, res) => {
+router.get('/:safeAddress', async (req, res) => {
   const raw = req.params.safeAddress;
 
   if (!ethers.isAddress(raw)) {
-    return res.status(400).json({ message: "Invalid address" });
+    return res.status(400).json({ message: 'Invalid address' });
   }
 
   const safeAddress = raw.toLowerCase();
@@ -90,17 +89,17 @@ router.get("/:safeAddress", async (req, res) => {
 
           if (exists) continue;
         } catch (dedupErr) {
-          console.error("❌ Dedup query error:", dedupErr.message);
+          console.error('❌ Dedup query error:', dedupErr.message);
           continue;
         }
 
         // ── 3b. Decode log ───────────────────────────────────────────────────
         let fromAddress, rawAmount;
         try {
-          fromAddress = ethers.getAddress("0x" + log.topics[1].slice(26));
+          fromAddress = ethers.getAddress('0x' + log.topics[1].slice(26));
           rawAmount = BigInt(log.data);
         } catch (decodeErr) {
-          console.error("❌ Log decode error:", decodeErr.message);
+          console.error('❌ Log decode error:', decodeErr.message);
           continue;
         }
 
@@ -118,9 +117,7 @@ router.get("/:safeAddress", async (req, res) => {
         }
 
         // ── 3e. Format amount ────────────────────────────────────────────────
-        const amount = parseFloat(
-          ethers.formatUnits(rawAmount, token.decimals),
-        ).toFixed(2);
+        const amount = parseFloat(ethers.formatUnits(rawAmount, token.decimals)).toFixed(2);
 
         // ── 3f. Look up sender's Salva identity (best-effort) ────────────────
         let fromNameAlias = null;
@@ -142,7 +139,7 @@ router.get("/:safeAddress", async (req, res) => {
             taskId: txHash,
             amount,
             coin: token.symbol,
-            status: "successful",
+            status: 'successful',
             date,
             fromAddress: fromAddress.toLowerCase(),
             fromNameAlias,
@@ -150,35 +147,33 @@ router.get("/:safeAddress", async (req, res) => {
             toAddress: safeAddress,
             toNameAlias: recipient.nameAlias || null,
             toUsername: recipient.username || null,
-            senderDisplayIdentifier:
-              fromNameAlias || fromUsername || fromAddress.toLowerCase(),
-            fee: "0",
-            type: "transfer",
+            senderDisplayIdentifier: fromNameAlias || fromUsername || fromAddress.toLowerCase(),
+            fee: '0',
+            type: 'transfer',
           });
 
           synced++;
           console.log(
-            `✅ sync-incoming: saved ${token.symbol} transfer ${txHash} → ${safeAddress}`,
+            `✅ sync-incoming: saved ${token.symbol} transfer ${txHash} → ${safeAddress}`
           );
         } catch (saveErr) {
           // Duplicate key on taskId is expected on concurrent calls — not a real error
           if (saveErr.code === 11000) continue;
-          console.error("❌ Transaction.create error:", saveErr.message);
+          console.error('❌ Transaction.create error:', saveErr.message);
           continue;
         }
 
         // ── 3h. Email recipient (non-blocking) ───────────────────────────────
         if (recipient.email) {
-          const senderDisplay =
-            fromNameAlias || fromUsername || fromAddress.toLowerCase();
+          const senderDisplay = fromNameAlias || fromUsername || fromAddress.toLowerCase();
           sendTransactionEmailToReceiver(
             recipient.email,
             recipient.username,
             senderDisplay,
             amount,
-            token.symbol,   // ← actual coin: NGN / USDT / USDC
+            token.symbol // ← actual coin: NGN / USDT / USDC
           ).catch((emailErr) => {
-            console.error("📧 sync-incoming email error:", emailErr.message);
+            console.error('📧 sync-incoming email error:', emailErr.message);
           });
         }
       }
@@ -186,7 +181,7 @@ router.get("/:safeAddress", async (req, res) => {
 
     return res.json({ synced, scannedBlocks: latestBlock - fromBlock });
   } catch (err) {
-    console.error("❌ /sync-incoming error:", err.message);
+    console.error('❌ /sync-incoming error:', err.message);
     return res.json({ synced: 0, error: err.message });
   }
 });

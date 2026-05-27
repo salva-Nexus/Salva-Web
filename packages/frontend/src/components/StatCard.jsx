@@ -2,9 +2,9 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const StatCard = ({ label, value, icon, color = "salvaGold" }) => {
+const StatCard = ({ label, value, icon, color = 'salvaGold' }) => {
   return (
-    <motion.div 
+    <motion.div
       whileHover={{ y: -5, scale: 1.02 }}
       className="p-4 sm:p-6 rounded-2xl sm:rounded-[2rem] border border-white/5 bg-white/[0.03] backdrop-blur-xl flex flex-col gap-3 sm:gap-4 w-full"
     >

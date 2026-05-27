@@ -1,24 +1,24 @@
 // src/pages/L1Dashboard.jsx
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { SALVA_API_URL } from "../config";
-import Stars from "../components/Stars";
-import L1BuyNGNs from "./L1BuyNGNs";
-import L1SwapTab from "./L1SwapTab";
-import L1DeployPool from "./L1DeployPool";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SALVA_API_URL } from '../config';
+import Stars from '../components/Stars';
+import L1BuyNGNs from './L1BuyNGNs';
+import L1SwapTab from './L1SwapTab';
+import L1DeployPool from './L1DeployPool';
 
 // ── Notification ──────────────────────────────────────────────────────────────
 const L1Notification = ({ notification, onClose }) => {
   const cfgMap = {
-    success: { icon: "✓", bar: "#D4AF37", btnBg: "#D4AF37", btnText: "#000" },
-    error: { icon: "✕", bar: "#EF4444", btnBg: "#EF4444", btnText: "#fff" },
+    success: { icon: '✓', bar: '#D4AF37', btnBg: '#D4AF37', btnText: '#000' },
+    error: { icon: '✕', bar: '#EF4444', btnBg: '#EF4444', btnText: '#fff' },
     info: {
-      icon: "↻",
-      bar: "#3B82F6",
-      btnBg: "rgba(255,255,255,0.15)",
-      btnText: "#fff",
+      icon: '↻',
+      bar: '#3B82F6',
+      btnBg: 'rgba(255,255,255,0.15)',
+      btnText: '#fff',
     },
-    warning: { icon: "⚠", bar: "#F59E0B", btnBg: "#F59E0B", btnText: "#000" },
+    warning: { icon: '⚠', bar: '#F59E0B', btnBg: '#F59E0B', btnText: '#000' },
   };
   const cfg = cfgMap[notification.type] || cfgMap.info;
   if (!notification.show) return null;
@@ -36,7 +36,7 @@ const L1Notification = ({ notification, onClose }) => {
         initial={{ opacity: 0, scale: 0.85, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.85, y: 20 }}
-        transition={{ type: "spring", stiffness: 400, damping: 28 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ height: 4, background: cfg.bar }} />
@@ -67,14 +67,14 @@ const L1Notification = ({ notification, onClose }) => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
-  if (value === null || value === undefined || value === "") {
-    return "0";
+  if (value === null || value === undefined || value === '') {
+    return '0';
   }
 
   const num = Number(value);
 
   if (!Number.isFinite(num)) {
-    return "0";
+    return '0';
   }
 
   const factor = 10 ** maxDecimals;
@@ -82,7 +82,7 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
   // truncate instead of round
   const truncated = Math.trunc(num * factor) / factor;
 
-  return truncated.toLocaleString("en-US", {
+  return truncated.toLocaleString('en-US', {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
   });
@@ -95,7 +95,7 @@ const addDecimals = (a, b) => {
   const sum = ai + bi;
 
   // preserve precision safely
-  return sum.toFixed(6).replace(/\.?0+$/, "");
+  return sum.toFixed(6).replace(/\.?0+$/, '');
 };
 
 // ── Balance Spinner ────────────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ const L1BalanceCard = ({
 }) => {
   const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
-  const MASK = "••••••";
+  const MASK = '••••••';
 
   return (
     <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
@@ -134,15 +134,13 @@ const L1BalanceCard = ({
               transition={{ repeat: Infinity, duration: 2.5 }}
               className="w-1.5 h-1.5 rounded-full bg-blue-400 block"
             />
-            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              NGN
-            </p>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
           </div>
           <button
             onClick={onToggleVisibility}
             className="text-white/60 hover:text-white/80 transition-colors text-sm leading-none"
           >
-            {showBalance ? "👁" : "👁‍🗨"}
+            {showBalance ? '👁' : '👁‍🗨'}
           </button>
         </div>
 
@@ -155,8 +153,8 @@ const L1BalanceCard = ({
               style={{
                 fontSize:
                   showBalance && formatNumber(totalNgn).length > 10
-                    ? "clamp(1rem, 5vw, 1.75rem)"
-                    : "1.875rem",
+                    ? 'clamp(1rem, 5vw, 1.75rem)'
+                    : '1.875rem',
               }}
             >
               {showBalance
@@ -179,7 +177,7 @@ const L1BalanceCard = ({
                   minDecimals: 3,
                   maxDecimals: 3,
                 })} cNGN`
-              : "•••• NGNs · •••• cNGN"}
+              : '•••• NGNs · •••• cNGN'}
           </p>
         )}
       </div>
@@ -192,9 +190,7 @@ const L1BalanceCard = ({
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
             className="w-1.5 h-1.5 rounded-full bg-green-400 block"
           />
-          <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-            USD
-          </p>
+          <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
 
         <div className="min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
@@ -206,8 +202,8 @@ const L1BalanceCard = ({
               style={{
                 fontSize:
                   showBalance && String(totalUsd).length > 10
-                    ? "clamp(0.9rem, 4vw, 1.5rem)"
-                    : "1.5rem",
+                    ? 'clamp(0.9rem, 4vw, 1.5rem)'
+                    : '1.5rem',
               }}
             >
               {showBalance
@@ -230,7 +226,7 @@ const L1BalanceCard = ({
                   minDecimals: 2,
                   maxDecimals: 3,
                 })} USDC`
-              : "•••• USDT · •••• USDC"}
+              : '•••• USDT · •••• USDC'}
           </p>
         )}
       </div>
@@ -241,12 +237,7 @@ const L1BalanceCard = ({
 // ── Tab icons ─────────────────────────────────────────────────────────────────
 const TAB_ICONS = {
   buy: (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.75}
-    >
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
       <text
         x="12"
         y="17"
@@ -320,8 +311,8 @@ const L1Hero = ({ onConnect, connecting }) => (
           transition={{ delay: 0.2 }}
           className="text-white/60 text-base max-w-md mx-auto leading-relaxed"
         >
-          The Salva V3 DEX and NGNs stablecoin — now on Ethereum mainnet.
-          Connect your wallet to access pools, swaps and OTC exchange.
+          The Salva V3 DEX and NGNs stablecoin — now on Ethereum mainnet. Connect your wallet to
+          access pools, swaps and OTC exchange.
         </motion.p>
       </div>
 
@@ -334,22 +325,22 @@ const L1Hero = ({ onConnect, connecting }) => (
       >
         {[
           {
-            icon: "₦",
-            title: "Buy / Sell NGNs",
-            desc: "OTC desk — purchase or sell Nigerian Naira stablecoin on ETH CHAIN.",
-            color: "#D4AF37",
+            icon: '₦',
+            title: 'Buy / Sell NGNs',
+            desc: 'OTC desk — purchase or sell Nigerian Naira stablecoin on ETH CHAIN.',
+            color: '#D4AF37',
           },
           {
-            icon: "⇄",
-            title: "Swap",
-            desc: "Peer-to-peer NGNs / USD stablecoin exchange via V3 liquidity pools.",
-            color: "#22c55e",
+            icon: '⇄',
+            title: 'Swap',
+            desc: 'Peer-to-peer NGNs / USD stablecoin exchange via V3 liquidity pools.',
+            color: '#22c55e',
           },
           {
-            icon: "⛏",
-            title: "Deploy Pool",
-            desc: "Deploy your own V3 liquidity pool and earn as a market maker on ETH CHAIN.",
-            color: "#3b82f6",
+            icon: '⛏',
+            title: 'Deploy Pool',
+            desc: 'Deploy your own V3 liquidity pool and earn as a market maker on ETH CHAIN.',
+            color: '#3b82f6',
           },
         ].map((card) => (
           <div
@@ -367,9 +358,7 @@ const L1Hero = ({ onConnect, connecting }) => (
               {card.icon}
             </div>
             <p className="font-black text-sm text-white">{card.title}</p>
-            <p className="text-[11px] text-white/60 leading-relaxed">
-              {card.desc}
-            </p>
+            <p className="text-[11px] text-white/60 leading-relaxed">{card.desc}</p>
           </div>
         ))}
       </motion.div>
@@ -386,15 +375,15 @@ const L1Hero = ({ onConnect, connecting }) => (
           disabled={connecting}
           className="flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 shadow-2xl"
           style={{
-            background: "#D4AF37",
-            color: "#000",
-            boxShadow: "0 8px 32px rgba(212,175,55,0.35)",
+            background: '#D4AF37',
+            color: '#000',
+            boxShadow: '0 8px 32px rgba(212,175,55,0.35)',
           }}
         >
           {connecting && (
             <span className="w-4 h-4 border-2 border-black/25 border-t-black rounded-full animate-spin" />
           )}
-          {connecting ? "Connecting…" : "Connect Wallet"}
+          {connecting ? 'Connecting…' : 'Connect Wallet'}
         </button>
         <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest">
           MetaMask · Coinbase Wallet · WalletConnect
@@ -415,27 +404,25 @@ const L1Hero = ({ onConnect, connecting }) => (
 );
 
 const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
-  const [activeTab, setActiveTab] = useState(
-    () => localStorage.getItem("l1_active_tab") || "buy",
-  );
+  const [activeTab, setActiveTab] = useState(() => localStorage.getItem('l1_active_tab') || 'buy');
   const [l1Config, setL1Config] = useState(null);
   const [configLoading, setConfigLoading] = useState(true);
   const [notification, setNotification] = useState({
     show: false,
-    message: "",
-    type: "",
+    message: '',
+    type: '',
   });
 
   // ── Balance state ────────────────────────────────────────────────────────
-  const [ngnsBalance, setNgnsBalance] = useState("0.00");
-  const [cNgnBalance, setCNgnBalance] = useState("0.00");
-  const [usdtBalance, setUsdtBalance] = useState("0.00");
-  const [usdcBalance, setUsdcBalance] = useState("0.00");
+  const [ngnsBalance, setNgnsBalance] = useState('0.00');
+  const [cNgnBalance, setCNgnBalance] = useState('0.00');
+  const [usdtBalance, setUsdtBalance] = useState('0.00');
+  const [usdcBalance, setUsdcBalance] = useState('0.00');
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [showBalance, setShowBalance] = useState(() => {
     try {
-      const saved = localStorage.getItem("l1_show_balance");
-      return saved === null ? true : saved === "true";
+      const saved = localStorage.getItem('l1_show_balance');
+      return saved === null ? true : saved === 'true';
     } catch {
       return true;
     }
@@ -445,7 +432,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
     setShowBalance((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("l1_show_balance", String(next));
+        localStorage.setItem('l1_show_balance', String(next));
       } catch {
         /* ignore */
       }
@@ -460,18 +447,17 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
       const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${address}`);
       if (!res.ok) return;
       const data = await res.json();
-      setNgnsBalance(data.ngnsBalance ?? "0.00");
-      setCNgnBalance(data.cNgnBalance ?? "0.00");
-      setUsdtBalance(data.usdtBalance ?? "0.00");
-      setUsdcBalance(data.usdcBalance ?? "0.00");
+      setNgnsBalance(data.ngnsBalance ?? '0.00');
+      setCNgnBalance(data.cNgnBalance ?? '0.00');
+      setUsdtBalance(data.usdtBalance ?? '0.00');
+      setUsdcBalance(data.usdcBalance ?? '0.00');
     } catch {
       /* keep existing values */
     } finally {
       if (showSpinner) setBalanceLoading(false);
     }
   }, []);
-  const showMsg = (msg, type = "success") =>
-    setNotification({ show: true, message: msg, type });
+  const showMsg = (msg, type = 'success') => setNotification({ show: true, message: msg, type });
   const closeNotif = () => setNotification((n) => ({ ...n, show: false }));
 
   // Fetch L1 contract addresses from backend
@@ -488,13 +474,13 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
     if (!l1Account) return;
     fetchL1Balance(l1Account, true);
     const tick = () => {
-      if (document.visibilityState === "visible") fetchL1Balance(l1Account);
+      if (document.visibilityState === 'visible') fetchL1Balance(l1Account);
     };
     const iv = setInterval(tick, 45000);
-    document.addEventListener("visibilitychange", tick);
+    document.addEventListener('visibilitychange', tick);
     return () => {
       clearInterval(iv);
-      document.removeEventListener("visibilitychange", tick);
+      document.removeEventListener('visibilitychange', tick);
     };
   }, [l1Account, fetchL1Balance]);
 
@@ -507,12 +493,12 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
     expectedChainId !== null &&
     l1ChainId !== expectedChainId;
 
-  console.log("l1ChainId:", l1ChainId, "expectedChainId:", expectedChainId);
+  console.log('l1ChainId:', l1ChainId, 'expectedChainId:', expectedChainId);
 
   const tabs = [
-    { id: "buy", label: "Buy / Sell" },
-    { id: "swap", label: "Swap" },
-    { id: "deploy", label: "Deploy Pool" },
+    { id: 'buy', label: 'Buy / Sell' },
+    { id: 'swap', label: 'Swap' },
+    { id: 'deploy', label: 'Deploy Pool' },
   ];
 
   // No wallet — show hero
@@ -537,7 +523,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03]">
               <span
                 className="w-2 h-2 rounded-full"
-                style={{ background: wrongChain ? "#f97316" : "#D4AF37" }}
+                style={{ background: wrongChain ? '#f97316' : '#D4AF37' }}
               />
               <span className="font-mono font-black text-[11px] text-white">
                 {l1Account.slice(0, 6)}…{l1Account.slice(-4)}
@@ -555,7 +541,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
         {wrongChain && (
           <div className="mb-5 p-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.06]">
             <p className="text-sm font-bold text-orange-400">
-              ⚠ Your wallet is on the wrong network. Please switch to{" "}
+              ⚠ Your wallet is on the wrong network. Please switch to{' '}
               <strong>Ethereum Mainnet</strong> in your wallet to use Salva.
             </p>
           </div>
@@ -576,7 +562,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
         <div
           onClick={() => {
             navigator.clipboard.writeText(l1Account);
-            showMsg("Wallet address copied!");
+            showMsg('Wallet address copied!');
           }}
           className="mb-6 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-blue-500/20 transition-all flex items-center gap-3"
         >
@@ -588,9 +574,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
               EOA Wallet · ETH
             </p>
             <p className="font-mono text-[10px] text-blue-400/60 truncate mt-0.5">
-              {showBalance
-                ? l1Account
-                : "0x••••••••••••••••••••••••••••••••••••••••"}
+              {showBalance ? l1Account : '0x••••••••••••••••••••••••••••••••••••••••'}
             </p>
           </div>
           <button
@@ -624,7 +608,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id);
-                    localStorage.setItem("l1_active_tab", tab.id);
+                    localStorage.setItem('l1_active_tab', tab.id);
                   }}
                   className="flex flex-col items-center gap-2 group focus:outline-none"
                 >
@@ -634,16 +618,14 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
                     transition-all duration-200 active:scale-95
                     ${
                       isActive
-                        ? "bg-[#1C1C1E] ring-2 ring-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.2)]"
-                        : "bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]"
+                        ? 'bg-[#1C1C1E] ring-2 ring-blue-500 shadow-[0_0_18px_rgba(59,130,246,0.2)]'
+                        : 'bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]'
                     }
                   `}
                   >
                     <span
                       className={`w-[22px] h-[22px] transition-colors duration-200 ${
-                        isActive
-                          ? "text-blue-400"
-                          : "text-white/60 group-hover:text-white/85"
+                        isActive ? 'text-blue-400' : 'text-white/60 group-hover:text-white/85'
                       }`}
                     >
                       {TAB_ICONS[tab.id]}
@@ -656,7 +638,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
                     className={`
                     text-[9px] font-black uppercase tracking-[0.1em] leading-tight
                     text-center max-w-[64px] break-words transition-colors duration-200
-                    ${isActive ? "text-blue-400" : "text-white/60 group-hover:text-white/70"}
+                    ${isActive ? 'text-blue-400' : 'text-white/60 group-hover:text-white/70'}
                   `}
                   >
                     {tab.label}
@@ -686,7 +668,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "buy" && (
+            {activeTab === 'buy' && (
               <L1BuyNGNs
                 l1Account={l1Account}
                 l1Config={l1Config}
@@ -694,7 +676,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
                 showMsg={showMsg}
               />
             )}
-            {activeTab === "swap" && (
+            {activeTab === 'swap' && (
               <L1SwapTab
                 l1Account={l1Account}
                 l1Config={l1Config}
@@ -703,7 +685,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
                 wrongChain={wrongChain}
               />
             )}
-            {activeTab === "deploy" && (
+            {activeTab === 'deploy' && (
               <L1DeployPool
                 l1Account={l1Account}
                 l1Config={l1Config}
@@ -717,9 +699,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
       </div>
 
       <AnimatePresence>
-        {notification.show && (
-          <L1Notification notification={notification} onClose={closeNotif} />
-        )}
+        {notification.show && <L1Notification notification={notification} onClose={closeNotif} />}
       </AnimatePresence>
     </div>
   );

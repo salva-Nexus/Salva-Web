@@ -5,18 +5,16 @@ const { ethers } = require('ethers');
 const User = require('../models/User'); // Assuming you have a User model
 
 // Minimal ABI to just get totalSupply
-const NGNs_ABI = ["function totalSupply() view returns (uint256)"];
-const NGNs_ADDRESS = "YOUR_DEPLOYED_CONTRACT_ADDRESS"; // <-- is this right
+const NGNs_ABI = ['function totalSupply() view returns (uint256)'];
+const NGNs_ADDRESS = 'YOUR_DEPLOYED_CONTRACT_ADDRESS'; // <-- is this right
 
 router.get('/stats', async (req, res) => {
   try {
     // 1. Get Live Blockchain Data
-    const provider = new ethers.JsonRpcProvider(
-      process.env.BASE_MAINNET_RPC_URL,
-    );
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_MAINNET_RPC_URL);
     const contract = new ethers.Contract(NGNs_ADDRESS, NGNs_ABI, provider);
     const rawSupply = await contract.totalSupply();
-    
+
     // Convert from WEI (18 decimals) to readable NGN
     const totalSupply = ethers.formatUnits(rawSupply, 18);
 
@@ -25,11 +23,11 @@ router.get('/stats', async (req, res) => {
 
     res.json({
       totalSupply: parseFloat(totalSupply).toLocaleString(), // Adds commas: 1,000,000
-      userCount: userCount.toLocaleString()
+      userCount: userCount.toLocaleString(),
     });
   } catch (error) {
-    console.error("Stats Fetch Error:", error);
-    res.status(500).json({ totalSupply: "0", userCount: "0" });
+    console.error('Stats Fetch Error:', error);
+    res.status(500).json({ totalSupply: '0', userCount: '0' });
   }
 });
 

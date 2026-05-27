@@ -1,8 +1,8 @@
 // packages/frontend/src/components/Navbar.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
-import { Settings } from "lucide-react";
+import React, { useState, useEffect, useRef } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Settings } from 'lucide-react';
 
 const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainId }) => {
   const navigate = useNavigate();
@@ -12,21 +12,21 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
   const [showL1Menu, setShowL1Menu] = useState(false);
   const settingsRef = useRef(null);
   const l1Ref = useRef(null);
-  const isL1Page = location.pathname === "/l1";
+  const isL1Page = location.pathname === '/l1';
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("salva_user");
+    const savedUser = localStorage.getItem('salva_user');
     if (savedUser) {
       try {
         const user = JSON.parse(savedUser);
         if (user.username && user.safeAddress) {
           setIsLoggedIn(true);
         } else {
-          localStorage.removeItem("salva_user");
+          localStorage.removeItem('salva_user');
           setIsLoggedIn(false);
         }
       } catch (error) {
-        localStorage.removeItem("salva_user");
+        localStorage.removeItem('salva_user');
         setIsLoggedIn(false);
       }
     } else {
@@ -36,7 +36,7 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
 
   useEffect(() => {
     // Always enforce dark mode — toggle removed
-    document.documentElement.classList.add("dark");
+    document.documentElement.classList.add('dark');
   }, []);
 
   useEffect(() => {
@@ -45,8 +45,8 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
         setShowSettingsMenu(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
@@ -55,14 +55,14 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
         setShowL1Menu(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem("salva_user");
+    localStorage.removeItem('salva_user');
     setIsLoggedIn(false);
-    navigate("/");
+    navigate('/');
   };
 
   return (
@@ -71,30 +71,30 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
       <Link
         to="/"
         className="flex items-center gap-0 select-none"
-        style={{ textDecoration: "none" }}
+        style={{ textDecoration: 'none' }}
       >
         <img
           src="/salva-logo.png"
           alt="Salva"
           style={{
-            width: "72px",
-            height: "72px",
-            objectFit: "contain",
-            display: "block",
+            width: '72px',
+            height: '72px',
+            objectFit: 'contain',
+            display: 'block',
             flexShrink: 0,
           }}
         />
         <span
           className="font-black tracking-tighter text-white"
           style={{
-            fontSize: "1.45rem",
+            fontSize: '1.45rem',
             lineHeight: 1,
-            position: "relative",
-            left: "-14px",
-            letterSpacing: "-0.04em",
+            position: 'relative',
+            left: '-14px',
+            letterSpacing: '-0.04em',
           }}
         >
-          SALVA<span style={{ color: "#D4AF37" }}>.</span>
+          SALVA<span style={{ color: '#D4AF37' }}>.</span>
         </span>
       </Link>
 
@@ -111,12 +111,12 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl font-black text-[11px] uppercase tracking-widest transition-all disabled:opacity-50"
-                style={{ background: "#D4AF37", color: "#000" }}
+                style={{ background: '#D4AF37', color: '#000' }}
               >
                 {l1Connecting && (
                   <span className="w-3 h-3 border-2 border-black/25 border-t-black rounded-full animate-spin" />
                 )}
-                {l1Connecting ? "Connecting…" : "Connect Wallet"}
+                {l1Connecting ? 'Connecting…' : 'Connect Wallet'}
               </motion.button>
             ) : (
               <motion.button
@@ -127,17 +127,14 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                 <span
                   className="w-2 h-2 rounded-full animate-pulse"
                   style={{
-                    background:
-                      l1ChainId === 1 || l1ChainId === 11155111
-                        ? "#D4AF37"
-                        : "#f97316",
+                    background: l1ChainId === 1 || l1ChainId === 11155111 ? '#D4AF37' : '#f97316',
                   }}
                 />
                 <span className="font-mono font-black text-[11px] text-white">
                   {l1Account.slice(0, 6)}…{l1Account.slice(-4)}
                 </span>
                 <svg
-                  className={`w-3 h-3 text-white/25 transition-transform ${showL1Menu ? "rotate-180" : ""}`}
+                  className={`w-3 h-3 text-white/25 transition-transform ${showL1Menu ? 'rotate-180' : ''}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -164,8 +161,7 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                   <div
                     className="h-px"
                     style={{
-                      background:
-                        "linear-gradient(90deg, transparent, #D4AF37, transparent)",
+                      background: 'linear-gradient(90deg, transparent, #D4AF37, transparent)',
                     }}
                   />
                   <div className="p-4 flex flex-col gap-2">
@@ -175,16 +171,14 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                       </p>
                       <p
                         className="font-mono text-[11px] break-all leading-relaxed"
-                        style={{ color: "#D4AF37" }}
+                        style={{ color: '#D4AF37' }}
                       >
                         {l1Account}
                       </p>
                     </div>
                     {l1ChainId !== 1 && l1ChainId !== 11155111 && (
                       <div className="p-2.5 rounded-xl bg-orange-500/[0.07] border border-orange-500/20">
-                        <p className="text-[10px] font-black text-orange-400">
-                          ⚠ Not on Ethereum
-                        </p>
+                        <p className="text-[10px] font-black text-orange-400">⚠ Not on Ethereum</p>
                         <p className="text-[10px] text-white/30 mt-0.5">
                           Switch to Ethereum in your wallet.
                         </p>

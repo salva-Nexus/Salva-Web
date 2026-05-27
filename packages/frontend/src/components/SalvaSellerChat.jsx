@@ -1,51 +1,51 @@
 // Salva-Digital-Tech/packages/frontend/src/components/SalvaSellerChat.jsx
-import React, { useState, useEffect, useRef, useCallback, memo } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { SALVA_API_URL } from "../config";
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SALVA_API_URL } from '../config';
 
 // ── Status meta ────────────────────────────────────────────────────────────
 const STATUS_META = {
   pending: {
-    label: "Pending",
-    color: "#f59e0b",
-    bg: "rgba(245,158,11,0.12)",
-    border: "rgba(245,158,11,0.3)",
+    label: 'Pending',
+    color: '#f59e0b',
+    bg: 'rgba(245,158,11,0.12)',
+    border: 'rgba(245,158,11,0.3)',
   },
   paid: {
-    label: "Paid·Receipt",
-    color: "#D4AF37",
-    bg: "rgba(212,175,55,0.12)",
-    border: "rgba(212,175,55,0.35)",
+    label: 'Paid·Receipt',
+    color: '#D4AF37',
+    bg: 'rgba(212,175,55,0.12)',
+    border: 'rgba(212,175,55,0.35)',
   },
   minting: {
-    label: "Minting…",
-    color: "#3b82f6",
-    bg: "rgba(59,130,246,0.12)",
-    border: "rgba(59,130,246,0.3)",
+    label: 'Minting…',
+    color: '#3b82f6',
+    bg: 'rgba(59,130,246,0.12)',
+    border: 'rgba(59,130,246,0.3)',
   },
   minted: {
-    label: "Minted ✓",
-    color: "#22c55e",
-    bg: "rgba(34,197,94,0.12)",
-    border: "rgba(34,197,94,0.3)",
+    label: 'Minted ✓',
+    color: '#22c55e',
+    bg: 'rgba(34,197,94,0.12)',
+    border: 'rgba(34,197,94,0.3)',
   },
   rejected: {
-    label: "Rejected",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,0.12)",
-    border: "rgba(239,68,68,0.3)",
+    label: 'Rejected',
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+    border: 'rgba(239,68,68,0.3)',
   },
   burned: {
-    label: "Burned 🔥",
-    color: "#ef4444",
-    bg: "rgba(239,68,68,0.12)",
-    border: "rgba(239,68,68,0.3)",
+    label: 'Burned 🔥',
+    color: '#ef4444',
+    bg: 'rgba(239,68,68,0.12)',
+    border: 'rgba(239,68,68,0.3)',
   },
   sell_completed: {
-    label: "Completed ✓",
-    color: "#22c55e",
-    bg: "rgba(34,197,94,0.12)",
-    border: "rgba(34,197,94,0.3)",
+    label: 'Completed ✓',
+    color: '#22c55e',
+    bg: 'rgba(34,197,94,0.12)',
+    border: 'rgba(34,197,94,0.3)',
   },
 };
 
@@ -54,15 +54,15 @@ function StatusBadge({ status }) {
   return (
     <span
       style={{
-        padding: "2px 8px",
-        borderRadius: "8px",
+        padding: '2px 8px',
+        borderRadius: '8px',
         background: m.bg,
         border: `1px solid ${m.border}`,
         color: m.color,
-        fontSize: "9px",
-        fontWeight: "700",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
+        fontSize: '9px',
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
         flexShrink: 0,
       }}
     >
@@ -72,42 +72,42 @@ function StatusBadge({ status }) {
 }
 
 function TypeBadge({ type }) {
-  const isSell = type === "sell";
+  const isSell = type === 'sell';
   return (
     <span
       style={{
-        padding: "1px 6px",
-        borderRadius: "6px",
-        fontSize: "8px",
-        fontWeight: "900",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        background: isSell ? "rgba(239,68,68,0.15)" : "rgba(212,175,55,0.15)",
-        color: isSell ? "#ef4444" : "#D4AF37",
-        border: `1px solid ${isSell ? "rgba(239,68,68,0.3)" : "rgba(212,175,55,0.3)"}`,
+        padding: '1px 6px',
+        borderRadius: '6px',
+        fontSize: '8px',
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        background: isSell ? 'rgba(239,68,68,0.15)' : 'rgba(212,175,55,0.15)',
+        color: isSell ? '#ef4444' : '#D4AF37',
+        border: `1px solid ${isSell ? 'rgba(239,68,68,0.3)' : 'rgba(212,175,55,0.3)'}`,
         flexShrink: 0,
       }}
     >
-      {isSell ? "SELL" : "BUY"}
+      {isSell ? 'SELL' : 'BUY'}
     </span>
   );
 }
 
 function ChainBadge({ chain, isL1 }) {
-  const onL1 = isL1 === true || chain === "ethereum";
+  const onL1 = isL1 === true || chain === 'ethereum';
   if (!onL1) return null;
   return (
     <span
       style={{
-        padding: "1px 6px",
-        borderRadius: "6px",
-        fontSize: "8px",
-        fontWeight: "900",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        background: "rgba(59,130,246,0.15)",
-        color: "#60a5fa",
-        border: "1px solid rgba(59,130,246,0.3)",
+        padding: '1px 6px',
+        borderRadius: '6px',
+        fontSize: '8px',
+        fontWeight: '900',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        background: 'rgba(59,130,246,0.15)',
+        color: '#60a5fa',
+        border: '1px solid rgba(59,130,246,0.3)',
         flexShrink: 0,
       }}
     >
@@ -123,15 +123,12 @@ function RichText({ text, isMine }) {
     <span>
       {parts.map((p, i) =>
         i % 2 === 1 ? (
-          <strong
-            key={i}
-            style={{ color: isMine ? "rgba(0,0,0,0.85)" : "#D4AF37" }}
-          >
+          <strong key={i} style={{ color: isMine ? 'rgba(0,0,0,0.85)' : '#D4AF37' }}>
             {p}
           </strong>
         ) : (
           <span key={i}>{p}</span>
-        ),
+        )
       )}
     </span>
   );
@@ -149,50 +146,50 @@ const CopyBtn = ({ value }) => {
     <button
       onClick={copy}
       style={{
-        padding: "4px 10px",
-        borderRadius: "7px",
-        background: copied ? "rgba(34,197,94,0.18)" : "rgba(212,175,55,0.12)",
-        border: `1px solid ${copied ? "rgba(34,197,94,0.4)" : "rgba(212,175,55,0.3)"}`,
-        color: copied ? "#22c55e" : "#D4AF37",
-        fontSize: "9px",
-        fontWeight: "700",
-        cursor: "pointer",
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
+        padding: '4px 10px',
+        borderRadius: '7px',
+        background: copied ? 'rgba(34,197,94,0.18)' : 'rgba(212,175,55,0.12)',
+        border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(212,175,55,0.3)'}`,
+        color: copied ? '#22c55e' : '#D4AF37',
+        fontSize: '9px',
+        fontWeight: '700',
+        cursor: 'pointer',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
         flexShrink: 0,
-        transition: "all 0.2s",
+        transition: 'all 0.2s',
       }}
       onMouseEnter={(e) => {
-        if (!copied) e.currentTarget.style.background = "rgba(212,175,55,0.22)";
+        if (!copied) e.currentTarget.style.background = 'rgba(212,175,55,0.22)';
       }}
       onMouseLeave={(e) => {
-        if (!copied) e.currentTarget.style.background = "rgba(212,175,55,0.12)";
+        if (!copied) e.currentTarget.style.background = 'rgba(212,175,55,0.12)';
       }}
     >
-      {copied ? "✓ Copied!" : "Copy"}
+      {copied ? '✓ Copied!' : 'Copy'}
     </button>
   );
 };
 
 // ── Message Input ──────────────────────────────────────────────────────────
 const MessageInput = memo(({ onSend, onImage, disabled }) => {
-  const [text, setText] = useState("");
+  const [text, setText] = useState('');
   const ref = useRef(null);
   const fileRef = useRef(null);
 
   const resize = () => {
     if (!ref.current) return;
-    ref.current.style.height = "auto";
-    ref.current.style.height = Math.min(ref.current.scrollHeight, 100) + "px";
+    ref.current.style.height = 'auto';
+    ref.current.style.height = Math.min(ref.current.scrollHeight, 100) + 'px';
   };
 
   const submit = () => {
     const t = text.trim();
     if (!t || disabled) return;
     onSend(t);
-    setText("");
+    setText('');
     if (ref.current) {
-      ref.current.style.height = "auto";
+      ref.current.style.height = 'auto';
       ref.current.focus();
     }
   };
@@ -201,41 +198,41 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 6 * 1024 * 1024) {
-      alert("Max 6MB");
+      alert('Max 6MB');
       return;
     }
     const reader = new FileReader();
     reader.onload = (ev) => onImage(ev.target.result);
     reader.readAsDataURL(file);
-    e.target.value = "";
+    e.target.value = '';
   };
 
   return (
     <div
       style={{
-        padding: "10px 12px",
-        background: "#0d0d0e",
-        borderTop: "1px solid rgba(212,175,55,0.12)",
+        padding: '10px 12px',
+        background: '#0d0d0e',
+        borderTop: '1px solid rgba(212,175,55,0.12)',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: "flex", gap: "8px", alignItems: "flex-end" }}>
+      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
           title="Upload image"
           style={{
             flexShrink: 0,
-            width: "36px",
-            height: "36px",
-            borderRadius: "9px",
-            background: "rgba(212,175,55,0.12)",
-            border: "1px solid rgba(212,175,55,0.2)",
-            cursor: disabled ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.2s",
+            width: '36px',
+            height: '36px',
+            borderRadius: '9px',
+            background: 'rgba(212,175,55,0.12)',
+            border: '1px solid rgba(212,175,55,0.2)',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
           }}
         >
           <svg
@@ -255,7 +252,7 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           ref={fileRef}
           type="file"
           accept="image/*"
-          style={{ display: "none" }}
+          style={{ display: 'none' }}
           onChange={handleFile}
         />
         <textarea
@@ -270,48 +267,48 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           rows={1}
           style={{
             flex: 1,
-            padding: "9px 12px",
-            borderRadius: "10px",
-            border: "1px solid rgba(212,175,55,0.2)",
-            background: "#1a1a1b",
-            color: "#f5f0e8",
-            fontSize: "12.5px",
-            outline: "none",
-            resize: "none",
-            overflowY: "hidden",
-            lineHeight: "1.5",
-            fontFamily: "inherit",
-            minHeight: "36px",
-            maxHeight: "100px",
-            transition: "border-color 0.2s",
+            padding: '9px 12px',
+            borderRadius: '10px',
+            border: '1px solid rgba(212,175,55,0.2)',
+            background: '#1a1a1b',
+            color: '#f5f0e8',
+            fontSize: '12.5px',
+            outline: 'none',
+            resize: 'none',
+            overflowY: 'hidden',
+            lineHeight: '1.5',
+            fontFamily: 'inherit',
+            minHeight: '36px',
+            maxHeight: '100px',
+            transition: 'border-color 0.2s',
           }}
-          onFocus={(e) => (e.target.style.borderColor = "rgba(212,175,55,0.6)")}
-          onBlur={(e) => (e.target.style.borderColor = "rgba(212,175,55,0.2)")}
+          onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.6)')}
+          onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.2)')}
         />
         <button
           onClick={submit}
           disabled={disabled || !text.trim()}
           style={{
-            width: "36px",
-            height: "36px",
-            borderRadius: "9px",
+            width: '36px',
+            height: '36px',
+            borderRadius: '9px',
             flexShrink: 0,
             background:
               disabled || !text.trim()
-                ? "rgba(212,175,55,0.15)"
-                : "linear-gradient(135deg, #D4AF37, #b8941e)",
-            border: "none",
-            cursor: disabled || !text.trim() ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            transition: "all 0.2s",
+                ? 'rgba(212,175,55,0.15)'
+                : 'linear-gradient(135deg, #D4AF37, #b8941e)',
+            border: 'none',
+            cursor: disabled || !text.trim() ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.2s',
           }}
         >
           <svg
             width="14"
             height="14"
-            fill={disabled || !text.trim() ? "rgba(212,175,55,0.4)" : "#000"}
+            fill={disabled || !text.trim() ? 'rgba(212,175,55,0.4)' : '#000'}
             viewBox="0 0 24 24"
           >
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
@@ -324,7 +321,7 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
 
 // ── Seller Bubble ──────────────────────────────────────────────────────────
 const SellerBubble = memo(({ msg }) => {
-  const isMine = msg.sender === "seller";
+  const isMine = msg.sender === 'seller';
 
   if (msg.isMinted) {
     return (
@@ -332,37 +329,34 @@ const SellerBubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: "6px 0",
-          padding: "12px 14px",
-          borderRadius: "14px",
-          textAlign: "center",
-          background:
-            "linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.05))",
-          border: "1px solid rgba(34,197,94,0.35)",
+          margin: '6px 0',
+          padding: '12px 14px',
+          borderRadius: '14px',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.05))',
+          border: '1px solid rgba(34,197,94,0.35)',
         }}
       >
-        <span style={{ fontSize: "22px" }}>🎉</span>
-        <div
-          style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}
-        >
+        <span style={{ fontSize: '22px' }}>🎉</span>
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
           <TypeBadge type="buy" />
         </div>
         <p
           style={{
-            color: "#22c55e",
-            fontWeight: "900",
-            fontSize: "12px",
-            margin: "0 0 3px",
+            color: '#22c55e',
+            fontWeight: '900',
+            fontSize: '12px',
+            margin: '0 0 3px',
           }}
         >
           Minted Successfully
         </p>
         <p
           style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: "10px",
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '10px',
             margin: 0,
-            whiteSpace: "pre-line",
+            whiteSpace: 'pre-line',
           }}
         >
           <RichText text={msg.text} isMine={false} />
@@ -377,37 +371,34 @@ const SellerBubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: "6px 0",
-          padding: "12px 14px",
-          borderRadius: "14px",
-          textAlign: "center",
-          background:
-            "linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))",
-          border: "1px solid rgba(239,68,68,0.35)",
+          margin: '6px 0',
+          padding: '12px 14px',
+          borderRadius: '14px',
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))',
+          border: '1px solid rgba(239,68,68,0.35)',
         }}
       >
-        <span style={{ fontSize: "22px" }}>🔥</span>
-        <div
-          style={{ display: "flex", justifyContent: "center", margin: "4px 0" }}
-        >
+        <span style={{ fontSize: '22px' }}>🔥</span>
+        <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
           <TypeBadge type="sell" />
         </div>
         <p
           style={{
-            color: "#ef4444",
-            fontWeight: "900",
-            fontSize: "12px",
-            margin: "0 0 3px",
+            color: '#ef4444',
+            fontWeight: '900',
+            fontSize: '12px',
+            margin: '0 0 3px',
           }}
         >
           Sell Request
         </p>
         <p
           style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: "10px",
+            color: 'rgba(255,255,255,0.5)',
+            fontSize: '10px',
             margin: 0,
-            whiteSpace: "pre-line",
+            whiteSpace: 'pre-line',
           }}
         >
           <RichText text={msg.text} isMine={false} />
@@ -419,27 +410,27 @@ const SellerBubble = memo(({ msg }) => {
   return (
     <div
       style={{
-        display: "flex",
-        justifyContent: isMine ? "flex-end" : "flex-start",
-        alignItems: "flex-end",
-        gap: "5px",
+        display: 'flex',
+        justifyContent: isMine ? 'flex-end' : 'flex-start',
+        alignItems: 'flex-end',
+        gap: '5px',
       }}
     >
       {!isMine && (
         <div
           style={{
-            width: "24px",
-            height: "24px",
-            borderRadius: "7px",
+            width: '24px',
+            height: '24px',
+            borderRadius: '7px',
             flexShrink: 0,
-            background: "rgba(212,175,55,0.15)",
-            border: "1px solid rgba(212,175,55,0.2)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "10px",
-            fontWeight: "900",
-            color: "#D4AF37",
+            background: 'rgba(212,175,55,0.15)',
+            border: '1px solid rgba(212,175,55,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '10px',
+            fontWeight: '900',
+            color: '#D4AF37',
           }}
         >
           U
@@ -447,13 +438,13 @@ const SellerBubble = memo(({ msg }) => {
       )}
       <div
         style={{
-          maxWidth: "78%",
-          padding: "9px 12px",
-          borderRadius: isMine ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+          maxWidth: '78%',
+          padding: '9px 12px',
+          borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
           background: isMine
-            ? "linear-gradient(135deg, #D4AF37, #b8941e)"
-            : "rgba(255,255,255,0.05)",
-          border: isMine ? "none" : "1px solid rgba(212,175,55,0.12)",
+            ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
+            : 'rgba(255,255,255,0.05)',
+          border: isMine ? 'none' : '1px solid rgba(212,175,55,0.12)',
         }}
       >
         {msg.imageUrl && (
@@ -461,29 +452,29 @@ const SellerBubble = memo(({ msg }) => {
             src={msg.imageUrl}
             alt="attachment"
             style={{
-              maxWidth: "100%",
-              maxHeight: "160px",
-              borderRadius: "8px",
-              marginBottom: msg.text ? "6px" : 0,
-              display: "block",
-              objectFit: "contain",
+              maxWidth: '100%',
+              maxHeight: '160px',
+              borderRadius: '8px',
+              marginBottom: msg.text ? '6px' : 0,
+              display: 'block',
+              objectFit: 'contain',
             }}
           />
         )}
         {msg.isReceipt && (
           <div
             style={{
-              padding: "4px 8px",
-              borderRadius: "6px",
-              background: "rgba(212,175,55,0.15)",
-              border: "1px solid rgba(212,175,55,0.3)",
-              color: "#D4AF37",
-              fontSize: "9px",
-              fontWeight: "700",
-              textTransform: "uppercase",
-              letterSpacing: "0.1em",
-              marginBottom: "6px",
-              display: "inline-block",
+              padding: '4px 8px',
+              borderRadius: '6px',
+              background: 'rgba(212,175,55,0.15)',
+              border: '1px solid rgba(212,175,55,0.3)',
+              color: '#D4AF37',
+              fontSize: '9px',
+              fontWeight: '700',
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              marginBottom: '6px',
+              display: 'inline-block',
             }}
           >
             📎 Payment Receipt
@@ -492,12 +483,12 @@ const SellerBubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: "12px",
-              color: isMine ? "#000" : "#f5f0e8",
+              fontSize: '12px',
+              color: isMine ? '#000' : '#f5f0e8',
               margin: 0,
-              lineHeight: "1.5",
-              wordBreak: "break-word",
-              whiteSpace: "pre-line",
+              lineHeight: '1.5',
+              wordBreak: 'break-word',
+              whiteSpace: 'pre-line',
             }}
           >
             <RichText text={msg.text} isMine={isMine} />
@@ -505,17 +496,17 @@ const SellerBubble = memo(({ msg }) => {
         )}
         <p
           style={{
-            fontSize: "9px",
-            color: isMine ? "rgba(0,0,0,0.5)" : "rgba(255,255,255,0.3)",
-            margin: "3px 0 0",
-            textAlign: "right",
+            fontSize: '9px',
+            color: isMine ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.3)',
+            margin: '3px 0 0',
+            textAlign: 'right',
           }}
         >
           {new Date(msg.createdAt).toLocaleTimeString([], {
-            hour: "2-digit",
-            minute: "2-digit",
+            hour: '2-digit',
+            minute: '2-digit',
           })}
-          {isMine && <span style={{ marginLeft: "4px" }}>✓✓</span>}
+          {isMine && <span style={{ marginLeft: '4px' }}>✓✓</span>}
         </p>
       </div>
     </div>
@@ -530,15 +521,15 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
     exit={{ opacity: 0 }}
     onClick={(e) => e.target === e.currentTarget && onClose()}
     style={{
-      position: "fixed",
+      position: 'fixed',
       inset: 0,
       zIndex: 10002,
-      background: "rgba(0,0,0,0.85)",
-      backdropFilter: "blur(8px)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: "16px",
+      background: 'rgba(0,0,0,0.85)',
+      backdropFilter: 'blur(8px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px',
     }}
   >
     <motion.div
@@ -546,104 +537,104 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
       animate={{ scale: 1, opacity: 1 }}
       exit={{ scale: 0.88, opacity: 0 }}
       style={{
-        width: "100%",
-        maxWidth: "340px",
-        background: "#111112",
-        border: "1px solid rgba(212,175,55,0.3)",
-        borderRadius: "20px",
-        overflow: "hidden",
-        boxShadow: "0 32px 80px rgba(0,0,0,0.9)",
+        width: '100%',
+        maxWidth: '340px',
+        background: '#111112',
+        border: '1px solid rgba(212,175,55,0.3)',
+        borderRadius: '20px',
+        overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.9)',
       }}
     >
       <div
         style={{
-          height: "3px",
-          background: "linear-gradient(90deg, #D4AF37, #b8941e)",
+          height: '3px',
+          background: 'linear-gradient(90deg, #D4AF37, #b8941e)',
         }}
       />
-      <div style={{ padding: "24px 20px", textAlign: "center" }}>
-        <div style={{ fontSize: "36px", marginBottom: "10px" }}>🪙</div>
+      <div style={{ padding: '24px 20px', textAlign: 'center' }}>
+        <div style={{ fontSize: '36px', marginBottom: '10px' }}>🪙</div>
         <h3
           style={{
-            color: "#f5f0e8",
-            fontSize: "16px",
-            fontWeight: "900",
-            margin: "0 0 6px",
+            color: '#f5f0e8',
+            fontSize: '16px',
+            fontWeight: '900',
+            margin: '0 0 6px',
           }}
         >
           Confirm Mint
         </h3>
         <p
           style={{
-            color: "rgba(255,255,255,0.45)",
-            fontSize: "11px",
-            margin: "0 0 18px",
+            color: 'rgba(255,255,255,0.45)',
+            fontSize: '11px',
+            margin: '0 0 18px',
           }}
         >
           This calls ERC20.mint() on-chain.
         </p>
         <div
           style={{
-            background: "rgba(212,175,55,0.07)",
-            border: "1px solid rgba(212,175,55,0.2)",
-            borderRadius: "12px",
-            padding: "14px",
-            marginBottom: "18px",
+            background: 'rgba(212,175,55,0.07)',
+            border: '1px solid rgba(212,175,55,0.2)',
+            borderRadius: '12px',
+            padding: '14px',
+            marginBottom: '18px',
           }}
         >
           <p
             style={{
-              color: "rgba(255,255,255,0.5)",
-              fontSize: "11px",
-              margin: "0 0 4px",
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '11px',
+              margin: '0 0 4px',
             }}
           >
             Recipient
           </p>
           <p
             style={{
-              color: "#D4AF37",
-              fontWeight: "700",
-              fontSize: "12px",
-              margin: "0 0 10px",
-              fontFamily: "monospace",
+              color: '#D4AF37',
+              fontWeight: '700',
+              fontSize: '12px',
+              margin: '0 0 10px',
+              fontFamily: 'monospace',
             }}
           >
-            {(request?.mintToAddress || request?.userSafeAddress)?.slice(0, 10)}
-            …{(request?.mintToAddress || request?.userSafeAddress)?.slice(-8)}
+            {(request?.mintToAddress || request?.userSafeAddress)?.slice(0, 10)}…
+            {(request?.mintToAddress || request?.userSafeAddress)?.slice(-8)}
           </p>
           <p
             style={{
-              color: "rgba(255,255,255,0.5)",
-              fontSize: "11px",
-              margin: "0 0 4px",
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '11px',
+              margin: '0 0 4px',
             }}
           >
             Amount to Mint
           </p>
           <p
             style={{
-              color: "#22c55e",
-              fontWeight: "900",
-              fontSize: "20px",
+              color: '#22c55e',
+              fontWeight: '900',
+              fontSize: '20px',
               margin: 0,
             }}
           >
             {(request?.mintAmountNgn || 0).toLocaleString()} NGNs
           </p>
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={onClose}
             style={{
               flex: 1,
-              padding: "11px",
-              borderRadius: "12px",
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "rgba(255,255,255,0.5)",
-              fontSize: "12px",
-              cursor: "pointer",
+              padding: '11px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '12px',
+              cursor: 'pointer',
             }}
           >
             Cancel
@@ -653,35 +644,35 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
             disabled={loading}
             style={{
               flex: 2,
-              padding: "11px",
-              borderRadius: "12px",
-              background: "linear-gradient(135deg, #22c55e, #16a34a)",
-              border: "none",
-              color: "#fff",
-              fontSize: "13px",
-              fontWeight: "900",
-              cursor: loading ? "wait" : "pointer",
-              boxShadow: "0 0 16px rgba(34,197,94,0.3)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "6px",
+              padding: '11px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+              border: 'none',
+              color: '#fff',
+              fontSize: '13px',
+              fontWeight: '900',
+              cursor: loading ? 'wait' : 'pointer',
+              boxShadow: '0 0 16px rgba(34,197,94,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
             }}
           >
             {loading && (
               <span
                 style={{
-                  width: "10px",
-                  height: "10px",
-                  border: "2px solid rgba(255,255,255,0.3)",
-                  borderTopColor: "#fff",
-                  borderRadius: "50%",
-                  display: "inline-block",
-                  animation: "spin 0.6s linear infinite",
+                  width: '10px',
+                  height: '10px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTopColor: '#fff',
+                  borderRadius: '50%',
+                  display: 'inline-block',
+                  animation: 'spin 0.6s linear infinite',
                 }}
               />
             )}
-            {loading ? "Minting…" : "✅ Mint NGNs"}
+            {loading ? 'Minting…' : '✅ Mint NGNs'}
           </button>
         </div>
       </div>
@@ -692,44 +683,41 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
 // ── Ethereum L1 Banner ─────────────────────────────────────────────────────
 // Rendered as its own dedicated row so it never collides with the summary bar
 const EthL1Banner = memo(({ selected }) => {
-  const isL1 = selected?.isL1 === true || selected?.chain === "ethereum";
+  const isL1 = selected?.isL1 === true || selected?.chain === 'ethereum';
   if (!isL1) return null;
 
-  const hasMintTo =
-    selected?.mintToAddress &&
-    selected.mintToAddress !== selected.userSafeAddress;
+  const hasMintTo = selected?.mintToAddress && selected.mintToAddress !== selected.userSafeAddress;
 
   return (
     <div
       style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        padding: "6px 14px",
-        background:
-          "linear-gradient(90deg, rgba(59,130,246,0.1), rgba(59,130,246,0.04))",
-        borderBottom: "1px solid rgba(59,130,246,0.18)",
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        padding: '6px 14px',
+        background: 'linear-gradient(90deg, rgba(59,130,246,0.1), rgba(59,130,246,0.04))',
+        borderBottom: '1px solid rgba(59,130,246,0.18)',
         flexShrink: 0,
         minWidth: 0,
-        overflow: "hidden",
+        overflow: 'hidden',
       }}
     >
       {/* lightning pill */}
       <span
         style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "4px",
-          padding: "2px 8px",
-          borderRadius: "20px",
-          background: "rgba(59,130,246,0.15)",
-          border: "1px solid rgba(59,130,246,0.35)",
-          color: "#60a5fa",
-          fontSize: "9px",
-          fontWeight: "800",
-          textTransform: "uppercase",
-          letterSpacing: "0.1em",
-          whiteSpace: "nowrap",
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '4px',
+          padding: '2px 8px',
+          borderRadius: '20px',
+          background: 'rgba(59,130,246,0.15)',
+          border: '1px solid rgba(59,130,246,0.35)',
+          color: '#60a5fa',
+          fontSize: '9px',
+          fontWeight: '800',
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          whiteSpace: 'nowrap',
           flexShrink: 0,
         }}
       >
@@ -740,19 +728,18 @@ const EthL1Banner = memo(({ selected }) => {
       {hasMintTo && (
         <span
           style={{
-            color: "rgba(96,165,250,0.65)",
-            fontSize: "9.5px",
-            fontFamily: "monospace",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            color: 'rgba(96,165,250,0.65)',
+            fontSize: '9.5px',
+            fontFamily: 'monospace',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
             minWidth: 0,
             flex: 1,
           }}
           title={selected.mintToAddress}
         >
-          Mint → {selected.mintToAddress.slice(0, 10)}…
-          {selected.mintToAddress.slice(-6)}
+          Mint → {selected.mintToAddress.slice(0, 10)}…{selected.mintToAddress.slice(-6)}
         </span>
       )}
     </div>
@@ -763,7 +750,7 @@ const EthL1Banner = memo(({ selected }) => {
 // MAIN COMPONENT
 // ══════════════════════════════════════════════════════════════════════════════
 const SalvaSellerChat = ({ user }) => {
-  const [view, setView] = useState("closed"); // closed | list | chat
+  const [view, setView] = useState('closed'); // closed | list | chat
   const [requests, setRequests] = useState([]);
   const [selected, setSelected] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -771,7 +758,7 @@ const SalvaSellerChat = ({ user }) => {
   const [sending, setSending] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [minting, setMinting] = useState(false);
-  const [mintError, setMintError] = useState("");
+  const [mintError, setMintError] = useState('');
   const [rejecting, setRejecting] = useState(false);
   const [completingSell, setCompletingSell] = useState(false);
 
@@ -791,7 +778,7 @@ const SalvaSellerChat = ({ user }) => {
   useEffect(() => {
     const newCount = messages.length;
     if (newCount > prevMessageCount.current && isNearBottom.current) {
-      chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
     prevMessageCount.current = newCount;
   }, [messages]);
@@ -801,7 +788,7 @@ const SalvaSellerChat = ({ user }) => {
     if (!user?.safeAddress) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/unread-count?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/unread-count?safeAddress=${user.safeAddress}`
       );
       const d = await res.json();
       setTotalUnread((p) => (p !== d.unreadCount ? d.unreadCount : p));
@@ -821,13 +808,11 @@ const SalvaSellerChat = ({ user }) => {
     if (!user?.safeAddress) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`
       );
       const d = await res.json();
       setRequests((prev) => {
-        const prevKey = prev
-          .map((r) => r._id + r.status + r.updatedAt + r.sellerRead)
-          .join();
+        const prevKey = prev.map((r) => r._id + r.status + r.updatedAt + r.sellerRead).join();
         const nextKey = (d.requests || [])
           .map((r) => r._id + r.status + r.updatedAt + r.sellerRead)
           .join();
@@ -835,8 +820,7 @@ const SalvaSellerChat = ({ user }) => {
         return d.requests || [];
       });
       setTotalUnread(
-        (d.requests || []).filter((r) => !r.sellerRead && r.status !== "minted")
-          .length,
+        (d.requests || []).filter((r) => !r.sellerRead && r.status !== 'minted').length
       );
     } catch {
       /* ignore */
@@ -844,7 +828,7 @@ const SalvaSellerChat = ({ user }) => {
   }, [user?.safeAddress]);
 
   useEffect(() => {
-    if (view === "list") {
+    if (view === 'list') {
       fetchList();
       listPollRef.current = setInterval(fetchList, 30000);
     } else clearInterval(listPollRef.current);
@@ -857,15 +841,14 @@ const SalvaSellerChat = ({ user }) => {
     if (!sel?._id || !user?.safeAddress) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/request/${sel._id}?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/request/${sel._id}?safeAddress=${user.safeAddress}`
       );
       const d = await res.json();
       if (d.request) {
         setSelected((prev) => {
           const prevKey = (prev?.messages || []).map((m) => m._id).join();
           const nextKey = (d.request.messages || []).map((m) => m._id).join();
-          if (prevKey === nextKey && prev?.status === d.request.status)
-            return prev;
+          if (prevKey === nextKey && prev?.status === d.request.status) return prev;
           return d.request;
         });
         setMessages(d.request.messages || []);
@@ -876,7 +859,7 @@ const SalvaSellerChat = ({ user }) => {
   }, [user?.safeAddress]);
 
   useEffect(() => {
-    if (view === "chat" && selected?._id) {
+    if (view === 'chat' && selected?._id) {
       let failCount = 0;
       const poll = async () => {
         try {
@@ -898,11 +881,11 @@ const SalvaSellerChat = ({ user }) => {
   const openRequest = async (req) => {
     setSelected(req);
     setMessages(req.messages || []);
-    setMintError("");
-    setView("chat");
+    setMintError('');
+    setView('chat');
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/request/${req._id}?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/request/${req._id}?safeAddress=${user.safeAddress}`
       );
       const d = await res.json();
       if (d.request) {
@@ -919,7 +902,7 @@ const SalvaSellerChat = ({ user }) => {
     if (!selected?._id) return;
     const optimistic = {
       _id: `tmp-${Date.now()}`,
-      sender: "seller",
+      sender: 'seller',
       text,
       createdAt: new Date(),
       _optimistic: true,
@@ -928,20 +911,18 @@ const SalvaSellerChat = ({ user }) => {
     setSending(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
           text,
-          sender: "seller",
+          sender: 'seller',
         }),
       });
       const d = await res.json();
       if (res.ok)
-        setMessages((prev) =>
-          prev.map((m) => (m._id === optimistic._id ? d.message : m)),
-        );
+        setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? d.message : m)));
       else setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
     } catch {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
@@ -954,7 +935,7 @@ const SalvaSellerChat = ({ user }) => {
     if (!selected?._id) return;
     const optimistic = {
       _id: `tmp-${Date.now()}`,
-      sender: "seller",
+      sender: 'seller',
       imageUrl: imageBase64,
       createdAt: new Date(),
       _optimistic: true,
@@ -962,20 +943,18 @@ const SalvaSellerChat = ({ user }) => {
     setMessages((prev) => [...prev, optimistic]);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-image`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
           imageBase64,
-          sender: "seller",
+          sender: 'seller',
         }),
       });
       const d = await res.json();
       if (res.ok)
-        setMessages((prev) =>
-          prev.map((m) => (m._id === optimistic._id ? d.message : m)),
-        );
+        setMessages((prev) => prev.map((m) => (m._id === optimistic._id ? d.message : m)));
       else setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
     } catch {
       setMessages((prev) => prev.filter((m) => m._id !== optimistic._id));
@@ -985,11 +964,11 @@ const SalvaSellerChat = ({ user }) => {
   // ── Confirm mint ───────────────────────────────────────────────────────────
   const handleConfirmMint = async () => {
     setMinting(true);
-    setMintError("");
+    setMintError('');
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/confirm-mint`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
@@ -1001,11 +980,11 @@ const SalvaSellerChat = ({ user }) => {
         await fetchChat();
         await fetchList();
       } else {
-        setMintError("Mint failed");
+        setMintError('Mint failed');
         setShowConfirm(false);
       }
     } catch {
-      setMintError("Connection error. Try again.");
+      setMintError('Connection error. Try again.');
       setShowConfirm(false);
     }
     setMinting(false);
@@ -1017,8 +996,8 @@ const SalvaSellerChat = ({ user }) => {
     setRejecting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
@@ -1034,56 +1013,50 @@ const SalvaSellerChat = ({ user }) => {
     setRejecting(false);
   };
 
-  const isBuyRequest = selected?.type !== "sell";
-  const canMint = selected?.status === "paid" && isBuyRequest;
-  const isSellPaid = selected?.status === "paid" && selected?.type === "sell";
+  const isBuyRequest = selected?.type !== 'sell';
+  const canMint = selected?.status === 'paid' && isBuyRequest;
+  const isSellPaid = selected?.status === 'paid' && selected?.type === 'sell';
   const hasRedemption =
-    selected?.pointsRedemption?.requested &&
-    selected?.pointsRedemption?.pointsToRedeem > 0;
+    selected?.pointsRedemption?.requested && selected?.pointsRedemption?.pointsToRedeem > 0;
 
   // ── FAB ─────────────────────────────────────────────────────────────────────
-  if (view === "closed") {
+  if (view === 'closed') {
     return (
       <div
         style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "24px",
+          position: 'fixed',
+          bottom: '24px',
+          left: '24px',
           zIndex: 9000,
         }}
       >
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setView("list")}
+          onClick={() => setView('list')}
           style={{
-            width: "54px",
-            height: "54px",
-            borderRadius: "50%",
-            background: "linear-gradient(135deg, #1a1500, #2d2500)",
-            border: "1.5px solid rgba(212,175,55,0.5)",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow:
-              "0 0 28px rgba(212,175,55,0.25), 0 4px 20px rgba(0,0,0,0.6)",
-            position: "relative",
+            width: '54px',
+            height: '54px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #1a1500, #2d2500)',
+            border: '1.5px solid rgba(212,175,55,0.5)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 0 28px rgba(212,175,55,0.25), 0 4px 20px rgba(0,0,0,0.6)',
+            position: 'relative',
           }}
         >
-          <div style={{ position: "relative" }}>
-            <span
-              style={{ fontSize: "18px", color: "#D4AF37", fontWeight: "900" }}
-            >
-              ₦
-            </span>
+          <div style={{ position: 'relative' }}>
+            <span style={{ fontSize: '18px', color: '#D4AF37', fontWeight: '900' }}>₦</span>
             <span
               style={{
-                position: "absolute",
-                top: "-4px",
-                right: "-6px",
-                fontSize: "9px",
-                color: "#22c55e",
+                position: 'absolute',
+                top: '-4px',
+                right: '-6px',
+                fontSize: '9px',
+                color: '#22c55e',
               }}
             >
               ✓
@@ -1094,24 +1067,24 @@ const SalvaSellerChat = ({ user }) => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               style={{
-                position: "absolute",
-                top: "-4px",
-                right: "-4px",
-                minWidth: "20px",
-                height: "20px",
-                borderRadius: "10px",
-                background: "#ef4444",
-                color: "white",
-                fontSize: "10px",
-                fontWeight: "700",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "0 4px",
-                border: "2px solid #0a0a0b",
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                minWidth: '20px',
+                height: '20px',
+                borderRadius: '10px',
+                background: '#ef4444',
+                color: 'white',
+                fontSize: '10px',
+                fontWeight: '700',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                border: '2px solid #0a0a0b',
               }}
             >
-              {totalUnread > 9 ? "9+" : totalUnread}
+              {totalUnread > 9 ? '9+' : totalUnread}
             </motion.span>
           )}
         </motion.button>
@@ -1138,54 +1111,53 @@ const SalvaSellerChat = ({ user }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: 20 }}
         style={{
-          position: "fixed",
-          bottom: "24px",
-          left: "24px",
+          position: 'fixed',
+          bottom: '24px',
+          left: '24px',
           zIndex: 9000,
-          width: "380px",
-          maxWidth: "calc(100vw - 2rem)",
+          width: '380px',
+          maxWidth: 'calc(100vw - 2rem)',
         }}
       >
         <div
           style={{
-            height: "580px",
-            background: "#0d0d0e",
-            border: "1px solid rgba(212,175,55,0.18)",
-            borderRadius: "22px",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow:
-              "0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)",
+            height: '580px',
+            background: '#0d0d0e',
+            border: '1px solid rgba(212,175,55,0.18)',
+            borderRadius: '22px',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)',
           }}
         >
           {/* ── HEADER ── */}
           <div
             style={{
-              background: "linear-gradient(135deg, #1a1500, #111100)",
-              borderBottom: "1px solid rgba(212,175,55,0.2)",
-              padding: "13px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: "10px",
+              background: 'linear-gradient(135deg, #1a1500, #111100)',
+              borderBottom: '1px solid rgba(212,175,55,0.2)',
+              padding: '13px 16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
               flexShrink: 0,
             }}
           >
-            {view === "chat" && (
+            {view === 'chat' && (
               <button
                 onClick={() => {
-                  setView("list");
+                  setView('list');
                   setSelected(null);
                   setMessages([]);
-                  setMintError("");
+                  setMintError('');
                 }}
                 style={{
-                  background: "none",
-                  border: "none",
-                  color: "rgba(212,175,55,0.6)",
-                  fontSize: "18px",
-                  cursor: "pointer",
-                  padding: "2px 6px 2px 0",
+                  background: 'none',
+                  border: 'none',
+                  color: 'rgba(212,175,55,0.6)',
+                  fontSize: '18px',
+                  cursor: 'pointer',
+                  padding: '2px 6px 2px 0',
                   lineHeight: 1,
                   flexShrink: 0,
                 }}
@@ -1195,30 +1167,26 @@ const SalvaSellerChat = ({ user }) => {
             )}
             <div
               style={{
-                width: "34px",
-                height: "34px",
-                borderRadius: "9px",
+                width: '34px',
+                height: '34px',
+                borderRadius: '9px',
                 flexShrink: 0,
-                background: "linear-gradient(135deg, #D4AF37, #b8941e)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
               }}
             >
-              <span
-                style={{ fontSize: "14px", color: "#000", fontWeight: "900" }}
-              >
-                ₦
-              </span>
+              <span style={{ fontSize: '14px', color: '#000', fontWeight: '900' }}>₦</span>
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              {view === "list" ? (
+              {view === 'list' ? (
                 <>
                   <p
                     style={{
-                      color: "#f5f0e8",
-                      fontSize: "13px",
-                      fontWeight: "900",
+                      color: '#f5f0e8',
+                      fontSize: '13px',
+                      fontWeight: '900',
                       margin: 0,
                     }}
                   >
@@ -1226,34 +1194,34 @@ const SalvaSellerChat = ({ user }) => {
                   </p>
                   <p
                     style={{
-                      color: "rgba(212,175,55,0.5)",
-                      fontSize: "10px",
+                      color: 'rgba(212,175,55,0.5)',
+                      fontSize: '10px',
                       margin: 0,
                     }}
                   >
                     {requests.length} conversation
-                    {requests.length !== 1 ? "s" : ""}
+                    {requests.length !== 1 ? 's' : ''}
                   </p>
                 </>
               ) : (
                 <>
                   <p
                     style={{
-                      color: "#f5f0e8",
-                      fontSize: "13px",
-                      fontWeight: "900",
+                      color: '#f5f0e8',
+                      fontSize: '13px',
+                      fontWeight: '900',
                       margin: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
                     }}
                   >
                     {selected?.username}
                   </p>
                   <p
                     style={{
-                      color: "rgba(212,175,55,0.5)",
-                      fontSize: "10px",
+                      color: 'rgba(212,175,55,0.5)',
+                      fontSize: '10px',
                       margin: 0,
                     }}
                   >
@@ -1262,27 +1230,25 @@ const SalvaSellerChat = ({ user }) => {
                 </>
               )}
             </div>
-            {view === "chat" && selected?.status && (
-              <StatusBadge status={selected.status} />
-            )}
+            {view === 'chat' && selected?.status && <StatusBadge status={selected.status} />}
             <button
               onClick={() => {
-                setView("closed");
+                setView('closed');
                 setSelected(null);
                 setMessages([]);
               }}
               style={{
-                width: "26px",
-                height: "26px",
-                borderRadius: "50%",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.1)",
-                cursor: "pointer",
-                color: "rgba(255,255,255,0.4)",
-                fontSize: "15px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
+                width: '26px',
+                height: '26px',
+                borderRadius: '50%',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                cursor: 'pointer',
+                color: 'rgba(255,255,255,0.4)',
+                fontSize: '15px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
                 flexShrink: 0,
               }}
             >
@@ -1291,35 +1257,35 @@ const SalvaSellerChat = ({ user }) => {
           </div>
 
           {/* ── LIST VIEW ── */}
-          {view === "list" && (
-            <div style={{ flex: 1, overflowY: "auto", background: "#0a0a0b" }}>
+          {view === 'list' && (
+            <div style={{ flex: 1, overflowY: 'auto', background: '#0a0a0b' }}>
               {requests.length === 0 ? (
                 <div
                   style={{
-                    height: "100%",
-                    display: "flex",
-                    flexDirection: "column",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "10px",
-                    padding: "60px 20px",
+                    height: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '10px',
+                    padding: '60px 20px',
                   }}
                 >
-                  <span style={{ fontSize: "32px", opacity: 0.3 }}>₦</span>
+                  <span style={{ fontSize: '32px', opacity: 0.3 }}>₦</span>
                   <p
                     style={{
-                      color: "rgba(212,175,55,0.4)",
-                      fontSize: "12px",
+                      color: 'rgba(212,175,55,0.4)',
+                      fontSize: '12px',
                       margin: 0,
-                      fontWeight: "700",
+                      fontWeight: '700',
                     }}
                   >
                     No requests yet
                   </p>
                   <p
                     style={{
-                      color: "rgba(255,255,255,0.2)",
-                      fontSize: "10px",
+                      color: 'rgba(255,255,255,0.2)',
+                      fontSize: '10px',
                       margin: 0,
                     }}
                   >
@@ -1331,91 +1297,86 @@ const SalvaSellerChat = ({ user }) => {
                   const lastMsg = req.messages?.[req.messages.length - 1];
                   const isUnread =
                     !req.sellerRead &&
-                    req.status !== "minted" &&
-                    req.status !== "burned" &&
-                    req.status !== "sell_completed";
-                  const isPaid = req.status === "paid";
-                  const isSell = req.type === "sell";
+                    req.status !== 'minted' &&
+                    req.status !== 'burned' &&
+                    req.status !== 'sell_completed';
+                  const isPaid = req.status === 'paid';
+                  const isSell = req.type === 'sell';
                   const hasRedeem =
-                    req.pointsRedemption?.requested &&
-                    req.pointsRedemption?.pointsToRedeem > 0;
+                    req.pointsRedemption?.requested && req.pointsRedemption?.pointsToRedeem > 0;
                   return (
                     <button
                       key={req._id}
                       onClick={() => openRequest(req)}
                       style={{
-                        width: "100%",
-                        padding: "12px 14px",
-                        background:
-                          isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none",
-                        border: "none",
-                        borderBottom: "1px solid rgba(255,255,255,0.04)",
-                        textAlign: "left",
-                        cursor: "pointer",
-                        transition: "background 0.15s",
+                        width: '100%',
+                        padding: '12px 14px',
+                        background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'none',
+                        border: 'none',
+                        borderBottom: '1px solid rgba(255,255,255,0.04)',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s',
                       }}
                       onMouseEnter={(e) =>
-                        (e.currentTarget.style.background =
-                          "rgba(212,175,55,0.07)")
+                        (e.currentTarget.style.background = 'rgba(212,175,55,0.07)')
                       }
                       onMouseLeave={(e) =>
                         (e.currentTarget.style.background =
-                          isPaid && isUnread ? "rgba(212,175,55,0.04)" : "none")
+                          isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'none')
                       }
                     >
                       <div
                         style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "10px",
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
                         }}
                       >
                         <div
                           style={{
-                            width: "40px",
-                            height: "40px",
-                            borderRadius: "11px",
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '11px',
                             flexShrink: 0,
                             background: isSell
-                              ? "rgba(239,68,68,0.15)"
+                              ? 'rgba(239,68,68,0.15)'
                               : isPaid
-                                ? "rgba(212,175,55,0.2)"
-                                : "rgba(255,255,255,0.06)",
-                            border: `1px solid ${isSell ? "rgba(239,68,68,0.35)" : isPaid ? "rgba(212,175,55,0.4)" : "rgba(255,255,255,0.08)"}`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
+                                ? 'rgba(212,175,55,0.2)'
+                                : 'rgba(255,255,255,0.06)',
+                            border: `1px solid ${isSell ? 'rgba(239,68,68,0.35)' : isPaid ? 'rgba(212,175,55,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
                             color: isSell
-                              ? "#ef4444"
+                              ? '#ef4444'
                               : isPaid
-                                ? "#D4AF37"
-                                : "rgba(255,255,255,0.4)",
-                            fontWeight: "900",
-                            fontSize: "15px",
+                                ? '#D4AF37'
+                                : 'rgba(255,255,255,0.4)',
+                            fontWeight: '900',
+                            fontSize: '15px',
                           }}
                         >
-                          {req.username?.charAt(0)?.toUpperCase() || "?"}
+                          {req.username?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "baseline",
-                              marginBottom: "2px",
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'baseline',
+                              marginBottom: '2px',
                             }}
                           >
                             <p
                               style={{
-                                color: isUnread
-                                  ? "#f5f0e8"
-                                  : "rgba(255,255,255,0.7)",
-                                fontSize: "13px",
-                                fontWeight: isUnread ? "700" : "500",
+                                color: isUnread ? '#f5f0e8' : 'rgba(255,255,255,0.7)',
+                                fontSize: '13px',
+                                fontWeight: isUnread ? '700' : '500',
                                 margin: 0,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                                 flex: 1,
                               }}
                             >
@@ -1423,60 +1384,59 @@ const SalvaSellerChat = ({ user }) => {
                             </p>
                             <p
                               style={{
-                                color: "rgba(255,255,255,0.25)",
-                                fontSize: "9px",
+                                color: 'rgba(255,255,255,0.25)',
+                                fontSize: '9px',
                                 margin: 0,
                                 flexShrink: 0,
-                                marginLeft: "8px",
+                                marginLeft: '8px',
                               }}
                             >
                               {new Date(req.updatedAt).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
+                                hour: '2-digit',
+                                minute: '2-digit',
                               })}
                             </p>
                           </div>
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "space-between",
-                              gap: "6px",
-                              marginBottom: "4px",
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '6px',
+                              marginBottom: '4px',
                             }}
                           >
                             <p
                               style={{
-                                color: "rgba(255,255,255,0.35)",
-                                fontSize: "11px",
+                                color: 'rgba(255,255,255,0.35)',
+                                fontSize: '11px',
                                 margin: 0,
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                                 flex: 1,
                               }}
                             >
                               {lastMsg?.isReceipt
-                                ? "📎 Receipt uploaded"
+                                ? '📎 Receipt uploaded'
                                 : lastMsg?.isBurned
-                                  ? "🔥 Sell request"
-                                  : lastMsg?.text
-                                      ?.replace(/\*\*/g, "")
-                                      ?.slice(0, 45) || "No messages"}
+                                  ? '🔥 Sell request'
+                                  : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
+                                    'No messages'}
                             </p>
                             <div
                               style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "5px",
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '5px',
                                 flexShrink: 0,
                               }}
                             >
                               <span
                                 style={{
-                                  color: isSell ? "#ef4444" : "#D4AF37",
-                                  fontSize: "10px",
-                                  fontWeight: "700",
+                                  color: isSell ? '#ef4444' : '#D4AF37',
+                                  fontSize: '10px',
+                                  fontWeight: '700',
                                 }}
                               >
                                 ₦{(req.amountNgn || 0).toLocaleString()}
@@ -1484,12 +1444,12 @@ const SalvaSellerChat = ({ user }) => {
                               {isUnread && (
                                 <span
                                   style={{
-                                    width: "8px",
-                                    height: "8px",
-                                    borderRadius: "50%",
-                                    background: "#D4AF37",
-                                    display: "inline-block",
-                                    boxShadow: "0 0 6px rgba(212,175,55,0.6)",
+                                    width: '8px',
+                                    height: '8px',
+                                    borderRadius: '50%',
+                                    background: '#D4AF37',
+                                    display: 'inline-block',
+                                    boxShadow: '0 0 6px rgba(212,175,55,0.6)',
                                   }}
                                 />
                               )}
@@ -1497,10 +1457,10 @@ const SalvaSellerChat = ({ user }) => {
                           </div>
                           <div
                             style={{
-                              display: "flex",
-                              gap: "4px",
-                              alignItems: "center",
-                              flexWrap: "wrap",
+                              display: 'flex',
+                              gap: '4px',
+                              alignItems: 'center',
+                              flexWrap: 'wrap',
                             }}
                           >
                             <TypeBadge type={req.type} />
@@ -1509,18 +1469,16 @@ const SalvaSellerChat = ({ user }) => {
                             {hasRedeem && (
                               <span
                                 style={{
-                                  padding: "1px 5px",
-                                  borderRadius: "5px",
-                                  background: "rgba(168,85,247,0.15)",
-                                  border: "1px solid rgba(168,85,247,0.3)",
-                                  color: "#a855f7",
-                                  fontSize: "8px",
-                                  fontWeight: "700",
+                                  padding: '1px 5px',
+                                  borderRadius: '5px',
+                                  background: 'rgba(168,85,247,0.15)',
+                                  border: '1px solid rgba(168,85,247,0.3)',
+                                  color: '#a855f7',
+                                  fontSize: '8px',
+                                  fontWeight: '700',
                                 }}
                               >
-                                ⭐{" "}
-                                {req.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
-                                pts
+                                ⭐ {req.pointsRedemption.pointsToRedeem.toLocaleString()} pts
                               </span>
                             )}
                           </div>
@@ -1534,7 +1492,7 @@ const SalvaSellerChat = ({ user }) => {
           )}
 
           {/* ── CHAT VIEW ── */}
-          {view === "chat" && selected && (
+          {view === 'chat' && selected && (
             <>
               {/* ── ETH L1 Banner — own dedicated row, no overlap ── */}
               <EthL1Banner selected={selected} />
@@ -1542,126 +1500,123 @@ const SalvaSellerChat = ({ user }) => {
               {/* ── Summary bar ── */}
               <div
                 style={{
-                  padding: "8px 14px",
-                  background: "rgba(212,175,55,0.05)",
-                  borderBottom: "1px solid rgba(212,175,55,0.1)",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  gap: "8px",
+                  padding: '8px 14px',
+                  background: 'rgba(212,175,55,0.05)',
+                  borderBottom: '1px solid rgba(212,175,55,0.1)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '8px',
                   flexShrink: 0,
                   minWidth: 0,
-                  overflow: "hidden",
+                  overflow: 'hidden',
                 }}
               >
-                {selected.type === "sell" &&
-                selected.status !== "sell_completed" ? (
+                {selected.type === 'sell' && selected.status !== 'sell_completed' ? (
                   <>
                     <span
                       style={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: "10px",
-                        whiteSpace: "nowrap",
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '10px',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs
-                      burned
+                      Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs burned
                     </span>
                     <span
                       style={{
-                        color: "#ef4444",
-                        fontWeight: "900",
-                        fontSize: "12px",
-                        whiteSpace: "nowrap",
+                        color: '#ef4444',
+                        fontWeight: '900',
+                        fontSize: '12px',
+                        whiteSpace: 'nowrap',
                       }}
                     >
                       Pay: ₦{(selected.mintAmountNgn || 0).toLocaleString()}
                     </span>
                   </>
-                ) : selected.type !== "sell" ? (
+                ) : selected.type !== 'sell' ? (
                   <>
                     <span
                       style={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: "10px",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '10px',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
                       }}
                     >
-                      Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee:{" "}
-                      {selected.feeNgn} NGNs
+                      Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee: {selected.feeNgn}{' '}
+                      NGNs
                     </span>
                     <span
                       style={{
-                        color: "#D4AF37",
-                        fontWeight: "900",
-                        fontSize: "12px",
-                        whiteSpace: "nowrap",
+                        color: '#D4AF37',
+                        fontWeight: '900',
+                        fontSize: '12px',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      Mint: {(selected.mintAmountNgn || 0).toLocaleString()}{" "}
-                      NGNs
+                      Mint: {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
                     </span>
                   </>
                 ) : null}
               </div>
 
               {/* ── SELL: Bank payout details ── */}
-              {selected.type === "sell" &&
-                selected.status !== "sell_completed" &&
+              {selected.type === 'sell' &&
+                selected.status !== 'sell_completed' &&
                 selected.bankDetails?.accountNumber && (
                   <div
                     style={{
-                      padding: "8px 14px",
-                      background: "rgba(239,68,68,0.05)",
-                      borderBottom: "1px solid rgba(239,68,68,0.1)",
+                      padding: '8px 14px',
+                      background: 'rgba(239,68,68,0.05)',
+                      borderBottom: '1px solid rgba(239,68,68,0.1)',
                       flexShrink: 0,
                     }}
                   >
                     <p
                       style={{
-                        color: "rgba(255,255,255,0.4)",
-                        fontSize: "9px",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.1em",
-                        margin: "0 0 6px",
-                        fontWeight: "700",
+                        color: 'rgba(255,255,255,0.4)',
+                        fontSize: '9px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                        margin: '0 0 6px',
+                        fontWeight: '700',
                       }}
                     >
                       Payout Details
                     </p>
                     <div
                       style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: "5px",
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '5px',
                       }}
                     >
                       {[
-                        { label: "Bank", value: selected.bankDetails.bankName },
+                        { label: 'Bank', value: selected.bankDetails.bankName },
                         {
-                          label: "Account Name",
+                          label: 'Account Name',
                           value: selected.bankDetails.accountName,
                         },
                         {
-                          label: "Account Number",
+                          label: 'Account Number',
                           value: selected.bankDetails.accountNumber,
                         },
                       ].map(({ label, value }) => (
                         <div
                           key={label}
                           style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            gap: "8px",
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '8px',
                           }}
                         >
                           <span
                             style={{
-                              color: "rgba(255,255,255,0.35)",
-                              fontSize: "10px",
+                              color: 'rgba(255,255,255,0.35)',
+                              fontSize: '10px',
                               flexShrink: 0,
                             }}
                           >
@@ -1669,20 +1624,20 @@ const SalvaSellerChat = ({ user }) => {
                           </span>
                           <div
                             style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "6px",
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
                               minWidth: 0,
                             }}
                           >
                             <span
                               style={{
-                                color: "#f5f0e8",
-                                fontSize: "11px",
-                                fontWeight: "700",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                                whiteSpace: "nowrap",
+                                color: '#f5f0e8',
+                                fontSize: '11px',
+                                fontWeight: '700',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               {value}
@@ -1696,78 +1651,77 @@ const SalvaSellerChat = ({ user }) => {
                 )}
 
               {/* ── SELL: Points redemption ── */}
-              {selected.type === "sell" && hasRedemption && (
+              {selected.type === 'sell' && hasRedemption && (
                 <div
                   style={{
-                    padding: "8px 14px",
-                    background: "rgba(168,85,247,0.06)",
-                    borderBottom: "1px solid rgba(168,85,247,0.2)",
+                    padding: '8px 14px',
+                    background: 'rgba(168,85,247,0.06)',
+                    borderBottom: '1px solid rgba(168,85,247,0.2)',
                     flexShrink: 0,
                   }}
                 >
                   <p
                     style={{
-                      color: "#a855f7",
-                      fontSize: "9px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.1em",
-                      margin: "0 0 5px",
-                      fontWeight: "700",
+                      color: '#a855f7',
+                      fontSize: '9px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.1em',
+                      margin: '0 0 5px',
+                      fontWeight: '700',
                     }}
                   >
                     ⭐ Points Redemption
                   </p>
                   <div
                     style={{
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: "3px",
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '3px',
                     }}
                   >
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
+                        display: 'flex',
+                        justifyContent: 'space-between',
                       }}
                     >
                       <span
                         style={{
-                          color: "rgba(255,255,255,0.45)",
-                          fontSize: "10px",
+                          color: 'rgba(255,255,255,0.45)',
+                          fontSize: '10px',
                         }}
                       >
                         Points redeemed
                       </span>
                       <span
                         style={{
-                          color: "#a855f7",
-                          fontWeight: "700",
-                          fontSize: "11px",
+                          color: '#a855f7',
+                          fontWeight: '700',
+                          fontSize: '11px',
                         }}
                       >
-                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
-                        pts
+                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts
                       </span>
                     </div>
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
+                        display: 'flex',
+                        justifyContent: 'space-between',
                       }}
                     >
                       <span
                         style={{
-                          color: "rgba(255,255,255,0.45)",
-                          fontSize: "10px",
+                          color: 'rgba(255,255,255,0.45)',
+                          fontSize: '10px',
                         }}
                       >
                         Extra payout
                       </span>
                       <span
                         style={{
-                          color: "#a855f7",
-                          fontWeight: "700",
-                          fontSize: "11px",
+                          color: '#a855f7',
+                          fontWeight: '700',
+                          fontSize: '11px',
                         }}
                       >
                         +₦
@@ -1776,27 +1730,27 @@ const SalvaSellerChat = ({ user }) => {
                     </div>
                     <div
                       style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        paddingTop: "4px",
-                        borderTop: "1px solid rgba(168,85,247,0.15)",
-                        marginTop: "2px",
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        paddingTop: '4px',
+                        borderTop: '1px solid rgba(168,85,247,0.15)',
+                        marginTop: '2px',
                       }}
                     >
                       <span
                         style={{
-                          color: "rgba(255,255,255,0.6)",
-                          fontSize: "10px",
-                          fontWeight: "700",
+                          color: 'rgba(255,255,255,0.6)',
+                          fontSize: '10px',
+                          fontWeight: '700',
                         }}
                       >
                         TOTAL to pay user
                       </span>
                       <span
                         style={{
-                          color: "#22c55e",
-                          fontWeight: "900",
-                          fontSize: "13px",
+                          color: '#22c55e',
+                          fontWeight: '900',
+                          fontSize: '13px',
                         }}
                       >
                         ₦
@@ -1815,17 +1769,16 @@ const SalvaSellerChat = ({ user }) => {
                 ref={chatContainerRef}
                 onScroll={(e) => {
                   const el = e.currentTarget;
-                  isNearBottom.current =
-                    el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
                 }}
                 style={{
                   flex: 1,
-                  overflowY: "auto",
-                  padding: "12px 12px 8px",
-                  background: "#0a0a0b",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "7px",
+                  overflowY: 'auto',
+                  padding: '12px 12px 8px',
+                  background: '#0a0a0b',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '7px',
                 }}
               >
                 {messages.map((msg, i) => (
@@ -1838,20 +1791,20 @@ const SalvaSellerChat = ({ user }) => {
               {mintError && (
                 <div
                   style={{
-                    padding: "10px 14px",
-                    background: "rgba(239,68,68,0.1)",
-                    borderTop: "1px solid rgba(239,68,68,0.2)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
+                    padding: '10px 14px',
+                    background: 'rgba(239,68,68,0.1)',
+                    borderTop: '1px solid rgba(239,68,68,0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
                   }}
                 >
-                  <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+                  <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
                   <p
                     style={{
-                      color: "#ef4444",
-                      fontSize: "11px",
-                      fontWeight: "700",
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      fontWeight: '700',
                       margin: 0,
                     }}
                   >
@@ -1864,11 +1817,11 @@ const SalvaSellerChat = ({ user }) => {
               {canMint && (
                 <div
                   style={{
-                    padding: "10px 12px",
-                    background: "#0d0d0e",
-                    borderTop: "1px solid rgba(212,175,55,0.1)",
-                    display: "flex",
-                    gap: "8px",
+                    padding: '10px 12px',
+                    background: '#0d0d0e',
+                    borderTop: '1px solid rgba(212,175,55,0.1)',
+                    display: 'flex',
+                    gap: '8px',
                     flexShrink: 0,
                   }}
                 >
@@ -1877,38 +1830,35 @@ const SalvaSellerChat = ({ user }) => {
                     disabled={rejecting}
                     style={{
                       flex: 1,
-                      padding: "10px",
-                      borderRadius: "10px",
-                      background: "rgba(239,68,68,0.1)",
-                      border: "1px solid rgba(239,68,68,0.25)",
-                      color: "#ef4444",
-                      fontSize: "11px",
-                      fontWeight: "700",
-                      cursor: "pointer",
+                      padding: '10px',
+                      borderRadius: '10px',
+                      background: 'rgba(239,68,68,0.1)',
+                      border: '1px solid rgba(239,68,68,0.25)',
+                      color: '#ef4444',
+                      fontSize: '11px',
+                      fontWeight: '700',
+                      cursor: 'pointer',
                     }}
                     onMouseEnter={(e) =>
-                      (e.currentTarget.style.background =
-                        "rgba(239,68,68,0.18)")
+                      (e.currentTarget.style.background = 'rgba(239,68,68,0.18)')
                     }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = "rgba(239,68,68,0.1)")
-                    }
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
                   >
-                    {rejecting ? "…" : "❌ Reject"}
+                    {rejecting ? '…' : '❌ Reject'}
                   </button>
                   <button
                     onClick={() => setShowConfirm(true)}
                     style={{
                       flex: 2,
-                      padding: "10px",
-                      borderRadius: "10px",
-                      background: "linear-gradient(135deg, #22c55e, #16a34a)",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "12px",
-                      fontWeight: "900",
-                      cursor: "pointer",
-                      boxShadow: "0 0 14px rgba(34,197,94,0.3)",
+                      padding: '10px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '12px',
+                      fontWeight: '900',
+                      cursor: 'pointer',
+                      boxShadow: '0 0 14px rgba(34,197,94,0.3)',
                     }}
                   >
                     ✅ Confirm Payment & Mint
@@ -1920,49 +1870,46 @@ const SalvaSellerChat = ({ user }) => {
               {isSellPaid && (
                 <div
                   style={{
-                    padding: "10px 12px",
-                    background: "#0d0d0e",
-                    borderTop: "1px solid rgba(239,68,68,0.15)",
+                    padding: '10px 12px',
+                    background: '#0d0d0e',
+                    borderTop: '1px solid rgba(239,68,68,0.15)',
                     flexShrink: 0,
                   }}
                 >
                   <div
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: "10px",
-                      background: "rgba(239,68,68,0.08)",
-                      border: "1px solid rgba(239,68,68,0.2)",
-                      marginBottom: "8px",
+                      padding: '10px 12px',
+                      borderRadius: '10px',
+                      background: 'rgba(239,68,68,0.08)',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                      marginBottom: '8px',
                     }}
                   >
                     <p
                       style={{
-                        color: "#ef4444",
-                        fontSize: "11px",
-                        fontWeight: "700",
-                        margin: "0 0 4px",
+                        color: '#ef4444',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        margin: '0 0 4px',
                       }}
                     >
                       🔥 NGNs burned on-chain. Send ₦
                       {(
                         (selected.mintAmountNgn || 0) +
-                        (hasRedemption
-                          ? selected.pointsRedemption.pointsToRedeem
-                          : 0)
-                      ).toLocaleString()}{" "}
+                        (hasRedemption ? selected.pointsRedemption.pointsToRedeem : 0)
+                      ).toLocaleString()}{' '}
                       to user's bank account above.
                     </p>
                     {hasRedemption && (
                       <p
                         style={{
-                          color: "#a855f7",
-                          fontSize: "10px",
+                          color: '#a855f7',
+                          fontSize: '10px',
                           margin: 0,
                         }}
                       >
-                        Includes ₦
-                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}{" "}
-                        points redemption payout.
+                        Includes ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()} points
+                        redemption payout.
                       </p>
                     )}
                   </div>
@@ -1971,17 +1918,14 @@ const SalvaSellerChat = ({ user }) => {
                       if (!selected?._id || completingSell) return;
                       setCompletingSell(true);
                       try {
-                        await fetch(
-                          `${SALVA_API_URL}/api/buy-ngns/complete-sell`,
-                          {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({
-                              requestId: selected._id,
-                              safeAddress: user.safeAddress,
-                            }),
-                          },
-                        );
+                        await fetch(`${SALVA_API_URL}/api/buy-ngns/complete-sell`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            requestId: selected._id,
+                            safeAddress: user.safeAddress,
+                          }),
+                        });
                         await fetchChat();
                         await fetchList();
                       } catch {
@@ -1991,53 +1935,49 @@ const SalvaSellerChat = ({ user }) => {
                     }}
                     disabled={completingSell}
                     style={{
-                      width: "100%",
-                      padding: "11px",
-                      borderRadius: "10px",
+                      width: '100%',
+                      padding: '11px',
+                      borderRadius: '10px',
                       background: completingSell
-                        ? "rgba(34,197,94,0.4)"
-                        : "linear-gradient(135deg, #22c55e, #16a34a)",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "13px",
-                      fontWeight: "900",
-                      cursor: completingSell ? "wait" : "pointer",
-                      boxShadow: completingSell
-                        ? "none"
-                        : "0 0 14px rgba(34,197,94,0.3)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: "6px",
+                        ? 'rgba(34,197,94,0.4)'
+                        : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                      border: 'none',
+                      color: '#fff',
+                      fontSize: '13px',
+                      fontWeight: '900',
+                      cursor: completingSell ? 'wait' : 'pointer',
+                      boxShadow: completingSell ? 'none' : '0 0 14px rgba(34,197,94,0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px',
                     }}
                   >
                     {completingSell && (
                       <span
                         style={{
-                          width: "12px",
-                          height: "12px",
-                          border: "2px solid rgba(255,255,255,0.3)",
-                          borderTopColor: "#fff",
-                          borderRadius: "50%",
-                          display: "inline-block",
-                          animation: "spin 0.6s linear infinite",
+                          width: '12px',
+                          height: '12px',
+                          border: '2px solid rgba(255,255,255,0.3)',
+                          borderTopColor: '#fff',
+                          borderRadius: '50%',
+                          display: 'inline-block',
+                          animation: 'spin 0.6s linear infinite',
                         }}
                       />
                     )}
-                    {completingSell
-                      ? "Completing…"
-                      : "✅ SENT — Mark as Complete"}
+                    {completingSell ? 'Completing…' : '✅ SENT — Mark as Complete'}
                   </button>
                 </div>
               )}
 
               {/* Reject when pending */}
-              {selected?.status === "pending" && (
+              {selected?.status === 'pending' && (
                 <div
                   style={{
-                    padding: "8px 12px",
-                    background: "#0d0d0e",
-                    borderTop: "1px solid rgba(255,255,255,0.05)",
+                    padding: '8px 12px',
+                    background: '#0d0d0e',
+                    borderTop: '1px solid rgba(255,255,255,0.05)',
                     flexShrink: 0,
                   }}
                 >
@@ -2045,28 +1985,24 @@ const SalvaSellerChat = ({ user }) => {
                     onClick={handleReject}
                     disabled={rejecting}
                     style={{
-                      width: "100%",
-                      padding: "9px",
-                      borderRadius: "10px",
-                      background: "rgba(239,68,68,0.08)",
-                      border: "1px solid rgba(239,68,68,0.2)",
-                      color: "rgba(239,68,68,0.7)",
-                      fontSize: "11px",
-                      cursor: "pointer",
+                      width: '100%',
+                      padding: '9px',
+                      borderRadius: '10px',
+                      background: 'rgba(239,68,68,0.08)',
+                      border: '1px solid rgba(239,68,68,0.2)',
+                      color: 'rgba(239,68,68,0.7)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
                     }}
                   >
-                    {rejecting ? "Rejecting…" : "Cancel / Reject Request"}
+                    {rejecting ? 'Rejecting…' : 'Cancel / Reject Request'}
                   </button>
                 </div>
               )}
 
               {/* Input */}
-              {["pending", "paid"].includes(selected?.status) && (
-                <MessageInput
-                  onSend={handleSend}
-                  onImage={handleSendImage}
-                  disabled={sending}
-                />
+              {['pending', 'paid'].includes(selected?.status) && (
+                <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
               )}
             </>
           )}

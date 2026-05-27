@@ -1,33 +1,33 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
-import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
-import Stars from "../components/Stars";
-import AdminPanel from "./AdminPanel";
-import SalvaNGNsChat from "../components/SalvaNGNsChat";
-import SalvaSellerChat from "../components/SalvaSellerChat";
-import DeployPool from "./DeployPool";
-import SwapTab from "./SwapTab";
-import { QRCodeSVG } from "qrcode.react";
+import { SALVA_API_URL } from '../config';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Link, useNavigate } from 'react-router-dom';
+import Stars from '../components/Stars';
+import AdminPanel from './AdminPanel';
+import SalvaNGNsChat from '../components/SalvaNGNsChat';
+import SalvaSellerChat from '../components/SalvaSellerChat';
+import DeployPool from './DeployPool';
+import SwapTab from './SwapTab';
+import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
-  if (value === null || value === undefined || value === "") {
-    return "0";
+  if (value === null || value === undefined || value === '') {
+    return '0';
   }
 
   const num = Number(value);
 
   if (!Number.isFinite(num)) {
-    return "0";
+    return '0';
   }
 
   const factor = 10 ** maxDecimals;
 
   const truncated = Math.trunc(num * factor) / factor;
 
-  return truncated.toLocaleString("en-US", {
+  return truncated.toLocaleString('en-US', {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
   });
@@ -40,22 +40,22 @@ const addDecimals = (a, b) => {
   const sum = ai + bi;
 
   // preserve precision safely
-  return sum.toFixed(6).replace(/\.?0+$/, "");
+  return sum.toFixed(6).replace(/\.?0+$/, '');
 };
 
 const formatAmountInput = (raw) => {
-  const digits = raw.replace(/[^0-9.]/g, "");
-  const parts = digits.split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
+  const digits = raw.replace(/[^0-9.]/g, '');
+  const parts = digits.split('.');
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts.length > 1 ? parts[0] + '.' + parts[1] : parts[0];
 };
 
 function detectInputType(val) {
   const t = val.trim();
-  if (!t) return "empty";
-  if (t.startsWith("0x")) return "address";
-  if (t.includes("@")) return "fullname";
-  return "name";
+  if (!t) return 'empty';
+  if (t.startsWith('0x')) return 'address';
+  if (t.includes('@')) return 'fullname';
+  return 'name';
 }
 
 // ── QR Scanner Modal ───────────────────────────────────────────────────────
@@ -70,12 +70,12 @@ const QRScannerModal = ({ onScan, onClose }) => {
 
     const startScanner = async () => {
       try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        scanner = new Html5Qrcode("qr-scanner-container", { verbose: false });
+        const { Html5Qrcode } = await import('html5-qrcode');
+        scanner = new Html5Qrcode('qr-scanner-container', { verbose: false });
         scannerInstanceRef.current = scanner;
 
         await scanner.start(
-          { facingMode: "environment" },
+          { facingMode: 'environment' },
           {
             fps: 15,
             qrbox: { width: 200, height: 200 },
@@ -87,37 +87,35 @@ const QRScannerModal = ({ onScan, onClose }) => {
             hasScanned.current = true;
             stopped = true;
             const clean = decodedText
-              .replace(/^ethereum:/i, "")
-              .split("?")[0]
+              .replace(/^ethereum:/i, '')
+              .split('?')[0]
               .trim();
             onScan(clean);
           },
-          () => {},
+          () => {}
         );
 
         isStarted.current = true;
 
         setTimeout(() => {
-          const video = document.querySelector("#qr-scanner-container video");
+          const video = document.querySelector('#qr-scanner-container video');
           if (video) {
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
-            video.style.position = "absolute";
-            video.style.top = "0";
-            video.style.left = "0";
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.style.position = 'absolute';
+            video.style.top = '0';
+            video.style.left = '0';
           }
-          const canvases = document.querySelectorAll(
-            "#qr-scanner-container canvas",
-          );
+          const canvases = document.querySelectorAll('#qr-scanner-container canvas');
           canvases.forEach((c) => {
-            if (!c.id.includes("qr")) c.style.display = "none";
+            if (!c.id.includes('qr')) c.style.display = 'none';
           });
-          const shadedRegion = document.querySelector("#qr-shaded-region");
-          if (shadedRegion) shadedRegion.style.display = "none";
+          const shadedRegion = document.querySelector('#qr-shaded-region');
+          if (shadedRegion) shadedRegion.style.display = 'none';
         }, 500);
       } catch (err) {
-        console.error("Scanner start error:", err);
+        console.error('Scanner start error:', err);
       }
     };
 
@@ -144,10 +142,10 @@ const QRScannerModal = ({ onScan, onClose }) => {
       <motion.div
         onClick={(e) => e.stopPropagation()}
         className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
-        initial={{ y: "100%" }}
+        initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
       >
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
 
@@ -163,15 +161,15 @@ const QRScannerModal = ({ onScan, onClose }) => {
 
         <div
           className="relative rounded-2xl overflow-hidden mb-5 border border-white/10 bg-black"
-          style={{ height: "260px" }}
+          style={{ height: '260px' }}
         >
           <div
             id="qr-scanner-container"
             style={{
-              width: "100%",
-              height: "100%",
-              position: "relative",
-              overflow: "hidden",
+              width: '100%',
+              height: '100%',
+              position: 'relative',
+              overflow: 'hidden',
             }}
           />
           <div className="absolute inset-0 pointer-events-none z-10">
@@ -182,9 +180,9 @@ const QRScannerModal = ({ onScan, onClose }) => {
           </div>
           <motion.div
             className="absolute left-4 right-4 h-0.5 bg-salvaGold/60 z-10 pointer-events-none"
-            style={{ boxShadow: "0 0 8px #D4AF37" }}
-            animate={{ top: ["20%", "80%", "20%"] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
+            style={{ boxShadow: '0 0 8px #D4AF37' }}
+            animate={{ top: ['20%', '80%', '20%'] }}
+            transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           />
         </div>
 
@@ -216,46 +214,46 @@ const RegistryDropdown = ({
   registries,
   value,
   onChange,
-  placeholder = "Search wallet service…",
-  className = "",
+  placeholder = 'Search wallet service…',
+  className = '',
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
   const filtered = registries.filter(
     (r) =>
       r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || "").toLowerCase().includes(query.toLowerCase()) ||
-      (r.description || "").toLowerCase().includes(query.toLowerCase()),
+      (r.nspace || '').toLowerCase().includes(query.toLowerCase()) ||
+      (r.description || '').toLowerCase().includes(query.toLowerCase())
   );
 
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
-        setQuery("");
+        setQuery('');
       }
     };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
   }, []);
 
   const handleOpen = () => {
     setOpen(true);
-    setQuery("");
+    setQuery('');
     setTimeout(() => inputRef.current?.focus(), 50);
   };
   const handleSelect = (reg) => {
     onChange(reg);
     setOpen(false);
-    setQuery("");
+    setQuery('');
   };
   const handleClear = (e) => {
     e.stopPropagation();
     onChange(null);
-    setQuery("");
+    setQuery('');
   };
 
   return (
@@ -266,10 +264,10 @@ const RegistryDropdown = ({
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left
           ${
             open
-              ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
+              ? 'border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30'
               : value
-                ? "border-salvaGold/40 bg-salvaGold/5"
-                : "border-white/10 bg-white/5 hover:border-salvaGold/40"
+                ? 'border-salvaGold/40 bg-salvaGold/5'
+                : 'border-white/10 bg-white/5 hover:border-salvaGold/40'
           }`}
       >
         {value ? (
@@ -280,12 +278,8 @@ const RegistryDropdown = ({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">
-                {value.name}
-              </p>
-              <p className="text-[10px] opacity-40 font-mono truncate">
-                {value.nspace}
-              </p>
+              <p className="font-black text-sm truncate text-white">{value.name}</p>
+              <p className="text-[10px] opacity-40 font-mono truncate">{value.nspace}</p>
             </div>
           </div>
         ) : (
@@ -297,11 +291,7 @@ const RegistryDropdown = ({
               viewBox="0 0 24 24"
             >
               <circle cx="11" cy="11" r="8" strokeWidth="2" />
-              <path
-                d="m21 21-4.35-4.35"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
+              <path d="m21 21-4.35-4.35" strokeWidth="2" strokeLinecap="round" />
             </svg>
             <span className="text-sm font-bold">{placeholder}</span>
           </div>
@@ -313,9 +303,7 @@ const RegistryDropdown = ({
               onClick={handleClear}
               className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
-              <span className="text-[10px] text-red-400 font-black leading-none">
-                ✕
-              </span>
+              <span className="text-[10px] text-red-400 font-black leading-none">✕</span>
             </button>
           )}
           <button
@@ -324,7 +312,7 @@ const RegistryDropdown = ({
             className="w-5 h-5 flex items-center justify-center"
           >
             <svg
-              className={`w-3 h-3 opacity-40 transition-transform ${open ? "rotate-180" : ""}`}
+              className={`w-3 h-3 opacity-40 transition-transform ${open ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -357,11 +345,7 @@ const RegistryDropdown = ({
                   viewBox="0 0 24 24"
                 >
                   <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
-                  <path
-                    d="m21 21-4.35-4.35"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
+                  <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round" />
                 </svg>
                 <input
                   ref={inputRef}
@@ -374,7 +358,7 @@ const RegistryDropdown = ({
                 {query && (
                   <button
                     type="button"
-                    onClick={() => setQuery("")}
+                    onClick={() => setQuery('')}
                     className="opacity-40 hover:opacity-80"
                   >
                     <span className="text-[10px]">✕</span>
@@ -385,9 +369,7 @@ const RegistryDropdown = ({
             <div className="max-h-56 overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="px-4 py-6 text-center">
-                  <p className="text-xs opacity-40 font-bold">
-                    No wallet services found
-                  </p>
+                  <p className="text-xs opacity-40 font-bold">No wallet services found</p>
                 </div>
               ) : (
                 filtered.map((reg) => (
@@ -395,7 +377,7 @@ const RegistryDropdown = ({
                     key={reg.registryAddress}
                     type="button"
                     onClick={() => handleSelect(reg)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-salvaGold/10' : ''}`}
                   >
                     <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
                       <span className="text-salvaGold text-sm font-black">
@@ -403,16 +385,10 @@ const RegistryDropdown = ({
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">
-                        {reg.name}
-                      </p>
-                      <p className="text-[10px] font-mono opacity-40">
-                        {reg.nspace}
-                      </p>
+                      <p className="font-black text-sm text-white">{reg.name}</p>
+                      <p className="text-[10px] font-mono opacity-40">{reg.nspace}</p>
                       {reg.description && (
-                        <p className="text-[10px] opacity-30 truncate">
-                          {reg.description}
-                        </p>
+                        <p className="text-[10px] opacity-30 truncate">{reg.description}</p>
                       )}
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
@@ -432,15 +408,15 @@ const RegistryDropdown = ({
 // ── Notification ───────────────────────────────────────────────────────────
 const SalvaNotification = ({ notification, onClose }) => {
   const cfgMap = {
-    success: { icon: "✓", bar: "#D4AF37", btnBg: "#D4AF37", btnText: "#000" },
-    error: { icon: "✕", bar: "#EF4444", btnBg: "#EF4444", btnText: "#fff" },
+    success: { icon: '✓', bar: '#D4AF37', btnBg: '#D4AF37', btnText: '#000' },
+    error: { icon: '✕', bar: '#EF4444', btnBg: '#EF4444', btnText: '#fff' },
     info: {
-      icon: "↻",
-      bar: "#3B82F6",
-      btnBg: "rgba(255,255,255,0.15)",
-      btnText: "#fff",
+      icon: '↻',
+      bar: '#3B82F6',
+      btnBg: 'rgba(255,255,255,0.15)',
+      btnText: '#fff',
     },
-    warning: { icon: "⚠", bar: "#F59E0B", btnBg: "#F59E0B", btnText: "#000" },
+    warning: { icon: '⚠', bar: '#F59E0B', btnBg: '#F59E0B', btnText: '#000' },
   };
   const cfg = cfgMap[notification.type] || cfgMap.info;
   if (!notification.show) return null;
@@ -458,7 +434,7 @@ const SalvaNotification = ({ notification, onClose }) => {
         initial={{ opacity: 0, scale: 0.85, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.85, y: 20 }}
-        transition={{ type: "spring", stiffness: 400, damping: 28 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ height: 4, background: cfg.bar }} />
@@ -501,7 +477,7 @@ const BalanceCard = ({
 }) => {
   const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
-  const MASK = "••••••";
+  const MASK = '••••••';
 
   return (
     <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
@@ -516,15 +492,13 @@ const BalanceCard = ({
               transition={{ repeat: Infinity, duration: 2.5 }}
               className="w-1.5 h-1.5 rounded-full bg-salvaGold block"
             />
-            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              NGN
-            </p>
+            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
           </div>
           <button
             onClick={onToggleVisibility}
             className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
           >
-            {showBalance ? "👁" : "👁‍🗨"}
+            {showBalance ? '👁' : '👁‍🗨'}
           </button>
         </div>
 
@@ -537,13 +511,11 @@ const BalanceCard = ({
               style={{
                 fontSize:
                   showBalance && String(totalNgn).length > 10
-                    ? "clamp(1rem, 5vw, 1.75rem)"
-                    : "1.875rem",
+                    ? 'clamp(1rem, 5vw, 1.75rem)'
+                    : '1.875rem',
               }}
             >
-              {showBalance
-                ? formatNumber(totalNgn, { minDecimals: 3, maxDecimals: 3 })
-                : MASK}
+              {showBalance ? formatNumber(totalNgn, { minDecimals: 3, maxDecimals: 3 }) : MASK}
             </span>
           )}
         </div>
@@ -552,7 +524,7 @@ const BalanceCard = ({
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
               ? `${formatNumber(ngnsBalance, { minDecimals: 3, maxDecimals: 3 })} NGNs · ${formatNumber(cNgnBalance, { minDecimals: 3, maxDecimals: 3 })} cNGN`
-              : "•••• NGNs · •••• cNGN"}
+              : '•••• NGNs · •••• cNGN'}
           </p>
         )}
       </div>
@@ -565,9 +537,7 @@ const BalanceCard = ({
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
             className="w-1.5 h-1.5 rounded-full bg-green-400 block"
           />
-          <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-            USD
-          </p>
+          <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
 
         <div className="min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
@@ -579,13 +549,11 @@ const BalanceCard = ({
               style={{
                 fontSize:
                   showBalance && String(totalUsd).length > 10
-                    ? "clamp(0.9rem, 4vw, 1.5rem)"
-                    : "1.5rem",
+                    ? 'clamp(0.9rem, 4vw, 1.5rem)'
+                    : '1.5rem',
               }}
             >
-              {showBalance
-                ? formatNumber(totalUsd, { minDecimals: 2, maxDecimals: 3 })
-                : MASK}
+              {showBalance ? formatNumber(totalUsd, { minDecimals: 2, maxDecimals: 3 }) : MASK}
             </span>
           )}
         </div>
@@ -594,7 +562,7 @@ const BalanceCard = ({
           <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
               ? `${formatNumber(usdtBalance, { minDecimals: 2, maxDecimals: 3 })} USDT · ${formatNumber(usdcBalance, { minDecimals: 2, maxDecimals: 3 })} USDC`
-              : "•••• USDT · •••• USDC"}
+              : '•••• USDT · •••• USDC'}
           </p>
         )}
       </div>
@@ -622,24 +590,24 @@ const BalanceCard = ({
 const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [linkedNames, setLinkedNames] = useState([]);
   const [loadingNames, setLoadingNames] = useState(true);
-  const [nameInput, setNameInput] = useState("");
+  const [nameInput, setNameInput] = useState('');
   const [walletInput, setWalletInput] = useState(() => {
-    const pre = window.__salva_pool_prefill || "";
+    const pre = window.__salva_pool_prefill || '';
     window.__salva_pool_prefill = null;
     return pre;
   });
   const [selectedRegistry, setSelectedRegistry] = useState(null);
   const [nameCheckResult, setNameCheckResult] = useState(null);
   const [checking, setChecking] = useState(false);
-  const [nameError, setNameError] = useState("");
-  const [linkStep, setLinkStep] = useState("form");
-  const [reservedEmail, setReservedEmail] = useState("");
+  const [nameError, setNameError] = useState('');
+  const [linkStep, setLinkStep] = useState('form');
+  const [reservedEmail, setReservedEmail] = useState('');
   const [reservedSubmitting, setReservedSubmitting] = useState(false);
-  const [pinInput, setPinInput] = useState("");
+  const [pinInput, setPinInput] = useState('');
   const [pinLoading, setPinLoading] = useState(false);
   const [unlinkTarget, setUnlinkTarget] = useState(null);
   const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
-  const [unlinkPinInput, setUnlinkPinInput] = useState("");
+  const [unlinkPinInput, setUnlinkPinInput] = useState('');
   const [unlinkPinStep, setUnlinkPinStep] = useState(false);
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [registryFee, setRegistryFee] = useState(null);
@@ -648,9 +616,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const fetchLinkedNames = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/alias/list/${user.safeAddress}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/alias/list/${user.safeAddress}`);
       const data = await res.json();
       setLinkedNames(data.aliases || []);
     } catch {
@@ -665,18 +631,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   }, [fetchLinkedNames]);
 
   const validateNameLocally = (val) => {
-    if (!val) return "Name is required";
-    if (val.includes("0") || val.includes("1"))
-      return "Digits 0 and 1 are not allowed";
-    if (!/^[a-z2-9_]+$/.test(val))
-      return "Only lowercase a–z, digits 2–9, one underscore";
-    if ((val.match(/_/g) || []).length > 1)
-      return "Only one underscore allowed";
-    if (val.startsWith("_") || val.endsWith("_"))
-      return "Cannot start or end with underscore";
-    if (val.length > 32) return "Max 32 characters";
-    if (val.length < 2) return "At least 2 characters required";
-    return "";
+    if (!val) return 'Name is required';
+    if (val.includes('0') || val.includes('1')) return 'Digits 0 and 1 are not allowed';
+    if (!/^[a-z2-9_]+$/.test(val)) return 'Only lowercase a–z, digits 2–9, one underscore';
+    if ((val.match(/_/g) || []).length > 1) return 'Only one underscore allowed';
+    if (val.startsWith('_') || val.endsWith('_')) return 'Cannot start or end with underscore';
+    if (val.length > 32) return 'Max 32 characters';
+    if (val.length < 2) return 'At least 2 characters required';
+    return '';
   };
 
   const handleCheckName = async () => {
@@ -685,26 +647,22 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       setNameError(err);
       return;
     }
-    if (
-      !walletInput ||
-      !walletInput.startsWith("0x") ||
-      walletInput.length !== 42
-    ) {
-      setNameError("Enter a valid 0x wallet address to link to");
+    if (!walletInput || !walletInput.startsWith('0x') || walletInput.length !== 42) {
+      setNameError('Enter a valid 0x wallet address to link to');
       return;
     }
     if (!selectedRegistry) {
-      setNameError("Select which wallet service this name belongs to");
+      setNameError('Select which wallet service this name belongs to');
       return;
     }
-    setNameError("");
+    setNameError('');
     setChecking(true);
     setNameCheckResult(null);
     setRegistryFee(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: nameInput,
           registryAddress: selectedRegistry.registryAddress,
@@ -712,16 +670,16 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setNameError(data.message || "Check failed");
+        setNameError(data.message || 'Check failed');
         return;
       }
       setNameCheckResult(data);
       if (data.reserved) {
-        setLinkStep("reserved");
+        setLinkStep('reserved');
         return;
       }
       if (!data.available) {
-        setNameError("This name is already taken. Try another.");
+        setNameError('This name is already taken. Try another.');
         return;
       }
       setFeeLoading(true);
@@ -734,9 +692,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       } finally {
         setFeeLoading(false);
       }
-      setLinkStep("confirm");
+      setLinkStep('confirm');
     } catch {
-      setNameError("Network error. Please try again.");
+      setNameError('Network error. Please try again.');
     } finally {
       setChecking(false);
     }
@@ -747,8 +705,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setReservedSubmitting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/notify-reserved`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: nameInput,
           requesterEmail: reservedEmail,
@@ -756,11 +714,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        showMsg("Your request has been sent to our team!");
+        showMsg('Your request has been sent to our team!');
         resetLinkForm();
-      } else showMsg(data.message || "Failed to send", "error");
+      } else showMsg(data.message || 'Failed to send', 'error');
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setReservedSubmitting(false);
     }
@@ -771,20 +729,20 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setPinLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin: pinInput }),
       });
       const pinData = await pinRes.json();
       if (!pinRes.ok) {
-        showMsg(pinData.message || "Invalid PIN", "error");
+        showMsg(pinData.message || 'Invalid PIN', 'error');
         setPinLoading(false);
         return;
       }
-      setLinkStep("linking");
+      setLinkStep('linking');
       const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           name: nameInput,
@@ -794,23 +752,23 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       });
       const prepData = await prepRes.json();
       if (prepData.reserved) {
-        setLinkStep("reserved");
+        setLinkStep('reserved');
         return;
       }
       if (prepData.lowBalance) {
-        showMsg(prepData.message || "Insufficient NGNs", "error");
+        showMsg(prepData.message || 'Insufficient NGNs', 'error');
         setTimeout(() => onSwitchToBuy?.(), 1500);
-        setLinkStep("form");
+        setLinkStep('form');
         return;
       }
       if (!prepRes.ok) {
-        showMsg(prepData.message || "Preparation failed", "error");
-        setLinkStep("confirm");
+        showMsg(prepData.message || 'Preparation failed', 'error');
+        setLinkStep('confirm');
         return;
       }
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           pureName: prepData.pureName,
@@ -824,14 +782,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       });
       const execData = await execRes.json();
       if (!execRes.ok) {
-        showMsg(execData.message || "Linking failed", "error");
-        setLinkStep("confirm");
+        showMsg(execData.message || 'Linking failed', 'error');
+        setLinkStep('confirm');
         return;
       }
       if (walletInput && execData.alias?.name) {
         fetch(`${SALVA_API_URL}/api/pool/set-name`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             poolAddress: walletInput,
             ownerSafeAddress: user.safeAddress,
@@ -839,18 +797,18 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           }),
         }).catch(() => {});
       }
-      setLinkStep("success");
+      setLinkStep('success');
       await fetchLinkedNames();
       try {
-        const saved = JSON.parse(localStorage.getItem("salva_user") || "{}");
+        const saved = JSON.parse(localStorage.getItem('salva_user') || '{}');
         saved.nameAlias = execData.alias?.name || saved.nameAlias;
-        localStorage.setItem("salva_user", JSON.stringify(saved));
+        localStorage.setItem('salva_user', JSON.stringify(saved));
       } catch {
         /* ignore */
       }
     } catch (err) {
-      showMsg(err.message || "Failed to link name", "error");
-      setLinkStep("confirm");
+      showMsg(err.message || 'Failed to link name', 'error');
+      setLinkStep('confirm');
     } finally {
       setPinLoading(false);
     }
@@ -861,19 +819,19 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setUnlinkLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin: unlinkPinInput }),
       });
       const pinData = await pinRes.json();
       if (!pinRes.ok) {
-        showMsg(pinData.message || "Invalid PIN", "error");
+        showMsg(pinData.message || 'Invalid PIN', 'error');
         setUnlinkLoading(false);
         return;
       }
       const res = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           weldedName: unlinkTarget.name,
@@ -887,36 +845,32 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         setUnlinkPinStep(false);
         setUnlinkTarget(null);
         await fetchLinkedNames();
-      } else showMsg(data.message || "Unlink failed", "error");
+      } else showMsg(data.message || 'Unlink failed', 'error');
     } catch {
-      showMsg("Network error during unlink", "error");
+      showMsg('Network error during unlink', 'error');
     } finally {
       setUnlinkLoading(false);
     }
   };
 
   const resetLinkForm = () => {
-    setLinkStep("form");
-    setNameInput("");
-    setWalletInput("");
-    setNameError("");
+    setLinkStep('form');
+    setNameInput('');
+    setWalletInput('');
+    setNameError('');
     setNameCheckResult(null);
-    setPinInput("");
+    setPinInput('');
     setSelectedRegistry(null);
     setRegistryFee(null);
-    setReservedEmail("");
+    setReservedEmail('');
   };
 
   const feeActive = registryFee !== null && registryFee > 0;
   const darkInput =
-    "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
       {/* ── Linked Names ── */}
       <div>
         <div className="flex items-center justify-between mb-4">
@@ -946,21 +900,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 className="w-5 h-5 text-salvaGold/60"
               >
                 <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
-                <circle
-                  cx="8.5"
-                  cy="8.5"
-                  r="1.5"
-                  fill="currentColor"
-                  stroke="none"
-                />
+                <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
               </svg>
             </div>
-            <p className="text-sm font-black text-white/60">
-              No names linked yet
-            </p>
-            <p className="text-[10px] text-white/60 mt-1">
-              Register a name below to get started
-            </p>
+            <p className="text-sm font-black text-white/60">No names linked yet</p>
+            <p className="text-[10px] text-white/60 mt-1">Register a name below to get started</p>
           </div>
         ) : (
           <div className="space-y-2">
@@ -983,7 +927,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                       className="font-black text-salvaGold text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.name);
-                        showMsg("Name copied!");
+                        showMsg('Name copied!');
                       }}
                       title="Click to copy"
                     >
@@ -993,7 +937,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                       className="font-mono text-[10px] text-white/60 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.wallet);
-                        showMsg("Wallet address copied!");
+                        showMsg('Wallet address copied!');
                       }}
                       title="Click to copy wallet"
                     >
@@ -1005,7 +949,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   onClick={() => {
                     setUnlinkTarget(alias);
                     setShowUnlinkConfirm(true);
-                    setUnlinkPinInput("");
+                    setUnlinkPinInput('');
                     setUnlinkPinStep(false);
                   }}
                   className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
@@ -1028,7 +972,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       </div>
 
       {/* ── FORM ── */}
-      {linkStep === "form" && (
+      {linkStep === 'form' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1045,10 +989,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 placeholder="yourname"
                 value={nameInput}
                 onChange={(e) => {
-                  setNameInput(
-                    e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ""),
-                  );
-                  setNameError("");
+                  setNameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                  setNameError('');
                 }}
                 maxLength={32}
                 className={darkInput}
@@ -1066,7 +1008,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <span className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
                 <p className="text-[10px] text-salvaGold font-black">
                   {nameInput}
-                  {selectedRegistry ? selectedRegistry.nspace : "@salva"}
+                  {selectedRegistry ? selectedRegistry.nspace : '@salva'}
                 </p>
               </div>
             )}
@@ -1083,7 +1025,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               value={walletInput}
               onChange={(e) => {
                 setWalletInput(e.target.value.trim());
-                setNameError("");
+                setNameError('');
               }}
               className={`${darkInput} font-mono text-xs`}
             />
@@ -1099,7 +1041,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               value={selectedRegistry}
               onChange={(reg) => {
                 setSelectedRegistry(reg);
-                setNameError("");
+                setNameError('');
               }}
               placeholder="Select wallet service…"
             />
@@ -1114,21 +1056,19 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
           <button
             onClick={handleCheckName}
-            disabled={
-              checking || !nameInput || !walletInput || !selectedRegistry
-            }
+            disabled={checking || !nameInput || !walletInput || !selectedRegistry}
             className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
           >
             {checking && (
               <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             )}
-            {checking ? "Checking…" : "Check Availability"}
+            {checking ? 'Checking…' : 'Check Availability'}
           </button>
         </motion.div>
       )}
 
       {/* ── RESERVED ── */}
-      {linkStep === "reserved" && (
+      {linkStep === 'reserved' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1141,9 +1081,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <div>
               <p className="font-black text-white text-sm">Reserved Name</p>
               <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">
-                <span className="text-salvaGold font-black">{nameInput}</span>{" "}
-                is reserved. Share your email and we'll reach out about
-                eligibility.
+                <span className="text-salvaGold font-black">{nameInput}</span> is reserved. Share
+                your email and we'll reach out about eligibility.
               </p>
             </div>
           </div>
@@ -1166,14 +1105,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               disabled={reservedSubmitting || !reservedEmail}
               className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all"
             >
-              {reservedSubmitting ? "Sending…" : "Send Request"}
+              {reservedSubmitting ? 'Sending…' : 'Send Request'}
             </button>
           </div>
         </motion.div>
       )}
 
       {/* ── CONFIRM ── */}
-      {linkStep === "confirm" && nameCheckResult && (
+      {linkStep === 'confirm' && nameCheckResult && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1184,9 +1123,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">
               Name Available
             </p>
-            <p className="text-2xl font-black text-salvaGold">
-              {nameCheckResult.welded}
-            </p>
+            <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
           </div>
 
           {/* Fee */}
@@ -1204,8 +1141,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 </p>
               </div>
               <p className="font-black text-white text-sm">
-                {registryFee?.toLocaleString()}{" "}
-                <span className="text-salvaGold text-xs">NGNs</span>
+                {registryFee?.toLocaleString()} <span className="text-salvaGold text-xs">NGNs</span>
               </p>
             </div>
           ) : (
@@ -1226,8 +1162,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             </button>
             <button
               onClick={() => {
-                setLinkStep("pin");
-                setPinInput("");
+                setLinkStep('pin');
+                setPinInput('');
               }}
               disabled={feeLoading}
               className="flex-2 flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
@@ -1239,7 +1175,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       )}
 
       {/* ── PIN ── */}
-      {linkStep === "pin" && (
+      {linkStep === 'pin' && (
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1250,9 +1186,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </div>
           <div>
             <p className="font-black text-white text-lg">Transaction PIN</p>
-            <p className="text-[11px] text-white/60 mt-1">
-              Authorise the on-chain name link
-            </p>
+            <p className="text-[11px] text-white/60 mt-1">Authorise the on-chain name link</p>
           </div>
           <input
             type="password"
@@ -1260,14 +1194,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             pattern="\d{4}"
             maxLength="4"
             value={pinInput}
-            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
+            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
             className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
           />
           <div className="flex gap-3">
             <button
-              onClick={() => setLinkStep("confirm")}
+              onClick={() => setLinkStep('confirm')}
               disabled={pinLoading}
               className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
             >
@@ -1281,14 +1215,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               {pinLoading && (
                 <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               )}
-              {pinLoading ? "Signing…" : "Confirm"}
+              {pinLoading ? 'Signing…' : 'Confirm'}
             </button>
           </div>
         </motion.div>
       )}
 
       {/* ── LINKING ── */}
-      {linkStep === "linking" && (
+      {linkStep === 'linking' && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1302,14 +1236,12 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             </div>
           </div>
           <p className="font-black text-white">Linking on-chain…</p>
-          <p className="text-xs text-white/60">
-            Broadcasting to Base · 30–60 seconds
-          </p>
+          <p className="text-xs text-white/60">Broadcasting to Base · 30–60 seconds</p>
         </motion.div>
       )}
 
       {/* ── SUCCESS ── */}
-      {linkStep === "success" && (
+      {linkStep === 'success' && (
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1318,16 +1250,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 280, delay: 0.1 }}
+            transition={{ type: 'spring', stiffness: 280, delay: 0.1 }}
             className="w-16 h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
           >
             <span className="text-3xl">✓</span>
           </motion.div>
           <div>
             <p className="text-xl font-black text-white">Name Linked</p>
-            <p className="text-[11px] text-white/60 mt-1">
-              Your name is now live on Base
-            </p>
+            <p className="text-[11px] text-white/60 mt-1">Your name is now live on Base</p>
           </div>
           <button
             onClick={resetLinkForm}
@@ -1376,7 +1306,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                     onClick={() => {
                       setShowUnlinkConfirm(false);
                       setUnlinkPinStep(true);
-                      setUnlinkPinInput("");
+                      setUnlinkPinInput('');
                     }}
                     className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 transition-all"
                   >
@@ -1396,7 +1326,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <motion.div
               onClick={() => {
                 setUnlinkPinStep(false);
-                setUnlinkPinInput("");
+                setUnlinkPinInput('');
               }}
               className="absolute inset-0 bg-black/90 backdrop-blur-md"
               initial={{ opacity: 0 }}
@@ -1416,10 +1346,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               <div>
                 <p className="font-black text-white text-lg">Enter PIN</p>
                 <p className="text-[11px] text-white/60 mt-1">
-                  Confirm unlinking{" "}
-                  <span className="text-red-400 font-black">
-                    {unlinkTarget.name}
-                  </span>
+                  Confirm unlinking{' '}
+                  <span className="text-red-400 font-black">{unlinkTarget.name}</span>
                 </p>
               </div>
               <input
@@ -1427,9 +1355,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 inputMode="numeric"
                 maxLength="4"
                 value={unlinkPinInput}
-                onChange={(e) =>
-                  setUnlinkPinInput(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
@@ -1438,7 +1364,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <button
                   onClick={() => {
                     setUnlinkPinStep(false);
-                    setUnlinkPinInput("");
+                    setUnlinkPinInput('');
                   }}
                   disabled={unlinkLoading}
                   className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
@@ -1453,7 +1379,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   {unlinkLoading && (
                     <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   )}
-                  {unlinkLoading ? "Unlinking…" : "Confirm"}
+                  {unlinkLoading ? 'Unlinking…' : 'Confirm'}
                 </button>
               </div>
             </motion.div>
@@ -1469,7 +1395,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
-  const [replyText, setReplyText] = useState("");
+  const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [actioning, setActioning] = useState(false);
 
@@ -1477,7 +1403,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
     setLoading(true);
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`
       );
       const data = await res.json();
       setRequests(data.requests || []);
@@ -1496,7 +1422,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
     if (!selected) return;
     const iv = setInterval(async () => {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`,
+        `${SALVA_API_URL}/api/buy-ngns/all-requests?safeAddress=${user.safeAddress}`
       );
       const data = await res.json();
       const updated = (data.requests || []).find((r) => r._id === selected._id);
@@ -1511,13 +1437,13 @@ const SellerMintPanel = ({ user, showMsg }) => {
     setSending(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/send-message`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
           text: replyText.trim(),
-          sender: "seller",
+          sender: 'seller',
         }),
       });
       const data = await res.json();
@@ -1526,10 +1452,10 @@ const SellerMintPanel = ({ user, showMsg }) => {
           ...prev,
           messages: [...(prev.messages || []), data.message],
         }));
-        setReplyText("");
-      } else showMsg(data.message || "Failed", "error");
+        setReplyText('');
+      } else showMsg(data.message || 'Failed', 'error');
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setSending(false);
     }
@@ -1540,8 +1466,8 @@ const SellerMintPanel = ({ user, showMsg }) => {
     setActioning(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/mark-minted`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
@@ -1549,12 +1475,12 @@ const SellerMintPanel = ({ user, showMsg }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        showMsg("Marked as minted!");
+        showMsg('Marked as minted!');
         fetchRequests();
         setSelected(null);
-      } else showMsg(data.message || "Failed", "error");
+      } else showMsg(data.message || 'Failed', 'error');
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setActioning(false);
     }
@@ -1565,8 +1491,8 @@ const SellerMintPanel = ({ user, showMsg }) => {
     setActioning(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: selected._id,
           safeAddress: user.safeAddress,
@@ -1574,12 +1500,12 @@ const SellerMintPanel = ({ user, showMsg }) => {
       });
       const data = await res.json();
       if (res.ok) {
-        showMsg("Request rejected");
+        showMsg('Request rejected');
         fetchRequests();
         setSelected(null);
-      } else showMsg(data.message || "Failed", "error");
+      } else showMsg(data.message || 'Failed', 'error');
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
     } finally {
       setActioning(false);
     }
@@ -1587,19 +1513,15 @@ const SellerMintPanel = ({ user, showMsg }) => {
 
   const statusColor = (s) =>
     ({
-      pending: "text-yellow-400 bg-yellow-500/10 border-yellow-500/20",
-      paid: "text-blue-400 bg-blue-500/10 border-blue-500/20",
-      minted: "text-green-400 bg-green-500/10 border-green-500/20",
-      rejected: "text-red-400 bg-red-500/10 border-red-500/20",
-    })[s] || "text-white/60";
+      pending: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20',
+      paid: 'text-blue-400 bg-blue-500/10 border-blue-500/20',
+      minted: 'text-green-400 bg-green-500/10 border-green-500/20',
+      rejected: 'text-red-400 bg-red-500/10 border-red-500/20',
+    })[s] || 'text-white/60';
 
   if (selected)
     return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="space-y-4"
-      >
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
         <button
           onClick={() => setSelected(null)}
           className="text-xs text-white/60 hover:text-white font-bold transition-colors"
@@ -1609,9 +1531,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
         <div className="flex items-center justify-between">
           <div>
             <p className="font-black text-lg text-white">{selected.username}</p>
-            <p className="text-xs text-white/60 font-mono">
-              {selected.userEmail}
-            </p>
+            <p className="text-xs text-white/60 font-mono">{selected.userEmail}</p>
           </div>
           <span
             className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor(selected.status)}`}
@@ -1639,9 +1559,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
         </div>
         {selected.receiptImageBase64 && (
           <div className="p-3 rounded-2xl border border-white/10">
-            <p className="text-[10px] uppercase font-black text-white/60 mb-2">
-              Payment Receipt
-            </p>
+            <p className="text-[10px] uppercase font-black text-white/60 mb-2">Payment Receipt</p>
             <img
               src={selected.receiptImageBase64}
               alt="Receipt"
@@ -1654,18 +1572,14 @@ const SellerMintPanel = ({ user, showMsg }) => {
             {(selected.messages || []).map((msg, i) => (
               <div
                 key={i}
-                className={`flex ${msg.sender === "seller" ? "justify-start" : "justify-end"}`}
+                className={`flex ${msg.sender === 'seller' ? 'justify-start' : 'justify-end'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === "seller" ? "bg-white/5 border border-white/10 text-white" : "bg-salvaGold text-black"}`}
+                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-salvaGold text-black'}`}
                 >
                   {msg.text}
                   {msg.imageUrl && (
-                    <img
-                      src={msg.imageUrl}
-                      alt=""
-                      className="mt-1 max-h-24 rounded-lg"
-                    />
+                    <img src={msg.imageUrl} alt="" className="mt-1 max-h-24 rounded-lg" />
                   )}
                 </div>
               </div>
@@ -1677,7 +1591,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
               placeholder="Reply to user…"
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && sendSellerMessage()}
+              onKeyDown={(e) => e.key === 'Enter' && sendSellerMessage()}
               className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-white placeholder:text-white/60"
             />
             <button
@@ -1689,7 +1603,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             </button>
           </div>
         </div>
-        {selected.status === "paid" && (
+        {selected.status === 'paid' && (
           <div className="flex gap-3">
             <button
               onClick={handleReject}
@@ -1714,11 +1628,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
     );
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
           Mint Requests
@@ -1752,12 +1662,8 @@ const SellerMintPanel = ({ user, showMsg }) => {
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="font-black text-sm truncate text-white">
-                    {r.username}
-                  </p>
-                  <p className="text-xs text-white/60 font-mono truncate">
-                    {r.userEmail}
-                  </p>
+                  <p className="font-black text-sm truncate text-white">{r.username}</p>
+                  <p className="text-xs text-white/60 font-mono truncate">{r.userEmail}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
                   <p className="font-black text-salvaGold text-sm">
@@ -1786,13 +1692,13 @@ const Dashboard = () => {
 
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("salva_user");
+      const saved = localStorage.getItem('salva_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (!parsed || !parsed.safeAddress) return null;
       return parsed;
     } catch {
-      localStorage.removeItem("salva_user");
+      localStorage.removeItem('salva_user');
       return null;
     }
   });
@@ -1808,14 +1714,14 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [notification, setNotification] = useState({
     show: false,
-    message: "",
-    type: "",
+    message: '',
+    type: '',
   });
 
   const [showBalance, setShowBalance] = useState(() => {
     try {
-      const saved = localStorage.getItem("salva_show_balance");
-      return saved === null ? true : saved === "true";
+      const saved = localStorage.getItem('salva_show_balance');
+      return saved === null ? true : saved === 'true';
     } catch {
       return true;
     }
@@ -1825,7 +1731,7 @@ const Dashboard = () => {
     setShowBalance((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem("salva_show_balance", String(next));
+        localStorage.setItem('salva_show_balance', String(next));
       } catch {
         /* ignore */
       }
@@ -1833,7 +1739,7 @@ const Dashboard = () => {
     });
   }, []);
 
-  const [activeTab, setActiveTab] = useState("buy");
+  const [activeTab, setActiveTab] = useState('buy');
   const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
@@ -1841,36 +1747,30 @@ const Dashboard = () => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [transactionPin, setTransactionPin] = useState("");
+  const [transactionPin, setTransactionPin] = useState('');
   const [pinAttempts, setPinAttempts] = useState(0);
   const [isAccountLocked, setIsAccountLocked] = useState(false);
-  const [lockMessage, setLockMessage] = useState("");
-  const [recipientInput, setRecipientInput] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
+  const [lockMessage, setLockMessage] = useState('');
+  const [recipientInput, setRecipientInput] = useState('');
+  const [transferAmount, setTransferAmount] = useState('');
+  const [transferAmountDisplay, setTransferAmountDisplay] = useState('');
   const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [inputType, setInputType] = useState("empty");
-  const [selectedCoin, setSelectedCoin] = useState("NGN");
+  const [inputType, setInputType] = useState('empty');
+  const [selectedCoin, setSelectedCoin] = useState('NGN');
 
   const showMsg = useCallback(
-    (msg, type = "success") =>
-      setNotification({ show: true, message: msg, type }),
-    [],
+    (msg, type = 'success') => setNotification({ show: true, message: msg, type }),
+    []
   );
-  const closeNotif = useCallback(
-    () => setNotification((n) => ({ ...n, show: false })),
-    [],
-  );
+  const closeNotif = useCallback(() => setNotification((n) => ({ ...n, show: false })), []);
 
   useEffect(() => {
-    if (!user) navigate("/login", { replace: true });
+    if (!user) navigate('/login', { replace: true });
   }, [user, navigate]);
 
   const refreshUserStatus = useCallback(async (email, currentUser) => {
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`);
       if (!res.ok) return;
       const data = await res.json();
       const updated = {
@@ -1879,7 +1779,7 @@ const Dashboard = () => {
         nameAlias: data.nameAlias,
         isSeller: data.isSeller,
       };
-      localStorage.setItem("salva_user", JSON.stringify(updated));
+      localStorage.setItem('salva_user', JSON.stringify(updated));
       setUser(updated);
     } catch {
       /* silently ignore */
@@ -1890,45 +1790,41 @@ const Dashboard = () => {
     if (!user?.email) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`,
+        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`
       );
       if (!res.ok) return;
       const data = await res.json();
       if (data.isLocked) {
         setIsAccountLocked(true);
-        const h = Math.ceil(
-          (new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60),
-        );
-        setLockMessage(
-          `Account locked for ${h} more hour${h !== 1 ? "s" : ""}`,
-        );
+        const h = Math.ceil((new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60));
+        setLockMessage(`Account locked for ${h} more hour${h !== 1 ? 's' : ''}`);
       }
     } catch {
       /* ignore */
     }
   }, [user?.email]);
 
-const fetchBalance = useCallback(async (address, showSpinner = false) => {
-  if (!address) return;
-  if (showSpinner) setBalanceLoading(true);
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
-    if (!res.ok) return;
-    const data = await res.json();
-    setBalance(data.ngnsBalance ?? "0");
-    setCNgnBalance(data.cNgnBalance ?? "0");
-    setUsdtBalance(data.usdtBalance ?? "0");
-    setUsdcBalance(data.usdcBalance ?? "0");
-    // Silently trigger queue processor on every balance poll
-    fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
-      method: "POST",
-    }).catch(() => {});
-  } catch {
-    /* keep existing */
-  } finally {
-    if (showSpinner) setBalanceLoading(false);
-  }
-}, []);
+  const fetchBalance = useCallback(async (address, showSpinner = false) => {
+    if (!address) return;
+    if (showSpinner) setBalanceLoading(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setBalance(data.ngnsBalance ?? '0');
+      setCNgnBalance(data.cNgnBalance ?? '0');
+      setUsdtBalance(data.usdtBalance ?? '0');
+      setUsdcBalance(data.usdcBalance ?? '0');
+      // Silently trigger queue processor on every balance poll
+      fetch(`${SALVA_API_URL}/api/queue/process/${address}`, {
+        method: 'POST',
+      }).catch(() => {});
+    } catch {
+      /* keep existing */
+    } finally {
+      if (showSpinner) setBalanceLoading(false);
+    }
+  }, []);
   const syncIncoming = useCallback(async (address) => {
     if (!address) return;
     try {
@@ -1954,40 +1850,33 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
     if (!user?.safeAddress) return;
     syncIncoming(user.safeAddress);
     const tick = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === 'visible') {
         fetchBalance(user.safeAddress);
         syncIncoming(user.safeAddress);
       }
     };
     const iv = setInterval(tick, 45000);
-    document.addEventListener("visibilitychange", tick);
+    document.addEventListener('visibilitychange', tick);
     return () => {
       clearInterval(iv);
-      document.removeEventListener("visibilitychange", tick);
+      document.removeEventListener('visibilitychange', tick);
     };
   }, [user?.safeAddress, fetchBalance]);
 
   useEffect(() => {
     if (transferAmount) {
       const amt = parseFloat(transferAmount);
-      if (selectedCoin === "NGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(ngnsBalance ?? "0"));
-      else if (selectedCoin === "CNGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? "0"));
-      else if (selectedCoin === "USDT")
-        setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? "0"));
-      else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? "0"));
+      if (selectedCoin === 'NGN')
+        setAmountError(!isNaN(amt) && amt > parseFloat(ngnsBalance ?? '0'));
+      else if (selectedCoin === 'CNGN')
+        setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? '0'));
+      else if (selectedCoin === 'USDT')
+        setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? '0'));
+      else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? '0'));
     } else {
       setAmountError(false);
     }
-  }, [
-    transferAmount,
-    ngnsBalance,
-    cNgnBalance,
-    usdtBalance,
-    usdcBalance,
-    selectedCoin,
-  ]);
+  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin]);
 
   const fetchMeta = async () => {
     try {
@@ -2010,172 +1899,161 @@ const fetchBalance = useCallback(async (address, showSpinner = false) => {
       setFeePreview({ feeNGN: 0, feeUsd: 0 });
       return;
     }
-    if ((coin === "NGN" || coin === "CNGN") && feeConfig) {
+    if ((coin === 'NGN' || coin === 'CNGN') && feeConfig) {
       let fee = 0;
       if (amt >= (feeConfig.tier2Min ?? 10000)) fee = feeConfig.tier2Fee ?? 20;
-      else if (
-        amt >= (feeConfig.tier1Min ?? 1000) &&
-        amt <= (feeConfig.tier1Max ?? 9999)
-      )
+      else if (amt >= (feeConfig.tier1Min ?? 1000) && amt <= (feeConfig.tier1Max ?? 9999))
         fee = feeConfig.tier1Fee ?? 10;
       setFeePreview({ feeNGN: fee, feeUsd: 0 });
-    } else if (coin === "USDT" || coin === "USDC") {
+    } else if (coin === 'USDT' || coin === 'USDC') {
       setFeePreview({ feeNGN: 0, feeUsd: amt >= 5 ? 0.015 : 0 });
     }
   };
 
-const handleRecipientChange = (val) => {
-  // 1. Lowercase everything
-  let cleaned = val.toLowerCase();
-  // Don't filter 0x wallet addresses
-  if (cleaned.startsWith("0x") || val.startsWith("0x")) {
-    setRecipientInput(val);
-    setInputType("address");
-    setSelectedRegistry(null);
-    return;
-  }
-  // ── Early-exit: full name with @ detected (handles paste) ──
-  // Check BEFORE stripping — if the raw lowercased value already contains @,
-  // treat it as a fullname immediately without waiting for char-by-char typing
-  if (cleaned.includes("@")) {
-    // Still sanitize but preserve the @ and valid chars
-    cleaned = cleaned.replace(/[^a-z2-9_@]/g, "");
-    // Collapse multiple @'s to the first one only
-    const atIndex = cleaned.indexOf("@");
-    if (atIndex !== -1) {
-      cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, "");
+  const handleRecipientChange = (val) => {
+    // 1. Lowercase everything
+    let cleaned = val.toLowerCase();
+    // Don't filter 0x wallet addresses
+    if (cleaned.startsWith('0x') || val.startsWith('0x')) {
+      setRecipientInput(val);
+      setInputType('address');
+      setSelectedRegistry(null);
+      return;
+    }
+    // ── Early-exit: full name with @ detected (handles paste) ──
+    // Check BEFORE stripping — if the raw lowercased value already contains @,
+    // treat it as a fullname immediately without waiting for char-by-char typing
+    if (cleaned.includes('@')) {
+      // Still sanitize but preserve the @ and valid chars
+      cleaned = cleaned.replace(/[^a-z2-9_@]/g, '');
+      // Collapse multiple @'s to the first one only
+      const atIndex = cleaned.indexOf('@');
+      if (atIndex !== -1) {
+        cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
+      }
+      setRecipientInput(cleaned);
+      setInputType('fullname');
+      setSelectedRegistry(null);
+      return;
+    }
+    // 2. Block 0, 1, and any symbol except a-z, 2-9, _, @
+    cleaned = cleaned.replace(/[^a-z2-9_@]/g, '');
+    // 3. Allow only one underscore
+    const firstUnderscore = cleaned.indexOf('_');
+    if (firstUnderscore !== -1) {
+      cleaned =
+        cleaned.slice(0, firstUnderscore + 1) +
+        cleaned.slice(firstUnderscore + 1).replace(/_/g, '');
+    }
+    // 4. Allow only one @
+    const firstAt = cleaned.indexOf('@');
+    if (firstAt !== -1) {
+      cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
     }
     setRecipientInput(cleaned);
-    setInputType("fullname");
-    setSelectedRegistry(null);
-    return;
-  }
-  // 2. Block 0, 1, and any symbol except a-z, 2-9, _, @
-  cleaned = cleaned.replace(/[^a-z2-9_@]/g, "");
-  // 3. Allow only one underscore
-  const firstUnderscore = cleaned.indexOf("_");
-  if (firstUnderscore !== -1) {
-    cleaned =
-      cleaned.slice(0, firstUnderscore + 1) +
-      cleaned.slice(firstUnderscore + 1).replace(/_/g, "");
-  }
-  // 4. Allow only one @
-  const firstAt = cleaned.indexOf("@");
-  if (firstAt !== -1) {
-    cleaned =
-      cleaned.slice(0, firstAt + 1) +
-      cleaned.slice(firstAt + 1).replace(/@/g, "");
-  }
-  setRecipientInput(cleaned);
-  const type = detectInputType(cleaned);
-  setInputType(type);
-  if (type === "address") setSelectedRegistry(null);
-  else if (type === "fullname") setSelectedRegistry(null);
-  else if (type === "name" && registries.length === 1)
-    setSelectedRegistry(registries[0]);
-};
+    const type = detectInputType(cleaned);
+    setInputType(type);
+    if (type === 'address') setSelectedRegistry(null);
+    else if (type === 'fullname') setSelectedRegistry(null);
+    else if (type === 'name' && registries.length === 1) setSelectedRegistry(registries[0]);
+  };
 
   const handleTransferClick = () => {
-    if (isAccountLocked) return showMsg(lockMessage, "error");
+    if (isAccountLocked) return showMsg(lockMessage, 'error');
     setIsSendOpen(true);
   };
 
   const resetSendForm = () => {
-    setRecipientInput("");
-    setTransferAmount("");
-    setTransferAmountDisplay("");
+    setRecipientInput('');
+    setTransferAmount('');
+    setTransferAmountDisplay('');
     setSelectedRegistry(registries.length === 1 ? registries[0] : null);
-    setInputType("empty");
+    setInputType('empty');
     setFeePreview({ feeNGN: 0, feeUsd: 0 });
-    setSelectedCoin("NGN");
+    setSelectedCoin('NGN');
   };
 
-const resolveAndConfirm = async () => {
-  if (!recipientInput || !transferAmount)
-    return showMsg("Fill all fields", "error");
-  const type = detectInputType(recipientInput);
-  if (type === "name" && !selectedRegistry)
-    return showMsg("Select a wallet service", "error");
-  // fullname: validate it has a non-empty namespace after "@"
-  if (type === "fullname") {
-    const parts = recipientInput.trim().split("@");
-    if (parts.length !== 2 || !parts[0] || !parts[1])
-      return showMsg("Invalid name format. Use name@wallet (e.g. charles@salva)", "error");
-  }
-  setLoading(true);
-  try {
-    let resolvedAddress = null;
-    let displayIdentifier = recipientInput.trim();
-    if (type === "address") {
-      resolvedAddress = recipientInput.trim().toLowerCase();
-    } else if (type === "fullname") {
-      // Full name: pass as-is, backend resolves using REGISTRY_CONTRACT_ADDRESS
-      // No welding needed — the full welded name is already in the input
-      const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: recipientInput.trim(),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.resolvedAddress) {
-        showMsg(data.message || "Recipient not found. Check the name or address.", "error");
-        return;
-      }
-      resolvedAddress = data.resolvedAddress.toLowerCase();
-      displayIdentifier = recipientInput.trim();
-    } else {
-      // type === "name": existing flow — weld with selected registry namespace
-      const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          input: recipientInput.trim(),
-          registryAddress: selectedRegistry.registryAddress,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.resolvedAddress) {
-        showMsg("Recipient not found. Check the name or address.", "error");
-        return;
-      }
-      resolvedAddress = data.resolvedAddress.toLowerCase();
-      displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
+  const resolveAndConfirm = async () => {
+    if (!recipientInput || !transferAmount) return showMsg('Fill all fields', 'error');
+    const type = detectInputType(recipientInput);
+    if (type === 'name' && !selectedRegistry) return showMsg('Select a wallet service', 'error');
+    // fullname: validate it has a non-empty namespace after "@"
+    if (type === 'fullname') {
+      const parts = recipientInput.trim().split('@');
+      if (parts.length !== 2 || !parts[0] || !parts[1])
+        return showMsg('Invalid name format. Use name@wallet (e.g. charles@salva)', 'error');
     }
-    setConfirmationData({
-      resolvedAddress,
-      displayIdentifier,
-      amount: transferAmount,
-      registryAddress: selectedRegistry?.registryAddress || null,
-      walletName: selectedRegistry?.name || null,
-      inputType: type,
-      rawInput: recipientInput.trim(),
-      feeNGN: feePreview.feeNGN,
-      feeUsd: feePreview.feeUsd,
-      coin: selectedCoin,
-    });
-    setIsConfirmModalOpen(true);
-  } catch {
-    showMsg(
-      "Could not find that recipient. Double-check and try again.",
-      "error",
-    );
-  } finally {
-    setLoading(false);
-  }
-};
+    setLoading(true);
+    try {
+      let resolvedAddress = null;
+      let displayIdentifier = recipientInput.trim();
+      if (type === 'address') {
+        resolvedAddress = recipientInput.trim().toLowerCase();
+      } else if (type === 'fullname') {
+        // Full name: pass as-is, backend resolves using REGISTRY_CONTRACT_ADDRESS
+        // No welding needed — the full welded name is already in the input
+        const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fullName: recipientInput.trim(),
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.resolvedAddress) {
+          showMsg(data.message || 'Recipient not found. Check the name or address.', 'error');
+          return;
+        }
+        resolvedAddress = data.resolvedAddress.toLowerCase();
+        displayIdentifier = recipientInput.trim();
+      } else {
+        // type === "name": existing flow — weld with selected registry namespace
+        const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: recipientInput.trim(),
+            registryAddress: selectedRegistry.registryAddress,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.resolvedAddress) {
+          showMsg('Recipient not found. Check the name or address.', 'error');
+          return;
+        }
+        resolvedAddress = data.resolvedAddress.toLowerCase();
+        displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
+      }
+      setConfirmationData({
+        resolvedAddress,
+        displayIdentifier,
+        amount: transferAmount,
+        registryAddress: selectedRegistry?.registryAddress || null,
+        walletName: selectedRegistry?.name || null,
+        inputType: type,
+        rawInput: recipientInput.trim(),
+        feeNGN: feePreview.feeNGN,
+        feeUsd: feePreview.feeUsd,
+        coin: selectedCoin,
+      });
+      setIsConfirmModalOpen(true);
+    } catch {
+      showMsg('Could not find that recipient. Double-check and try again.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const executeTransfer = async (privateKey, capturedData) => {
     setIsPinModalOpen(false);
     setIsConfirmModalOpen(false);
     setIsSendOpen(false);
     resetSendForm();
-    showMsg("Transaction queued — sending…", "info");
+    showMsg('Transaction queued — sending…', 'info');
     try {
       const res = await fetch(`${SALVA_API_URL}/api/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userPrivateKey: privateKey,
           safeAddress: user.safeAddress,
@@ -2189,7 +2067,7 @@ const resolveAndConfirm = async () => {
       });
       const data = await res.json();
       if (res.ok && data.queued) {
-        showMsg("⏳ Transaction queued — processing…", "info");
+        showMsg('⏳ Transaction queued — processing…', 'info');
         // Poll for completion — check every 6s, up to ~3 minutes
         let attempts = 0;
         const maxAttempts = 30;
@@ -2198,21 +2076,22 @@ const resolveAndConfirm = async () => {
           try {
             // Trigger processor
             await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
-              method: "POST",
+              method: 'POST',
             }).catch(() => {});
             // Check tx history for a new successful tx
             const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
             const txData = await txRes.json();
-            const hasPending = Array.isArray(txData) && txData.some(
-              (tx) => tx.displayType === "pending"
-            );
-            const hasNewSuccess = Array.isArray(txData) && txData.some(
-              (tx) => tx.displayType === "sent" && 
-              new Date(tx.date) > new Date(Date.now() - 300_000) // within last 5 min
-            );
+            const hasPending =
+              Array.isArray(txData) && txData.some((tx) => tx.displayType === 'pending');
+            const hasNewSuccess =
+              Array.isArray(txData) &&
+              txData.some(
+                (tx) =>
+                  tx.displayType === 'sent' && new Date(tx.date) > new Date(Date.now() - 300_000) // within last 5 min
+              );
             if (!hasPending && hasNewSuccess) {
               clearInterval(pollInterval);
-              showMsg("✅ Transfer Successful!");
+              showMsg('✅ Transfer Successful!');
               fetchBalance(user.safeAddress);
             } else if (attempts >= maxAttempts) {
               clearInterval(pollInterval);
@@ -2224,30 +2103,29 @@ const resolveAndConfirm = async () => {
           }
         }, 6000);
       } else if (res.ok) {
-        showMsg("✅ Transfer Successful!");
+        showMsg('✅ Transfer Successful!');
         fetchBalance(user.safeAddress);
       } else {
-        showMsg("Transaction failed. Please try again.", "error");
+        showMsg('Transaction failed. Please try again.', 'error');
       }
     } catch {
-      showMsg("Connection error. Check your network and try again.", "error");
+      showMsg('Connection error. Check your network and try again.', 'error');
     }
   };
 
   const verifyPinAndProceed = async () => {
-    if (transactionPin.length !== 4)
-      return showMsg("PIN must be 4 digits", "error");
+    if (transactionPin.length !== 4) return showMsg('PIN must be 4 digits', 'error');
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin: transactionPin }),
       });
       const data = await res.json();
       if (res.ok) {
         const capturedData = { ...confirmationData };
-        setTransactionPin("");
+        setTransactionPin('');
         setPinAttempts(0);
         setLoading(false);
         await executeTransfer(data.privateKey, capturedData);
@@ -2255,22 +2133,19 @@ const resolveAndConfirm = async () => {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
         if (newAttempts >= 3) {
-          showMsg(
-            "Too many failed attempts — redirecting to settings",
-            "error",
-          );
+          showMsg('Too many failed attempts — redirecting to settings', 'error');
           setLoading(false);
-          setTimeout(() => navigate("/account-settings"), 2000);
+          setTimeout(() => navigate('/account-settings'), 2000);
         } else {
           showMsg(
-            `Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} remaining`,
-            "error",
+            `Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} remaining`,
+            'error'
           );
           setLoading(false);
         }
       }
     } catch {
-      showMsg("Network error", "error");
+      showMsg('Network error', 'error');
       setLoading(false);
     }
   };
@@ -2289,12 +2164,12 @@ const resolveAndConfirm = async () => {
     );
 
   const tabs = [
-    { id: "buy", label: "Buy / Sell NGNs" },
-    { id: "swap", label: "Swap" },
-    { id: "deploy", label: "Deploy Pool" },
-    { id: "names", label: "Link a Name" },
-    ...(user.isValidator ? [{ id: "admin", label: "Admin" }] : []),
-    ...(user.isSeller ? [{ id: "seller", label: "Mint Requests" }] : []),
+    { id: 'buy', label: 'Buy / Sell NGNs' },
+    { id: 'swap', label: 'Swap' },
+    { id: 'deploy', label: 'Deploy Pool' },
+    { id: 'names', label: 'Link a Name' },
+    ...(user.isValidator ? [{ id: 'admin', label: 'Admin' }] : []),
+    ...(user.isSeller ? [{ id: 'seller', label: 'Mint Requests' }] : []),
   ];
 
   // ── Icon map for the Bybit-style grid nav ─────────────────────────────────
@@ -2395,32 +2270,28 @@ const resolveAndConfirm = async () => {
   };
 
   const TAB_SHORT_LABELS = {
-    buy: "Buy / Sell",
-    swap: "Swap",
-    deploy: "Deploy Pool",
-    names: "Link Name",
-    admin: "Admin",
-    seller: "Requests",
+    buy: 'Buy / Sell',
+    swap: 'Swap',
+    deploy: 'Deploy Pool',
+    names: 'Link Name',
+    admin: 'Admin',
+    seller: 'Requests',
   };
 
-  const showRegistryDropdown = inputType === "name";
+  const showRegistryDropdown = inputType === 'name';
   const currentCoinBalance =
-    selectedCoin === "NGN"
-      ? (ngnsBalance ?? "0.00")
-      : selectedCoin === "CNGN"
-        ? (cNgnBalance ?? "0.00")
-        : selectedCoin === "USDT"
-          ? (usdtBalance ?? "0.00")
-          : (usdcBalance ?? "0.00");
+    selectedCoin === 'NGN'
+      ? (ngnsBalance ?? '0.00')
+      : selectedCoin === 'CNGN'
+        ? (cNgnBalance ?? '0.00')
+        : selectedCoin === 'USDT'
+          ? (usdtBalance ?? '0.00')
+          : (usdcBalance ?? '0.00');
   const coinSymbol =
-    selectedCoin === "NGN"
-      ? "NGNs"
-      : selectedCoin === "CNGN"
-        ? "cNGN"
-        : selectedCoin;
+    selectedCoin === 'NGN' ? 'NGNs' : selectedCoin === 'CNGN' ? 'cNGN' : selectedCoin;
   const recipientNameError = false;
   const darkInput =
-    "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
@@ -2430,7 +2301,7 @@ const resolveAndConfirm = async () => {
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
             <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
-              {user.isValidator ? "Salva Validator" : "Salva Citizen"}
+              {user.isValidator ? 'Salva Validator' : 'Salva Citizen'}
             </p>
             <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
@@ -2440,10 +2311,10 @@ const resolveAndConfirm = async () => {
 
         {/* ── Balance Card ── */}
         <BalanceCard
-          ngnsBalance={ngnsBalance ?? "0.00"}
-          cNgnBalance={cNgnBalance ?? "0.00"}
-          usdtBalance={usdtBalance ?? "0.00"}
-          usdcBalance={usdcBalance ?? "0.00"}
+          ngnsBalance={ngnsBalance ?? '0.00'}
+          cNgnBalance={cNgnBalance ?? '0.00'}
+          usdtBalance={usdtBalance ?? '0.00'}
+          usdcBalance={usdcBalance ?? '0.00'}
           showBalance={showBalance}
           balanceLoading={balanceLoading}
           onToggleVisibility={toggleShowBalance}
@@ -2455,7 +2326,7 @@ const resolveAndConfirm = async () => {
         <div
           onClick={() => {
             navigator.clipboard.writeText(user.safeAddress);
-            showMsg("Wallet address copied!");
+            showMsg('Wallet address copied!');
           }}
           className="mb-4 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
         >
@@ -2467,9 +2338,7 @@ const resolveAndConfirm = async () => {
               Smart Wallet · Base
             </p>
             <p className="font-mono text-[10px] text-salvaGold/60 truncate mt-0.5">
-              {showBalance
-                ? user.safeAddress
-                : "0x••••••••••••••••••••••••••••••••••••••••"}
+              {showBalance ? user.safeAddress : '0x••••••••••••••••••••••••••••••••••••••••'}
             </p>
           </div>
           <span className="text-[10px] text-white/60 flex-shrink-0">Copy</span>
@@ -2515,7 +2384,7 @@ const resolveAndConfirm = async () => {
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
           </div>
           <div
-            className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? "grid-cols-4" : tabs.length === 5 ? "grid-cols-5" : "grid-cols-4"}`}
+            className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -2533,16 +2402,14 @@ const resolveAndConfirm = async () => {
                       transition-all duration-200 active:scale-95
                       ${
                         isActive
-                          ? "bg-[#1C1C1E] ring-2 ring-salvaGold shadow-[0_0_18px_rgba(212,175,55,0.18)]"
-                          : "bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]"
+                          ? 'bg-[#1C1C1E] ring-2 ring-salvaGold shadow-[0_0_18px_rgba(212,175,55,0.18)]'
+                          : 'bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]'
                       }
                     `}
                   >
                     <span
                       className={`w-[22px] h-[22px] transition-colors duration-200 ${
-                        isActive
-                          ? "text-salvaGold"
-                          : "text-white/60 group-hover:text-white/65"
+                        isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
                       {TAB_ICONS[tab.id]}
@@ -2557,11 +2424,7 @@ const resolveAndConfirm = async () => {
                     className={`
                       text-[9px] font-black uppercase tracking-[0.1em] leading-tight
                       text-center max-w-[64px] break-words transition-colors duration-200
-                      ${
-                        isActive
-                          ? "text-salvaGold"
-                          : "text-white/60 group-hover:text-white/50"
-                      }
+                      ${isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/50'}
                     `}
                   >
                     {TAB_SHORT_LABELS[tab.id] || tab.label}
@@ -2592,14 +2455,14 @@ const resolveAndConfirm = async () => {
             exit={{ opacity: 0, y: -4 }}
             transition={{ duration: 0.2 }}
           >
-            {activeTab === "buy" && (
+            {activeTab === 'buy' && (
               <div className="flex flex-col items-center justify-center min-h-[280px] text-center py-12">
                 <motion.div
                   animate={{ y: [0, -6, 0] }}
                   transition={{
                     repeat: Infinity,
                     duration: 3,
-                    ease: "easeInOut",
+                    ease: 'easeInOut',
                   }}
                   className="w-16 h-16 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-5"
                 >
@@ -2627,32 +2490,32 @@ const resolveAndConfirm = async () => {
               </div>
             )}
 
-            {activeTab === "names" && (
+            {activeTab === 'names' && (
               <LinkNameTab
                 user={user}
                 registries={registries}
                 showMsg={showMsg}
-                onSwitchToBuy={() => setActiveTab("buy")}
+                onSwitchToBuy={() => setActiveTab('buy')}
               />
             )}
 
-            {activeTab === "swap" && <SwapTab user={user} showMsg={showMsg} />}
+            {activeTab === 'swap' && <SwapTab user={user} showMsg={showMsg} />}
 
-            {activeTab === "deploy" && (
+            {activeTab === 'deploy' && (
               <DeployPool
                 user={user}
                 showMsg={showMsg}
                 onSwitchToLinkName={(poolAddress) => {
                   window.__salva_pool_prefill = poolAddress;
-                  setActiveTab("names");
+                  setActiveTab('names');
                 }}
               />
             )}
 
-            {activeTab === "admin" && user.isValidator && (
+            {activeTab === 'admin' && user.isValidator && (
               <AdminPanel user={user} showMsg={showMsg} />
             )}
-            {activeTab === "seller" && user.isSeller && (
+            {activeTab === 'seller' && user.isSeller && (
               <SellerMintPanel user={user} showMsg={showMsg} />
             )}
           </motion.div>
@@ -2672,17 +2535,15 @@ const resolveAndConfirm = async () => {
             />
             <motion.div
               className="relative bg-zinc-950 border border-white/10 p-6 sm:p-10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
-              initial={{ y: "100%" }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             >
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-white">
-                    Send
-                  </h3>
+                  <h3 className="text-2xl sm:text-3xl font-black text-white">Send</h3>
                   <p className="text-[10px] text-salvaGold/60 uppercase tracking-[0.35em] font-black mt-0.5">
                     Salva Secure Transfer
                   </p>
@@ -2704,30 +2565,9 @@ const resolveAndConfirm = async () => {
                       strokeWidth={1.8}
                       d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
                     />
-                    <rect
-                      x="7"
-                      y="7"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
-                    <rect
-                      x="13"
-                      y="7"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
-                    <rect
-                      x="7"
-                      y="13"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
+                    <rect x="7" y="7" width="4" height="4" rx="0.5" strokeWidth={1.8} />
+                    <rect x="13" y="7" width="4" height="4" rx="0.5" strokeWidth={1.8} />
+                    <rect x="7" y="13" width="4" height="4" rx="0.5" strokeWidth={1.8} />
                     <path
                       strokeLinecap="round"
                       strokeWidth={1.8}
@@ -2741,31 +2581,31 @@ const resolveAndConfirm = async () => {
                   Select Token
                 </label>
                 <div className="flex gap-2">
-                  {["NGN", "CNGN", "USDT", "USDC"].map((coin) => (
+                  {['NGN', 'CNGN', 'USDT', 'USDC'].map((coin) => (
                     <button
                       key={coin}
                       onClick={() => {
                         setSelectedCoin(coin);
-                        setTransferAmount("");
-                        setTransferAmountDisplay("");
+                        setTransferAmount('');
+                        setTransferAmountDisplay('');
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? "bg-salvaGold text-black border-salvaGold" : "border-white/10 text-white/60 hover:text-white/80"}`}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-salvaGold text-black border-salvaGold' : 'border-white/10 text-white/60 hover:text-white/80'}`}
                     >
-                      {coin === "NGN" ? "NGNs" : coin}
+                      {coin === 'NGN' ? 'NGNs' : coin}
                     </button>
                   ))}
                 </div>
                 <p className="text-[10px] text-white/60 mt-1.5">
-                  Balance:{" "}
+                  Balance:{' '}
                   {balanceLoading
-                    ? "…"
+                    ? '…'
                     : showBalance
                       ? formatNumber(currentCoinBalance, {
                           minDecimals: 3,
                           maxDecimals: 6,
                         })
-                      : "••••"}{" "}
+                      : '••••'}{' '}
                   {coinSymbol}
                 </p>
               </div>
@@ -2786,18 +2626,18 @@ const resolveAndConfirm = async () => {
                     placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
-                    className={`${darkInput} ${recipientNameError ? "border-red-500" : ""}`}
+                    className={`${darkInput} ${recipientNameError ? 'border-red-500' : ''}`}
                   />
-                  {inputType !== "empty" && (
-  <p className="text-[10px] text-white/60 font-bold ml-1">
-    {inputType === "address"
-      ? "✓ Wallet address — sending directly"
-      : inputType === "fullname"
-        ? "✓ Full name detected — resolving directly"
-        : "Name alias — select a wallet below"}
-  </p>
-)}
-                  
+                  {inputType !== 'empty' && (
+                    <p className="text-[10px] text-white/60 font-bold ml-1">
+                      {inputType === 'address'
+                        ? '✓ Wallet address — sending directly'
+                        : inputType === 'fullname'
+                          ? '✓ Full name detected — resolving directly'
+                          : 'Name alias — select a wallet below'}
+                    </p>
+                  )}
+
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
                       <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">
@@ -2825,11 +2665,11 @@ const resolveAndConfirm = async () => {
                       onChange={(e) => {
                         const fmt = formatAmountInput(e.target.value);
                         setTransferAmountDisplay(fmt);
-                        const raw = fmt.replace(/,/g, "");
+                        const raw = fmt.replace(/,/g, '');
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`${darkInput} text-lg pr-16 ${amountError ? "border-red-500" : ""}`}
+                      className={`${darkInput} text-lg pr-16 ${amountError ? 'border-red-500' : ''}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       {coinSymbol}
@@ -2840,69 +2680,60 @@ const resolveAndConfirm = async () => {
                       ⚠️ Insufficient balance
                     </p>
                   )}
-                  {(selectedCoin === "NGN" || selectedCoin === "CNGN") &&
+                  {(selectedCoin === 'NGN' || selectedCoin === 'CNGN') &&
                     transferAmount &&
                     !amountError && (
                       <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] space-y-1">
                         <div className="flex justify-between">
-                          <span className="text-white/60 uppercase font-bold">
-                            Network Fee
-                          </span>
+                          <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           <span
                             className={
                               feePreview.feeNGN > 0
-                                ? "text-red-400 font-black"
-                                : "text-green-400 font-black"
+                                ? 'text-red-400 font-black'
+                                : 'text-green-400 font-black'
                             }
                           >
                             {feePreview.feeNGN > 0
                               ? `-${formatNumber(feePreview.feeNGN)} NGNs`
-                              : "Free"}
+                              : 'Free'}
                           </span>
                         </div>
                       </div>
                     )}
-                  {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
+                  {(selectedCoin === 'USDT' || selectedCoin === 'USDC') &&
                     transferAmount &&
                     !amountError && (
                       <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px]">
                         <div className="flex justify-between">
-                          <span className="text-white/60 uppercase font-bold">
-                            Network Fee
-                          </span>
+                          <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           <span
                             className={
                               feePreview.feeUsd > 0
-                                ? "text-red-400 font-black"
-                                : "text-green-400 font-black"
+                                ? 'text-red-400 font-black'
+                                : 'text-green-400 font-black'
                             }
                           >
                             {feePreview.feeUsd > 0
                               ? `-${feePreview.feeUsd} ${selectedCoin}`
-                              : "Free"}
+                              : 'Free'}
                           </span>
                         </div>
                       </div>
                     )}
                 </div>
                 <button
-                  disabled={
-                    loading ||
-                    amountError ||
-                    !recipientInput ||
-                    recipientNameError
-                  }
+                  disabled={loading || amountError || !recipientInput || recipientNameError}
                   type="submit"
                   className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
                     loading || amountError || !recipientInput
-                      ? "bg-white/5 text-white/60 cursor-not-allowed border border-white/5"
-                      : "bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20"
+                      ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
+                      : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                   }`}
                 >
                   {loading && (
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
-                  {loading ? "Processing…" : "Review & Send"}
+                  {loading ? 'Processing…' : 'Review & Send'}
                 </button>
               </form>
             </motion.div>
@@ -2932,12 +2763,9 @@ const resolveAndConfirm = async () => {
                 <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-1 text-white">
-                  Verify Recipient
-                </h3>
+                <h3 className="text-xl font-black mb-1 text-white">Verify Recipient</h3>
                 <p className="text-sm text-white/60">
-                  Double-check before sending. Blockchain transactions are
-                  irreversible.
+                  Double-check before sending. Blockchain transactions are irreversible.
                 </p>
               </div>
               <div className="space-y-3 mb-6">
@@ -2961,20 +2789,15 @@ const resolveAndConfirm = async () => {
                     {formatNumber(confirmationData.amount, {
                       minDecimals: 0,
                       maxDecimals: 6,
-                    })}{" "}
+                    })}{' '}
                     <span className="text-salvaGold">
-                      {confirmationData.coin === "NGN"
-                        ? "NGNs"
-                        : confirmationData.coin}
+                      {confirmationData.coin === 'NGN' ? 'NGNs' : confirmationData.coin}
                     </span>
                   </p>
                 </div>
-                {(confirmationData.feeNGN > 0 ||
-                  confirmationData.feeUsd > 0) && (
+                {(confirmationData.feeNGN > 0 || confirmationData.feeUsd > 0) && (
                   <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
-                    <p className="text-[10px] text-white/60 mb-1">
-                      Network Fee
-                    </p>
+                    <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
                     <p className="font-black text-base text-red-400">
                       {confirmationData.feeNGN > 0
                         ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
@@ -2994,7 +2817,7 @@ const resolveAndConfirm = async () => {
                   onClick={() => {
                     setIsConfirmModalOpen(false);
                     setIsPinModalOpen(true);
-                    setTransactionPin("");
+                    setTransactionPin('');
                     setPinAttempts(0);
                   }}
                   className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
@@ -3029,12 +2852,8 @@ const resolveAndConfirm = async () => {
                 <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-1 text-white">
-                  Transaction PIN
-                </h3>
-                <p className="text-sm text-white/60">
-                  Verify identity to proceed
-                </p>
+                <h3 className="text-2xl font-black mb-1 text-white">Transaction PIN</h3>
+                <p className="text-sm text-white/60">Verify identity to proceed</p>
               </div>
               <input
                 type="password"
@@ -3042,17 +2861,14 @@ const resolveAndConfirm = async () => {
                 pattern="\d{4}"
                 maxLength="4"
                 value={transactionPin}
-                onChange={(e) =>
-                  setTransactionPin(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
               />
               {pinAttempts > 0 && (
                 <p className="text-xs text-red-400 text-center mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
-                  remaining
+                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? 's' : ''} remaining
                 </p>
               )}
               <div className="flex gap-3">
@@ -3071,7 +2887,7 @@ const resolveAndConfirm = async () => {
                   {loading && (
                     <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
-                  {loading ? "Verifying…" : "Verify"}
+                  {loading ? 'Verifying…' : 'Verify'}
                 </button>
               </div>
             </motion.div>
@@ -3099,25 +2915,23 @@ const resolveAndConfirm = async () => {
             />
             <motion.div
               className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
-              initial={{ y: "100%" }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             >
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-7 sm:hidden" />
               <div className="text-center mb-7">
                 <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
                   Receive Funds
                 </p>
-                <h3 className="text-2xl font-black text-white">
-                  {user.username}
-                </h3>
+                <h3 className="text-2xl font-black text-white">{user.username}</h3>
               </div>
               <div className="flex justify-center mb-6">
                 <div
                   onClick={() => {
                     navigator.clipboard.writeText(user.safeAddress);
-                    showMsg("Address copied!");
+                    showMsg('Address copied!');
                   }}
                   className="relative group cursor-pointer"
                 >
@@ -3142,7 +2956,7 @@ const resolveAndConfirm = async () => {
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(user.safeAddress);
-                  showMsg("Address copied!");
+                  showMsg('Address copied!');
                 }}
                 className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
               >
@@ -3161,14 +2975,7 @@ const resolveAndConfirm = async () => {
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <rect
-                      x="9"
-                      y="9"
-                      width="13"
-                      height="13"
-                      rx="2"
-                      strokeWidth="2"
-                    />
+                    <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
                     <path
                       d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                       strokeWidth="2"
@@ -3180,7 +2987,7 @@ const resolveAndConfirm = async () => {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(user.nameAlias);
-                    showMsg("Name alias copied!");
+                    showMsg('Name alias copied!');
                   }}
                   className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
                 >
@@ -3188,9 +2995,7 @@ const resolveAndConfirm = async () => {
                     <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
                       Name Alias
                     </p>
-                    <p className="font-black text-sm text-salvaGold">
-                      {user.nameAlias}
-                    </p>
+                    <p className="font-black text-sm text-salvaGold">{user.nameAlias}</p>
                   </div>
                   <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
                     <svg
@@ -3199,14 +3004,7 @@ const resolveAndConfirm = async () => {
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      <rect
-                        x="9"
-                        y="9"
-                        width="13"
-                        height="13"
-                        rx="2"
-                        strokeWidth="2"
-                      />
+                      <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
                       <path
                         d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                         strokeWidth="2"
@@ -3244,10 +3042,10 @@ const resolveAndConfirm = async () => {
       </AnimatePresence>
 
       {/* ── Floating Buy NGNs Chat ── */}
-      {!user.isSeller && activeTab === "buy" && <SalvaNGNsChat user={user} />}
+      {!user.isSeller && activeTab === 'buy' && <SalvaNGNsChat user={user} />}
 
       {/* ── Seller Mint Inbox ── */}
-      {user.isSeller && activeTab === "buy" && <SalvaSellerChat user={user} />}
+      {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}
     </div>
   );
 };

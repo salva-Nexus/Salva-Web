@@ -1,33 +1,31 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Login.jsx
-import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
-import FloatingCoin from "../components/FloatingCoin";
-import Stars from "../components/Stars";
+import { SALVA_API_URL } from '../config';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff } from 'lucide-react';
+import FloatingCoin from '../components/FloatingCoin';
+import Stars from '../components/Stars';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [regStep, setRegStep] = useState(1);
-  const [otp, setOtp] = useState("");
+  const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
+    username: '',
+    email: '',
+    password: '',
   });
   const [loading, setLoading] = useState(false);
-  const [notif, setNotif] = useState({ show: false, msg: "", type: "" });
+  const [notif, setNotif] = useState({ show: false, msg: '', type: '' });
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
   // ── Read referral code from URL ?ref=CODE ──────────────────────────────────
-  const referredByCode = new URLSearchParams(location.search)
-    .get("ref")
-    ?.trim()
-    .toUpperCase() || null;
+  const referredByCode =
+    new URLSearchParams(location.search).get('ref')?.trim().toUpperCase() || null;
 
   useEffect(() => {
     // If there's a ref code, switch to register tab automatically
@@ -36,20 +34,20 @@ const Login = () => {
 
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem("salva_user");
+      const savedUser = localStorage.getItem('salva_user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
         if (userData.safeAddress) {
           if (userData.ownerKey) {
-            navigate("/set-transaction-pin", { replace: true });
+            navigate('/set-transaction-pin', { replace: true });
           } else {
-            navigate("/dashboard", { replace: true });
+            navigate('/dashboard', { replace: true });
           }
           return;
         }
       }
     } catch (_) {
-      localStorage.removeItem("salva_user");
+      localStorage.removeItem('salva_user');
     } finally {
       setCheckingAuth(false);
     }
@@ -62,43 +60,37 @@ const Login = () => {
     }
   }, [notif]);
 
-  const showMsg = (msg, type = "success") =>
-    setNotif({ show: true, msg, type });
+  const showMsg = (msg, type = 'success') => setNotif({ show: true, msg, type });
   const sanitizeInput = (input) =>
-    typeof input !== "string" ? "" : input.trim().replace(/[<>]/g, "");
+    typeof input !== 'string' ? '' : input.trim().replace(/[<>]/g, '');
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const validatePassword = (password) =>
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
+  const validatePassword = (password) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
   const validateUsername = (username) => /^[a-zA-Z0-9_]{3,20}$/.test(username);
 
   const handleStartRegistration = async (e) => {
     e.preventDefault();
     const sanitizedEmail = sanitizeInput(formData.email);
-    if (!validateEmail(sanitizedEmail))
-      return showMsg("Invalid email format", "error");
+    if (!validateEmail(sanitizedEmail)) return showMsg('Invalid email format', 'error');
     if (!validateUsername(sanitizeInput(formData.username)))
-      return showMsg("Username must be 3-20 alphanumeric characters", "error");
+      return showMsg('Username must be 3-20 alphanumeric characters', 'error');
     if (!validatePassword(formData.password))
-      return showMsg(
-        "Password must be 8+ chars with uppercase, lowercase, and number",
-        "error",
-      );
+      return showMsg('Password must be 8+ chars with uppercase, lowercase, and number', 'error');
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: sanitizedEmail }),
       });
       if (res.ok) {
         setRegStep(2);
-        showMsg("Verification code sent to your email!");
+        showMsg('Verification code sent to your email!');
       } else {
         const data = await res.json();
-        showMsg(data.message || "Failed to send code", "error");
+        showMsg(data.message || 'Failed to send code', 'error');
       }
     } catch {
-      showMsg("Backend offline", "error");
+      showMsg('Backend offline', 'error');
     } finally {
       setLoading(false);
     }
@@ -111,12 +103,12 @@ const Login = () => {
     if (!isLogin && regStep === 2) {
       if (!/^\d{6}$/.test(otp)) {
         setLoading(false);
-        return showMsg("OTP must be 6 digits", "error");
+        return showMsg('OTP must be 6 digits', 'error');
       }
       try {
         const verifyRes = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             email: sanitizeInput(formData.email),
             code: otp,
@@ -124,16 +116,16 @@ const Login = () => {
         });
         if (!verifyRes.ok) {
           setLoading(false);
-          return showMsg("Invalid or expired code", "error");
+          return showMsg('Invalid or expired code', 'error');
         }
       } catch {
         setLoading(false);
-        return showMsg("Verification error", "error");
+        return showMsg('Verification error', 'error');
       }
-      showMsg("Code verified! Deploying your wallet...");
+      showMsg('Code verified! Deploying your wallet...');
     }
 
-    const endpoint = isLogin ? "/api/login" : "/api/register";
+    const endpoint = isLogin ? '/api/login' : '/api/register';
     try {
       const sanitizedData = {
         username: sanitizeInput(formData.username),
@@ -143,17 +135,19 @@ const Login = () => {
         ...(!isLogin && referredByCode ? { referredByCode } : {}),
       };
 
-      console.log(`📝 ${isLogin ? "Login" : "Register"} — referredByCode: ${referredByCode || "none"}`);
+      console.log(
+        `📝 ${isLogin ? 'Login' : 'Register'} — referredByCode: ${referredByCode || 'none'}`
+      );
 
       const response = await fetch(`${SALVA_API_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sanitizedData),
       });
       const data = await response.json();
 
       if (response.ok) {
-        if (!data.safeAddress) throw new Error("Invalid server response");
+        if (!data.safeAddress) throw new Error('Invalid server response');
 
         const userData = {
           username: sanitizeInput(data.username),
@@ -165,42 +159,42 @@ const Login = () => {
           nameAlias: data.nameAlias || null,
           numberAlias: data.numberAlias || null,
         };
-        localStorage.setItem("salva_user", JSON.stringify(userData));
+        localStorage.setItem('salva_user', JSON.stringify(userData));
 
         if (!isLogin) {
-          showMsg("Wallet Deployed! Setting up security...");
-          setTimeout(() => navigate("/set-transaction-pin"), 1500);
+          showMsg('Wallet Deployed! Setting up security...');
+          setTimeout(() => navigate('/set-transaction-pin'), 1500);
         } else {
-          showMsg("Access Granted!");
+          showMsg('Access Granted!');
           try {
             const pinStatusRes = await fetch(
-              `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`,
+              `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`
             );
             const pinStatus = await pinStatusRes.json();
             if (!pinStatus.hasPin) {
-              setTimeout(() => navigate("/set-transaction-pin"), 1500);
+              setTimeout(() => navigate('/set-transaction-pin'), 1500);
             } else {
               const cleanUser = { ...userData };
               delete cleanUser.ownerKey;
-              localStorage.setItem("salva_user", JSON.stringify(cleanUser));
-              setTimeout(() => navigate("/dashboard"), 1500);
+              localStorage.setItem('salva_user', JSON.stringify(cleanUser));
+              setTimeout(() => navigate('/dashboard'), 1500);
             }
           } catch {
-            setTimeout(() => navigate("/set-transaction-pin"), 1500);
+            setTimeout(() => navigate('/set-transaction-pin'), 1500);
           }
         }
       } else {
-        showMsg(data.message || "Authentication failed", "error");
+        showMsg(data.message || 'Authentication failed', 'error');
       }
     } catch (err) {
-      console.error("Auth error:", err);
+      console.error('Auth error:', err);
       if (!isLogin) {
-        localStorage.removeItem("salva_user");
-        showMsg("Wallet deployment failed. Please try again.", "error");
+        localStorage.removeItem('salva_user');
+        showMsg('Wallet deployment failed. Please try again.', 'error');
         setRegStep(1);
-        setOtp("");
+        setOtp('');
       } else {
-        showMsg("Backend offline", "error");
+        showMsg('Backend offline', 'error');
       }
     } finally {
       setLoading(false);
@@ -210,9 +204,7 @@ const Login = () => {
   if (checkingAuth)
     return (
       <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-        <div className="text-salvaGold font-black text-2xl animate-pulse">
-          LOADING...
-        </div>
+        <div className="text-salvaGold font-black text-2xl animate-pulse">LOADING...</div>
       </div>
     );
 
@@ -229,7 +221,7 @@ const Login = () => {
             initial={{ x: 400 }}
             animate={{ x: 0 }}
             exit={{ x: 400 }}
-            className={`fixed top-10 right-10 z-[100] p-5 rounded-2xl border shadow-2xl ${notif.type === "error" ? "bg-red-500/20 border-red-500" : "bg-zinc-900 border-salvaGold"}`}
+            className={`fixed top-10 right-10 z-[100] p-5 rounded-2xl border shadow-2xl ${notif.type === 'error' ? 'bg-red-500/20 border-red-500' : 'bg-zinc-900 border-salvaGold'}`}
           >
             <p className="text-sm font-bold text-white">{notif.msg}</p>
           </motion.div>
@@ -244,13 +236,11 @@ const Login = () => {
           ← Back to Home
         </Link>
         <h2 className="text-4xl font-black mb-2 text-black dark:text-white tracking-tighter">
-          {isLogin ? "Sign In" : "Create Wallet"}
+          {isLogin ? 'Sign In' : 'Create Wallet'}
         </h2>
         {!isLogin && (
           <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
-            {regStep === 1
-              ? "Step 1: Account Details"
-              : "Step 2: Email Verification"}
+            {regStep === 1 ? 'Step 1: Account Details' : 'Step 2: Email Verification'}
           </p>
         )}
         {/* Show referral badge if coming from a referral link */}
@@ -265,13 +255,7 @@ const Login = () => {
         {isLogin && <div className="mb-8" />}
 
         <form
-          onSubmit={
-            isLogin
-              ? handleSubmit
-              : regStep === 1
-                ? handleStartRegistration
-                : handleSubmit
-          }
+          onSubmit={isLogin ? handleSubmit : regStep === 1 ? handleStartRegistration : handleSubmit}
           className="space-y-4"
         >
           {isLogin || regStep === 1 ? (
@@ -309,12 +293,10 @@ const Login = () => {
               <div className="space-y-2">
                 <div className="relative">
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Password"
                     value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                     minLength={8}
                     className="w-full p-4 pr-12 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
@@ -349,7 +331,7 @@ const Login = () => {
                 maxLength="6"
                 placeholder="000000"
                 value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 required
                 pattern="\d{6}"
                 className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 border border-salvaGold text-center text-3xl tracking-[0.5em] font-black outline-none text-black dark:text-white"
@@ -366,13 +348,13 @@ const Login = () => {
           >
             {loading
               ? !isLogin && regStep === 2
-                ? "DEPLOYING WALLET..."
-                : "WAITING..."
+                ? 'DEPLOYING WALLET...'
+                : 'WAITING...'
               : isLogin
-                ? "ACCESS WALLET"
+                ? 'ACCESS WALLET'
                 : regStep === 1
-                  ? "SEND VERIFICATION"
-                  : "VERIFY & DEPLOY"}
+                  ? 'SEND VERIFICATION'
+                  : 'VERIFY & DEPLOY'}
           </button>
         </form>
 
@@ -381,13 +363,13 @@ const Login = () => {
             onClick={() => {
               setIsLogin(!isLogin);
               setRegStep(1);
-              setOtp("");
+              setOtp('');
             }}
             className="text-sm text-gray-600 dark:text-white/60 font-bold"
           >
-            {isLogin ? "New to Salva? " : "Already a citizen? "}
+            {isLogin ? 'New to Salva? ' : 'Already a citizen? '}
             <span className="text-salvaGold hover:underline">
-              {isLogin ? "Create Account" : "Log In"}
+              {isLogin ? 'Create Account' : 'Log In'}
             </span>
           </button>
           {isLogin && (

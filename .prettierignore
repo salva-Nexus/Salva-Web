@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Frontend Production Builds
+dist/
+build/
+out/
+
+# Environment and Logs
+.env
+.env.*
+*.log
+npm-debug.log*
+
+# Database/Storage Backups
+*.db
+*.sqlite
+/data
+
+# Coverage files
+coverage/

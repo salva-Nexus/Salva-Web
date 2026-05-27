@@ -3,15 +3,15 @@
 // Reads every Mongoose model, finds fields with defaults that are missing
 // from existing documents, and sets them. Safe to run multiple times.
 
-require("dotenv").config({ path: require("path").resolve(__dirname, "../../.env") });
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../.env') });
 
-const mongoose = require("mongoose");
-const path = require("path");
-const fs = require("fs");
+const mongoose = require('mongoose');
+const path = require('path');
+const fs = require('fs');
 
 // Load all models
-const modelsDir = path.resolve(__dirname, "../models");
-const modelFiles = fs.readdirSync(modelsDir).filter(f => f.endsWith(".js"));
+const modelsDir = path.resolve(__dirname, '../models');
+const modelFiles = fs.readdirSync(modelsDir).filter((f) => f.endsWith('.js'));
 
 console.log(`📦 Loading models from ${modelsDir}...`);
 for (const file of modelFiles) {
@@ -26,10 +26,14 @@ for (const file of modelFiles) {
 async function getDefaultValue(schemaType) {
   if (schemaType.defaultValue === undefined) return undefined;
   const d = schemaType.defaultValue;
-  if (typeof d === "function") {
+  if (typeof d === 'function') {
     // Skip Date.now and other dynamic defaults — not safe to backfill
-    if (d === Date.now || d.toString().includes("Date.now")) return undefined;
-    try { return d(); } catch { return undefined; }
+    if (d === Date.now || d.toString().includes('Date.now')) return undefined;
+    try {
+      return d();
+    } catch {
+      return undefined;
+    }
   }
   return d;
 }
@@ -42,21 +46,21 @@ async function syncModel(model) {
   // Walk all schema paths and collect those with static defaults
   schema.eachPath((pathName, schemaType) => {
     // Skip internals
-    if (pathName === "__v" || pathName === "_id") return;
+    if (pathName === '__v' || pathName === '_id') return;
     // Skip nested/array paths — only top-level scalars
-    if (pathName.includes(".")) return;
+    if (pathName.includes('.')) return;
     // Skip arrays
     if (schemaType instanceof mongoose.Schema.Types.Array) return;
 
     const defaultVal = schemaType.defaultValue;
     if (defaultVal === undefined) return;
-    if (typeof defaultVal === "function") {
-      if (defaultVal === Date.now || defaultVal.toString().includes("Date.now")) return;
+    if (typeof defaultVal === 'function') {
+      if (defaultVal === Date.now || defaultVal.toString().includes('Date.now')) return;
     }
 
     let resolvedDefault;
     try {
-      resolvedDefault = typeof defaultVal === "function" ? defaultVal() : defaultVal;
+      resolvedDefault = typeof defaultVal === 'function' ? defaultVal() : defaultVal;
     } catch {
       return;
     }
@@ -78,10 +82,12 @@ async function syncModel(model) {
     try {
       const result = await model.updateMany(
         { [field]: { $exists: false } },
-        { $set: { [field]: defaultVal } },
+        { $set: { [field]: defaultVal } }
       );
       if (result.modifiedCount > 0) {
-        console.log(`  🔧 ${modelName}.${field}: backfilled ${result.modifiedCount} docs (default=${JSON.stringify(defaultVal)})`);
+        console.log(
+          `  🔧 ${modelName}.${field}: backfilled ${result.modifiedCount} docs (default=${JSON.stringify(defaultVal)})`
+        );
         totalUpdated += result.modifiedCount;
       }
     } catch (e) {
@@ -95,11 +101,11 @@ async function syncModel(model) {
 }
 
 async function main() {
-  console.log("\n🍃 Connecting to MongoDB...");
+  console.log('\n🍃 Connecting to MongoDB...');
   await mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 10000,
   });
-  console.log("✅ Connected\n");
+  console.log('✅ Connected\n');
 
   const models = Object.values(mongoose.models);
   console.log(`🔄 Syncing ${models.length} models...\n`);
@@ -109,17 +115,17 @@ async function main() {
     await syncModel(model);
   }
 
-  const totalDocs = await Promise.all(
-    models.map(m => m.countDocuments().catch(() => 0))
+  const totalDocs = await Promise.all(models.map((m) => m.countDocuments().catch(() => 0)));
+  console.log(
+    `\n📊 Done. Collections: ${models.map((m, i) => `${m.modelName}(${totalDocs[i]})`).join(', ')}`
   );
-  console.log(`\n📊 Done. Collections: ${models.map((m, i) => `${m.modelName}(${totalDocs[i]})`).join(", ")}`);
 
   await mongoose.disconnect();
-  console.log("👋 Disconnected");
+  console.log('👋 Disconnected');
 }
 
-main().catch(err => {
-  console.error("❌ Failed:", err.message);
+main().catch((err) => {
+  console.error('❌ Failed:', err.message);
   process.exit(1);
 });
 

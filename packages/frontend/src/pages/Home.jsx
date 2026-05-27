@@ -1,6 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Home.jsx
-import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import { SALVA_API_URL } from '../config';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   motion,
   useInView,
@@ -10,26 +10,37 @@ import {
   AnimatePresence,
   useMotionValue,
   useSpring,
-} from "framer-motion";
-import { Github, Mail, X, ChevronDown, ArrowUpRight, ArrowRight, Zap } from "lucide-react";
-import { useNavigate } from "react-router-dom";
-import Stars from "../components/Stars";
+} from 'framer-motion';
+import { Github, Mail, X, ChevronDown, ArrowUpRight, ArrowRight, Zap } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import Stars from '../components/Stars';
 
 // ─── SEO Meta ────────────────────────────────────────────────────────────────
 const SEOMeta = () => {
   useEffect(() => {
     const setMeta = (name, content, prop = false) => {
-      const attr = prop ? "property" : "name";
+      const attr = prop ? 'property' : 'name';
       let el = document.querySelector(`meta[${attr}="${name}"]`);
-      if (!el) { el = document.createElement("meta"); el.setAttribute(attr, name); document.head.appendChild(el); }
-      el.setAttribute("content", content);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.setAttribute('content', content);
     };
-    setMeta("description", "Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base. Swap NGNs/USDT/USDC, register charles@salva, and send money like a text. Gasless. Non-custodial.");
-    setMeta("og:title", "Salva V3 — On-Chain DEX & Name Service for Nigeria", true);
-    setMeta("og:description", "NGNs DEX. Human-readable names. Gasless smart wallets. Built on Base.", true);
-    setMeta("og:type", "website", true);
-    setMeta("twitter:card", "summary_large_image");
-    setMeta("twitter:site", "@salva_Nexus");
+    setMeta(
+      'description',
+      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base. Swap NGNs/USDT/USDC, register charles@salva, and send money like a text. Gasless. Non-custodial.'
+    );
+    setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
+    setMeta(
+      'og:description',
+      'NGNs DEX. Human-readable names. Gasless smart wallets. Built on Base.',
+      true
+    );
+    setMeta('og:type', 'website', true);
+    setMeta('twitter:card', 'summary_large_image');
+    setMeta('twitter:site', '@salva_Nexus');
   }, []);
   return null;
 };
@@ -42,13 +53,13 @@ const XLogo = ({ size = 20 }) => (
 );
 
 // ─── Count Up ─────────────────────────────────────────────────────────────────
-const CountUp = ({ to, decimals = 0, prefix = "", suffix = "" }) => {
+const CountUp = ({ to, decimals = 0, prefix = '', suffix = '' }) => {
   const [val, setVal] = useState(0);
   const ref = useRef(null);
   const inView = useInView(ref, { once: true });
   useEffect(() => {
     if (!inView) return;
-    const target = typeof to === "string" ? parseFloat(to.replace(/,/g, "")) : to;
+    const target = typeof to === 'string' ? parseFloat(to.replace(/,/g, '')) : to;
     if (isNaN(target)) return;
     const c = animate(0, target, {
       duration: 2.5,
@@ -59,7 +70,12 @@ const CountUp = ({ to, decimals = 0, prefix = "", suffix = "" }) => {
   }, [to, inView]);
   return (
     <span ref={ref}>
-      {prefix}{val.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}{suffix}
+      {prefix}
+      {val.toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+      })}
+      {suffix}
     </span>
   );
 };
@@ -80,7 +96,10 @@ const MagneticBtn = ({ children, className, onClick, strength = 0.3 }) => {
     x.set((e.clientX - cx) * strength);
     y.set((e.clientY - cy) * strength);
   };
-  const handleLeave = () => { x.set(0); y.set(0); };
+  const handleLeave = () => {
+    x.set(0);
+    y.set(0);
+  };
 
   return (
     <motion.button
@@ -97,7 +116,7 @@ const MagneticBtn = ({ children, className, onClick, strength = 0.3 }) => {
 };
 
 // ─── Animated Number Card ─────────────────────────────────────────────────────
-const StatCard = ({ label, value, loading, decimals = 0, suffix = "" }) => {
+const StatCard = ({ label, value, loading, decimals = 0, suffix = '' }) => {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true });
   return (
@@ -110,12 +129,16 @@ const StatCard = ({ label, value, loading, decimals = 0, suffix = "" }) => {
     >
       <div className="absolute inset-0 bg-gradient-to-br from-salvaGold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-3 opacity-60">{label}</p>
+      <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-3 opacity-60">
+        {label}
+      </p>
       <h3 className="text-4xl sm:text-5xl font-black tracking-tighter">
-        {loading ? <span className="opacity-20">—</span> : (
-          typeof value === "number"
-            ? <CountUp to={value} decimals={decimals} suffix={suffix} />
-            : value
+        {loading ? (
+          <span className="opacity-20">—</span>
+        ) : typeof value === 'number' ? (
+          <CountUp to={value} decimals={decimals} suffix={suffix} />
+        ) : (
+          value
         )}
       </h3>
     </motion.div>
@@ -127,7 +150,7 @@ const GlowOrb = ({ x, y, size, color, delay = 0 }) => (
   <motion.div
     initial={{ opacity: 0 }}
     animate={{ opacity: [0, 0.6, 0.3, 0.7, 0], scale: [0.8, 1.2, 0.9, 1.1, 0.8] }}
-    transition={{ duration: 8, delay, repeat: Infinity, ease: "easeInOut" }}
+    transition={{ duration: 8, delay, repeat: Infinity, ease: 'easeInOut' }}
     className="absolute rounded-full pointer-events-none blur-[80px]"
     style={{ left: x, top: y, width: size, height: size, background: color }}
   />
@@ -135,11 +158,11 @@ const GlowOrb = ({ x, y, size, color, delay = 0 }) => (
 
 // ─── DEX Visual ───────────────────────────────────────────────────────────────
 const DEXVisual = () => {
-  const [tab, setTab] = useState("buy");
+  const [tab, setTab] = useState('buy');
   const pools = [
-    { name: "charles_pool@salva", rate: "₦1,490", usdt: "$29.01", usdc: "$0.00", ngn: "10,000" },
-    { name: "jefta_pool@salva",       rate: "₦1,500", usdt: "$0.00",  usdc: "$50.00", ngn: "0" },
-    { name: "amuobi_pool@salva",        rate: "₦1,480", usdt: "$100.00",usdc: "$0.00",  ngn: "5,000" },
+    { name: 'charles_pool@salva', rate: '₦1,490', usdt: '$29.01', usdc: '$0.00', ngn: '10,000' },
+    { name: 'jefta_pool@salva', rate: '₦1,500', usdt: '$0.00', usdc: '$50.00', ngn: '0' },
+    { name: 'amuobi_pool@salva', rate: '₦1,480', usdt: '$100.00', usdc: '$0.00', ngn: '5,000' },
   ];
 
   return (
@@ -149,7 +172,9 @@ const DEXVisual = () => {
       {/* Header */}
       <div className="flex items-center justify-between mb-5 relative">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/50 font-black">Salva V3 DEX</p>
+          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/50 font-black">
+            Salva V3 DEX
+          </p>
           <p className="text-base font-black text-white">Naira Exchange</p>
         </div>
         <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
@@ -164,10 +189,20 @@ const DEXVisual = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4 relative">
-        {[{ id: "buy", label: "Buy USDT/USDC", color: "#D4AF37" }, { id: "sell", label: "Sell USDT/USDC", color: "#22c55e" }].map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+        {[
+          { id: 'buy', label: 'Buy USDT/USDC', color: '#D4AF37' },
+          { id: 'sell', label: 'Sell USDT/USDC', color: '#22c55e' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
             className="flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-            style={tab === t.id ? { background: t.color, color: "#000" } : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.4)" }}>
+            style={
+              tab === t.id
+                ? { background: t.color, color: '#000' }
+                : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)' }
+            }
+          >
             {t.label}
           </button>
         ))}
@@ -206,7 +241,9 @@ const DEXVisual = () => {
       </div>
 
       <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center relative">
-        <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">Permissionless · On-chain</span>
+        <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
+          Permissionless · On-chain
+        </span>
         <span className="text-[9px] text-salvaGold/50 font-black">Base L2 ⬡</span>
       </div>
     </div>
@@ -217,13 +254,29 @@ const DEXVisual = () => {
 const NameResolutionVisual = () => {
   const [activeIdx, setActiveIdx] = useState(0);
   const demos = [
-    { alias: "cboi@salva",          type: "Individual · Salva",    dest: "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045" },
-    { alias: "suzy@coinbase",        type: "Individual · Coinbase", dest: "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9f" },
-    { alias: "charles_pool@salva",   type: "Pool Contract · Salva", dest: "0x85B839dA40615A5ad7439d200768F0603418F881" },
-    { alias: "usdc_eth@usdc",        type: "Protocol · USDC",       dest: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" },
+    {
+      alias: 'cboi@salva',
+      type: 'Individual · Salva',
+      dest: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+    },
+    {
+      alias: 'suzy@coinbase',
+      type: 'Individual · Coinbase',
+      dest: '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9f',
+    },
+    {
+      alias: 'charles_pool@salva',
+      type: 'Pool Contract · Salva',
+      dest: '0x85B839dA40615A5ad7439d200768F0603418F881',
+    },
+    {
+      alias: 'usdc_eth@usdc',
+      type: 'Protocol · USDC',
+      dest: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+    },
   ];
   useEffect(() => {
-    const t = setInterval(() => setActiveIdx(i => (i + 1) % demos.length), 2200);
+    const t = setInterval(() => setActiveIdx((i) => (i + 1) % demos.length), 2200);
     return () => clearInterval(t);
   }, []);
 
@@ -231,32 +284,49 @@ const NameResolutionVisual = () => {
     <div className="relative rounded-3xl border border-salvaGold/20 overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-2xl">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.07),transparent)]" />
       <div className="flex items-center gap-2 mb-5 relative">
-        <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
-          className="w-1.5 h-1.5 bg-green-500 rounded-full block" />
-        <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">Live Resolution Engine</p>
+        <motion.span
+          animate={{ opacity: [1, 0.3, 1] }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+          className="w-1.5 h-1.5 bg-green-500 rounded-full block"
+        />
+        <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">
+          Live Resolution Engine
+        </p>
       </div>
       <div className="space-y-2.5 relative">
         {demos.map((item, i) => (
-          <motion.div key={i}
-            animate={{ opacity: activeIdx === i ? 1 : 0.15, scale: activeIdx === i ? 1 : 0.97, x: activeIdx === i ? 0 : -6 }}
+          <motion.div
+            key={i}
+            animate={{
+              opacity: activeIdx === i ? 1 : 0.15,
+              scale: activeIdx === i ? 1 : 0.97,
+              x: activeIdx === i ? 0 : -6,
+            }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             className="flex flex-col gap-1 bg-white/[0.04] border border-white/[0.06] rounded-2xl px-5 py-3.5"
           >
             <div className="flex items-center justify-between gap-3">
               <span className="text-salvaGold font-black text-sm truncate">{item.alias}</span>
-              <motion.div animate={{ x: activeIdx === i ? [0, 4, 0] : 0 }} transition={{ repeat: activeIdx === i ? Infinity : 0, duration: 1.5 }}>
+              <motion.div
+                animate={{ x: activeIdx === i ? [0, 4, 0] : 0 }}
+                transition={{ repeat: activeIdx === i ? Infinity : 0, duration: 1.5 }}
+              >
                 <ArrowRight size={12} className="opacity-30 flex-shrink-0" />
               </motion.div>
               <span className="font-mono text-[10px] opacity-30 truncate max-w-[130px] hidden sm:block">
                 {item.dest.slice(0, 18)}…
               </span>
             </div>
-            <span className="text-[9px] text-salvaGold/40 uppercase tracking-widest font-bold">{item.type}</span>
+            <span className="text-[9px] text-salvaGold/40 uppercase tracking-widest font-bold">
+              {item.type}
+            </span>
           </motion.div>
         ))}
       </div>
       <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between relative">
-        <span className="text-[9px] opacity-20 uppercase tracking-widest font-bold">Namespace-isolated · Phishing-resistant</span>
+        <span className="text-[9px] opacity-20 uppercase tracking-widest font-bold">
+          Namespace-isolated · Phishing-resistant
+        </span>
         <span className="text-[9px] text-green-500 font-black">● On-chain</span>
       </div>
     </div>
@@ -267,9 +337,9 @@ const NameResolutionVisual = () => {
 const StablecoinVisual = () => {
   const [price, setPrice] = useState(1.0);
   const txs = [
-    { from: "charles@salva", to: "sandra@rabby",   amt: "50,000 NGNs" },
-    { from: "ola@metamask",   to: "emeka@salva",    amt: "12,500 NGNs" },
-    { from: "aisha@coinbase", to: "peter@binance",  amt: "200,000 NGNs" },
+    { from: 'charles@salva', to: 'sandra@rabby', amt: '50,000 NGNs' },
+    { from: 'ola@metamask', to: 'emeka@salva', amt: '12,500 NGNs' },
+    { from: 'aisha@coinbase', to: 'peter@binance', amt: '200,000 NGNs' },
   ];
   useEffect(() => {
     const t = setInterval(() => setPrice(1 + (Math.random() * 0.0006 - 0.0003)), 1800);
@@ -280,11 +350,21 @@ const StablecoinVisual = () => {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.07),transparent)]" />
       <div className="flex items-center justify-between mb-5 relative">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black mb-1">NGNs / NGN</p>
+          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black mb-1">
+            NGNs / NGN
+          </p>
           <div className="flex items-baseline gap-2">
-            <motion.span key={price.toFixed(4)} initial={{ y: -6, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              className="text-3xl font-black text-salvaGold">₦{price.toFixed(4)}</motion.span>
-            <span className="text-[10px] text-green-400 font-black bg-green-500/10 px-2 py-0.5 rounded-full">± 0.03%</span>
+            <motion.span
+              key={price.toFixed(4)}
+              initial={{ y: -6, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              className="text-3xl font-black text-salvaGold"
+            >
+              ₦{price.toFixed(4)}
+            </motion.span>
+            <span className="text-[10px] text-green-400 font-black bg-green-500/10 px-2 py-0.5 rounded-full">
+              ± 0.03%
+            </span>
           </div>
         </div>
         <div className="w-14 h-14 rounded-full bg-salvaGold/10 border-2 border-salvaGold/30 flex items-center justify-center">
@@ -292,22 +372,38 @@ const StablecoinVisual = () => {
         </div>
       </div>
       <div className="space-y-2 mb-4 relative">
-        <p className="text-[9px] uppercase tracking-[0.3em] opacity-20 font-bold">Recent On-Chain Transfers</p>
+        <p className="text-[9px] uppercase tracking-[0.3em] opacity-20 font-bold">
+          Recent On-Chain Transfers
+        </p>
         {txs.map((tx, i) => (
-          <div key={i} className="flex items-center justify-between bg-white/[0.04] border border-white/[0.06] rounded-xl px-4 py-2.5">
+          <div
+            key={i}
+            className="flex items-center justify-between bg-white/[0.04] border border-white/[0.06] rounded-xl px-4 py-2.5"
+          >
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-salvaGold text-[10px] font-black truncate max-w-[80px]">{tx.from}</span>
+              <span className="text-salvaGold text-[10px] font-black truncate max-w-[80px]">
+                {tx.from}
+              </span>
               <ArrowRight size={10} className="opacity-20 flex-shrink-0" />
-              <span className="text-[10px] opacity-40 font-bold truncate max-w-[70px]">{tx.to}</span>
+              <span className="text-[10px] opacity-40 font-bold truncate max-w-[70px]">
+                {tx.to}
+              </span>
             </div>
-            <span className="text-[10px] text-salvaGold font-black flex-shrink-0 ml-2">{tx.amt}</span>
+            <span className="text-[10px] text-salvaGold font-black flex-shrink-0 ml-2">
+              {tx.amt}
+            </span>
           </div>
         ))}
       </div>
       <div className="grid grid-cols-3 gap-2 relative">
-        {["1 NGNs = ₦1", "No FX Risk", "Instant"].map(t => (
-          <div key={t} className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center">
-            <span className="text-[9px] font-black text-salvaGold uppercase tracking-wider">{t}</span>
+        {['1 NGNs = ₦1', 'No FX Risk', 'Instant'].map((t) => (
+          <div
+            key={t}
+            className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center"
+          >
+            <span className="text-[9px] font-black text-salvaGold uppercase tracking-wider">
+              {t}
+            </span>
           </div>
         ))}
       </div>
@@ -319,12 +415,12 @@ const StablecoinVisual = () => {
 const WalletVisual = () => {
   const [balIdx, setBalIdx] = useState(0);
   const balances = [
-    { label: "NGNs Balance", val: "1,250,000", sym: "NGNs", sub: "≈ ₦1,250,000" },
-    { label: "USDT Balance", val: "823.50",    sym: "USDT", sub: "≈ $823.50" },
-    { label: "USDC Balance", val: "410.00",    sym: "USDC", sub: "≈ $410.00" },
+    { label: 'NGNs Balance', val: '1,250,000', sym: 'NGNs', sub: '≈ ₦1,250,000' },
+    { label: 'USDT Balance', val: '823.50', sym: 'USDT', sub: '≈ $823.50' },
+    { label: 'USDC Balance', val: '410.00', sym: 'USDC', sub: '≈ $410.00' },
   ];
   useEffect(() => {
-    const t = setInterval(() => setBalIdx(i => (i + 1) % balances.length), 2600);
+    const t = setInterval(() => setBalIdx((i) => (i + 1) % balances.length), 2600);
     return () => clearInterval(t);
   }, []);
   return (
@@ -332,35 +428,59 @@ const WalletVisual = () => {
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.05),transparent)]" />
       <div className="flex items-center justify-between mb-6 relative">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">Salva Smart Wallet</p>
+          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">
+            Salva Smart Wallet
+          </p>
           <p className="font-mono text-[10px] opacity-30 mt-1">cboi@salva · 0xb298...3Cb7</p>
         </div>
         <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
-          <motion.span animate={{ opacity: [1, 0.3, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}
-            className="w-1.5 h-1.5 bg-green-500 rounded-full block" />
+          <motion.span
+            animate={{ opacity: [1, 0.3, 1] }}
+            transition={{ repeat: Infinity, duration: 1.5 }}
+            className="w-1.5 h-1.5 bg-green-500 rounded-full block"
+          />
           <span className="text-[10px] text-green-400 font-black">Active</span>
         </div>
       </div>
       <AnimatePresence mode="wait">
-        <motion.div key={balIdx} initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -12, opacity: 0 }}
-          transition={{ duration: 0.35 }} className="mb-6 relative">
+        <motion.div
+          key={balIdx}
+          initial={{ y: 12, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: -12, opacity: 0 }}
+          transition={{ duration: 0.35 }}
+          className="mb-6 relative"
+        >
           <p className="text-[9px] uppercase opacity-30 font-bold">{balances[balIdx].label}</p>
           <p className="text-4xl font-black mt-1 text-white">
-            {balances[balIdx].val}{" "}
+            {balances[balIdx].val}{' '}
             <span className="text-salvaGold text-xl">{balances[balIdx].sym}</span>
           </p>
           <p className="text-[10px] opacity-25 font-bold mt-1">{balances[balIdx].sub}</p>
         </motion.div>
       </AnimatePresence>
       <div className="grid grid-cols-2 gap-3 mb-4 relative">
-        <div className="bg-salvaGold text-black font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">SEND</div>
-        <div className="border border-salvaGold/30 text-salvaGold font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">RECEIVE</div>
+        <div className="bg-salvaGold text-black font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">
+          SEND
+        </div>
+        <div className="border border-salvaGold/30 text-salvaGold font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">
+          RECEIVE
+        </div>
       </div>
       <div className="grid grid-cols-3 gap-2 relative">
-        {[{ icon: "⚡", label: "Gasless" }, { icon: "🛡️", label: "Safe AA" }, { icon: "🔵", label: "Base L2" }].map(f => (
-          <div key={f.label} className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center">
+        {[
+          { icon: '⚡', label: 'Gasless' },
+          { icon: '🛡️', label: 'Safe AA' },
+          { icon: '🔵', label: 'Base L2' },
+        ].map((f) => (
+          <div
+            key={f.label}
+            className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center"
+          >
             <p className="text-base">{f.icon}</p>
-            <p className="text-[9px] uppercase font-black text-salvaGold tracking-wider">{f.label}</p>
+            <p className="text-[9px] uppercase font-black text-salvaGold tracking-wider">
+              {f.label}
+            </p>
           </div>
         ))}
       </div>
@@ -373,23 +493,33 @@ const FAQItem = ({ question, answer }) => {
   const [open, setOpen] = useState(false);
   return (
     <div className="border-b border-black/[0.06] dark:border-white/[0.06] last:border-0">
-      <button onClick={() => setOpen(!open)}
-        className="w-full py-6 flex justify-between items-center text-left group">
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full py-6 flex justify-between items-center text-left group"
+      >
         <span className="text-base sm:text-lg font-bold tracking-tight pr-4 group-hover:text-salvaGold transition-colors duration-300">
           {question}
         </span>
         <motion.div animate={{ rotate: open ? 135 : 0 }} transition={{ duration: 0.25 }}>
-          <div className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${open ? "border-salvaGold bg-salvaGold text-black" : "border-current opacity-30"}`}>
+          <div
+            className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${open ? 'border-salvaGold bg-salvaGold text-black' : 'border-current opacity-30'}`}
+          >
             <span className="text-xs font-black leading-none">+</span>
           </div>
         </motion.div>
       </button>
       <AnimatePresence>
         {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-            className="overflow-hidden">
-            <p className="pb-6 opacity-55 leading-relaxed text-sm sm:text-base max-w-3xl">{answer}</p>
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <p className="pb-6 opacity-55 leading-relaxed text-sm sm:text-base max-w-3xl">
+              {answer}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
@@ -400,23 +530,29 @@ const FAQItem = ({ question, answer }) => {
 // ─── Ticker ───────────────────────────────────────────────────────────────────
 const Ticker = () => {
   const items = [
-    "V3 DEX Live",
-    "Name Service Protocol",
-    "NGNs Stablecoin",
-    "Safe Smart Wallet",
-    "Permissionless Pools",
-    "Gasless Transactions",
-    "On-Chain Identity",
-    "LP Earn Fees",
-    "Built on Base",
-    "Swap NGNs/USDT/USDC",
+    'V3 DEX Live',
+    'Name Service Protocol',
+    'NGNs Stablecoin',
+    'Safe Smart Wallet',
+    'Permissionless Pools',
+    'Gasless Transactions',
+    'On-Chain Identity',
+    'LP Earn Fees',
+    'Built on Base',
+    'Swap NGNs/USDT/USDC',
   ];
   return (
     <div className="overflow-hidden py-4 border-y border-black/[0.06] dark:border-white/[0.06] my-24 bg-black/[0.02] dark:bg-white/[0.02]">
-      <motion.div animate={{ x: ["0%", "-50%"] }} transition={{ duration: 24, ease: "linear", repeat: Infinity }}
-        className="flex gap-8 whitespace-nowrap">
+      <motion.div
+        animate={{ x: ['0%', '-50%'] }}
+        transition={{ duration: 24, ease: 'linear', repeat: Infinity }}
+        className="flex gap-8 whitespace-nowrap"
+      >
         {[...items, ...items].map((item, i) => (
-          <span key={i} className="text-[10px] font-black uppercase tracking-[0.35em] text-salvaGold/40 flex items-center gap-6">
+          <span
+            key={i}
+            className="text-[10px] font-black uppercase tracking-[0.35em] text-salvaGold/40 flex items-center gap-6"
+          >
             {item} <span className="text-salvaGold/20">◆</span>
           </span>
         ))}
@@ -426,31 +562,57 @@ const Ticker = () => {
 };
 
 // ─── Feature Section ──────────────────────────────────────────────────────────
-const FeatureSection = ({ id, index, badge, tag, title, headline, body, extContent, visual, cta }) => {
+const FeatureSection = ({
+  id,
+  index,
+  badge,
+  tag,
+  title,
+  headline,
+  body,
+  extContent,
+  visual,
+  cta,
+}) => {
   const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const inView = useInView(ref, { once: true, margin: '-100px' });
   const fromLeft = index % 2 === 0;
   return (
-    <section id={id} ref={ref}
-      className={`flex flex-col ${fromLeft ? "lg:flex-row" : "lg:flex-row-reverse"} gap-16 lg:gap-24 items-start py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}>
-      <motion.div initial={{ opacity: 0, x: fromLeft ? -40 : 40 }} animate={inView ? { opacity: 1, x: 0 } : {}}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }} className="flex-1 space-y-7">
+    <section
+      id={id}
+      ref={ref}
+      className={`flex flex-col ${fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-16 lg:gap-24 items-start py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
+    >
+      <motion.div
+        initial={{ opacity: 0, x: fromLeft ? -40 : 40 }}
+        animate={inView ? { opacity: 1, x: 0 } : {}}
+        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+        className="flex-1 space-y-7"
+      >
         <div className="flex items-center gap-3">
           <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.35em] border border-salvaGold/30 text-salvaGold bg-salvaGold/5">
-            {badge && <span>{badge}</span>}{tag}
+            {badge && <span>{badge}</span>}
+            {tag}
           </span>
         </div>
         <div>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-[0.92] mb-4">{title}</h2>
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-[0.92] mb-4">
+            {title}
+          </h2>
           <p className="text-xl text-salvaGold font-bold opacity-75">{headline}</p>
         </div>
         <p className="text-base opacity-55 leading-relaxed">{body}</p>
         <div className="space-y-4 text-sm leading-relaxed opacity-65">{extContent}</div>
         {cta && <div className="pt-2">{cta}</div>}
       </motion.div>
-      <motion.div initial={{ opacity: 0, x: fromLeft ? 40 : -40 }} animate={inView ? { opacity: 1, x: 0 } : {}}
+      <motion.div
+        initial={{ opacity: 0, x: fromLeft ? 40 : -40 }}
+        animate={inView ? { opacity: 1, x: 0 } : {}}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}
-        className="flex-1 w-full lg:sticky lg:top-28">{visual}</motion.div>
+        className="flex-1 w-full lg:sticky lg:top-28"
+      >
+        {visual}
+      </motion.div>
     </section>
   );
 };
@@ -458,33 +620,64 @@ const FeatureSection = ({ id, index, badge, tag, title, headline, body, extConte
 // ─── Support Modal ────────────────────────────────────────────────────────────
 const SupportModal = ({ onClose }) => (
   <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-      onClick={onClose} className="absolute inset-0 bg-black/90 backdrop-blur-md" />
-    <motion.div initial={{ scale: 0.9, opacity: 0, y: 30 }} animate={{ scale: 1, opacity: 1, y: 0 }}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+      className="absolute inset-0 bg-black/90 backdrop-blur-md"
+    />
+    <motion.div
+      initial={{ scale: 0.9, opacity: 0, y: 30 }}
+      animate={{ scale: 1, opacity: 1, y: 0 }}
       exit={{ scale: 0.9, opacity: 0, y: 30 }}
-      className="relative w-full max-w-lg bg-white dark:bg-zinc-950 border border-black/10 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl">
-      <button onClick={onClose} className="absolute top-8 right-8 opacity-40 hover:opacity-100 transition-opacity"><X size={24} /></button>
+      className="relative w-full max-w-lg bg-white dark:bg-zinc-950 border border-black/10 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl"
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-8 right-8 opacity-40 hover:opacity-100 transition-opacity"
+      >
+        <X size={24} />
+      </button>
       <div className="mb-7">
         <h2 className="text-3xl font-black tracking-tighter mb-1 uppercase">Get Help</h2>
-        <p className="text-sm opacity-40 uppercase tracking-widest font-bold">Direct line to Salva Support</p>
+        <p className="text-sm opacity-40 uppercase tracking-widest font-bold">
+          Direct line to Salva Support
+        </p>
       </div>
-      <form onSubmit={e => {
-        e.preventDefault();
-        const fd = new FormData(e.target);
-        window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent("SALVA SUPPORT: " + fd.get("topic"))}&body=${encodeURIComponent(`Name: ${fd.get("name")}\nAccount: ${fd.get("account")}\nIssue: ${fd.get("message")}`)}`; onClose();
-      }} className="space-y-3">
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          const fd = new FormData(e.target);
+          window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent('SALVA SUPPORT: ' + fd.get('topic'))}&body=${encodeURIComponent(`Name: ${fd.get('name')}\nAccount: ${fd.get('account')}\nIssue: ${fd.get('message')}`)}`;
+          onClose();
+        }}
+        className="space-y-3"
+      >
         {[
-          { name: "name",    placeholder: "Full Name" },
-          { name: "account", placeholder: "Salva Account / Alias" },
-          { name: "topic",   placeholder: "Topic" },
-        ].map(f => (
-          <input key={f.name} required name={f.name} placeholder={f.placeholder}
-            className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 transition-colors placeholder:opacity-30 text-sm" />
+          { name: 'name', placeholder: 'Full Name' },
+          { name: 'account', placeholder: 'Salva Account / Alias' },
+          { name: 'topic', placeholder: 'Topic' },
+        ].map((f) => (
+          <input
+            key={f.name}
+            required
+            name={f.name}
+            placeholder={f.placeholder}
+            className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 transition-colors placeholder:opacity-30 text-sm"
+          />
         ))}
-        <textarea required name="message" rows={4} placeholder="How can we help?"
-          className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 resize-none transition-colors placeholder:opacity-30 text-sm" />
-        <button type="submit"
-          className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-sm">
+        <textarea
+          required
+          name="message"
+          rows={4}
+          placeholder="How can we help?"
+          className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 resize-none transition-colors placeholder:opacity-30 text-sm"
+        />
+        <button
+          type="submit"
+          className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
+        >
           <Mail size={16} /> Send Request
         </button>
       </form>
@@ -507,10 +700,19 @@ const Home = () => {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem("salva_user");
-      if (saved) { const u = JSON.parse(saved); if (u?.safeAddress && !u?.ownerKey) { navigate("/dashboard", { replace: true }); return; } }
-    } catch { localStorage.removeItem("salva_user"); }
-    finally { setCheckingAuth(false); }
+      const saved = localStorage.getItem('salva_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u?.safeAddress && !u?.ownerKey) {
+          navigate('/dashboard', { replace: true });
+          return;
+        }
+      }
+    } catch {
+      localStorage.removeItem('salva_user');
+    } finally {
+      setCheckingAuth(false);
+    }
   }, [navigate]);
 
   useEffect(() => {
@@ -519,20 +721,32 @@ const Home = () => {
         const res = await fetch(`${SALVA_API_URL}/api/stats`);
         if (!res.ok) return;
         const d = await res.json();
-        setStats({ totalMinted: parseFloat(d.totalMinted || 0), userCount: parseInt(d.userCount || 0) });
-      } catch {} finally { setStatsLoading(false); }
+        setStats({
+          totalMinted: parseFloat(d.totalMinted || 0),
+          userCount: parseInt(d.userCount || 0),
+        });
+      } catch {
+      } finally {
+        setStatsLoading(false);
+      }
     };
     load();
     const iv = setInterval(load, 60000);
     return () => clearInterval(iv);
   }, []);
 
-  if (checkingAuth) return (
-    <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-      <motion.div animate={{ opacity: [0.3, 1, 0.3] }} transition={{ repeat: Infinity, duration: 2 }}
-        className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]">SALVA</motion.div>
-    </div>
-  );
+  if (checkingAuth)
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
+        <motion.div
+          animate={{ opacity: [0.3, 1, 0.3] }}
+          transition={{ repeat: Infinity, duration: 2 }}
+          className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]"
+        >
+          SALVA
+        </motion.div>
+      </div>
+    );
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white overflow-x-hidden transition-colors duration-300">
@@ -546,27 +760,9 @@ const Home = () => {
       >
         {/* Background glows */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <GlowOrb
-            x="60%"
-            y="10%"
-            size="500px"
-            color="rgba(212,175,55,0.06)"
-            delay={0}
-          />
-          <GlowOrb
-            x="10%"
-            y="50%"
-            size="400px"
-            color="rgba(212,175,55,0.04)"
-            delay={3}
-          />
-          <GlowOrb
-            x="75%"
-            y="60%"
-            size="300px"
-            color="rgba(34,197,94,0.03)"
-            delay={6}
-          />
+          <GlowOrb x="60%" y="10%" size="500px" color="rgba(212,175,55,0.06)" delay={0} />
+          <GlowOrb x="10%" y="50%" size="400px" color="rgba(212,175,55,0.04)" delay={3} />
+          <GlowOrb x="75%" y="60%" size="300px" color="rgba(34,197,94,0.03)" delay={6} />
         </div>
 
         {/* V3 badge */}
@@ -613,22 +809,20 @@ const Home = () => {
             className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-20"
           >
             <MagneticBtn
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="w-full sm:w-auto px-10 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest flex items-center justify-center gap-2"
             >
               Create Free Wallet <ArrowUpRight size={15} />
             </MagneticBtn>
             <MagneticBtn
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="w-full sm:w-auto px-10 py-4 border border-black/10 dark:border-white/10 font-bold rounded-2xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
             >
               Open DEX <ArrowUpRight size={15} />
             </MagneticBtn>
             <MagneticBtn
               onClick={() =>
-                document
-                  .getElementById("explore-dex")
-                  ?.scrollIntoView({ behavior: "smooth" })
+                document.getElementById('explore-dex')?.scrollIntoView({ behavior: 'smooth' })
               }
               className="w-full sm:w-auto px-10 py-4 border border-black/10 dark:border-white/10 font-bold rounded-2xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest"
             >
@@ -644,11 +838,7 @@ const Home = () => {
               loading={statsLoading}
               suffix=" NGNs"
             />
-            <StatCard
-              label="Salva Citizens"
-              value={stats.userCount}
-              loading={statsLoading}
-            />
+            <StatCard label="Salva Citizens" value={stats.userCount} loading={statsLoading} />
           </div>
         </motion.div>
 
@@ -657,9 +847,7 @@ const Home = () => {
           animate={{ y: [0, 8, 0] }}
           transition={{ repeat: Infinity, duration: 2.5 }}
         >
-          <span className="text-[9px] uppercase tracking-[0.4em] font-bold">
-            Scroll
-          </span>
+          <span className="text-[9px] uppercase tracking-[0.4em] font-bold">Scroll</span>
           <ChevronDown size={14} />
         </motion.div>
       </motion.section>
@@ -680,19 +868,16 @@ const Home = () => {
           extContent={
             <div className="space-y-4">
               <p>
-                <strong className="text-black dark:text-white">
-                  Become an LP.
-                </strong>{" "}
-                Deploy your own pool, add NGNs or stablecoins, set your buy/sell
-                rates, get listed on the swap marketplace. Earn on
-                every swap through your spread.
+                <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
+                own pool, add NGNs or stablecoins, set your buy/sell rates, get listed on the swap
+                marketplace. Earn on every swap through your spread.
               </p>
             </div>
           }
           visual={<DEXVisual />}
           cta={
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
             >
               Start Swapping <ArrowUpRight size={15} />
@@ -712,33 +897,28 @@ const Home = () => {
           extContent={
             <div className="space-y-4">
               <p>
-                <strong className="text-black dark:text-white">
-                  Name your pool.
-                </strong>{" "}
-                V3 lets you link your pool contract to an SNS name like
-                charles_pool@salva. Users see a human-readable identity instead
-                of a hex address on the swap marketplace.
+                <strong className="text-black dark:text-white">Name your pool.</strong> V3 lets you
+                link your pool contract to an SNS name like charles_pool@salva. Users see a
+                human-readable identity instead of a hex address on the swap marketplace.
               </p>
               <p>
-                <strong className="text-black dark:text-white">
-                  Namespace-isolated.
-                </strong>{" "}
-                charles@salva and charles@coinbase are completely separate
-                identities. No collisions between ecosystems.
+                <strong className="text-black dark:text-white">Namespace-isolated.</strong>{' '}
+                charles@salva and charles@coinbase are completely separate identities. No collisions
+                between ecosystems.
               </p>
               <p>
                 <strong className="text-black dark:text-white">
                   Phishing-resistant by design.
-                </strong>{" "}
-                Similar-sounding names are treated as identical at contract
-                level. Nobody can register a lookalike to trick your contacts.
+                </strong>{' '}
+                Similar-sounding names are treated as identical at contract level. Nobody can
+                register a lookalike to trick your contacts.
               </p>
             </div>
           }
           visual={<NameResolutionVisual />}
           cta={
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
             >
               Get a Name <ArrowUpRight size={15} />
@@ -758,33 +938,25 @@ const Home = () => {
           extContent={
             <div className="space-y-4">
               <p>
-                <strong className="text-black dark:text-white">
-                  Non-custodial.
-                </strong>{" "}
-                Your keys are encrypted. Salva never sees it in plaintext. Only
-                your PIN unlocks it.
+                <strong className="text-black dark:text-white">Non-custodial.</strong> Your keys are
+                encrypted. Salva never sees it in plaintext. Only your PIN unlocks it.
               </p>
               <p>
-                <strong className="text-black dark:text-white">
-                  Safe AA architecture.
-                </strong>{" "}
-                Built on the same institutional-grade smart account tech
-                protecting billions in DeFi. Multisig-level security with
-                consumer-grade UX.
+                <strong className="text-black dark:text-white">Safe AA architecture.</strong> Built
+                on the same institutional-grade smart account tech protecting billions in DeFi.
+                Multisig-level security with consumer-grade UX.
               </p>
               <p>
-                <strong className="text-black dark:text-white">
-                  One wallet, everything.
-                </strong>{" "}
-                Send NGNs. Swap on the DEX. Register names. Become an LP. All
-                from the same wallet, all gasless.
+                <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
+                NGNs. Swap on the DEX. Register names. Become an LP. All from the same wallet, all
+                gasless.
               </p>
             </div>
           }
           visual={<WalletVisual />}
           cta={
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
             >
               Create Smart Wallet <ArrowUpRight size={15} />
@@ -804,25 +976,21 @@ const Home = () => {
           extContent={
             <div className="space-y-4">
               <p>
-                <strong className="text-black dark:text-white">
-                  Now DEX-tradeable.
-                </strong>{" "}
-                V3 lets anyone swap NGNs for USDT or USDC at market rates set by
-                liquidity providers — no intermediary, no FX desk.
+                <strong className="text-black dark:text-white">Now DEX-tradeable.</strong> V3 lets
+                anyone swap NGNs for USDT or USDC at market rates set by liquidity providers — no
+                intermediary, no FX desk.
               </p>
               <p>
-                <strong className="text-black dark:text-white">
-                  Instant settlement.
-                </strong>{" "}
-                Transactions confirm on Base in seconds. Every transfer is
-                on-chain and permanently verifiable.
+                <strong className="text-black dark:text-white">Instant settlement.</strong>{' '}
+                Transactions confirm on Base in seconds. Every transfer is on-chain and permanently
+                verifiable.
               </p>
             </div>
           }
           visual={<StablecoinVisual />}
           cta={
             <button
-              onClick={() => navigate("/login")}
+              onClick={() => navigate('/login')}
               className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
             >
               Buy NGNs <ArrowUpRight size={15} />
@@ -836,44 +1004,42 @@ const Home = () => {
         <motion.div
           initial={{ opacity: 0, y: 28 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-80px" }}
+          viewport={{ once: true, margin: '-80px' }}
           transition={{ duration: 0.9 }}
         >
           <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-4 opacity-60">
             Get started in minutes
           </p>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter mb-16">
-            How It Works
-          </h2>
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter mb-16">How It Works</h2>
         </motion.div>
         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
           {[
             {
-              n: "01",
-              title: "Create Wallet",
-              desc: "Email + 4-digit PIN. Your Safe smart wallet is live in seconds. No seed phrase.",
+              n: '01',
+              title: 'Create Wallet',
+              desc: 'Email + 4-digit PIN. Your Safe smart wallet is live in seconds. No seed phrase.',
             },
             {
-              n: "02",
-              title: "Register Name",
-              desc: "Claim yourname@salva. Link it to your wallet or your pool contract.",
+              n: '02',
+              title: 'Register Name',
+              desc: 'Claim yourname@salva. Link it to your wallet or your pool contract.',
             },
             {
-              n: "03",
-              title: "Send & Receive",
-              desc: "Send NGNs, USDT, USDC to any name or address. Gasless. Instant.",
+              n: '03',
+              title: 'Send & Receive',
+              desc: 'Send NGNs, USDT, USDC to any name or address. Gasless. Instant.',
             },
             {
-              n: "04",
-              title: "Swap on DEX",
-              desc: "Trade between NGN and USD stablecoins on Salva V3. Or become an LP and earn from your spread.",
+              n: '04',
+              title: 'Swap on DEX',
+              desc: 'Trade between NGN and USD stablecoins on Salva V3. Or become an LP and earn from your spread.',
             },
           ].map((step, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 24 }}
               whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
+              viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.7, delay: i * 0.1 }}
               className="relative p-7 rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] hover:border-salvaGold/30 hover:bg-salvaGold/[0.02] transition-all group text-left"
             >
@@ -910,24 +1076,21 @@ const Home = () => {
               <span className="text-salvaGold">Anyone can be an LP.</span>
             </h2>
             <p className="text-base sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-12">
-              Deploy a liquidity pool, fund it with NGNs or stablecoins and set
-              your rate. Your pool earns on every swap through your bid-ask
-              spread. Fully on-chain. Fully permissionless.
+              Deploy a liquidity pool, fund it with NGNs or stablecoins and set your rate. Your pool
+              earns on every swap through your bid-ask spread. Fully on-chain. Fully permissionless.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { stat: "100%", label: "On-chain" },
-                { stat: "₦0", label: "Gas to swapper" },
-                { stat: "V3", label: "Permissionless" },
-                { stat: "Base", label: "Network" },
+                { stat: '100%', label: 'On-chain' },
+                { stat: '₦0', label: 'Gas to swapper' },
+                { stat: 'V3', label: 'Permissionless' },
+                { stat: 'Base', label: 'Network' },
               ].map((item) => (
                 <div
                   key={item.stat}
                   className="p-5 rounded-2xl bg-black/[0.04] dark:bg-white/[0.04] border border-salvaGold/10"
                 >
-                  <p className="text-2xl font-black text-salvaGold">
-                    {item.stat}
-                  </p>
+                  <p className="text-2xl font-black text-salvaGold">{item.stat}</p>
                   <p className="text-[9px] uppercase tracking-widest opacity-35 font-bold mt-1">
                     {item.label}
                   </p>
@@ -950,9 +1113,7 @@ const Home = () => {
           <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-4 opacity-60">
             Everything you need to know
           </p>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter">
-            FAQs
-          </h2>
+          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter">FAQs</h2>
         </motion.div>
         <motion.div
           initial={{ opacity: 0 }}
@@ -962,23 +1123,23 @@ const Home = () => {
         >
           {[
             {
-              q: "What does V3 introduce?",
-              a: "Salva V3 introduces a full on-chain DEX to the existing name service and NGNs stablecoin stack. Liquidity providers deploy pools, set their own NGNs/USDT/USDC rates, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.",
+              q: 'What does V3 introduce?',
+              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and NGNs stablecoin stack. Liquidity providers deploy pools, set their own NGNs/USDT/USDC rates, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
             },
             {
-              q: "How do I become a liquidity provider?",
-              a: "Go to the Deploy Pool tab in your Dashboard. Deploy your pool (one tx), add supported NGN or USDC stablecoins, set your buy/sell rates, then subscribe (pays a monthly NGNs fee) to list it on the swap marketplace. Your pool earns every time someone swaps through it.",
+              q: 'How do I become a liquidity provider?',
+              a: 'Go to the Deploy Pool tab in your Dashboard. Deploy your pool (one tx), add supported NGN or USDC stablecoins, set your buy/sell rates, then subscribe (pays a monthly NGNs fee) to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
             },
             {
-              q: "What is a Salva name?",
-              a: "A short, human-readable alias — like charles@base or charles_pool@salva. Anyone can send money to that name directly. V3 extends this so your pool contract can also have a name, making it identifiable on the DEX marketplace.",
+              q: 'What is a Salva name?',
+              a: 'A short, human-readable alias — like charles@base or charles_pool@salva. Anyone can send money to that name directly. V3 extends this so your pool contract can also have a name, making it identifiable on the DEX marketplace.',
             },
             {
-              q: "Is Salva wallet self-custodial?",
-              a: "Yes. Your private key is encrypted. Salva never sees it in plaintext. Only your 4-digit PIN decrypts it locally to sign transactions. Not even Salva can move your funds.",
+              q: 'Is Salva wallet self-custodial?',
+              a: 'Yes. Your private key is encrypted. Salva never sees it in plaintext. Only your 4-digit PIN decrypts it locally to sign transactions. Not even Salva can move your funds.',
             },
             {
-              q: "What is NGNs?",
+              q: 'What is NGNs?',
               a: "A Nigerian Naira-pegged stablecoin on Base. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and now DEX swaps against USDT and USDC. No FX exposure, no volatility.",
             },
           ].map((faq, i) => (
@@ -999,18 +1160,18 @@ const Home = () => {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.2),transparent)]" />
           <motion.div
             animate={{
-              x: ["0%", "3%", "0%", "-3%", "0%"],
-              y: ["0%", "-3%", "0%", "3%", "0%"],
+              x: ['0%', '3%', '0%', '-3%', '0%'],
+              y: ['0%', '-3%', '0%', '3%', '0%'],
             }}
-            transition={{ repeat: Infinity, duration: 14, ease: "easeInOut" }}
+            transition={{ repeat: Infinity, duration: 14, ease: 'easeInOut' }}
             className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"
           />
           <motion.div
             animate={{
-              x: ["0%", "-4%", "0%", "4%", "0%"],
-              y: ["0%", "4%", "0%", "-4%", "0%"],
+              x: ['0%', '-4%', '0%', '4%', '0%'],
+              y: ['0%', '4%', '0%', '-4%', '0%'],
             }}
-            transition={{ repeat: Infinity, duration: 18, ease: "easeInOut" }}
+            transition={{ repeat: Infinity, duration: 18, ease: 'easeInOut' }}
             className="absolute bottom-0 left-0 w-56 h-56 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2"
           />
           <div className="relative z-10">
@@ -1023,18 +1184,18 @@ const Home = () => {
               Swap Your Naira.
             </h2>
             <p className="text-black/55 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access. NGNs stablecoin. Human-readable identity.
-              All free to start. Under two minutes.
+              One wallet. DEX access. NGNs stablecoin. Human-readable identity. All free to start.
+              Under two minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate('/login')}
                 className="inline-flex items-center justify-center gap-2 px-12 py-5 bg-black text-salvaGold font-black rounded-2xl hover:bg-zinc-900 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-2xl shadow-black/30"
               >
                 Get Started Free <ArrowUpRight size={16} />
               </button>
               <button
-                onClick={() => navigate("/login")}
+                onClick={() => navigate('/login')}
                 className="inline-flex items-center justify-center gap-2 px-10 py-5 border-2 border-black/20 text-black font-black rounded-2xl hover:border-black/40 hover:bg-black/5 active:scale-95 transition-all text-sm uppercase tracking-widest"
               >
                 Open DEX <ArrowUpRight size={16} />
@@ -1049,9 +1210,7 @@ const Home = () => {
         <div className="flex flex-col md:flex-row justify-between items-start gap-12">
           <div className="max-w-xs">
             <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-2xl font-black tracking-tighter text-salvaGold">
-                SALVA
-              </h2>
+              <h2 className="text-2xl font-black tracking-tighter text-salvaGold">SALVA</h2>
               <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-salvaGold/10 text-salvaGold border border-salvaGold/20">
                 V3
               </span>
@@ -1066,28 +1225,26 @@ const Home = () => {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 text-sm">
             {[
               {
-                heading: "Protocol",
+                heading: 'Protocol',
                 links: [
-                  { label: "V3 DEX", id: "explore-dex" },
-                  { label: "Name Service", id: "explore-name-service" },
-                  { label: "Smart Wallet", id: "explore-wallet" },
-                  { label: "NGNs", id: "explore-ngns" },
+                  { label: 'V3 DEX', id: 'explore-dex' },
+                  { label: 'Name Service', id: 'explore-name-service' },
+                  { label: 'Smart Wallet', id: 'explore-wallet' },
+                  { label: 'NGNs', id: 'explore-ngns' },
                 ],
               },
               {
-                heading: "Build",
+                heading: 'Build',
                 links: [
-                  { label: "GitHub", href: "https://github.com/salva-Nexus" },
-                  { label: "Twitter", href: "https://x.com/salva_Nexus" },
+                  { label: 'GitHub', href: 'https://github.com/salva-Nexus' },
+                  { label: 'Twitter', href: 'https://x.com/salva_Nexus' },
                 ],
               },
               {
-                heading: "Support",
-                links: [
-                  { label: "Get Help", action: () => setSupportOpen(true) },
-                ],
+                heading: 'Support',
+                links: [{ label: 'Get Help', action: () => setSupportOpen(true) }],
               },
-              { heading: "Network", links: [] },
+              { heading: 'Network', links: [] },
             ].map((col) => (
               <div key={col.heading}>
                 <p className="text-[10px] uppercase tracking-widest opacity-25 font-black mb-3">
@@ -1117,17 +1274,15 @@ const Home = () => {
                       <button
                         key={link.label}
                         onClick={() =>
-                          document
-                            .getElementById(link.id)
-                            ?.scrollIntoView({ behavior: "smooth" })
+                          document.getElementById(link.id)?.scrollIntoView({ behavior: 'smooth' })
                         }
                         className="block opacity-40 hover:opacity-100 hover:text-salvaGold transition-all text-left"
                       >
                         {link.label}
                       </button>
-                    ),
+                    )
                   )}
-                  {col.heading === "Network" && (
+                  {col.heading === 'Network' && (
                     <span className="flex items-center gap-1.5 text-salvaGold font-bold opacity-70">
                       <motion.span
                         animate={{ opacity: [1, 0.3, 1] }}
@@ -1148,9 +1303,9 @@ const Home = () => {
           </p>
           <div className="flex items-center gap-2">
             {[
-              { href: "https://x.com/salva_Nexus", icon: <XLogo size={14} /> },
+              { href: 'https://x.com/salva_Nexus', icon: <XLogo size={14} /> },
               {
-                href: "https://github.com/salva-Nexus",
+                href: 'https://github.com/salva-Nexus',
                 icon: <Github size={14} />,
               },
             ].map((s) => (

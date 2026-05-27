@@ -1,41 +1,41 @@
 // src/pages/L1DeployPool.jsx
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ethers } from "ethers";
-import { SALVA_API_URL } from "../config";
-import { useWallet, waitWithTimeout } from "../hooks/useWallet";
-import { SwitchChainBanner, NoWalletCard } from "../components/WalletGate";
+import React, { useState, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ethers } from 'ethers';
+import { SALVA_API_URL } from '../config';
+import { useWallet, waitWithTimeout } from '../hooks/useWallet';
+import { SwitchChainBanner, NoWalletCard } from '../components/WalletGate';
 
 // ── ABIs ──────────────────────────────────────────────────────────────────────
 const FACTORY_ABI = [
-  "function deployPool() external returns (address pool)",
-  "event PoolDeployed(address indexed deployer, address indexed pool)",
+  'function deployPool() external returns (address pool)',
+  'event PoolDeployed(address indexed deployer, address indexed pool)',
 ];
 
 const ERC20_ABI = [
-  "function approve(address spender, uint256 amount) returns (bool)",
-  "function transfer(address to, uint256 amount) returns (bool)",
-  "function balanceOf(address) view returns (uint256)",
+  'function approve(address spender, uint256 amount) returns (bool)',
+  'function transfer(address to, uint256 amount) returns (bool)',
+  'function balanceOf(address) view returns (uint256)',
 ];
 
 const POOL_ABI = [
-  "function removeLiquidity(address asset, uint256 amount) external returns (bool)",
-  "function updateBuyRate(uint256 _exRate) external returns (bool)",
-  "function updateSellRate(uint256 _exRate) external returns (bool)",
-  "function pause() external returns (bool)",
-  "function unpause() external returns (bool)",
-  "function setMinimumNgnAmount(uint256 amount) external returns (bool)",
-  "function setMinimumTokenAmount(uint256 amount) external returns (bool)",
-  "function availableLiquidity(address asset) external view returns (uint256)",
+  'function removeLiquidity(address asset, uint256 amount) external returns (bool)',
+  'function updateBuyRate(uint256 _exRate) external returns (bool)',
+  'function updateSellRate(uint256 _exRate) external returns (bool)',
+  'function pause() external returns (bool)',
+  'function unpause() external returns (bool)',
+  'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
+  'function setMinimumTokenAmount(uint256 amount) external returns (bool)',
+  'function availableLiquidity(address asset) external view returns (uint256)',
 ];
 
 const POOL_PROVIDE_ABI = [
-  "function provideLiquidity(address asset, uint256 amount) external returns (bool)",
+  'function provideLiquidity(address asset, uint256 amount) external returns (bool)',
 ];
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 const darkInput =
-  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
+  'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
 // Parse raw pool value to a clean float — never touches formatted strings
 const toNum = (v) => parseFloat(v || 0) || 0;
@@ -43,11 +43,11 @@ const toNum = (v) => parseFloat(v || 0) || 0;
 // Format a number for display — responsive: abbreviate when >= 1M or >= 10K
 const smartFmt = (n) => {
   const num = toNum(n);
-  if (isNaN(num)) return "0";
+  if (isNaN(num)) return '0';
   const str = num.toString();
-  if (!str.includes(".")) return num.toLocaleString("en-US");
-  const decimals = str.split(".")[1].replace(/0+$/, "").length;
-  return num.toLocaleString("en-US", {
+  if (!str.includes('.')) return num.toLocaleString('en-US');
+  const decimals = str.split('.')[1].replace(/0+$/, '').length;
+  return num.toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
@@ -57,21 +57,14 @@ const smartFmt = (n) => {
 const compactFmt = (n) => {
   const num = toNum(n);
   if (num >= 1_000_000)
-    return (
-      (num / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) +
-      "M"
-    );
+    return (num / 1_000_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'M';
   if (num >= 100_000)
-    return (
-      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 1 }) + "K"
-    );
+    return (num / 1_000).toLocaleString('en-US', { maximumFractionDigits: 1 }) + 'K';
   if (num >= 10_000)
-    return (
-      (num / 1_000).toLocaleString("en-US", { maximumFractionDigits: 2 }) + "K"
-    );
+    return (num / 1_000).toLocaleString('en-US', { maximumFractionDigits: 2 }) + 'K';
   // For smaller numbers keep up to 4 significant decimals
-  if (num === Math.floor(num)) return num.toLocaleString("en-US");
-  return num.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  if (num === Math.floor(num)) return num.toLocaleString('en-US');
+  return num.toLocaleString('en-US', { maximumFractionDigits: 4 });
 };
 
 // ── Robust tx executor ────────────────────────────────────────────────────────
@@ -79,7 +72,7 @@ async function execTx(txPromise, timeoutMs = 90_000) {
   const tx = await txPromise;
   const receipt = await waitWithTimeout(tx, 1, timeoutMs);
   if (!receipt || receipt.status === 0) {
-    throw new Error("Transaction reverted on-chain");
+    throw new Error('Transaction reverted on-chain');
   }
   return { txHash: tx.hash, receipt };
 }
@@ -89,93 +82,121 @@ const RegistryDropdown = ({
   registries,
   value,
   onChange,
-  placeholder = "Search wallet service…",
+  placeholder = 'Search wallet service…',
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
   const ref = React.useRef(null);
+  const triggerRef = React.useRef(null);
   const inputRef = React.useRef(null);
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0, width: 0 });
 
   const filtered = registries.filter(
     (r) =>
       r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || "").toLowerCase().includes(query.toLowerCase()),
+      (r.nspace || '').toLowerCase().includes(query.toLowerCase())
   );
+
+  const handleOpen = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropPos({
+        top: rect.top - 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+    setOpen(true);
+    setQuery('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
 
   React.useEffect(() => {
     const h = (e) => {
       if (ref.current && !ref.current.contains(e.target)) {
         setOpen(false);
-        setQuery("");
+        setQuery('');
       }
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
+
+  const handleSelect = (reg) => {
+    onChange(reg);
+    setOpen(false);
+    setQuery('');
+  };
+  const handleClear = (e) => {
+    e.stopPropagation();
+    onChange(null);
+    setQuery('');
+  };
 
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => {
-          if (!value) {
-            setOpen(true);
-            setQuery("");
-            setTimeout(() => inputRef.current?.focus(), 50);
-          }
-        }}
+        onClick={value ? undefined : handleOpen}
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${
           open
-            ? "border-blue-400 bg-blue-500/5 ring-1 ring-blue-400/30"
+            ? 'border-blue-400 bg-blue-500/5 ring-1 ring-blue-400/30'
             : value
-              ? "border-blue-400/40 bg-blue-500/5"
-              : "border-white/10 bg-white/5 hover:border-blue-400/40"
+              ? 'border-blue-400/40 bg-blue-500/5'
+              : 'border-white/10 bg-white/5 hover:border-blue-400/40'
         }`}
       >
         {value ? (
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
               <span className="text-blue-400 text-xs font-black">
                 {value.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">
-                {value.name}
-              </p>
-              <p className="text-[10px] text-white/60 font-mono truncate">
-                {value.nspace}
-              </p>
+              <p className="font-black text-sm truncate text-white">{value.name}</p>
+              <p className="text-[10px] opacity-40 font-mono truncate">{value.nspace}</p>
             </div>
           </div>
         ) : (
-          <span className="text-sm text-white/60 font-bold">{placeholder}</span>
+          <div className="flex items-center gap-2 opacity-40">
+            <svg
+              className="w-4 h-4 flex-shrink-0"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <circle cx="11" cy="11" r="8" strokeWidth="2" />
+              <path d="m21 21-4.35-4.35" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+            <span className="text-sm font-bold">{placeholder}</span>
+          </div>
         )}
         <div className="flex items-center gap-2 flex-shrink-0">
           {value && (
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(null);
-                setQuery("");
-              }}
+              onClick={handleClear}
               className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
-              <span className="text-[10px] text-red-400 font-black">✕</span>
+              <span className="text-[10px] text-red-400 font-black leading-none">✕</span>
             </button>
           )}
           <button
             type="button"
-            onClick={() => {
-              setOpen((o) => !o);
-              setQuery("");
-              setTimeout(() => inputRef.current?.focus(), 50);
-            }}
+            onClick={
+              open
+                ? () => {
+                    setOpen(false);
+                    setQuery('');
+                  }
+                : handleOpen
+            }
             className="w-5 h-5 flex items-center justify-center"
           >
             <svg
-              className={`w-3 h-3 text-white/60 transition-transform ${open ? "rotate-180" : ""}`}
+              className={`w-3 h-3 opacity-40 transition-transform ${open ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -194,26 +215,30 @@ const RegistryDropdown = ({
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            exit={{ opacity: 0, y: 8, scale: 0.97 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-[200] bottom-full mb-2 w-full bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+            style={{
+              position: 'fixed',
+              top: dropPos.top,
+              left: dropPos.left,
+              width: dropPos.width,
+              transform: 'translateY(-100%)',
+              zIndex: 9999,
+            }}
+            className="bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           >
-            <div className="p-3 border-b border-white/[0.05]">
+            <div className="p-3 border-b border-white/5">
               <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
                 <svg
-                  className="w-3.5 h-3.5 text-white/60 flex-shrink-0"
+                  className="w-3.5 h-3.5 opacity-40 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
                 >
                   <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
-                  <path
-                    d="m21 21-4.35-4.35"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
+                  <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round" />
                 </svg>
                 <input
                   ref={inputRef}
@@ -221,52 +246,43 @@ const RegistryDropdown = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Type to search…"
-                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:text-white/60 text-white"
+                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:opacity-30 text-white"
                 />
                 {query && (
                   <button
                     type="button"
-                    onClick={() => setQuery("")}
-                    className="text-white/60 text-[10px]"
+                    onClick={() => setQuery('')}
+                    className="opacity-40 hover:opacity-80"
                   >
-                    ✕
+                    <span className="text-[10px]">✕</span>
                   </button>
                 )}
               </div>
             </div>
-            <div style={{ maxHeight: "160px", overflowY: "auto" }}>
+            <div className="max-h-56 overflow-y-auto">
               {filtered.length === 0 ? (
-                <div className="px-4 py-5 text-center text-xs text-white/60 font-bold">
-                  No services found
+                <div className="px-4 py-6 text-center">
+                  <p className="text-xs opacity-40 font-bold">No wallet services found</p>
                 </div>
               ) : (
                 filtered.map((reg) => (
                   <button
                     key={reg.registryAddress}
                     type="button"
-                    onClick={() => {
-                      onChange(reg);
-                      setOpen(false);
-                      setQuery("");
-                    }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors text-left ${
-                      value?.registryAddress === reg.registryAddress
-                        ? "bg-blue-500/10"
-                        : ""
-                    }`}
+                    onClick={() => handleSelect(reg)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/10' : ''}`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-400 text-xs font-black">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-400 text-sm font-black">
                         {reg.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">
-                        {reg.name}
-                      </p>
-                      <p className="text-[10px] font-mono text-white/60">
-                        {reg.nspace}
-                      </p>
+                      <p className="font-black text-sm text-white">{reg.name}</p>
+                      <p className="text-[10px] font-mono opacity-40">{reg.nspace}</p>
+                      {reg.description && (
+                        <p className="text-[10px] opacity-30 truncate">{reg.description}</p>
+                      )}
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
                       <span className="text-blue-400 text-sm">✓</span>
@@ -285,9 +301,7 @@ const RegistryDropdown = ({
 // ── SubBadge ──────────────────────────────────────────────────────────────────
 const SubBadge = ({ pool }) => {
   const now = new Date();
-  const expiry = pool.subscriptionExpiresAt
-    ? new Date(pool.subscriptionExpiresAt)
-    : null;
+  const expiry = pool.subscriptionExpiresAt ? new Date(pool.subscriptionExpiresAt) : null;
   const active = expiry && expiry > now;
   if (!active)
     return (
@@ -313,11 +327,7 @@ const StatCell = ({ label, value, color }) => (
     <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1 truncate">
       {label}
     </p>
-    <p
-      className="font-black text-xs sm:text-sm truncate"
-      style={{ color }}
-      title={smartFmt(value)}
-    >
+    <p className="font-black text-xs sm:text-sm truncate" style={{ color }} title={smartFmt(value)}>
       {compactFmt(value)}
     </p>
   </div>
@@ -325,14 +335,14 @@ const StatCell = ({ label, value, color }) => (
 
 const SectionTabs = ({ active, onChange }) => (
   <div className="flex gap-1.5">
-    {["liquidity", "rates", "controls"].map((s) => (
+    {['liquidity', 'rates', 'controls'].map((s) => (
       <button
         key={s}
         onClick={() => onChange(s)}
         className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
           active === s
-            ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-            : "bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/80"
+            ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20'
+            : 'bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/80'
         }`}
       >
         {s}
@@ -342,37 +352,30 @@ const SectionTabs = ({ active, onChange }) => (
 );
 
 // ── Pool Manage Panel ─────────────────────────────────────────────────────────
-const L1PoolManagePanel = ({
-  pool,
-  l1Config,
-  wallet,
-  showMsg,
-  onClose,
-  onRefresh,
-}) => {
-  const [activeSection, setActiveSection] = useState("liquidity");
-  const [liqAsset, setLiqAsset] = useState("NGNS");
-  const [liqAmount, setLiqAmount] = useState("");
-  const [liqMode, setLiqMode] = useState("provide");
+const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh }) => {
+  const [activeSection, setActiveSection] = useState('liquidity');
+  const [liqAsset, setLiqAsset] = useState('NGNS');
+  const [liqAmount, setLiqAmount] = useState('');
+  const [liqMode, setLiqMode] = useState('provide');
   const [buyRate, setBuyRate] = useState(toNum(pool.buyRate).toString());
   const [sellRate, setSellRate] = useState(toNum(pool.sellRate).toString());
-  const [minNgn, setMinNgn] = useState("");
-  const [minToken, setMinToken] = useState("");
+  const [minNgn, setMinNgn] = useState('');
+  const [minToken, setMinToken] = useState('');
   const [txLoading, setTxLoading] = useState(false);
-  const [txMsg, setTxMsg] = useState("");
+  const [txMsg, setTxMsg] = useState('');
 
-  const assets = ["NGNS", "CNGN", "USDT", "USDC"];
+  const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
   const resolveToken = (sym) => {
     if (!l1Config) return null;
     switch (sym.toUpperCase()) {
-      case "NGNS":
+      case 'NGNS':
         return l1Config.ngnsTokenAddress;
-      case "CNGN":
+      case 'CNGN':
         return l1Config.cngnContractAddress;
-      case "USDT":
+      case 'USDT':
         return l1Config.usdtContractAddress;
-      case "USDC":
+      case 'USDC':
         return l1Config.usdcContractAddress;
       default:
         return null;
@@ -381,10 +384,10 @@ const L1PoolManagePanel = ({
 
   // Returns raw float — never a formatted string (fixes the parseFloat-on-comma bug)
   const rawBalanceForAsset = (a) => {
-    if (a === "NGNS") return toNum(pool.ngnsLiquidity);
-    if (a === "CNGN") return toNum(pool.cNgnLiquidity);
-    if (a === "USDT") return toNum(pool.usdtLiquidity);
-    if (a === "USDC") return toNum(pool.usdcLiquidity);
+    if (a === 'NGNS') return toNum(pool.ngnsLiquidity);
+    if (a === 'CNGN') return toNum(pool.cNgnLiquidity);
+    if (a === 'USDT') return toNum(pool.usdtLiquidity);
+    if (a === 'USDC') return toNum(pool.usdcLiquidity);
     return 0;
   };
 
@@ -394,22 +397,22 @@ const L1PoolManagePanel = ({
     try {
       await fn();
     } catch (err) {
-      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        showMsg("Transaction cancelled.", "info");
+      if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
+        showMsg('Transaction cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || "Transaction failed", "error");
+        showMsg(err?.reason || err?.message || 'Transaction failed', 'error');
       }
       wallet.bustCache();
     } finally {
       setTxLoading(false);
-      setTxMsg("");
+      setTxMsg('');
     }
   };
 
   const getSigner = () => wallet.getSigner();
 
   const handleProvideLiquidity = () =>
-    withTx("Step 1/2: Approving — confirm in wallet…", async () => {
+    withTx('Step 1/2: Approving — confirm in wallet…', async () => {
       if (!liqAmount || parseFloat(liqAmount) <= 0) return;
       const signer = await getSigner();
       const tokenAddr = resolveToken(liqAsset);
@@ -417,134 +420,87 @@ const L1PoolManagePanel = ({
       const amtWei = ethers.parseUnits(String(liqAmount), 6);
       const poolAddr = ethers.getAddress(pool.poolAddress);
 
-      const token = new ethers.Contract(
-        ethers.getAddress(tokenAddr),
-        ERC20_ABI,
-        signer,
-      );
+      const token = new ethers.Contract(ethers.getAddress(tokenAddr), ERC20_ABI, signer);
       await execTx(token.approve(poolAddr, amtWei, { gasLimit: 60_000 }));
 
-      setTxMsg("Step 2/2: Providing liquidity — confirm in wallet…");
-      const poolContract = new ethers.Contract(
-        poolAddr,
-        POOL_PROVIDE_ABI,
-        signer,
-      );
+      setTxMsg('Step 2/2: Providing liquidity — confirm in wallet…');
+      const poolContract = new ethers.Contract(poolAddr, POOL_PROVIDE_ABI, signer);
       await execTx(
         poolContract.provideLiquidity(ethers.getAddress(tokenAddr), amtWei, {
           gasLimit: 150_000,
-        }),
+        })
       );
 
       showMsg(`${liqAmount} ${liqAsset} added to pool!`);
-      setLiqAmount("");
+      setLiqAmount('');
       onRefresh();
     });
 
   const handleRemoveLiquidity = () =>
-    withTx("Removing — confirm in wallet…", async () => {
+    withTx('Removing — confirm in wallet…', async () => {
       if (!liqAmount || parseFloat(liqAmount) <= 0) return;
       const signer = await getSigner();
       const tokenAddr = resolveToken(liqAsset);
       if (!tokenAddr) throw new Error(`Unknown asset: ${liqAsset}`);
-      const poolC = new ethers.Contract(
-        ethers.getAddress(pool.poolAddress),
-        POOL_ABI,
-        signer,
-      );
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
       await execTx(
         poolC.removeLiquidity(
           ethers.getAddress(tokenAddr),
           ethers.parseUnits(String(liqAmount), 6),
-          { gasLimit: 150_000 },
-        ),
+          { gasLimit: 150_000 }
+        )
       );
       showMsg(`${liqAmount} ${liqAsset} withdrawn!`);
-      setLiqAmount("");
+      setLiqAmount('');
       onRefresh();
     });
 
   const handleUpdateBuyRate = () =>
-    withTx("Updating buy rate — confirm in wallet…", async () => {
+    withTx('Updating buy rate — confirm in wallet…', async () => {
       const signer = await getSigner();
-      const poolC = new ethers.Contract(
-        ethers.getAddress(pool.poolAddress),
-        POOL_ABI,
-        signer,
-      );
-      await execTx(
-        poolC.updateBuyRate(
-          ethers.parseUnits(parseFloat(buyRate).toFixed(6), 6),
-        ),
-      );
-      showMsg("Buy rate updated!");
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      await execTx(poolC.updateBuyRate(ethers.parseUnits(parseFloat(buyRate).toFixed(6), 6)));
+      showMsg('Buy rate updated!');
       onRefresh();
     });
 
   const handleUpdateSellRate = () =>
-    withTx("Updating sell rate — confirm in wallet…", async () => {
+    withTx('Updating sell rate — confirm in wallet…', async () => {
       const signer = await getSigner();
-      const poolC = new ethers.Contract(
-        ethers.getAddress(pool.poolAddress),
-        POOL_ABI,
-        signer,
-      );
-      await execTx(
-        poolC.updateSellRate(
-          ethers.parseUnits(parseFloat(sellRate).toFixed(6), 6),
-        ),
-      );
-      showMsg("Sell rate updated!");
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      await execTx(poolC.updateSellRate(ethers.parseUnits(parseFloat(sellRate).toFixed(6), 6)));
+      showMsg('Sell rate updated!');
       onRefresh();
     });
 
   const handlePause = (pause) =>
-    withTx(
-      `${pause ? "Pausing" : "Unpausing"} — confirm in wallet…`,
-      async () => {
-        const signer = await getSigner();
-        const poolC = new ethers.Contract(
-          ethers.getAddress(pool.poolAddress),
-          POOL_ABI,
-          signer,
-        );
-        await execTx(pause ? poolC.pause() : poolC.unpause());
-        showMsg(pause ? "Pool paused." : "Pool unpaused.");
-        onRefresh();
-      },
-    );
+    withTx(`${pause ? 'Pausing' : 'Unpausing'} — confirm in wallet…`, async () => {
+      const signer = await getSigner();
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      await execTx(pause ? poolC.pause() : poolC.unpause());
+      showMsg(pause ? 'Pool paused.' : 'Pool unpaused.');
+      onRefresh();
+    });
 
   const handleSetMinNgn = () =>
-    withTx("Setting min NGNs — confirm in wallet…", async () => {
+    withTx('Setting min NGNs — confirm in wallet…', async () => {
       if (!minNgn || parseFloat(minNgn) < 0) return;
       const signer = await getSigner();
-      const poolC = new ethers.Contract(
-        ethers.getAddress(pool.poolAddress),
-        POOL_ABI,
-        signer,
-      );
-      await execTx(
-        poolC.setMinimumNgnAmount(ethers.parseUnits(String(minNgn), 6)),
-      );
-      showMsg("Min NGNs updated!");
-      setMinNgn("");
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      await execTx(poolC.setMinimumNgnAmount(ethers.parseUnits(String(minNgn), 6)));
+      showMsg('Min NGNs updated!');
+      setMinNgn('');
       onRefresh();
     });
 
   const handleSetMinToken = () =>
-    withTx("Setting min token — confirm in wallet…", async () => {
+    withTx('Setting min token — confirm in wallet…', async () => {
       if (!minToken || parseFloat(minToken) < 0) return;
       const signer = await getSigner();
-      const poolC = new ethers.Contract(
-        ethers.getAddress(pool.poolAddress),
-        POOL_ABI,
-        signer,
-      );
-      await execTx(
-        poolC.setMinimumTokenAmount(ethers.parseUnits(String(minToken), 6)),
-      );
-      showMsg("Min token updated!");
-      setMinToken("");
+      const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      await execTx(poolC.setMinimumTokenAmount(ethers.parseUnits(String(minToken), 6)));
+      showMsg('Min token updated!');
+      setMinToken('');
       onRefresh();
     });
 
@@ -562,10 +518,10 @@ const L1PoolManagePanel = ({
       />
       <motion.div
         className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[92vh] flex flex-col overflow-hidden"
-        initial={{ y: "100%" }}
+        initial={{ y: '100%' }}
         animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
@@ -579,7 +535,7 @@ const L1PoolManagePanel = ({
                 Manage Pool · ETH CHAIN
               </p>
               <p className="font-black text-lg text-white truncate">
-                {pool.poolName || "Unnamed Pool"}
+                {pool.poolName || 'Unnamed Pool'}
               </p>
               <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
                 {pool.poolAddress}
@@ -598,10 +554,7 @@ const L1PoolManagePanel = ({
               <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
                 NGN Total
               </p>
-              <p
-                className="font-black text-sm text-yellow-400 truncate"
-                title={smartFmt(totalNgn)}
-              >
+              <p className="font-black text-sm text-yellow-400 truncate" title={smartFmt(totalNgn)}>
                 {compactFmt(totalNgn)}
               </p>
             </div>
@@ -609,10 +562,7 @@ const L1PoolManagePanel = ({
               <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
                 USD Total
               </p>
-              <p
-                className="font-black text-sm text-green-400 truncate"
-                title={smartFmt(totalUsd)}
-              >
+              <p className="font-black text-sm text-green-400 truncate" title={smartFmt(totalUsd)}>
                 {compactFmt(totalUsd)}
               </p>
             </div>
@@ -632,26 +582,26 @@ const L1PoolManagePanel = ({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {/* ── LIQUIDITY ── */}
-          {activeSection === "liquidity" && (
+          {activeSection === 'liquidity' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
               <div className="flex gap-2">
-                {["provide", "remove"].map((m) => (
+                {['provide', 'remove'].map((m) => (
                   <button
                     key={m}
                     onClick={() => setLiqMode(m)}
                     className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
                       liqMode === m
-                        ? m === "provide"
-                          ? "bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20"
-                          : "bg-red-500/10 border-red-500/30 text-red-400"
-                        : "border-white/10 bg-white/5 text-white/60 hover:text-white/70"
+                        ? m === 'provide'
+                          ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20'
+                          : 'bg-red-500/10 border-red-500/30 text-red-400'
+                        : 'border-white/10 bg-white/5 text-white/60 hover:text-white/70'
                     }`}
                   >
-                    {m === "provide" ? "↑ Add Liquidity" : "↓ Remove Liquidity"}
+                    {m === 'provide' ? '↑ Add Liquidity' : '↓ Remove Liquidity'}
                   </button>
                 ))}
               </div>
@@ -669,17 +619,15 @@ const L1PoolManagePanel = ({
                         key={a}
                         onClick={() => {
                           setLiqAsset(a);
-                          setLiqAmount("");
+                          setLiqAmount('');
                         }}
                         className={`py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 ${
                           liqAsset === a
-                            ? "bg-blue-500/10 border-blue-500/40 text-blue-400"
-                            : "border-white/[0.06] bg-white/5 text-white/60 hover:text-white/80"
+                            ? 'bg-blue-500/10 border-blue-500/40 text-blue-400'
+                            : 'border-white/[0.06] bg-white/5 text-white/60 hover:text-white/80'
                         }`}
                       >
-                        <span className="text-xs font-black uppercase">
-                          {a}
-                        </span>
+                        <span className="text-xs font-black uppercase">{a}</span>
                         {/* compactFmt on the raw float — never on a formatted string */}
                         <span className="text-[9px] text-white/60 truncate w-full text-center px-1">
                           {compactFmt(raw)}
@@ -695,12 +643,10 @@ const L1PoolManagePanel = ({
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Amount
                   </label>
-                  {liqMode === "remove" && (
+                  {liqMode === 'remove' && (
                     <button
                       type="button"
-                      onClick={() =>
-                        setLiqAmount(String(rawBalanceForAsset(liqAsset)))
-                      }
+                      onClick={() => setLiqAmount(String(rawBalanceForAsset(liqAsset)))}
                       className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
@@ -722,24 +668,20 @@ const L1PoolManagePanel = ({
               </div>
 
               <button
-                onClick={
-                  liqMode === "provide"
-                    ? handleProvideLiquidity
-                    : handleRemoveLiquidity
-                }
+                onClick={liqMode === 'provide' ? handleProvideLiquidity : handleRemoveLiquidity}
                 disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
                 className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
-                  liqMode === "provide"
-                    ? "bg-blue-500 text-white shadow-blue-500/20"
-                    : "bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white"
+                  liqMode === 'provide'
+                    ? 'bg-blue-500 text-white shadow-blue-500/20'
+                    : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'
                 }`}
               >
                 {txLoading && (
                   <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                 )}
                 {txLoading
-                  ? "Processing…"
-                  : liqMode === "provide"
+                  ? 'Processing…'
+                  : liqMode === 'provide'
                     ? `Add ${liqAsset}`
                     : `Remove ${liqAsset}`}
               </button>
@@ -747,7 +689,7 @@ const L1PoolManagePanel = ({
           )}
 
           {/* ── RATES ── */}
-          {activeSection === "rates" && (
+          {activeSection === 'rates' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
@@ -755,23 +697,22 @@ const L1PoolManagePanel = ({
             >
               <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10">
                 <p className="text-[11px] text-white/60 leading-relaxed">
-                  Rates in{" "}
-                  <span className="font-black text-blue-400">NGN per USD</span>.
-                  Each saves as a separate on-chain tx.
+                  Rates in <span className="font-black text-blue-400">NGN per USD</span>. Each saves
+                  as a separate on-chain tx.
                 </p>
               </div>
               {[
                 {
-                  label: "Buy Rate",
-                  color: "green",
+                  label: 'Buy Rate',
+                  color: 'green',
                   current: pool.buyRate,
                   value: buyRate,
                   setValue: setBuyRate,
                   action: handleUpdateBuyRate,
                 },
                 {
-                  label: "Sell Rate",
-                  color: "blue",
+                  label: 'Sell Rate',
+                  color: 'blue',
                   current: pool.sellRate,
                   value: sellRate,
                   setValue: setSellRate,
@@ -787,9 +728,7 @@ const L1PoolManagePanel = ({
                   />
                   <div className="p-5 space-y-3">
                     <div>
-                      <p className={`text-xs font-black text-${color}-400`}>
-                        {label}
-                      </p>
+                      <p className={`text-xs font-black text-${color}-400`}>{label}</p>
                       <p className="text-[10px] text-white/60 mt-0.5">
                         Current: ₦{toNum(current).toLocaleString()}
                       </p>
@@ -811,7 +750,7 @@ const L1PoolManagePanel = ({
                     <button
                       onClick={action}
                       disabled={txLoading || !value}
-                      className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-${color}-500/10 border border-${color}-500/25 text-${color}-400 hover:bg-${color}-500 hover:text-${color === "green" ? "black" : "white"} hover:border-${color}-500`}
+                      className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-${color}-500/10 border border-${color}-500/25 text-${color}-400 hover:bg-${color}-500 hover:text-${color === 'green' ? 'black' : 'white'} hover:border-${color}-500`}
                     >
                       {txLoading && (
                         <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
@@ -825,16 +764,14 @@ const L1PoolManagePanel = ({
           )}
 
           {/* ── CONTROLS ── */}
-          {activeSection === "controls" && (
+          {activeSection === 'controls' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
               className="space-y-4"
             >
               <div className="px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                <p className="text-xs font-black text-yellow-400 mb-0.5">
-                  Emergency Controls
-                </p>
+                <p className="text-xs font-black text-yellow-400 mb-0.5">Emergency Controls</p>
                 <p className="text-[11px] text-white/60 leading-relaxed">
                   Pausing stops all swaps. Confirm each in your wallet.
                 </p>
@@ -857,68 +794,54 @@ const L1PoolManagePanel = ({
               </div>
               {[
                 {
-                  label: "Min NGNs Per Swap",
+                  label: 'Min NGNs Per Swap',
                   current: `${toNum(pool.minNgnAmount).toLocaleString()} NGNs`,
-                  placeholder: "e.g. 1000",
+                  placeholder: 'e.g. 1000',
                   value: minNgn,
                   setValue: setMinNgn,
                   action: handleSetMinNgn,
-                  actionLabel: "Set Min NGNs",
+                  actionLabel: 'Set Min NGNs',
                 },
                 {
-                  label: "Min Stablecoin Per Swap",
+                  label: 'Min Stablecoin Per Swap',
                   current: `$${toNum(pool.minTokenAmount).toLocaleString()} USD`,
-                  placeholder: "e.g. 5",
+                  placeholder: 'e.g. 5',
                   value: minToken,
                   setValue: setMinToken,
                   action: handleSetMinToken,
-                  actionLabel: "Set Min Token",
+                  actionLabel: 'Set Min Token',
                 },
-              ].map(
-                ({
-                  label,
-                  current,
-                  placeholder,
-                  value,
-                  setValue,
-                  action,
-                  actionLabel,
-                }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden"
-                  >
-                    <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-                    <div className="p-5 space-y-3">
-                      <div>
-                        <p className="text-xs font-black text-blue-400">
-                          {label}
-                        </p>
-                        <p className="text-[10px] text-white/60 mt-0.5">
-                          Current: {current}
-                        </p>
-                      </div>
-                      <input
-                        type="number"
-                        placeholder={placeholder}
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                        className={darkInput}
-                      />
-                      <button
-                        onClick={action}
-                        disabled={txLoading || !value}
-                        className="w-full py-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-                      >
-                        {txLoading && (
-                          <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
-                        )}
-                        {actionLabel}
-                      </button>
+              ].map(({ label, current, placeholder, value, setValue, action, actionLabel }) => (
+                <div
+                  key={label}
+                  className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden"
+                >
+                  <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
+                  <div className="p-5 space-y-3">
+                    <div>
+                      <p className="text-xs font-black text-blue-400">{label}</p>
+                      <p className="text-[10px] text-white/60 mt-0.5">Current: {current}</p>
                     </div>
+                    <input
+                      type="number"
+                      placeholder={placeholder}
+                      value={value}
+                      onChange={(e) => setValue(e.target.value)}
+                      className={darkInput}
+                    />
+                    <button
+                      onClick={action}
+                      disabled={txLoading || !value}
+                      className="w-full py-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                      {txLoading && (
+                        <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
+                      )}
+                      {actionLabel}
+                    </button>
                   </div>
-                ),
-              )}
+                </div>
+              ))}
             </motion.div>
           )}
         </div>
@@ -928,14 +851,7 @@ const L1PoolManagePanel = ({
 };
 
 // ── Pool Card ─────────────────────────────────────────────────────────────────
-const L1PoolCard = ({
-  pool,
-  index,
-  onManage,
-  onPublish,
-  onRename,
-  onDelete,
-}) => {
+const L1PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
   // Numeric addition of both NGN tokens, both USD tokens
   const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
   const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity);
@@ -954,52 +870,30 @@ const L1PoolCard = ({
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <p className="font-black text-blue-400 text-base truncate">
-                {pool.poolName || "Unnamed Pool"}
+                {pool.poolName || 'Unnamed Pool'}
               </p>
               <SubBadge pool={pool} />
             </div>
-            <p className="font-mono text-[10px] text-white/60 truncate">
-              {pool.poolAddress}
-            </p>
-            {pool.subscriptionExpiresAt &&
-              new Date(pool.subscriptionExpiresAt) > new Date() && (
-                <p className="text-[9px] text-white/60 mt-0.5">
-                  Expires{" "}
-                  {new Date(pool.subscriptionExpiresAt).toLocaleDateString(
-                    "en-US",
-                    {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    },
-                  )}
-                </p>
-              )}
+            <p className="font-mono text-[10px] text-white/60 truncate">{pool.poolAddress}</p>
+            {pool.subscriptionExpiresAt && new Date(pool.subscriptionExpiresAt) > new Date() && (
+              <p className="text-[9px] text-white/60 mt-0.5">
+                Expires{' '}
+                {new Date(pool.subscriptionExpiresAt).toLocaleDateString('en-US', {
+                  day: 'numeric',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </p>
+            )}
           </div>
         </div>
 
         {/* ── Liquidity stats: 4 cells — NGNs, cNGN, USDT, USDC ── */}
         <div className="grid grid-cols-4 gap-1.5">
-          <StatCell
-            label="NGNs"
-            value={toNum(pool.ngnsLiquidity)}
-            color="#D4AF37"
-          />
-          <StatCell
-            label="cNGN"
-            value={toNum(pool.cNgnLiquidity)}
-            color="#b59030"
-          />
-          <StatCell
-            label="USDT"
-            value={toNum(pool.usdtLiquidity)}
-            color="#22c55e"
-          />
-          <StatCell
-            label="USDC"
-            value={toNum(pool.usdcLiquidity)}
-            color="#3b82f6"
-          />
+          <StatCell label="NGNs" value={toNum(pool.ngnsLiquidity)} color="#D4AF37" />
+          <StatCell label="cNGN" value={toNum(pool.cNgnLiquidity)} color="#b59030" />
+          <StatCell label="USDT" value={toNum(pool.usdtLiquidity)} color="#22c55e" />
+          <StatCell label="USDC" value={toNum(pool.usdcLiquidity)} color="#3b82f6" />
         </div>
 
         {/* Accumulated summary row */}
@@ -1019,10 +913,7 @@ const L1PoolCard = ({
             <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black flex-shrink-0">
               USD Total
             </span>
-            <span
-              className="text-xs font-black text-green-400 truncate"
-              title={smartFmt(totalUsd)}
-            >
+            <span className="text-xs font-black text-green-400 truncate" title={smartFmt(totalUsd)}>
               {compactFmt(totalUsd)}
             </span>
           </div>
@@ -1036,9 +927,7 @@ const L1PoolCard = ({
             </p>
             <p className="font-black text-sm text-green-400">
               ₦{toNum(pool.buyRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
+              <span className="text-[10px] text-white/60 font-normal">/USD</span>
             </p>
           </div>
           <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
@@ -1047,9 +936,7 @@ const L1PoolCard = ({
             </p>
             <p className="font-black text-sm text-blue-400">
               ₦{toNum(pool.sellRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">
-                /USD
-              </span>
+              <span className="text-[10px] text-white/60 font-normal">/USD</span>
             </p>
           </div>
         </div>
@@ -1065,13 +952,13 @@ const L1PoolCard = ({
             onClick={onPublish}
             className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
           >
-            {pool.isPublished ? "Extend" : "Publish"}
+            {pool.isPublished ? 'Extend' : 'Publish'}
           </button>
           <button
             onClick={onRename}
             className="py-2.5 px-3.5 rounded-xl border border-blue-500/25 text-blue-400 font-black text-xs uppercase hover:bg-blue-500/10 transition-all"
           >
-            {pool.poolName ? "✎" : "Name"}
+            {pool.poolName ? '✎' : 'Name'}
           </button>
           <button
             onClick={onDelete}
@@ -1097,10 +984,10 @@ const DeployWalletSection = ({ wallet, showNoWallet, onShowNoWallet }) => {
         </p>
         <button
           onClick={wallet.connect}
-          disabled={wallet.status === "connecting"}
+          disabled={wallet.status === 'connecting'}
           className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {wallet.status === "connecting" ? (
+          {wallet.status === 'connecting' ? (
             <>
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               Connecting…
@@ -1110,9 +997,7 @@ const DeployWalletSection = ({ wallet, showNoWallet, onShowNoWallet }) => {
           )}
         </button>
         {wallet.error && (
-          <p className="text-[11px] text-red-400 font-bold text-center">
-            {wallet.error}
-          </p>
+          <p className="text-[11px] text-red-400 font-bold text-center">{wallet.error}</p>
         )}
         <button
           onClick={onShowNoWallet}
@@ -1131,7 +1016,7 @@ const DeployWalletSection = ({ wallet, showNoWallet, onShowNoWallet }) => {
         {wallet.account.slice(0, 8)}…{wallet.account.slice(-6)}
       </span>
       <span className="text-[9px] font-black uppercase tracking-widest text-white/40">
-        {wallet.walletType || "wallet"}
+        {wallet.walletType || 'wallet'}
       </span>
     </div>
   );
@@ -1161,24 +1046,24 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
 
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [renamingPool, setRenamingPool] = useState(null);
-  const [renameInput, setRenameInput] = useState("");
+  const [renameInput, setRenameInput] = useState('');
   const [renameRegistry, setRenameRegistry] = useState(null);
-  const [renameStep, setRenameStep] = useState("form");
+  const [renameStep, setRenameStep] = useState('form');
   const [renameCheckResult, setRenameCheckResult] = useState(null);
   const [renamePrepared, setRenamePrepared] = useState(null);
-  const [renameError, setRenameError] = useState("");
+  const [renameError, setRenameError] = useState('');
   const [renameChecking, setRenameChecking] = useState(false);
   const [renameLoading, setRenameLoading] = useState(false);
   const [renameFee, setRenameFee] = useState(null);
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
-  const [renamePin, setRenamePin] = useState("");
+  const [renamePin, setRenamePin] = useState('');
   const [renamePinLoading, setRenamePinLoading] = useState(false);
 
   const l1Account = wallet.account;
 
   const l2User = (() => {
     try {
-      return JSON.parse(localStorage.getItem("salva_user") || "{}");
+      return JSON.parse(localStorage.getItem('salva_user') || '{}');
     } catch {
       return {};
     }
@@ -1200,7 +1085,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
         setRefreshing(false);
       }
     },
-    [l1Account],
+    [l1Account]
   );
 
   const fetchSubFees = useCallback(async () => {
@@ -1221,21 +1106,21 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
   }, [fetchMyPools, fetchSubFees, l1Account]);
 
   useEffect(() => {
-    if (wallet.status === "no_wallet") setShowNoWallet(true);
+    if (wallet.status === 'no_wallet') setShowNoWallet(true);
   }, [wallet.status]);
 
   // ── Deploy ────────────────────────────────────────────────────────────────
   const handleDeploy = async () => {
     if (!wallet.isConnected) {
-      showMsg("Connect your wallet first.", "error");
+      showMsg('Connect your wallet first.', 'error');
       return;
     }
     if (wallet.wrongChain) {
-      showMsg("Switch to Ethereum Mainnet first.", "error");
+      showMsg('Switch to Ethereum Mainnet first.', 'error');
       return;
     }
     if (!l1Config?.poolFactoryAddress) {
-      showMsg("Config not loaded yet — please refresh.", "error");
+      showMsg('Config not loaded yet — please refresh.', 'error');
       return;
     }
 
@@ -1245,51 +1130,47 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       const factory = new ethers.Contract(
         ethers.getAddress(l1Config.poolFactoryAddress),
         FACTORY_ABI,
-        signer,
+        signer
       );
 
       const tx = await factory.deployPool({ gasLimit: 500_000 });
-      showMsg("Pool deployment submitted — waiting for confirmation…", "info");
+      showMsg('Pool deployment submitted — waiting for confirmation…', 'info');
 
       const receipt = await waitWithTimeout(tx, 1, 120_000);
-      if (!receipt || receipt.status === 0)
-        throw new Error("Deploy transaction reverted");
+      if (!receipt || receipt.status === 0) throw new Error('Deploy transaction reverted');
 
-      const TOPIC = ethers.id("PoolDeployed(address,address)");
+      const TOPIC = ethers.id('PoolDeployed(address,address)');
       let poolAddress = null;
       for (const log of receipt.logs) {
         try {
           if (!log.topics || log.topics.length < 3) continue;
           if (log.topics[0].toLowerCase() !== TOPIC.toLowerCase()) continue;
-          poolAddress = ethers.getAddress("0x" + log.topics[2].slice(-40));
+          poolAddress = ethers.getAddress('0x' + log.topics[2].slice(-40));
           break;
         } catch {}
       }
 
       if (!poolAddress) {
-        showMsg(
-          "Pool deployed but address not found in event — check Etherscan",
-          "warning",
-        );
+        showMsg('Pool deployed but address not found in event — check Etherscan', 'warning');
         return;
       }
 
       await fetch(`${SALVA_API_URL}/api/pool/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ poolAddress, ownerSafeAddress: l1Account }),
       }).catch(() => {});
 
-      showMsg("Pool deployed! 🎉");
+      showMsg('Pool deployed! 🎉');
       await fetchMyPools();
       setNewlyDeployedPool(poolAddress);
       setShowNamePrompt(true);
     } catch (err) {
       wallet.bustCache();
-      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        showMsg("Deployment cancelled.", "info");
+      if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
+        showMsg('Deployment cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || "Deploy failed", "error");
+        showMsg(err?.reason || err?.message || 'Deploy failed', 'error');
       }
     } finally {
       setDeploying(false);
@@ -1299,19 +1180,14 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
   // ── Subscribe ─────────────────────────────────────────────────────────────
   const handleSubscribe = async () => {
     if (!wallet.isConnected) {
-      showMsg("Connect your wallet first.", "error");
+      showMsg('Connect your wallet first.', 'error');
       return;
     }
     if (wallet.wrongChain) {
-      showMsg("Switch to Ethereum Mainnet first.", "error");
+      showMsg('Switch to Ethereum Mainnet first.', 'error');
       return;
     }
-    if (
-      !selectedPool ||
-      !l1Config?.ngnsTokenAddress ||
-      !l1Config?.treasuryAddress
-    )
-      return;
+    if (!selectedPool || !l1Config?.ngnsTokenAddress || !l1Config?.treasuryAddress) return;
 
     setSubscribing(true);
     try {
@@ -1323,30 +1199,25 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       const ngnToken = new ethers.Contract(
         ethers.getAddress(l1Config.ngnsTokenAddress),
         ERC20_ABI,
-        signer,
+        signer
       );
 
       const bal = await ngnToken.balanceOf(ethers.getAddress(l1Account));
       if (bal < totalWei) {
-        showMsg(
-          `Insufficient NGNs. You need ${total.toLocaleString()} NGNs.`,
-          "error",
-        );
+        showMsg(`Insufficient NGNs. You need ${total.toLocaleString()} NGNs.`, 'error');
         return;
       }
 
       const { txHash } = await execTx(
-        ngnToken.transfer(
-          ethers.getAddress(l1Config.treasuryAddress),
-          totalWei,
-          { gasLimit: 100_000 },
-        ),
-        120_000,
+        ngnToken.transfer(ethers.getAddress(l1Config.treasuryAddress), totalWei, {
+          gasLimit: 100_000,
+        }),
+        120_000
       );
 
       await fetch(`${SALVA_API_URL}/api/pool/subscribe-direct`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: selectedPool.poolAddress,
           ownerSafeAddress: l1Account,
@@ -1359,10 +1230,10 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       await fetchMyPools();
     } catch (err) {
       wallet.bustCache();
-      if (err.code === 4001 || err.code === "ACTION_REJECTED") {
-        showMsg("Subscription cancelled.", "info");
+      if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
+        showMsg('Subscription cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || "Subscription failed", "error");
+        showMsg(err?.reason || err?.message || 'Subscription failed', 'error');
       }
     } finally {
       setSubscribing(false);
@@ -1377,23 +1248,23 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
     setDeleting(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/delete-direct`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: deletingPool.poolAddress,
           ownerSafeAddress: l1Account,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Delete failed");
+      if (!res.ok) throw new Error(data.message || 'Delete failed');
       showMsg(
         deletingPool.poolName
           ? `Pool deleted & "${deletingPool.poolName}" unlinked.`
-          : "Pool removed.",
+          : 'Pool removed.'
       );
       await fetchMyPools();
     } catch (err) {
-      showMsg(err?.message || "Delete failed", "error");
+      showMsg(err?.message || 'Delete failed', 'error');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1403,25 +1274,25 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
 
   // ── Rename helpers ────────────────────────────────────────────────────────
   const resetRenameModal = () => {
-    setRenameInput("");
+    setRenameInput('');
     setRenameRegistry(null);
-    setRenameStep("form");
+    setRenameStep('form');
     setRenameCheckResult(null);
     setRenamePrepared(null);
-    setRenameError("");
+    setRenameError('');
     setRenameFee(null);
     setRenameFeeLoading(false);
   };
 
   const handleRenameCheck = async () => {
     if (!renameInput || !renameRegistry || !renamingPool) return;
-    setRenameError("");
+    setRenameError('');
     setRenameChecking(true);
     setRenameCheckResult(null);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/check-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: renameInput,
           registryAddress: renameRegistry.registryAddress,
@@ -1429,15 +1300,15 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setRenameError(data.message || "Check failed");
+        setRenameError(data.message || 'Check failed');
         return;
       }
       if (data.reserved) {
-        setRenameError("This name is reserved. Choose another.");
+        setRenameError('This name is reserved. Choose another.');
         return;
       }
       if (!data.available) {
-        setRenameError("Name already taken. Try another.");
+        setRenameError('Name already taken. Try another.');
         return;
       }
       setRenameCheckResult(data);
@@ -1452,9 +1323,9 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       } finally {
         setRenameFeeLoading(false);
       }
-      setRenameStep("confirm");
+      setRenameStep('confirm');
     } catch {
-      setRenameError("Network error. Try again.");
+      setRenameError('Network error. Try again.');
     } finally {
       setRenameChecking(false);
     }
@@ -1465,8 +1336,8 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
     setRenameLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: l2User.safeAddress,
           name: renameInput,
@@ -1476,24 +1347,22 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       });
       const data = await res.json();
       if (!res.ok) {
-        setRenameError(data.message || "Preparation failed");
-        setRenameStep("confirm");
+        setRenameError(data.message || 'Preparation failed');
+        setRenameStep('confirm');
         return;
       }
       if (data.reserved) {
-        setRenameError("Name is reserved.");
+        setRenameError('Name is reserved.');
         return;
       }
       if (data.lowBalance) {
-        setRenameError(
-          data.message || "Insufficient NGNs for registration fee.",
-        );
+        setRenameError(data.message || 'Insufficient NGNs for registration fee.');
         return;
       }
       setRenamePrepared(data);
-      setRenameStep("pin");
+      setRenameStep('pin');
     } catch {
-      setRenameError("Network error during preparation.");
+      setRenameError('Network error during preparation.');
     } finally {
       setRenameLoading(false);
     }
@@ -1504,36 +1373,33 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
     setRenameLoading(true);
     try {
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: l2User.email, pin }),
       });
       const pinData = await pinRes.json();
       if (!pinRes.ok) {
-        setRenameError(pinData.message || "Invalid PIN");
+        setRenameError(pinData.message || 'Invalid PIN');
         setRenameLoading(false);
         return;
       }
 
-      setRenameStep("renaming");
+      setRenameStep('renaming');
       setShowRenameModal(false);
 
       if (renamingPool.poolName) {
-        const unlinkRes = await fetch(
-          `${SALVA_API_URL}/api/alias/unlink-name`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              safeAddress: l2User.safeAddress,
-              weldedName: renamingPool.poolName.trim(),
-              registryAddress: renamePrepared.registryAddress,
-              userPrivateKey: pinData.privateKey,
-            }),
-          },
-        );
+        const unlinkRes = await fetch(`${SALVA_API_URL}/api/alias/unlink-name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            safeAddress: l2User.safeAddress,
+            weldedName: renamingPool.poolName.trim(),
+            registryAddress: renamePrepared.registryAddress,
+            userPrivateKey: pinData.privateKey,
+          }),
+        });
         if (!unlinkRes.ok) {
-          showMsg("Failed to unlink old name", "error");
+          showMsg('Failed to unlink old name', 'error');
           resetRenameModal();
           setRenameLoading(false);
           return;
@@ -1541,8 +1407,8 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       }
 
       const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           safeAddress: l2User.safeAddress,
           ...renamePrepared,
@@ -1550,15 +1416,15 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
         }),
       });
       if (!execRes.ok) {
-        showMsg("Failed to link new name", "error");
+        showMsg('Failed to link new name', 'error');
         resetRenameModal();
         setRenameLoading(false);
         return;
       }
 
       await fetch(`${SALVA_API_URL}/api/pool/l1/set-name`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           poolAddress: renamingPool.poolAddress,
           ownerSafeAddress: l1Account,
@@ -1569,7 +1435,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       showMsg(`Pool named "${renamePrepared.weldedName}"! 🎉`);
       await fetchMyPools();
     } catch {
-      showMsg("Rename failed", "error");
+      showMsg('Rename failed', 'error');
     } finally {
       resetRenameModal();
       setRenamingPool(null);
@@ -1581,28 +1447,24 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
     if (renamePin.length !== 4) return;
     setRenamePinLoading(true);
     await handleRenameExecute(renamePin);
-    setRenamePin("");
+    setRenamePin('');
     setRenamePinLoading(false);
   };
 
   const openRenameModal = (pool) => {
     setRenamingPool(pool);
-    setRenameInput("");
+    setRenameInput('');
     setRenameRegistry(registries.length === 1 ? registries[0] : null);
-    setRenameStep("form");
+    setRenameStep('form');
     setRenameCheckResult(null);
     setRenamePrepared(null);
-    setRenameError("");
-    setRenamePin("");
+    setRenameError('');
+    setRenamePin('');
     setShowRenameModal(true);
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-5"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -1610,9 +1472,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
             <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
               Salva V3 · ETH Chain
             </p>
-            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">
-              My Pools
-            </h2>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">My Pools</h2>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <a
@@ -1637,18 +1497,13 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
             </button>
             <button
               onClick={handleDeploy}
-              disabled={
-                deploying ||
-                !wallet.isConnected ||
-                wallet.wrongChain ||
-                configLoading
-              }
+              disabled={deploying || !wallet.isConnected || wallet.wrongChain || configLoading}
               className="flex items-center gap-1.5 px-3.5 py-2.5 bg-blue-500 text-white font-black text-[11px] uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20 flex-shrink-0"
             >
               {deploying && (
                 <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
-              {deploying ? "Deploying…" : "+ Deploy"}
+              {deploying ? 'Deploying…' : '+ Deploy'}
             </button>
           </div>
         </div>
@@ -1657,36 +1512,28 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       {wallet.isConnected && wallet.wrongChain && (
         <SwitchChainBanner
           onSwitch={wallet.switchChain}
-          chainName={
-            process.env.NODE_ENV === "production"
-              ? "Ethereum Mainnet"
-              : "Sepolia Testnet"
-          }
+          chainName={process.env.NODE_ENV === 'production' ? 'Ethereum Mainnet' : 'Sepolia Testnet'}
         />
       )}
-      
+
       {/* Info */}
       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-xs font-black text-blue-400 mb-1">
-          How it works on ETH CHAIN
-        </p>
+        <p className="text-xs font-black text-blue-400 mb-1">How it works on ETH CHAIN</p>
         <p className="text-[11px] text-white/60 leading-relaxed">
-          Deploy your pool directly from your wallet. Add liquidity, set rates,
-          then publish it. A subscription of{" "}
+          Deploy your pool directly from your wallet. Add liquidity, set rates, then publish it. A
+          subscription of{' '}
           <span className="font-black text-blue-400">
-            {subFees?.monthly?.toLocaleString() || "5,000"} NGN/month
-          </span>{" "}
-          keeps it visible. Your MetaMask wallet signs pool txs. Naming uses
-          your Salva Wallet via relay.
+            {subFees?.monthly?.toLocaleString() || '5,000'} NGN/month
+          </span>{' '}
+          keeps it visible. Your MetaMask wallet signs pool txs. Naming uses your Salva Wallet via
+          relay.
         </p>
       </div>
 
       {/* Pool list */}
       {!wallet.isConnected ? (
         <div className="py-16 rounded-3xl border border-dashed border-white/[0.06] text-center">
-          <p className="font-black text-white/40 text-sm">
-            Connect your wallet to see your pools
-          </p>
+          <p className="font-black text-white/40 text-sm">Connect your wallet to see your pools</p>
         </div>
       ) : loading ? (
         <div className="flex justify-center py-20">
@@ -1739,12 +1586,10 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
             onClose={() => setManagingPool(null)}
             onRefresh={async () => {
               await fetchMyPools(true);
-              const res = await fetch(
-                `${SALVA_API_URL}/api/pool/l1/my/${l1Account}`,
-              );
+              const res = await fetch(`${SALVA_API_URL}/api/pool/l1/my/${l1Account}`);
               const data = await res.json();
               const fresh = (data.pools || []).find(
-                (p) => p.poolAddress === managingPool.poolAddress,
+                (p) => p.poolAddress === managingPool.poolAddress
               );
               if (fresh) setManagingPool(fresh);
             }}
@@ -1768,7 +1613,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
@@ -1776,12 +1621,10 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                 <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
                   Marketplace · ETH CHAIN
                 </p>
-                <h3 className="text-xl font-black mb-1 text-white">
-                  Publish Pool
-                </h3>
+                <h3 className="text-xl font-black mb-1 text-white">Publish Pool</h3>
                 <p className="text-xs text-white/60 mb-5 leading-relaxed">
-                  Your wallet transfers NGNs to treasury. Confirm in MetaMask.
-                  {selectedPool.isPublished && " Remaining time is preserved."}
+                  List your pool in the market place, Confirm in MetaMask.
+                  {selectedPool.isPublished && ' Remaining time is preserved.'}
                 </p>
                 <div className="space-y-2 mb-5">
                   {subFees?.tiers?.map((tier) => (
@@ -1790,15 +1633,13 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                       onClick={() => setSubTier(tier.months)}
                       className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${
                         subTier === tier.months
-                          ? "border-blue-500 bg-blue-500/10"
-                          : "border-white/10 bg-white/5 hover:border-blue-500/30"
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-blue-500/30'
                       }`}
                     >
-                      <span className="font-black text-sm text-white">
-                        {tier.label}
-                      </span>
+                      <span className="font-black text-sm text-white">{tier.label}</span>
                       <span
-                        className={`font-black text-sm ${subTier === tier.months ? "text-blue-400" : "text-white/60"}`}
+                        className={`font-black text-sm ${subTier === tier.months ? 'text-blue-400' : 'text-white/60'}`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
@@ -1820,7 +1661,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                     {subscribing && (
                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    {subscribing ? "Subscribing…" : "Subscribe"}
+                    {subscribing ? 'Subscribing…' : 'Subscribe'}
                   </button>
                 </div>
               </div>
@@ -1845,7 +1686,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
@@ -1853,11 +1694,9 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                 <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🏷️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">
-                  Name Your Pool?
-                </h3>
+                <h3 className="text-xl font-black mb-2 text-white">Name Your Pool?</h3>
                 <p className="text-xs text-white/60 mb-2 leading-relaxed">
-                  Give it a human-readable identity like{" "}
+                  Give it a human-readable identity like{' '}
                   <span className="text-blue-400 font-black">mypool@salva</span>
                 </p>
                 <p className="font-mono text-[10px] text-white/60 mb-6 break-all">
@@ -1874,9 +1713,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                     onClick={() => {
                       setShowNamePrompt(false);
                       const newPool = pools.find(
-                        (p) =>
-                          p.poolAddress.toLowerCase() ===
-                          newlyDeployedPool?.toLowerCase(),
+                        (p) => p.poolAddress.toLowerCase() === newlyDeployedPool?.toLowerCase()
                       ) || { poolAddress: newlyDeployedPool, poolName: null };
                       openRenameModal(newPool);
                     }}
@@ -1907,7 +1744,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
               initial={{ opacity: 0, scale: 0.92, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
@@ -1915,9 +1752,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                 <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">
-                  Remove Pool?
-                </h3>
+                <h3 className="text-xl font-black mb-2 text-white">Remove Pool?</h3>
                 <p className="text-xs text-white/60 mb-4 leading-relaxed">
                   Removes from the Salva registry. Contract stays on-chain.
                 </p>
@@ -1936,7 +1771,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                     {deleting && (
                       <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
-                    {deleting ? "Removing…" : "Yes, Remove"}
+                    {deleting ? 'Removing…' : 'Yes, Remove'}
                   </button>
                 </div>
               </div>
@@ -1961,10 +1796,10 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
             />
             <motion.div
               className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
-              initial={{ y: "100%" }}
+              initial={{ y: '100%' }}
               animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
@@ -1975,7 +1810,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                     Salva NS · BASE CHAIN
                   </p>
                   <h3 className="text-xl font-black text-white">
-                    {renamingPool.poolName ? "Rename Pool" : "Name Pool"}
+                    {renamingPool.poolName ? 'Rename Pool' : 'Name Pool'}
                   </h3>
                   <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
                     {renamingPool.poolAddress}
@@ -1992,17 +1827,15 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                 </button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="flex-1 overflow-y-auto overflow-x-visible p-6 space-y-5">
                 {!l2User?.email && (
                   <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-                    <p className="text-xs font-black text-yellow-400 mb-1">
-                      Salva Wallet Required
-                    </p>
+                    <p className="text-xs font-black text-yellow-400 mb-1">Salva Wallet Required</p>
                     <p className="text-[11px] text-white/60 leading-relaxed">
-                      Naming uses your Salva wallet via relay. Please{" "}
+                      Naming uses your Salva wallet via relay. Please{' '}
                       <a href="/login" className="text-yellow-400 underline">
                         log in to your Salva Wallet (Base)
-                      </a>{" "}
+                      </a>{' '}
                       first.
                     </p>
                   </div>
@@ -2021,7 +1854,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                   </div>
                 )}
 
-                {renameStep === "form" && (
+                {renameStep === 'form' && (
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2036,12 +1869,8 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         placeholder="poolname"
                         value={renameInput}
                         onChange={(e) => {
-                          setRenameInput(
-                            e.target.value
-                              .toLowerCase()
-                              .replace(/[^a-z2-9_]/g, ""),
-                          );
-                          setRenameError("");
+                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                          setRenameError('');
                         }}
                         maxLength={32}
                         className={darkInput}
@@ -2053,7 +1882,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         </p>
                       )}
                     </div>
-                    <div>
+                    <div className="pb-48">
                       <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                         Wallet Service
                       </label>
@@ -2062,37 +1891,30 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         value={renameRegistry}
                         onChange={(r) => {
                           setRenameRegistry(r);
-                          setRenameError("");
+                          setRenameError('');
                         }}
                       />
                     </div>
                     {renameError && (
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-xs">⚠</span>
-                        <p className="text-xs text-red-400 font-bold">
-                          {renameError}
-                        </p>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
                     <button
                       onClick={handleRenameCheck}
-                      disabled={
-                        renameChecking ||
-                        !renameInput ||
-                        !renameRegistry ||
-                        !l2User?.email
-                      }
+                      disabled={renameChecking || !renameInput || !renameRegistry || !l2User?.email}
                       className="w-full py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
                     >
                       {renameChecking && (
                         <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       )}
-                      {renameChecking ? "Checking…" : "Check Availability"}
+                      {renameChecking ? 'Checking…' : 'Check Availability'}
                     </button>
                   </motion.div>
                 )}
 
-                {renameStep === "confirm" && renameCheckResult && (
+                {renameStep === 'confirm' && renameCheckResult && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2119,28 +1941,24 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                           Registration Fee
                         </p>
                         <p className="font-black text-white text-sm">
-                          {renameFee?.toLocaleString()}{" "}
+                          {renameFee?.toLocaleString()}{' '}
                           <span className="text-blue-400 text-xs">NGNs</span>
                         </p>
                       </div>
                     ) : renameFee === 0 ? (
                       <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-                        <p className="text-xs font-black text-green-400">
-                          ✦ Free Registration
-                        </p>
+                        <p className="text-xs font-black text-green-400">✦ Free Registration</p>
                       </div>
                     ) : null}
                     {renameError && (
                       <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-xs">⚠</span>
-                        <p className="text-xs text-red-400 font-bold">
-                          {renameError}
-                        </p>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
                     <div className="flex gap-3 pt-1">
                       <button
-                        onClick={() => setRenameStep("form")}
+                        onClick={() => setRenameStep('form')}
                         className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white hover:bg-white/5 transition-all"
                       >
                         Back
@@ -2153,13 +1971,13 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         {renameLoading && (
                           <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         )}
-                        {renameLoading ? "Preparing…" : "Confirm & Enter PIN"}
+                        {renameLoading ? 'Preparing…' : 'Confirm & Enter PIN'}
                       </button>
                     </div>
                   </motion.div>
                 )}
 
-                {renameStep === "pin" && (
+                {renameStep === 'pin' && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -2169,12 +1987,9 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                       <span className="text-xl">🔐</span>
                     </div>
                     <div>
-                      <p className="font-black text-white text-lg">
-                        Salva Wallet PIN
-                      </p>
+                      <p className="font-black text-white text-lg">Salva Wallet PIN</p>
                       <p className="text-[11px] text-white/60 mt-1">
-                        Authorise the on-chain name link via your Base Chain
-                        Wallet
+                        Authorise the on-chain name link via your Base Chain Wallet
                       </p>
                     </div>
                     <input
@@ -2183,16 +1998,14 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                       pattern="\d{4}"
                       maxLength="4"
                       value={renamePin}
-                      onChange={(e) =>
-                        setRenamePin(e.target.value.replace(/\D/g, ""))
-                      }
+                      onChange={(e) => setRenamePin(e.target.value.replace(/\D/g, ''))}
                       placeholder="••••"
                       autoFocus
                       className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
                     />
                     <div className="flex gap-3">
                       <button
-                        onClick={() => setRenameStep("confirm")}
+                        onClick={() => setRenameStep('confirm')}
                         disabled={renamePinLoading}
                         className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
                       >
@@ -2206,13 +2019,13 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         {renamePinLoading && (
                           <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         )}
-                        {renamePinLoading ? "Signing…" : "Confirm"}
+                        {renamePinLoading ? 'Signing…' : 'Confirm'}
                       </button>
                     </div>
                   </motion.div>
                 )}
 
-                {renameStep === "renaming" && (
+                {renameStep === 'renaming' && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
@@ -2222,9 +2035,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                       <div className="absolute inset-0 rounded-full border-2 border-blue-400/20" />
                       <div className="absolute inset-0 rounded-full border-2 border-t-blue-400 animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <span className="text-blue-400 text-sm font-black">
-                          ₦
-                        </span>
+                        <span className="text-blue-400 text-sm font-black">₦</span>
                       </div>
                     </div>
                     <p className="font-black text-white">Naming on-chain…</p>

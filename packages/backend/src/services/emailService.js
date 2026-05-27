@@ -1,11 +1,11 @@
 // Salva-Digital-Tech/packages/backend/src/services/emailService.js
-const { Resend } = require("resend");
+const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 const formatAmount = (amount) => {
   const parsed = parseFloat(amount);
-  if (isNaN(parsed)) return "0.00";
-  return parsed.toLocaleString("en-US", {
+  if (isNaN(parsed)) return '0.00';
+  return parsed.toLocaleString('en-US', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 6,
   });
@@ -15,7 +15,7 @@ const formatAmount = (amount) => {
 // BASE TEMPLATE
 // Wraps every email in the Salva shell — dark/light adaptive via CSS media query.
 // ─────────────────────────────────────────────────────────────────────────────
-function baseTemplate({ preheader = "", body = "", footerNote = "" }) {
+function baseTemplate({ preheader = '', body = '', footerNote = '' }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -267,7 +267,7 @@ function baseTemplate({ preheader = "", body = "", footerNote = "" }) {
   </style>
 </head>
 <body>
-  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preheader}</div>` : ""}
+  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">${preheader}</div>` : ''}
   <div class="wrapper">
     <div class="card">
       <!-- Header -->
@@ -285,7 +285,7 @@ function baseTemplate({ preheader = "", body = "", footerNote = "" }) {
 
       <!-- Footer -->
       <div class="footer">
-        <div class="footer-note">${footerNote || "Questions? Our support team is here for you."}</div>
+        <div class="footer-note">${footerNote || 'Questions? Our support team is here for you.'}</div>
         <a href="mailto:support@salva-nexus.org" class="footer-link">Contact Support</a>
         <div class="footer-brand">© SALVA · salva-nexus.org</div>
       </div>
@@ -329,15 +329,15 @@ async function sendWelcomeEmail(userEmail, userName) {
 
   try {
     await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
+      from: 'Salva <no-reply@salva-nexus.org>',
       to: userEmail,
-      subject: "Welcome to Salva — Your wallet is ready",
+      subject: 'Welcome to Salva — Your wallet is ready',
       html: baseTemplate({ preheader: `Welcome ${userName}, your Salva wallet is live.`, body }),
       text,
     });
     console.log(`📧 Welcome email sent to: ${userEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send welcome email:", error.message);
+    console.error('❌ Failed to send welcome email:', error.message);
   }
 }
 
@@ -350,21 +350,23 @@ async function sendTransactionEmailToSender(
   recipientIdentifier,
   amount,
   status,
-  coin = "NGN",
+  coin = 'NGN'
 ) {
-  const coinLabel = coin === "NGN" ? "NGNs" : coin;
-  const isSuccess = status === "successful";
-  const bannerClass = isSuccess ? "banner-success" : "banner-error";
-  const bannerText  = isSuccess ? "✓ Payment Sent" : "✕ Payment Failed";
-  const amountColor = isSuccess ? "data-value-green" : "data-value-red";
+  const coinLabel = coin === 'NGN' ? 'NGNs' : coin;
+  const isSuccess = status === 'successful';
+  const bannerClass = isSuccess ? 'banner-success' : 'banner-error';
+  const bannerText = isSuccess ? '✓ Payment Sent' : '✕ Payment Failed';
+  const amountColor = isSuccess ? 'data-value-green' : 'data-value-red';
 
   const body = `
     <div class="banner ${bannerClass}">${bannerText}</div>
     <div class="body">
       <div class="greeting">Hi ${senderName},</div>
-      <p class="subtext">${isSuccess
-        ? "Your transfer has been confirmed on-chain and is now complete."
-        : "We couldn't process this transfer. Please check your balance and try again."}</p>
+      <p class="subtext">${
+        isSuccess
+          ? 'Your transfer has been confirmed on-chain and is now complete.'
+          : "We couldn't process this transfer. Please check your balance and try again."
+      }</p>
 
       <div class="data-block">
         <div class="data-row">
@@ -377,34 +379,41 @@ async function sendTransactionEmailToSender(
         </div>
         <div class="data-row">
           <div class="data-label">Network</div>
-          <div class="data-value">Base · ${process.env.NODE_ENV === "production" ? "Mainnet" : "Testnet"}</div>
+          <div class="data-value">Base · ${process.env.NODE_ENV === 'production' ? 'Mainnet' : 'Testnet'}</div>
         </div>
       </div>
 
-      ${isSuccess
-        ? `<div class="alert alert-green">
+      ${
+        isSuccess
+          ? `<div class="alert alert-green">
              <div class="alert-title">✓ Confirmed on-chain</div>
              <div class="alert-body">This transaction is permanently recorded on the Base blockchain and cannot be reversed.</div>
            </div>`
-        : `<div class="alert alert-red">
+          : `<div class="alert alert-red">
              <div class="alert-title">Transaction failed</div>
              <div class="alert-body">Ensure you have sufficient ${coinLabel} balance and your account is not locked, then try again.</div>
-           </div>`}
+           </div>`
+      }
     </div>`;
 
-  const text = `Hi ${senderName},\n\n${isSuccess ? "Transfer confirmed." : "Transfer failed."}\n\nAmount: ${formatAmount(amount)} ${coinLabel}\nRecipient: ${recipientIdentifier}\n\n${isSuccess ? "Confirmed on Base blockchain." : "Please check your balance and try again."}\n\n— Salva\nsalva-nexus.org`;
+  const text = `Hi ${senderName},\n\n${isSuccess ? 'Transfer confirmed.' : 'Transfer failed.'}\n\nAmount: ${formatAmount(amount)} ${coinLabel}\nRecipient: ${recipientIdentifier}\n\n${isSuccess ? 'Confirmed on Base blockchain.' : 'Please check your balance and try again.'}\n\n— Salva\nsalva-nexus.org`;
 
   try {
     await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
+      from: 'Salva <no-reply@salva-nexus.org>',
       to: senderEmail,
-      subject: isSuccess ? `Transfer confirmed — ${formatAmount(amount)} ${coinLabel} sent` : "Transfer failed — Salva",
-      html: baseTemplate({ preheader: `Your transfer of ${formatAmount(amount)} ${coinLabel} is ${isSuccess ? "confirmed" : "failed"}.`, body }),
+      subject: isSuccess
+        ? `Transfer confirmed — ${formatAmount(amount)} ${coinLabel} sent`
+        : 'Transfer failed — Salva',
+      html: baseTemplate({
+        preheader: `Your transfer of ${formatAmount(amount)} ${coinLabel} is ${isSuccess ? 'confirmed' : 'failed'}.`,
+        body,
+      }),
       text,
     });
     console.log(`📧 Sender email sent to: ${senderEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send sender email:", error.message);
+    console.error('❌ Failed to send sender email:', error.message);
   }
 }
 
@@ -416,9 +425,9 @@ async function sendTransactionEmailToReceiver(
   receiverName,
   senderIdentifier,
   amount,
-  coin = "NGN",
+  coin = 'NGN'
 ) {
-  const coinLabel = coin === "NGN" ? "NGNs" : coin;
+  const coinLabel = coin === 'NGN' ? 'NGNs' : coin;
   const body = `
     <div class="banner banner-success">↓ Payment Received</div>
     <div class="body">
@@ -436,7 +445,7 @@ async function sendTransactionEmailToReceiver(
         </div>
         <div class="data-row">
           <div class="data-label">Network</div>
-          <div class="data-value">Base · ${process.env.NODE_ENV === "production" ? "Mainnet" : "Testnet"}</div>
+          <div class="data-value">Base · ${process.env.NODE_ENV === 'production' ? 'Mainnet' : 'Testnet'}</div>
         </div>
       </div>
 
@@ -450,28 +459,26 @@ async function sendTransactionEmailToReceiver(
 
   try {
     await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
+      from: 'Salva <no-reply@salva-nexus.org>',
       to: receiverEmail,
       subject: `You received ${formatAmount(amount)} ${coinLabel} — Salva`,
-      html: baseTemplate({ preheader: `${formatAmount(amount)} ${coinLabel} landed in your wallet.`, body }),
+      html: baseTemplate({
+        preheader: `${formatAmount(amount)} ${coinLabel} landed in your wallet.`,
+        body,
+      }),
       text,
     });
     console.log(`📧 Receiver email sent to: ${receiverEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send receiver email:", error.message);
+    console.error('❌ Failed to send receiver email:', error.message);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SECURITY CHANGE EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendSecurityChangeEmail(
-  userEmail,
-  userName,
-  changeType,
-  accountNumber,
-) {
-  const labels = { email: "Email Address", password: "Password", pin: "Transaction PIN" };
+async function sendSecurityChangeEmail(userEmail, userName, changeType, accountNumber) {
+  const labels = { email: 'Email Address', password: 'Password', pin: 'Transaction PIN' };
   const changeLabel = labels[changeType] || changeType;
 
   const body = `
@@ -505,7 +512,7 @@ async function sendSecurityChangeEmail(
 
   try {
     await resend.emails.send({
-      from: "Salva Security <no-reply@salva-nexus.org>",
+      from: 'Salva Security <no-reply@salva-nexus.org>',
       to: userEmail,
       subject: `Security alert: ${changeLabel} changed — Salva`,
       html: baseTemplate({
@@ -517,7 +524,7 @@ async function sendSecurityChangeEmail(
     });
     console.log(`📧 Security alert sent to: ${userEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send security email:", error.message);
+    console.error('❌ Failed to send security email:', error.message);
   }
 }
 
@@ -552,38 +559,33 @@ async function sendEmailChangeConfirmation(newEmail, userName, accountNumber) {
 
   try {
     await resend.emails.send({
-      from: "Salva <no-reply@salva-nexus.org>",
+      from: 'Salva <no-reply@salva-nexus.org>',
       to: newEmail,
-      subject: "Email updated — Salva",
-      html: baseTemplate({ preheader: "Your Salva email address has been updated.", body }),
+      subject: 'Email updated — Salva',
+      html: baseTemplate({ preheader: 'Your Salva email address has been updated.', body }),
       text,
     });
     console.log(`📧 Email change confirmation sent to: ${newEmail}`);
   } catch (error) {
-    console.error("❌ Failed to send email change confirmation:", error.message);
+    console.error('❌ Failed to send email change confirmation:', error.message);
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VALIDATOR PROPOSAL EMAIL
 // ─────────────────────────────────────────────────────────────────────────────
-async function sendValidatorProposalEmail(
-  validatorEmail,
-  validatorName,
-  subject,
-  payload,
-) {
-  let detailsBlock = "";
-  let preheaderText = "";
-  let detailsText = "";
+async function sendValidatorProposalEmail(validatorEmail, validatorName, subject, payload) {
+  let detailsBlock = '';
+  let preheaderText = '';
+  let detailsText = '';
 
-  if (payload.type === "registry") {
+  if (payload.type === 'registry') {
     const walletBadge = payload.isWallet
       ? `<span class="badge badge-blue">Crypto Wallet</span>`
       : `<span class="badge" style="background:var(--bg-pill);border-color:var(--border);color:var(--text-muted);">Non-Wallet Registry</span>`;
 
     preheaderText = `New registry proposal: ${payload.registryName || payload.nspace}`;
-    detailsText   = `Registry: ${payload.registryName || payload.nspace}\nNamespace: ${payload.nspace}\nAddress: ${payload.registry}\nType: ${payload.isWallet ? "Crypto Wallet" : "Non-Wallet Registry"}`;
+    detailsText = `Registry: ${payload.registryName || payload.nspace}\nNamespace: ${payload.nspace}\nAddress: ${payload.registry}\nType: ${payload.isWallet ? 'Crypto Wallet' : 'Non-Wallet Registry'}`;
 
     detailsBlock = `
       <div class="data-block">
@@ -604,14 +606,13 @@ async function sendValidatorProposalEmail(
           <div class="data-value data-value-mono">${payload.registry}</div>
         </div>
       </div>`;
-
-  } else if (payload.type === "validator") {
-    const isAdd      = payload.action;
-    const badgeClass = isAdd ? "badge-green" : "badge-red";
-    const actionText = isAdd ? "Add Validator" : "Remove Validator";
+  } else if (payload.type === 'validator') {
+    const isAdd = payload.action;
+    const badgeClass = isAdd ? 'badge-green' : 'badge-red';
+    const actionText = isAdd ? 'Add Validator' : 'Remove Validator';
 
     preheaderText = `Validator proposal: ${actionText} — ${payload.targetAddress?.slice(0, 10)}…`;
-    detailsText   = `Action: ${actionText}\nTarget: ${payload.targetAddress}`;
+    detailsText = `Action: ${actionText}\nTarget: ${payload.targetAddress}`;
 
     detailsBlock = `
       <div class="data-block">
@@ -624,7 +625,6 @@ async function sendValidatorProposalEmail(
           <div class="data-value data-value-mono">${payload.targetAddress}</div>
         </div>
       </div>`;
-
   } else {
     console.error(`❌ sendValidatorProposalEmail: unknown payload type "${payload.type}"`);
     return;
@@ -652,7 +652,7 @@ async function sendValidatorProposalEmail(
 
   try {
     await resend.emails.send({
-      from: "Salva Admin <no-reply@salva-nexus.org>",
+      from: 'Salva Admin <no-reply@salva-nexus.org>',
       to: validatorEmail,
       subject: `[Salva Admin] ${subject}`,
       html: baseTemplate({
@@ -664,7 +664,7 @@ async function sendValidatorProposalEmail(
     });
     console.log(`📧 Validator proposal email sent to: ${validatorEmail}`);
   } catch (error) {
-    console.error("❌ Validator proposal email failed:", error.message);
+    console.error('❌ Validator proposal email failed:', error.message);
   }
 }
 

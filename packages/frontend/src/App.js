@@ -1,20 +1,15 @@
 // src/App.js
-import React, { useState, useEffect, useCallback } from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
-import Navbar from "./components/Navbar";
-import Home from "./pages/Home";
-import Login from "./pages/Login";
-import ForgotPassword from "./pages/ForgotPassword";
-import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
-import SetTransactionPin from "./pages/SetTransactionPin";
-import AccountSettings from "./pages/AccountSettings";
-import L1Dashboard from "./pages/L1Dashboard";
+import React, { useState, useEffect, useCallback } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import Home from './pages/Home';
+import Login from './pages/Login';
+import ForgotPassword from './pages/ForgotPassword';
+import Dashboard from './pages/Dashboard';
+import Transactions from './pages/Transactions';
+import SetTransactionPin from './pages/SetTransactionPin';
+import AccountSettings from './pages/AccountSettings';
+import L1Dashboard from './pages/L1Dashboard';
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -23,7 +18,7 @@ const LoadingSpinner = () => (
 );
 
 const ProtectedRoute = ({ children, isLoading }) => {
-  const isAuthenticated = !!localStorage.getItem("salva_user");
+  const isAuthenticated = !!localStorage.getItem('salva_user');
   if (isLoading) return <LoadingSpinner />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
@@ -31,35 +26,31 @@ const ProtectedRoute = ({ children, isLoading }) => {
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [l1Account, setL1Account] = useState(
-    () => localStorage.getItem("l1_account") || null,
-  );
+  const [l1Account, setL1Account] = useState(() => localStorage.getItem('l1_account') || null);
   const [l1Connecting, setL1Connecting] = useState(false);
   const [l1ChainId, setL1ChainId] = useState(null);
 
   const handleL1Connect = useCallback(async () => {
     if (!window.ethereum) {
-      alert(
-        "MetaMask or another injected wallet is required. Please install MetaMask.",
-      );
+      alert('MetaMask or another injected wallet is required. Please install MetaMask.');
       return;
     }
     setL1Connecting(true);
-    localStorage.removeItem("l1_account");
+    localStorage.removeItem('l1_account');
     try {
       const accounts = await window.ethereum.request({
-        method: "eth_requestAccounts",
+        method: 'eth_requestAccounts',
       });
       if (accounts.length > 0) {
         setL1Account(accounts[0]);
-        localStorage.setItem("l1_account", accounts[0]);
+        localStorage.setItem('l1_account', accounts[0]);
         const chainIdHex = await window.ethereum.request({
-          method: "eth_chainId",
+          method: 'eth_chainId',
         });
         setL1ChainId(parseInt(chainIdHex, 16));
       }
     } catch (err) {
-      console.error("L1 connect error:", err);
+      console.error('L1 connect error:', err);
     } finally {
       setL1Connecting(false);
     }
@@ -68,14 +59,14 @@ function App() {
   const handleL1Disconnect = useCallback(() => {
     setL1Account(null);
     setL1ChainId(null);
-    localStorage.removeItem("l1_account");
+    localStorage.removeItem('l1_account');
   }, []);
 
   // Restore chain ID on mount if account was persisted
   useEffect(() => {
     if (l1Account && window.ethereum) {
       window.ethereum
-        .request({ method: "eth_chainId" })
+        .request({ method: 'eth_chainId' })
         .then((hex) => setL1ChainId(parseInt(hex, 16)))
         .catch(() => {});
     }
@@ -87,18 +78,18 @@ function App() {
       if (accounts.length === 0) {
         setL1Account(null);
         setL1ChainId(null);
-        localStorage.removeItem("l1_account");
+        localStorage.removeItem('l1_account');
       } else {
         setL1Account(accounts[0]);
-        localStorage.setItem("l1_account", accounts[0]); 
+        localStorage.setItem('l1_account', accounts[0]);
       }
     };
     const onChainChanged = (hex) => setL1ChainId(parseInt(hex, 16));
-    window.ethereum.on("accountsChanged", onAccountsChanged);
-    window.ethereum.on("chainChanged", onChainChanged);
+    window.ethereum.on('accountsChanged', onAccountsChanged);
+    window.ethereum.on('chainChanged', onChainChanged);
     return () => {
-      window.ethereum.removeListener("accountsChanged", onAccountsChanged);
-      window.ethereum.removeListener("chainChanged", onChainChanged);
+      window.ethereum.removeListener('accountsChanged', onAccountsChanged);
+      window.ethereum.removeListener('chainChanged', onChainChanged);
     };
   }, []);
 
@@ -157,10 +148,7 @@ function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/set-transaction-pin"
-              element={<SetTransactionPin />}
-            />
+            <Route path="/set-transaction-pin" element={<SetTransactionPin />} />
             <Route path="/account-settings" element={<AccountSettings />} />
           </Routes>
         </main>

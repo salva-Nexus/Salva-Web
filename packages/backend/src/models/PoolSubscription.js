@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 // One document per payment event — full history preserved
 const PoolSubscriptionSchema = new mongoose.Schema({
@@ -13,4 +13,4 @@ const PoolSubscriptionSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model("PoolSubscription", PoolSubscriptionSchema);
+module.exports = mongoose.model('PoolSubscription', PoolSubscriptionSchema);

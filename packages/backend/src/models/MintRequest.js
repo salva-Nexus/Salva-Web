@@ -1,7 +1,7 @@
-const mongoose = require("mongoose");
+const mongoose = require('mongoose');
 
 const MessageSchema = new mongoose.Schema({
-  sender: { type: String, enum: ["user", "seller", "system"], required: true },
+  sender: { type: String, enum: ['user', 'seller', 'system'], required: true },
   text: { type: String, default: null },
   imageUrl: { type: String, default: null },
   isReceipt: { type: Boolean, default: false },
@@ -16,7 +16,7 @@ const MintRequestSchema = new mongoose.Schema({
   username: { type: String, required: true },
 
   // "buy" or "sell"
-  type: { type: String, enum: ["buy", "sell"], default: "buy" },
+  type: { type: String, enum: ['buy', 'sell'], default: 'buy' },
 
   amountNgn: { type: Number, required: true },
   feeNgn: { type: Number, default: 0 },
@@ -31,20 +31,12 @@ const MintRequestSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: [
-      "pending",
-      "paid",
-      "minting",
-      "minted",
-      "rejected",
-      "burned",
-      "sell_completed",
-    ],
-    default: "pending",
+    enum: ['pending', 'paid', 'minting', 'minted', 'rejected', 'burned', 'sell_completed'],
+    default: 'pending',
   },
 
   isL1: { type: Boolean, default: false },
-  chain: { type: String, enum: ["base", "ethereum"], default: "base" },
+  chain: { type: String, enum: ['base', 'ethereum'], default: 'base' },
   mintToAddress: { type: String, lowercase: true, default: null },
 
   txHash: { type: String, default: null },
@@ -60,4 +52,4 @@ MintRequestSchema.index({ userSafeAddress: 1, status: 1 });
 MintRequestSchema.index({ status: 1, createdAt: -1 });
 MintRequestSchema.index({ sellerRead: 1, updatedAt: -1 });
 
-module.exports = mongoose.model("MintRequest", MintRequestSchema);
+module.exports = mongoose.model('MintRequest', MintRequestSchema);
