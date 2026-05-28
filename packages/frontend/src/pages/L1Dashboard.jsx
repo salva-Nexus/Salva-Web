@@ -66,22 +66,14 @@ const L1Notification = ({ notification, onClose }) => {
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
-  if (value === null || value === undefined || value === '') {
-    return '0';
-  }
-
+const formatNumber = (value, { minDecimals = 2, maxDecimals = 6 } = {}) => {
+  if (value === null || value === undefined || value === '') return '0.00';
   const num = Number(value);
-
-  if (!Number.isFinite(num)) {
-    return '0';
-  }
-
-  const factor = 10 ** maxDecimals;
-
-  // truncate instead of round
-  const truncated = Math.trunc(num * factor) / factor;
-
+  if (!Number.isFinite(num)) return '0.00';
+  const str = num.toFixed(maxDecimals + 2);
+  const dotIndex = str.indexOf('.');
+  const sliced = dotIndex === -1 ? str : str.slice(0, dotIndex + maxDecimals + 1);
+  const truncated = parseFloat(sliced);
   return truncated.toLocaleString('en-US', {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
@@ -288,19 +280,19 @@ const L1Hero = ({ onConnect, connecting }) => (
     <Stars />
     {/* ── THIS SECTION IS FOR LOCKING ETH CHAIN PAGE ──────────────────────────── */}
     <div className="fixed inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto">
-        <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center">
-            <span className="text-2xl">⛓</span>
-          </div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black">
-            Salva V3 · ETH Chain
-          </p>
-          <p className="text-xl font-black text-white">Coming Soon</p>
-          <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
-            V3 smart contracts are under development and testing on Ethereum.
-          </p>
+      <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
+        <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center">
+          <span className="text-2xl">⛓</span>
         </div>
+        <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black">
+          Salva V3 · ETH Chain
+        </p>
+        <p className="text-xl font-black text-white">Coming Soon</p>
+        <p className="text-xs text-white/30 max-w-[200px] leading-relaxed">
+          V3 smart contracts are under development and testing on Ethereum.
+        </p>
       </div>
+    </div>
     {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
     <div className="max-w-2xl mx-auto relative z-10">
       {/* Headline */}
@@ -663,10 +655,10 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
           >
             {activeTab === 'buy' && (
               <L1BuyNGNs

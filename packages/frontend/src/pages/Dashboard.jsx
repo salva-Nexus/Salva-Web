@@ -13,20 +13,13 @@ import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
-  if (value === null || value === undefined || value === '') {
-    return '0';
-  }
-
+  if (value === null || value === undefined || value === '') return '0';
   const num = Number(value);
-
-  if (!Number.isFinite(num)) {
-    return '0';
-  }
-
-  const factor = 10 ** maxDecimals;
-
-  const truncated = Math.trunc(num * factor) / factor;
-
+  if (!Number.isFinite(num)) return '0';
+  const str = num.toFixed(maxDecimals + 2);
+  const dotIndex = str.indexOf('.');
+  const sliced = dotIndex === -1 ? str : str.slice(0, dotIndex + maxDecimals + 1);
+  const truncated = parseFloat(sliced);
   return truncated.toLocaleString('en-US', {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
@@ -2138,7 +2131,7 @@ const Dashboard = () => {
           setTimeout(() => navigate('/account-settings'), 2000);
         } else {
           showMsg(
-            `Invalid PIN. ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} remaining`,
+            `Incorrect PIN — ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} left`,
             'error'
           );
           setLoading(false);
@@ -2450,10 +2443,10 @@ const Dashboard = () => {
         <AnimatePresence mode="wait">
           <motion.div
             key={activeTab}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            transition={{ duration: 0.2 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
           >
             {activeTab === 'buy' && (
               <div className="flex flex-col items-center justify-center min-h-[280px] text-center py-12">
@@ -2661,7 +2654,9 @@ const Dashboard = () => {
                       type="button"
                       onClick={() => {
                         const raw = parseFloat(currentCoinBalance) || 0;
-                        const fmt = raw.toLocaleString('en-US', { maximumFractionDigits: 6 }).replace(/,/g, ',');
+                        const fmt = raw
+                          .toLocaleString('en-US', { maximumFractionDigits: 6 })
+                          .replace(/,/g, ',');
                         setTransferAmountDisplay(formatAmountInput(String(raw)));
                         setTransferAmount(String(raw));
                         computeFeePreview(String(raw), selectedCoin);

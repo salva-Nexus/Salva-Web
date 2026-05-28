@@ -16,11 +16,12 @@ const POOL_VIEW_ABI = [
   'function _getSellRate() public view returns (uint256)',
   'function getDeployer() external view returns (address)',
   'function getMinuimumNgnAmount() external view returns (uint256)',
-  'function getMinuimumTokenAmount() external view returns (uint256)',
-  'function getExactTokenAmountOut(uint256 ngnsAmountIn, uint256 exRate) public pure returns (uint256)',
-  'function getExactNGNAmountOut(uint256 tokenAmountIn, uint256 exRate) public pure returns (uint256)',
-  'function getExactNGNAmountIn(uint256 tokenAmountOut, uint256 exRate) public pure returns (uint256)',
-  'function getExactTokenAmountIn(uint256 ngnAmountOut, uint256 exRate) public pure returns (uint256)',
+  'function getMinuimumUSDAmount() external view returns (uint256)',
+  'function isPaused() external view returns (bool)',
+  'function getExactUSDAmountOut(uint256 ngnAmountIn, uint256 exRate) public pure returns (uint256)',
+  'function getExactNGNAmountOut(uint256 usdAmountIn, uint256 exRate) public pure returns (uint256)',
+  'function getExactNGNAmountIn(uint256 usdAmountOut, uint256 exRate) public pure returns (uint256)',
+  'function getExactUSDAmountIn(uint256 ngnAmountOut, uint256 exRate) public pure returns (uint256)',
 ];
 
 const POOL_WRITE_ABI = [
@@ -141,12 +142,15 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
       poolContract._getBuyRate(),
       poolContract._getSellRate(),
       poolContract.getMinuimumNgnAmount(),
-      poolContract.getMinuimumTokenAmount(),
+      poolContract.getMinuimumUSDAmount(),
+      poolContract.isPaused(),
     ]);
 
     const val = (r) => (r.status === 'fulfilled' ? r.value : 0n);
+    const valBool = (r) => (r.status === 'fulfilled' ? r.value : false);
     const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] =
-      settled.map(val);
+      settled.slice(0, 8).map(val);
+    const isPaused = valBool(settled[8]);
 
     return {
       ngnsLiquidity: ethers.formatUnits(ngnsLiq, 6),
@@ -157,6 +161,7 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
       sellRate: ethers.formatUnits(sellRate, 6),
       minNgnAmount: ethers.formatUnits(minNgn, 6),
       minTokenAmount: ethers.formatUnits(minToken, 6),
+      isPaused,
     };
   } else {
     // L2: uses availableLiquidity internal accounting
@@ -168,12 +173,15 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
       poolContract._getBuyRate(),
       poolContract._getSellRate(),
       poolContract.getMinuimumNgnAmount(),
-      poolContract.getMinuimumTokenAmount(),
+      poolContract.getMinuimumUSDAmount(),
+      poolContract.isPaused(),
     ]);
 
     const val = (r) => (r.status === 'fulfilled' ? r.value : 0n);
+    const valBool = (r) => (r.status === 'fulfilled' ? r.value : false);
     const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] =
-      settled.map(val);
+      settled.slice(0, 8).map(val);
+    const isPaused = valBool(settled[8]);
 
     return {
       ngnsLiquidity: ethers.formatUnits(ngnsLiq, 6),
@@ -184,6 +192,7 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
       sellRate: ethers.formatUnits(sellRate, 6),
       minNgnAmount: ethers.formatUnits(minNgn, 6),
       minTokenAmount: ethers.formatUnits(minToken, 6),
+      isPaused,
     };
   }
 }
@@ -510,22 +519,21 @@ router.post('/quote', async (req, res) => {
 
     switch (swapFn) {
       // BUY USDT/USDC: user spends NGNs → gets stable (pool buyRate)
-      case 'swapExactNGNAmountForToken':
+      case 'swapExactNGNAmountForUSD':
         if (buyRate === 0n) return res.status(400).json({ message: 'Pool buy rate not set' });
-        quoteWei = await pool.getExactTokenAmountOut(amountWei, buyRate);
+        quoteWei = await pool.getExactUSDAmountOut(amountWei, buyRate);
         break;
-      case 'swapForExactTokenAmount':
+      case 'swapForExactUSDAmount':
         if (buyRate === 0n) return res.status(400).json({ message: 'Pool buy rate not set' });
         quoteWei = await pool.getExactNGNAmountIn(amountWei, buyRate);
         break;
-      // SELL USDT/USDC: user spends stable → gets NGNs (pool sellRate)
-      case 'swapExactTokenAmountForNGN':
+      case 'swapExactUSDAmountForNGN':
         if (sellRate === 0n) return res.status(400).json({ message: 'Pool sell rate not set' });
         quoteWei = await pool.getExactNGNAmountOut(amountWei, sellRate);
         break;
       case 'swapForExactNGNAmount':
         if (sellRate === 0n) return res.status(400).json({ message: 'Pool sell rate not set' });
-        quoteWei = await pool.getExactTokenAmountIn(amountWei, sellRate);
+        quoteWei = await pool.getExactUSDAmountIn(amountWei, sellRate);
         break;
       default:
         return res.status(400).json({ message: `Invalid swapFn: ${swapFn}` });
@@ -744,24 +752,41 @@ router.get('/published', async (req, res) => {
       pools.map(async (p) => {
         try {
           const onChain = await fetchPoolOnChain(p.poolAddress, false);
-          return { ...p.toJSON(), ...onChain };
+          let isPaused = false;
+          try {
+            const poolContract = new ethers.Contract(
+              ethers.getAddress(p.poolAddress),
+              ['function isPaused() external view returns (bool)'],
+              provider
+            );
+            isPaused = await poolContract.isPaused();
+          } catch {
+            isPaused = false;
+          }
+          return { ...p.toJSON(), ...onChain, isPaused };
         } catch {
-          return { ...p.toJSON(), fetchError: true };
+          return { ...p.toJSON(), fetchError: true, isPaused: false };
         }
       })
     );
 
     // SELL USDT/USDC: user sells stable → gets NGNs
-    // Requirements: NGN liquidity > 0 AND sellRate > 0
+    // Requirements: NGN liquidity > 0 AND sellRate > 0 AND not paused
     const sellPools = enriched
-      .filter((p) => parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0)
+      .filter(
+        (p) =>
+          !p.isPaused &&
+          parseFloat(p.ngnsLiquidity || 0) > 0 &&
+          parseFloat(p.sellRate || 0) > 0
+      )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 
     // BUY USDT/USDC: user spends NGNs → gets stable
-    // Requirements: USDT or USDC liquidity > 0 AND buyRate > 0
+    // Requirements: USDT or USDC liquidity > 0 AND buyRate > 0 AND not paused
     const buyPools = enriched
       .filter(
         (p) =>
+          !p.isPaused &&
           (parseFloat(p.usdtLiquidity || 0) > 0 || parseFloat(p.usdcLiquidity || 0) > 0) &&
           parseFloat(p.buyRate || 0) > 0
       )
@@ -883,9 +908,9 @@ router.post('/swap', async (req, res) => {
       return res.status(400).json({ message: 'Missing swapFn or amountWei' });
 
     const validFns = [
-      'swapExactNGNAmountForToken',
-      'swapExactTokenAmountForNGN',
-      'swapForExactTokenAmount',
+      'swapExactNGNAmountForUSD',
+      'swapExactUSDAmountForNGN',
+      'swapForExactUSDAmount',
       'swapForExactNGNAmount',
     ];
     if (!validFns.includes(swapFn))
@@ -1369,6 +1394,63 @@ router.post('/delete-direct', async (req, res) => {
     });
     if (!pool) return res.status(404).json({ message: 'L1 Pool not found' });
 
+    // ── Liquidity gate — same rules as L2 delete ─────────────────────────────
+    const isProd = process.env.NODE_ENV === 'production';
+    const ngnsAddr = cleanAddr(
+      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+    );
+    const cNgnAddr = cleanAddr(
+      isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS
+    );
+    const usdtAddr = cleanAddr(
+      isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS
+    );
+    const usdcAddr = cleanAddr(
+      isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS
+    );
+    const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+    const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
+    const ERC20_BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+    const poolAddr = ethers.getAddress(cleanPool);
+
+    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq] = await Promise.all([
+      ngnsAddr
+        ? new ethers.Contract(ethers.getAddress(ngnsAddr), ERC20_BAL_ABI, l1Provider)
+            .balanceOf(poolAddr)
+            .catch(() => 0n)
+        : Promise.resolve(0n),
+      cNgnAddr
+        ? new ethers.Contract(ethers.getAddress(cNgnAddr), ERC20_BAL_ABI, l1Provider)
+            .balanceOf(poolAddr)
+            .catch(() => 0n)
+        : Promise.resolve(0n),
+      usdtAddr
+        ? new ethers.Contract(ethers.getAddress(usdtAddr), ERC20_BAL_ABI, l1Provider)
+            .balanceOf(poolAddr)
+            .catch(() => 0n)
+        : Promise.resolve(0n),
+      usdcAddr
+        ? new ethers.Contract(ethers.getAddress(usdcAddr), ERC20_BAL_ABI, l1Provider)
+            .balanceOf(poolAddr)
+            .catch(() => 0n)
+        : Promise.resolve(0n),
+    ]);
+
+    const MAX_NGN = ethers.parseUnits('1000', 6);
+    const MAX_USD = ethers.parseUnits('1', 6);
+    const totalNgn = ngnsLiq + cNgnLiq;
+    const totalUsd = usdtLiq + usdcLiq;
+
+    if (totalNgn > MAX_NGN)
+      return res.status(400).json({
+        message: `Pool has ${ethers.formatUnits(totalNgn, 6)} NGNs/cNGN. Withdraw below 1,000 NGNs before deleting.`,
+      });
+    if (totalUsd > MAX_USD)
+      return res.status(400).json({
+        message: `Pool has $${ethers.formatUnits(totalUsd, 6)} in stablecoins. Withdraw below $1 before deleting.`,
+      });
+    // ─────────────────────────────────────────────────────────────────────────────
+
     await PoolL1.deleteOne({
       poolAddress: cleanPool,
       ownerSafeAddress: cleanOwner,
@@ -1488,26 +1570,46 @@ router.get('/l1/published', async (req, res) => {
       pools.map(async (p) => {
         try {
           const onChain = await fetchPoolOnChain(p.poolAddress, true);
-          return { ...p.toJSON(), ...onChain };
+          const isProd = process.env.NODE_ENV === 'production';
+          const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+          const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
+          let isPaused = false;
+          try {
+            const poolContract = new ethers.Contract(
+              ethers.getAddress(p.poolAddress),
+              ['function isPaused() external view returns (bool)'],
+              l1Provider
+            );
+            isPaused = await poolContract.isPaused();
+          } catch {
+            isPaused = false;
+          }
+          return { ...p.toJSON(), ...onChain, isPaused };
         } catch {
-          return { ...p.toJSON(), fetchError: true };
+          return { ...p.toJSON(), fetchError: true, isPaused: false };
         }
       })
     );
 
     // Same display rules as L2:
-    // buyPools:  USDT or USDC liquidity > 0 AND buyRate > 0
-    // sellPools: NGN liquidity > 0 AND sellRate > 0
+    // buyPools:  USDT or USDC liquidity > 0 AND buyRate > 0 AND not paused
+    // sellPools: NGN liquidity > 0 AND sellRate > 0 AND not paused
     const buyPools = enriched
       .filter(
         (p) =>
+          !p.isPaused &&
           (parseFloat(p.usdtLiquidity || 0) > 0 || parseFloat(p.usdcLiquidity || 0) > 0) &&
           parseFloat(p.buyRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.buyRate) - parseFloat(b.buyRate));
 
     const sellPools = enriched
-      .filter((p) => parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0)
+      .filter(
+        (p) =>
+          !p.isPaused &&
+          parseFloat(p.ngnsLiquidity || 0) > 0 &&
+          parseFloat(p.sellRate || 0) > 0
+      )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 
     res.json({ buyPools, sellPools });

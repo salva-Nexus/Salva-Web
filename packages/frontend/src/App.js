@@ -108,7 +108,7 @@ function App() {
 
   return (
     <Router>
-      <div className="min-h-screen bg-black transition-opacity duration-500">
+      <div className="min-h-screen bg-black">
         <Navbar
           l1Account={l1Account}
           l1Connecting={l1Connecting}
@@ -116,7 +116,7 @@ function App() {
           onL1Connect={handleL1Connect}
           onL1Disconnect={handleL1Disconnect}
         />
-        <main className="animate-in fade-in duration-700">
+        <main>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />

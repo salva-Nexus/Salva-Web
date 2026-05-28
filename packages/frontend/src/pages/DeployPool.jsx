@@ -288,14 +288,27 @@ const SubBadge = ({ pool }) => {
   const mins = Math.ceil(msLeft / 60_000);
   const hours = Math.ceil(msLeft / 3_600_000);
   const days = Math.ceil(msLeft / 864e5);
-  const label = mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
-  return active ? (
+  const timeLabel = mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
+
+  if (!active) {
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
+        Unpublished
+      </span>
+    );
+  }
+
+  if (pool.isPaused) {
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
+        Paused · {timeLabel} left
+      </span>
+    );
+  }
+
+  return (
     <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-green-500/30 bg-green-500/10 text-green-400">
-      Live · {label} left
-    </span>
-  ) : (
-    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
-      Unpublished
+      Live · {timeLabel} left
     </span>
   );
 };
@@ -535,7 +548,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
-      showMsg('Min NGNs updated!');
+      showMsg('Min NGN updated!');
       setMinNgn('');
       onRefresh();
     } catch {
@@ -562,7 +575,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Failed');
-      showMsg('Min token amount updated!');
+      showMsg('Min USD amount updated!');
       setMinToken('');
       onRefresh();
     } catch {
@@ -786,8 +799,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <div>
                     <p className="text-xs font-black text-green-400">Buy Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{toNum(pool.buyRate).toLocaleString()} · Used when users sell
-                      USDT/USDC to pool
+                      Current: ₦{toNum(pool.buyRate).toLocaleString()}
                     </p>
                   </div>
                   <div className="relative">
@@ -822,8 +834,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <div>
                     <p className="text-xs font-black text-blue-400">Sell Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ₦{toNum(pool.sellRate).toLocaleString()} · Used when users buy
-                      USDT/USDC with NGNs
+                      Current: ₦{toNum(pool.sellRate).toLocaleString()}
                     </p>
                   </div>
                   <div className="relative">
@@ -889,9 +900,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-salvaGold">Min NGNs Per Swap</p>
+                    <p className="text-xs font-black text-salvaGold">Min NGN Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: {toNum(pool.minNgnAmount).toLocaleString()} NGNs
+                      Current:{' '}
+                      {toNum(pool.minNgnAmount) > 0
+                        ? `${toNum(pool.minNgnAmount).toLocaleString('en-US', { maximumFractionDigits: 2 })} NGN`
+                        : 'Not set'}
                     </p>
                   </div>
                   <input
@@ -909,7 +923,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     {txLoading && pinAction === 'minNgn' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
-                    Set Min NGNs
+                    Set Min NGN
                   </button>
                 </div>
               </div>
@@ -919,9 +933,12 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <div className="p-5 space-y-3">
                   <div>
-                    <p className="text-xs font-black text-white/60">Min Stablecoin Per Swap</p>
+                    <p className="text-xs font-black text-white/60">Min USD Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
-                      Current: ${toNum(pool.minTokenAmount).toLocaleString()} USD
+                      Current:{' '}
+                      {toNum(pool.minTokenAmount) > 0
+                        ? `${toNum(pool.minTokenAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+                        : 'Not set'}
                     </p>
                   </div>
                   <input
@@ -939,7 +956,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     {txLoading && pinAction === 'minToken' && (
                       <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
-                    Set Min Token
+                    Set Min USD
                   </button>
                 </div>
               </div>
@@ -1197,7 +1214,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       setNewlyDeployedPool(data.poolAddress);
       setShowNamePrompt(true);
     } catch {
-      showMsg('Pool deployment failed', 'error');
+      showMsg('Deployment failed — please try again', 'error');
     } finally {
       setDeploying(false);
     }
@@ -1253,7 +1270,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       );
       await fetchMyPools();
     } catch {
-      showMsg('Delete failed', 'error');
+      showMsg('Could not remove pool — please try again', 'error');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1424,7 +1441,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
       {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
+      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
             <span className="text-2xl">⚙️</span>
@@ -1437,7 +1454,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             V3 smart contracts are under development and testing.
           </p>
         </div>
-      </div>
+      </div> */}
       {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
 
       {/* Header */}

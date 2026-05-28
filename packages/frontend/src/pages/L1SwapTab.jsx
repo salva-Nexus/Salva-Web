@@ -29,11 +29,16 @@ const ERC20_ABI = [
   'function allowance(address owner, address spender) view returns (uint256)',
 ];
 
+const POOL_VIEW_ABI = [
+  'function getMinuimumNgnAmount() external view returns (uint256)',
+  'function getMinuimumUSDAmount() external view returns (uint256)',
+];
+
 const POOL_ABI = [
-  'function swapExactNGNAmountForToken(address _receiver, address _swapTokenOut, address _ngnToken, uint256 _ngnAmountIn) external returns (bool)',
-  'function swapExactTokenAmountForNGN(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _tokenAmountIn) external returns (bool)',
-  'function swapForExactTokenAmount(address _receiver, address _swapTokenOut, address _ngnTokenIn, uint256 _tokenAmountOut) external returns (bool)',
-  'function swapForExactNGNAmount(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
+  'function swapExactNGNAmountForUSD(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _ngnAmountIn) external returns (bool)',
+  'function swapExactUSDAmountForNGN(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _usdAmountIn) external returns (bool)',
+  'function swapForExactUSDAmount(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _usdAmountOut) external returns (bool)',
+  'function swapForExactNGNAmount(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
 ];
 
 // ── Token Pills ───────────────────────────────────────────────────────────────
@@ -196,16 +201,49 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   const tokenIn = section === 'buy' ? ngnToken : stableToken;
   const tokenOut = section === 'buy' ? stableToken : ngnLabel;
 
-  const minAmount =
-    section === 'buy' ? parseFloat(pool.minNgnAmount || 0) : parseFloat(pool.minTokenAmount || 0);
-  const isBelowMin = swapType === 'exact_in' && amountRaw > 0 && amountRaw < minAmount;
+  const [onChainMinNgn, setOnChainMinNgn] = useState(parseFloat(pool.minNgnAmount || 0));
+  const [onChainMinUsd, setOnChainMinUsd] = useState(parseFloat(pool.minTokenAmount || 0));
+  const [minsLoaded, setMinsLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMins = async () => {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const poolC = new ethers.Contract(
+          ethers.getAddress(pool.poolAddress),
+          POOL_VIEW_ABI,
+          provider
+        );
+        const [rawNgn, rawUsd] = await Promise.all([
+          poolC.getMinuimumNgnAmount(),
+          poolC.getMinuimumUSDAmount(),
+        ]);
+        if (!cancelled) {
+          setOnChainMinNgn(Number(rawNgn) / 1e6);
+          setOnChainMinUsd(Number(rawUsd) / 1e6);
+          setMinsLoaded(true);
+        }
+      } catch {
+        if (!cancelled) setMinsLoaded(true); // use fallback values already set
+      }
+    };
+    fetchMins();
+    return () => {
+      cancelled = true;
+    };
+  }, [pool.poolAddress]);
+
+  const minAmount = section === 'buy' ? onChainMinNgn : onChainMinUsd;
+  const isBelowMin =
+    swapType === 'exact_in' && amountRaw > 0 && minAmount > 0 && amountRaw < minAmount;
   const displayRate =
     section === 'buy' ? parseFloat(pool.buyRate || 0) : parseFloat(pool.sellRate || 0);
 
   const swapFn = (() => {
     if (section === 'buy')
-      return swapType === 'exact_in' ? 'swapExactNGNAmountForToken' : 'swapForExactTokenAmount';
-    return swapType === 'exact_in' ? 'swapExactTokenAmountForNGN' : 'swapForExactNGNAmount';
+      return swapType === 'exact_in' ? 'swapExactNGNAmountForUSD' : 'swapForExactUSDAmount';
+    return swapType === 'exact_in' ? 'swapExactUSDAmountForNGN' : 'swapForExactNGNAmount';
   })();
 
   const resolveTokenAddress = (sym) => {
@@ -312,6 +350,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
 
   const canProceed =
     amountRaw > 0 &&
+    minsLoaded &&
     !isBelowMin &&
     trustChecked &&
     !userCantAfford &&
@@ -396,17 +435,17 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
       // Single wallet prompt — user signs once here
       let swapTx;
       switch (swapFn) {
-        case 'swapExactNGNAmountForToken':
-          swapTx = await poolContract.swapExactNGNAmountForToken(...swapArgs, {
+        case 'swapExactNGNAmountForUSD':
+          swapTx = await poolContract.swapExactNGNAmountForUSD(...swapArgs, {
             gasLimit: 200_000,
           });
           break;
-        case 'swapExactTokenAmountForNGN':
-          swapTx = await poolContract.swapExactTokenAmountForNGN(...swapArgs, {
+        case 'swapExactUSDAmountForNGN':
+          swapTx = await poolContract.swapExactUSDAmountForNGN(...swapArgs, {
             gasLimit: 200_000,
           });
           break;
-        case 'swapForExactTokenAmount':
+        case 'swapForExactUSDAmount':
           swapTx = await poolContract.swapForExactTokenAmount(...swapArgs, { gasLimit: 200_000 });
           break;
         case 'swapForExactNGNAmount':
@@ -438,7 +477,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
         return;
       }
 
-      setSwapError(err.reason || err.message || 'Swap failed');
+      setSwapError('Swap could not be completed. Please try again.');
       setStep('error');
     }
   };
@@ -730,7 +769,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
                       boxShadow: `0 8px 24px ${accentColor}33`,
                     }}
                   >
-                    {!trustChecked ? 'Checking…' : 'Continue →'}
+                    {!minsLoaded ? 'Loading…' : !trustChecked ? 'Checking…' : 'Continue →'}
                   </button>
                 </div>
               </motion.div>
@@ -944,7 +983,7 @@ const L1PoolCard = ({ pool, section, onSwap, index }) => {
               </p>
               {parseFloat(pool.minNgnAmount || 0) > 0 && (
                 <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)}
+                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN
                 </p>
               )}
             </div>
@@ -973,7 +1012,7 @@ const L1PoolCard = ({ pool, section, onSwap, index }) => {
               </p>
               {parseFloat(pool.minTokenAmount || 0) > 0 && (
                 <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: ${fmt(parseFloat(pool.minTokenAmount))}
+                  Min: {fmt(parseFloat(pool.minTokenAmount))} USD
                 </p>
               )}
             </div>

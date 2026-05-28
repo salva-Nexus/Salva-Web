@@ -27,6 +27,8 @@ const POOL_ABI = [
   'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
   'function setMinimumTokenAmount(uint256 amount) external returns (bool)',
   'function availableLiquidity(address asset) external view returns (uint256)',
+  'function getMinuimumNgnAmount() external view returns (uint256)',
+  'function getMinuimumUSDAmount() external view returns (uint256)',
 ];
 
 const POOL_PROVIDE_ABI = [
@@ -303,20 +305,32 @@ const SubBadge = ({ pool }) => {
   const now = new Date();
   const expiry = pool.subscriptionExpiresAt ? new Date(pool.subscriptionExpiresAt) : null;
   const active = expiry && expiry > now;
-  if (!active)
+
+  if (!active) {
     return (
       <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
         Unpublished
       </span>
     );
+  }
+
   const msLeft = expiry - now;
   const mins = Math.ceil(msLeft / 60_000);
   const hours = Math.ceil(msLeft / 3_600_000);
   const days = Math.ceil(msLeft / 864e5);
-  const label = mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
+  const timeLabel = mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
+
+  if (pool.isPaused) {
+    return (
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
+        Paused · {timeLabel} left
+      </span>
+    );
+  }
+
   return (
     <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-green-500/30 bg-green-500/10 text-green-400">
-      Live · {label} left
+      Live · {timeLabel} left
     </span>
   );
 };
@@ -363,6 +377,42 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
   const [minToken, setMinToken] = useState('');
   const [txLoading, setTxLoading] = useState(false);
   const [txMsg, setTxMsg] = useState('');
+  // On-chain min amounts (authoritative — not from cached pool object)
+  const [onChainMinNgn, setOnChainMinNgn] = useState(null);
+  const [onChainMinUsd, setOnChainMinUsd] = useState(null);
+  const [minsLoading, setMinsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMins = async () => {
+      setMinsLoading(true);
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, provider);
+        const [rawNgn, rawUsd] = await Promise.all([
+          poolC.getMinuimumNgnAmount(),
+          poolC.getMinuimumUSDAmount(),
+        ]);
+        if (!cancelled) {
+          // Both stored as 6-decimal fixed-point on-chain
+          setOnChainMinNgn(Number(rawNgn) / 1e6);
+          setOnChainMinUsd(Number(rawUsd) / 1e6);
+        }
+      } catch {
+        if (!cancelled) {
+          // Fall back to cached pool values
+          setOnChainMinNgn(toNum(pool.minNgnAmount));
+          setOnChainMinUsd(toNum(pool.minTokenAmount));
+        }
+      } finally {
+        if (!cancelled) setMinsLoading(false);
+      }
+    };
+    fetchMins();
+    return () => {
+      cancelled = true;
+    };
+  }, [pool.poolAddress, pool.minNgnAmount, pool.minTokenAmount]);
 
   const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
@@ -400,7 +450,7 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
         showMsg('Transaction cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || 'Transaction failed', 'error');
+        showMsg('Transaction failed', 'error');
       }
       wallet.bustCache();
     } finally {
@@ -488,7 +538,8 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       const signer = await getSigner();
       const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
       await execTx(poolC.setMinimumNgnAmount(ethers.parseUnits(String(minNgn), 6)));
-      showMsg('Min NGNs updated!');
+      showMsg('Min NGN updated!');
+      setOnChainMinNgn(parseFloat(minNgn));
       setMinNgn('');
       onRefresh();
     });
@@ -499,7 +550,8 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       const signer = await getSigner();
       const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
       await execTx(poolC.setMinimumTokenAmount(ethers.parseUnits(String(minToken), 6)));
-      showMsg('Min token updated!');
+      showMsg('Min USD updated!');
+      setOnChainMinUsd(parseFloat(minToken));
       setMinToken('');
       onRefresh();
     });
@@ -794,22 +846,30 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
               </div>
               {[
                 {
-                  label: 'Min NGNs Per Swap',
-                  current: `${toNum(pool.minNgnAmount).toLocaleString()} NGNs`,
+                  label: 'Min NGN Per Swap',
+                  current: minsLoading
+                    ? 'Loading…'
+                    : onChainMinNgn > 0
+                      ? `${onChainMinNgn.toLocaleString('en-US', { maximumFractionDigits: 2 })} NGN`
+                      : 'Not set',
                   placeholder: 'e.g. 1000',
                   value: minNgn,
                   setValue: setMinNgn,
                   action: handleSetMinNgn,
-                  actionLabel: 'Set Min NGNs',
+                  actionLabel: 'Set Min NGN',
                 },
                 {
-                  label: 'Min Stablecoin Per Swap',
-                  current: `$${toNum(pool.minTokenAmount).toLocaleString()} USD`,
+                  label: 'Min USD Per Swap',
+                  current: minsLoading
+                    ? 'Loading…'
+                    : onChainMinUsd > 0
+                      ? `${onChainMinUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+                      : 'Not set',
                   placeholder: 'e.g. 5',
                   value: minToken,
                   setValue: setMinToken,
                   action: handleSetMinToken,
-                  actionLabel: 'Set Min Token',
+                  actionLabel: 'Set Min USD',
                 },
               ].map(({ label, current, placeholder, value, setValue, action, actionLabel }) => (
                 <div
@@ -1170,7 +1230,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
         showMsg('Deployment cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || 'Deploy failed', 'error');
+        showMsg('Pool deployment failed — please try again', 'error');
       }
     } finally {
       setDeploying(false);
@@ -1233,7 +1293,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       if (err.code === 4001 || err.code === 'ACTION_REJECTED') {
         showMsg('Subscription cancelled.', 'info');
       } else {
-        showMsg(err?.reason || err?.message || 'Subscription failed', 'error');
+        showMsg('Could not publish pool — please try again', 'error');
       }
     } finally {
       setSubscribing(false);
@@ -1264,7 +1324,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       );
       await fetchMyPools();
     } catch (err) {
-      showMsg(err?.message || 'Delete failed', 'error');
+      showMsg('Could not remove pool — please try again', 'error');
     } finally {
       setDeleting(false);
       setShowDeleteConfirm(false);
@@ -1623,7 +1683,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                 </p>
                 <h3 className="text-xl font-black mb-1 text-white">Publish Pool</h3>
                 <p className="text-xs text-white/60 mb-5 leading-relaxed">
-                  List your pool in the market place, Confirm in MetaMask.
+                  List your pool on the market place, Confirm in MetaMask.
                   {selectedPool.isPublished && ' Remaining time is preserved.'}
                 </p>
                 <div className="space-y-2 mb-5">
@@ -1753,8 +1813,11 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                   <span className="text-2xl">⚠️</span>
                 </div>
                 <h3 className="text-xl font-black mb-2 text-white">Remove Pool?</h3>
-                <p className="text-xs text-white/60 mb-4 leading-relaxed">
+                <p className="text-xs text-white/60 mb-1 leading-relaxed">
                   Removes from the Salva registry. Contract stays on-chain.
+                </p>
+                <p className="text-xs text-red-400 font-bold mb-4">
+                  Must have &lt;1,000 NGNs/cNGN and &lt;$1 in stablecoins.
                 </p>
                 <div className="flex gap-3">
                   <button

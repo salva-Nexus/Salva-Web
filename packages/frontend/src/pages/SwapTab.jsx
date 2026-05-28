@@ -185,9 +185,28 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const [amountDisplay, setAmountDisplay] = useState('');
   const [amountRaw, setAmountRaw] = useState(0);
 
-  const minAmount =
-    section === 'buy' ? parseFloat(pool.minNgnAmount || 0) : parseFloat(pool.minTokenAmount || 0);
-  const isBelowMin = swapType === 'exact_in' && amountRaw > 0 && amountRaw < minAmount;
+  const [onChainMinNgn, setOnChainMinNgn] = useState(parseFloat(pool.minNgnAmount || 0));
+  const [onChainMinUsd, setOnChainMinUsd] = useState(parseFloat(pool.minTokenAmount || 0));
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${SALVA_API_URL}/api/pool/mins?poolAddress=${pool.poolAddress}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          if (d.minNgnAmount != null) setOnChainMinNgn(parseFloat(d.minNgnAmount) || 0);
+          if (d.minTokenAmount != null) setOnChainMinUsd(parseFloat(d.minTokenAmount) || 0);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [pool.poolAddress]);
+
+  const minAmount = section === 'buy' ? onChainMinNgn : onChainMinUsd;
+  const isBelowMin =
+    swapType === 'exact_in' && amountRaw > 0 && minAmount > 0 && amountRaw < minAmount;
 
   const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
   const hasUSDC = parseFloat(pool.usdcLiquidity || 0) > 0;
@@ -265,8 +284,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
   const swapFn = (() => {
     if (section === 'buy')
-      return swapType === 'exact_in' ? 'swapExactNGNAmountForToken' : 'swapForExactTokenAmount';
-    return swapType === 'exact_in' ? 'swapExactTokenAmountForNGN' : 'swapForExactNGNAmount';
+      return swapType === 'exact_in' ? 'swapExactNGNAmountForUSD' : 'swapForExactUSDAmount';
+    return swapType === 'exact_in' ? 'swapExactUSDAmountForNGN' : 'swapForExactNGNAmount';
   })();
 
   useEffect(() => {
@@ -342,12 +361,11 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     try {
       // trustChoice === "trust" means user chose unlimited approve (set isTrusted after)
       const doApproveMax = trustChoice === 'trust';
-      const approveAmountWei =
-        doApproveMax
-          ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-          : swapType === 'exact_out' && quote
-            ? Math.floor(parseFloat(quote) * 1e6).toString()
-            : amountWei;
+      const approveAmountWei = doApproveMax
+        ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+        : swapType === 'exact_out' && quote
+          ? Math.floor(parseFloat(quote) * 1e6).toString()
+          : amountWei;
 
       const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
         method: 'POST',
@@ -827,7 +845,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </p>
               {parseFloat(pool.minNgnAmount || 0) > 0 && (
                 <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)}
+                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN
                 </p>
               )}
             </div>
@@ -856,7 +874,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </p>
               {parseFloat(pool.minTokenAmount || 0) > 0 && (
                 <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: ${fmt(parseFloat(pool.minTokenAmount))}
+                  Min: {fmt(parseFloat(pool.minTokenAmount))} USD
                 </p>
               )}
             </div>

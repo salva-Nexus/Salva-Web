@@ -694,9 +694,9 @@ const Home = () => {
   const navigate = useNavigate();
 
   const { scrollY } = useScroll();
-  const heroOpacity = useTransform(scrollY, [0, 400], [1, 0]);
-  const heroY = useTransform(scrollY, [0, 400], [0, 80]);
-  const heroScale = useTransform(scrollY, [0, 400], [1, 0.97]);
+  const heroOpacity = useTransform(scrollY, [0, 600], [1, 0]);
+  const heroY = useTransform(scrollY, [0, 600], [0, 40]);
+  const heroScale = useTransform(scrollY, [0, 600], [1, 0.99]);
 
   useEffect(() => {
     try {
@@ -836,7 +836,6 @@ const Home = () => {
               label="NGNs Circulating"
               value={stats.totalMinted}
               loading={statsLoading}
-              suffix=" NGNs"
             />
             <StatCard label="Salva Citizens" value={stats.userCount} loading={statsLoading} />
           </div>

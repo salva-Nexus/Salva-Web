@@ -722,7 +722,7 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
     const sanitizedEmail = sanitizeEmail(email);
 
     const otpRecord = await OtpStore.findOne({
-      email: sanitizedOldEmail,
+      email: sanitizedEmail,
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
@@ -1222,7 +1222,7 @@ app.post('/api/alias/unlink-name', async (req, res) => {
     await user.save();
 
     // Clear poolName on any Pool that held this name
-   // Clear poolName on any Pool that held this name
+    // Clear poolName on any Pool that held this name
     // aliasEntry.wallet is the pool address (works for both L2 and L1)
     const linkedPoolAddress = aliasEntry.wallet?.toLowerCase();
     const Pool = require('./models/Pool');
@@ -2110,7 +2110,7 @@ app.post('/api/user/reset-pin', authLimiter, async (req, res) => {
     const sanitizedEmail = sanitizeEmail(email);
 
     const otpRecord = await OtpStore.findOne({
-      email: sanitizedOldEmail,
+      email: sanitizedEmail,
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {
@@ -2235,7 +2235,7 @@ app.post('/api/user/update-password', authLimiter, async (req, res) => {
     const sanitizedEmail = sanitizeEmail(email);
 
     const otpRecord = await OtpStore.findOne({
-      email: sanitizedOldEmail,
+      email: sanitizedEmail,
       verified: true,
     });
     if (!otpRecord || new Date() > otpRecord.expires) {

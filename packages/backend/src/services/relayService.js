@@ -78,10 +78,10 @@ const ERC20_IFACE = new ethers.Interface([
 ]);
 
 const POOL_IFACE = new ethers.Interface([
-  'function swapExactNGNAmountForToken(address _receiver, address _swapTokenOut, address _ngnToken, uint256 _ngnAmountIn) external returns (bool)',
-  'function swapExactTokenAmountForNGN(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _tokenAmountIn) external returns (bool)',
-  'function swapForExactTokenAmount(address _receiver, address _swapTokenOut, address _ngnTokenIn, uint256 _tokenAmountOut) external returns (bool)',
-  'function swapForExactNGNAmount(address _receiver, address _swapTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
+  'function swapExactNGNAmountForUSD(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _ngnAmountIn) external returns (bool)',
+  'function swapExactUSDAmountForNGN(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _usdAmountIn) external returns (bool)',
+  'function swapForExactUSDAmount(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _usdAmountOut) external returns (bool)',
+  'function swapForExactNGNAmount(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
 ]);
 
 const FACTORY_IFACE = new ethers.Interface([

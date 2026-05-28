@@ -130,3 +130,4 @@ main().catch((err) => {
 });
 
 // node src/scripts/sync_models.js
+// npx prettier --write "packages/backend/src/**/*.{js,json}" "packages/backend/*.js" "packages/frontend/src/**/*.{js,jsx,json,css}"

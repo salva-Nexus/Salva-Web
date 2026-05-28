@@ -103,7 +103,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.025, duration: 0.2 }}
+      transition={{ delay: index * 0.015, duration: 0.15 }}
       className="border border-white/[0.07] bg-white/[0.02] rounded-2xl overflow-hidden hover:border-white/[0.14] transition-colors"
     >
       {/* Main row — always visible */}
