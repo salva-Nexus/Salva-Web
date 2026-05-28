@@ -1441,7 +1441,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
       {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
+      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
             <span className="text-2xl">⚙️</span>
@@ -1454,7 +1454,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             V3 smart contracts are under development and testing.
           </p>
         </div>
-      </div> */}
+      </div>
       {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
 
       {/* Header */}
