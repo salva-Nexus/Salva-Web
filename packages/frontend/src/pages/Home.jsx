@@ -30,12 +30,12 @@ const SEOMeta = () => {
     };
     setMeta(
       'description',
-      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base. Swap NGNs/USDT/USDC, register charles@salva, and send money like a text. Gasless. Non-custodial.'
+      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base and Ethereum. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
     );
     setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
     setMeta(
       'og:description',
-      'NGNs DEX. Human-readable names. Gasless smart wallets. Built on Base.',
+      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets. Built on Base & Ethereum.',
       true
     );
     setMeta('og:type', 'website', true);
@@ -160,9 +160,36 @@ const GlowOrb = ({ x, y, size, color, delay = 0 }) => (
 const DEXVisual = () => {
   const [tab, setTab] = useState('buy');
   const pools = [
-    { name: 'charles_pool@salva', rate: '₦1,490', usdt: '$29.01', usdc: '$0.00', ngn: '10,000' },
-    { name: 'jefta_pool@salva', rate: '₦1,500', usdt: '$0.00', usdc: '$50.00', ngn: '0' },
-    { name: 'amuobi_pool@salva', rate: '₦1,480', usdt: '$100.00', usdc: '$0.00', ngn: '5,000' },
+    {
+      name: 'charles_pool@salva',
+      rate: '₦1,490',
+      usd1Label: 'USDT',
+      usd1Val: '$29.01',
+      usd2Label: 'USDC',
+      usd2Val: '$0.00',
+      ngn: '10,000',
+      chain: 'Base',
+    },
+    {
+      name: 'jefta_pool@salva',
+      rate: '₦1,500',
+      usd1Label: 'USDT',
+      usd1Val: '$0.00',
+      usd2Label: 'USDC',
+      usd2Val: '$50.00',
+      ngn: '0',
+      chain: 'ETH',
+    },
+    {
+      name: 'amuobi_pool@salva',
+      rate: '₦1,480',
+      usd1Label: 'USDT',
+      usd1Val: '$100.00',
+      usd2Label: 'USDC',
+      usd2Val: '$0.00',
+      ngn: '5,000',
+      chain: 'Base',
+    },
   ];
 
   return (
@@ -177,21 +204,28 @@ const DEXVisual = () => {
           </p>
           <p className="text-base font-black text-white">Naira Exchange</p>
         </div>
-        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-          />
-          <span className="text-[10px] text-green-400 font-black">Live</span>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
+            <span className="text-[9px] text-white/40 font-black">Base</span>
+            <span className="text-white/20 text-[9px]">·</span>
+            <span className="text-[9px] text-white/40 font-black">ETH</span>
+          </div>
+          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
+            <motion.span
+              animate={{ opacity: [1, 0.3, 1] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+              className="w-1.5 h-1.5 bg-green-500 rounded-full block"
+            />
+            <span className="text-[10px] text-green-400 font-black">Live</span>
+          </div>
         </div>
       </div>
 
       {/* Tabs */}
       <div className="flex gap-2 mb-4 relative">
         {[
-          { id: 'buy', label: 'Buy USDT/USDC', color: '#D4AF37' },
-          { id: 'sell', label: 'Sell USDT/USDC', color: '#22c55e' },
+          { id: 'buy', label: 'Naira → USD Stable', color: '#D4AF37' },
+          { id: 'sell', label: 'USD Stable → Naira', color: '#22c55e' },
         ].map((t) => (
           <button
             key={t.id}
@@ -219,21 +253,28 @@ const DEXVisual = () => {
             className="p-3.5 rounded-2xl border border-white/5 bg-white/[0.03] hover:border-salvaGold/20 hover:bg-white/[0.05] transition-all group"
           >
             <div className="flex items-center justify-between mb-2">
-              <p className="text-[11px] font-black text-salvaGold truncate">{pool.name}</p>
+              <div className="flex items-center gap-2 min-w-0">
+                <p className="text-[11px] font-black text-salvaGold truncate">{pool.name}</p>
+                <span
+                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${pool.chain === 'ETH' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'}`}
+                >
+                  {pool.chain}
+                </span>
+              </div>
               <span className="text-[10px] font-black text-white/60">{pool.rate}/USD</span>
             </div>
             <div className="grid grid-cols-3 gap-1.5 text-[9px]">
               <div className="bg-white/5 rounded-lg px-2 py-1 text-center">
-                <p className="text-white/30 uppercase font-bold">NGNs</p>
+                <p className="text-white/30 uppercase font-bold">Naira</p>
                 <p className="text-salvaGold/80 font-black">{pool.ngn}</p>
               </div>
               <div className="bg-green-500/5 border border-green-500/10 rounded-lg px-2 py-1 text-center">
-                <p className="text-green-400/50 uppercase font-bold">USDT</p>
-                <p className="text-green-400 font-black">{pool.usdt}</p>
+                <p className="text-green-400/50 uppercase font-bold">{pool.usd1Label}</p>
+                <p className="text-green-400 font-black">{pool.usd1Val}</p>
               </div>
               <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg px-2 py-1 text-center">
-                <p className="text-blue-400/50 uppercase font-bold">USDC</p>
-                <p className="text-blue-400 font-black">{pool.usdc}</p>
+                <p className="text-blue-400/50 uppercase font-bold">{pool.usd2Label}</p>
+                <p className="text-blue-400 font-black">{pool.usd2Val}</p>
               </div>
             </div>
           </motion.div>
@@ -244,7 +285,11 @@ const DEXVisual = () => {
         <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
           Permissionless · On-chain
         </span>
-        <span className="text-[9px] text-salvaGold/50 font-black">Base L2 ⬡</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[9px] text-salvaGold/50 font-black">Base ⬡</span>
+          <span className="text-white/20 text-[9px]">·</span>
+          <span className="text-[9px] text-blue-400/50 font-black">ETH ◆</span>
+        </div>
       </div>
     </div>
   );
@@ -532,14 +577,14 @@ const Ticker = () => {
   const items = [
     'V3 DEX Live',
     'Name Service Protocol',
-    'NGNs Stablecoin',
+    'Naira Stablecoin',
     'Safe Smart Wallet',
     'Permissionless Pools',
     'Gasless Transactions',
     'On-Chain Identity',
     'LP Earn Fees',
-    'Built on Base',
-    'Swap NGNs/USDT/USDC',
+    'Base + ETH Chain',
+    'Naira ↔ USD Stablecoins',
   ];
   return (
     <div className="overflow-hidden py-4 border-y border-black/[0.06] dark:border-white/[0.06] my-24 bg-black/[0.02] dark:bg-white/[0.02]">
@@ -765,7 +810,6 @@ const Home = () => {
           <GlowOrb x="75%" y="60%" size="300px" color="rgba(34,197,94,0.03)" delay={6} />
         </div>
 
-        {/* V3 badge */}
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
@@ -791,7 +835,7 @@ const Home = () => {
             transition={{ delay: 0.3, duration: 0.9 }}
             className="text-lg sm:text-xl md:text-2xl opacity-50 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
           >
-            DEX. Name Service. NGNs Stablecoin. Smart Wallet — all on Base.
+            DEX. Name Service. Naira Stablecoin. Smart Wallet — on Base & Ethereum.
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}
@@ -832,11 +876,7 @@ const Home = () => {
 
           {/* Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-            <StatCard
-              label="NGNs Circulating"
-              value={stats.totalMinted}
-              loading={statsLoading}
-            />
+            <StatCard label="NGNs Circulating" value={stats.totalMinted} loading={statsLoading} />
             <StatCard label="Salva Citizens" value={stats.userCount} loading={statsLoading} />
           </div>
         </motion.div>
@@ -861,15 +901,21 @@ const Home = () => {
           index={0}
           badge="🔄"
           tag="Salva V3 DEX"
-          title="Swap between NGN & USD stablecoins Instantly."
-          headline="Permissionless liquidity pools — anyone can be an LP."
-          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between Naira Stablecoins, USDT, and USDC in seconds via their Safe smart wallet — no bridges, no CEX, no delay."
+          title="Swap between Naira & USD Stablecoins Instantly."
+          headline="Permissionless liquidity pools on Base and Ethereum — anyone can be an LP."
+          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools on Base or Ethereum and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
           extContent={
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
-                own pool, add NGNs or stablecoins, set your buy/sell rates, get listed on the swap
-                marketplace. Earn on every swap through your spread.
+                own pool on Base or Ethereum, add Naira or USD stablecoins, set your buy/sell rates,
+                get listed on the swap marketplace. Earn on every swap through your spread.
+              </p>
+              <p>
+                <strong className="text-black dark:text-white">Two chains. One marketplace.</strong>{' '}
+                Pools on Base L2 benefit from ultra-low fees and fast confirmations. Pools on
+                Ethereum offer direct access to the broadest liquidity ecosystem. Both are listed
+                side-by-side on the swap marketplace.
               </p>
             </div>
           }
@@ -947,8 +993,8 @@ const Home = () => {
               </p>
               <p>
                 <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
-                NGNs. Swap on the DEX. Register names. Become an LP. All from the same wallet, all
-                gasless.
+                Naira stablecoins. Swap on the DEX. Register names. Become an LP on Base or
+                Ethereum. All from the same wallet, all gasless.
               </p>
             </div>
           }
@@ -971,18 +1017,18 @@ const Home = () => {
           tag="NGNs Stablecoin"
           title="Nigerian Naira. On-Chain."
           headline="1 NGNs = ₦1. Always."
-          body="NGNs is a digital Naira pegged 1:1 and tradeable on Salva's DEX against USDT and USDC. Buy it from the OTC desk, earn it through referrals, swap it, and send it to anyone in seconds."
+          body="NGNs is a digital Naira stablecoin pegged 1:1 and tradeable on Salva's DEX against USD stablecoins. Buy it from the OTC desk, earn it through referrals, swap it, and send it to anyone in seconds."
           extContent={
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Now DEX-tradeable.</strong> V3 lets
-                anyone swap NGNs for USDT or USDC at market rates set by liquidity providers — no
-                intermediary, no FX desk.
+                anyone swap Naira stablecoins for USD stablecoins at market rates set by liquidity
+                providers — no intermediary, no FX desk.
               </p>
               <p>
                 <strong className="text-black dark:text-white">Instant settlement.</strong>{' '}
-                Transactions confirm on Base in seconds. Every transfer is on-chain and permanently
-                verifiable.
+                Transactions confirm in seconds. Every transfer is on-chain and permanently
+                verifiable across Base and Ethereum.
               </p>
             </div>
           }
@@ -1026,12 +1072,12 @@ const Home = () => {
             {
               n: '03',
               title: 'Send & Receive',
-              desc: 'Send NGNs, USDT, USDC to any name or address. Gasless. Instant.',
+              desc: 'Send Naira or USD stablecoins to any name or address. Gasless. Instant.',
             },
             {
               n: '04',
               title: 'Swap on DEX',
-              desc: 'Trade between NGN and USD stablecoins on Salva V3. Or become an LP and earn from your spread.',
+              desc: 'Trade between Naira and USD stablecoins on Salva V3 — on Base or Ethereum. Or become an LP and earn from your spread.',
             },
           ].map((step, i) => (
             <motion.div
@@ -1075,15 +1121,16 @@ const Home = () => {
               <span className="text-salvaGold">Anyone can be an LP.</span>
             </h2>
             <p className="text-base sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-12">
-              Deploy a liquidity pool, fund it with NGNs or stablecoins and set your rate. Your pool
-              earns on every swap through your bid-ask spread. Fully on-chain. Fully permissionless.
+              Deploy a liquidity pool on Base or Ethereum, fund it with Naira or USD stablecoins,
+              and set your rate. Your pool earns on every swap through your bid-ask spread. Fully
+              on-chain. Fully permissionless.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { stat: '100%', label: 'On-chain' },
                 { stat: '₦0', label: 'Gas to swapper' },
+                { stat: 'Base + ETH', label: 'Networks' },
                 { stat: 'V3', label: 'Permissionless' },
-                { stat: 'Base', label: 'Network' },
               ].map((item) => (
                 <div
                   key={item.stat}
@@ -1123,11 +1170,11 @@ const Home = () => {
           {[
             {
               q: 'What does V3 introduce?',
-              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and NGNs stablecoin stack. Liquidity providers deploy pools, set their own NGNs/USDT/USDC rates, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
+              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools on Base or Ethereum, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
             },
             {
               q: 'How do I become a liquidity provider?',
-              a: 'Go to the Deploy Pool tab in your Dashboard. Deploy your pool (one tx), add supported NGN or USDC stablecoins, set your buy/sell rates, then subscribe (pays a monthly NGNs fee) to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
+              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base (gasless relay) or Ethereum (direct MetaMask). Deploy your pool, add Naira or USD stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
             },
             {
               q: 'What is a Salva name?',
@@ -1139,7 +1186,11 @@ const Home = () => {
             },
             {
               q: 'What is NGNs?',
-              a: "A Nigerian Naira-pegged stablecoin on Base. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and now DEX swaps against USDT and USDC. No FX exposure, no volatility.",
+              a: "A Nigerian Naira stablecoin pegged 1:1 and built on Base. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
+            },
+            {
+              q: 'What is the difference between Base and Ethereum pools?',
+              a: "Base pools are managed via Salva's gasless relay using your Safe smart wallet — no MetaMask needed for pool operations. Ethereum pools are managed directly from MetaMask or any external wallet, with the LP signing transactions on-chain. Both pool types appear together on the Salva swap marketplace.",
             },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
@@ -1183,8 +1234,8 @@ const Home = () => {
               Swap Your Naira.
             </h2>
             <p className="text-black/55 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access. NGNs stablecoin. Human-readable identity. All free to start.
-              Under two minutes.
+              One wallet. DEX access on Base and Ethereum. Naira stablecoin. Human-readable
+              identity. All free to start. Under two minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -1218,7 +1269,7 @@ const Home = () => {
               On-Chain Payment Infrastructure
             </p>
             <p className="text-sm opacity-35 leading-relaxed">
-              DEX. Names. NGNs. Smart Wallet. Built on Base. Non-custodial.
+              DEX. Names. Naira Stablecoin. Smart Wallet. Base & Ethereum. Non-custodial.
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 text-sm">
@@ -1282,14 +1333,24 @@ const Home = () => {
                     )
                   )}
                   {col.heading === 'Network' && (
-                    <span className="flex items-center gap-1.5 text-salvaGold font-bold opacity-70">
-                      <motion.span
-                        animate={{ opacity: [1, 0.3, 1] }}
-                        transition={{ repeat: Infinity, duration: 2 }}
-                        className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-                      />
-                      Base Mainnet
-                    </span>
+                    <div className="space-y-1.5">
+                      <span className="flex items-center gap-1.5 text-salvaGold font-bold opacity-70">
+                        <motion.span
+                          animate={{ opacity: [1, 0.3, 1] }}
+                          transition={{ repeat: Infinity, duration: 2 }}
+                          className="w-1.5 h-1.5 bg-green-500 rounded-full block"
+                        />
+                        Base Mainnet
+                      </span>
+                      <span className="flex items-center gap-1.5 text-blue-400 font-bold opacity-70">
+                        <motion.span
+                          animate={{ opacity: [1, 0.3, 1] }}
+                          transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
+                          className="w-1.5 h-1.5 bg-blue-400 rounded-full block"
+                        />
+                        Ethereum Mainnet
+                      </span>
+                    </div>
                   )}
                 </div>
               </div>

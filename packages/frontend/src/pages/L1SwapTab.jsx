@@ -1020,13 +1020,13 @@ const L1PoolCard = ({ pool, section, onSwap, index }) => {
               <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black mb-1">
                 NGNs
               </p>
-              <p className="font-black text-sm text-salvaGold">{fmt(ngnsAvail, 0)}</p>
+              <p className="font-black text-sm text-salvaGold">{fmt(ngnsAvail)}</p>
             </div>
             <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
                 cNGN
               </p>
-              <p className="font-black text-sm text-white/60">{fmt(cNgnAvail, 0)}</p>
+              <p className="font-black text-sm text-white/60">{fmt(cNgnAvail)}</p>
             </div>
           </div>
         )}

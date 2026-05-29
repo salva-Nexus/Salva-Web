@@ -294,14 +294,23 @@ const L1Hero = ({ onConnect, connecting }) => (
       </div>
     </div>
     {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
+
     <div className="max-w-2xl mx-auto relative z-10">
-      {/* Headline */}
-      <div className="text-center mb-12">
+      {/* Eyebrow + Headline */}
+      <div className="text-center mb-14">
+        <motion.p
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="text-[12px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-4"
+        >
+          Salva V3 · Ethereum Chain
+        </motion.p>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="text-white/60 text-base max-w-md mx-auto leading-relaxed"
+          className="text-white/70 text-sm max-w-sm mx-auto leading-relaxed"
         >
           The Salva V3 DEX and NGNs stablecoin — now on Ethereum mainnet. Connect your wallet to
           access pools, swaps and OTC exchange.
@@ -334,10 +343,13 @@ const L1Hero = ({ onConnect, connecting }) => (
             desc: 'Deploy your own V3 liquidity pool and earn as a market maker on ETH CHAIN.',
             color: '#3b82f6',
           },
-        ].map((card) => (
-          <div
+        ].map((card, i) => (
+          <motion.div
             key={card.title}
-            className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col gap-3"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.32 + i * 0.06 }}
+            className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col gap-3 hover:border-white/[0.1] transition-all"
           >
             <div
               className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-xl"
@@ -350,8 +362,8 @@ const L1Hero = ({ onConnect, connecting }) => (
               {card.icon}
             </div>
             <p className="font-black text-sm text-white">{card.title}</p>
-            <p className="text-[11px] text-white/60 leading-relaxed">{card.desc}</p>
-          </div>
+            <p className="text-[11px] text-white/50 leading-relaxed">{card.desc}</p>
+          </motion.div>
         ))}
       </motion.div>
 
@@ -359,17 +371,28 @@ const L1Hero = ({ onConnect, connecting }) => (
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="flex flex-col items-center gap-4"
+        transition={{ delay: 0.5 }}
+        className="flex flex-col items-center gap-5"
       >
+        <div className="flex items-center gap-3 mb-1">
+          {['🦊', '🔵', '🔗'].map((icon, i) => (
+            <div
+              key={i}
+              className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-base"
+            >
+              {icon}
+            </div>
+          ))}
+        </div>
+
         <button
           onClick={onConnect}
           disabled={connecting}
-          className="flex items-center gap-3 px-8 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50 shadow-2xl"
+          className="flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
           style={{
             background: '#D4AF37',
             color: '#000',
-            boxShadow: '0 8px 32px rgba(212,175,55,0.35)',
+            boxShadow: '0 8px 32px rgba(212,175,55,0.3)',
           }}
         >
           {connecting && (
@@ -377,16 +400,17 @@ const L1Hero = ({ onConnect, connecting }) => (
           )}
           {connecting ? 'Connecting…' : 'Connect Wallet'}
         </button>
-        <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest">
+
+        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
           MetaMask · Coinbase Wallet · WalletConnect
         </p>
       </motion.div>
 
       {/* L2 link */}
-      <div className="mt-12 text-center">
+      <div className="mt-14 text-center">
         <a
           href="/dashboard"
-          className="text-[10px] font-black uppercase tracking-widest text-white/60 hover:text-white/80 transition-colors"
+          className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
         >
           ← Back to Salva Wallet on Base
         </a>
@@ -505,11 +529,6 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
       <div className="max-w-2xl mx-auto relative z-10">
         {/* Header */}
         <header className="mb-7 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
-              ETH CHAIN
-            </h1>
-          </div>
           {/* Wallet chip */}
           <div className="flex flex-col items-end gap-1 mt-1">
             <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-white/10 bg-white/[0.03]">
