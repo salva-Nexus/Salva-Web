@@ -44,10 +44,6 @@ const UserSchema = new mongoose.Schema({
   nameAliases: { type: [LinkedNameSchema], default: [] },
   nameAlias: { type: String, default: null, sparse: true },
 
-  // ── Referral ───────────────────────────────────────────────────────────
-  referredByCode: { type: String, default: null, uppercase: true },
-  referralCode: { type: String, default: null, uppercase: true },
-
   createdAt: { type: Date, default: Date.now, index: true },
 });
 
