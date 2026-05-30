@@ -904,16 +904,16 @@ app.post('/api/alias/link-name', async (req, res) => {
 
     const pureName = name.trim().toLowerCase();
 
-    if (!/^[a-z2-9_]{1,32}$/.test(pureName))
-      return res.status(400).json({
-        message: 'Invalid name. Use lowercase a–z, digits 2–9, one underscore max.',
-      });
-    if ((pureName.match(/_/g) || []).length > 1)
-      return res.status(400).json({ message: 'Only one underscore allowed.' });
-    if (pureName.includes('0') || pureName.includes('1'))
-      return res.status(400).json({ message: 'Digits 0 and 1 are not allowed.' });
-    if (pureName.startsWith('_') || pureName.endsWith('_'))
-      return res.status(400).json({ message: 'Name cannot start or end with underscore.' });
+    if (!/^[a-z2-9.]{1,32}$/.test(pureName))
+  return res.status(400).json({
+    message: 'Invalid name. Use lowercase a–z, digits 2–9, one dot max.',
+  });
+if ((pureName.match(/\./g) || []).length > 1)
+  return res.status(400).json({ message: 'Only one dot allowed.' });
+if (pureName.includes('0') || pureName.includes('1'))
+  return res.status(400).json({ message: 'Digits 0 and 1 are not allowed.' });
+if (pureName.startsWith('.') || pureName.endsWith('.'))
+  return res.status(400).json({ message: 'Name cannot start or end with a dot.' });
     if (pureName.length < 2)
       return res.status(400).json({ message: 'Name must be at least 2 characters.' });
 
@@ -969,26 +969,6 @@ app.post('/api/alias/link-name', async (req, res) => {
     // v2.1.0: fee token is always NGNs
     const feeWeiStr = feeWei.toString(); // pass feeWei as string to frontend
     console.log(`💰 Registry link fee: ${feeHuman} NGNs (feeWei=${feeWeiStr})`);
-
-    // ── Underscore collision check ──────────────────────────────────────────
-    if (pureName.includes('_')) {
-      const parts = pureName.split('_');
-      const reversed = `${parts[1]}_${parts[0]}`;
-      const collisionCheck = await User.findOne({
-        'nameAliases.name': {
-          $in: [
-            new RegExp(`^${parts[0]}@`),
-            new RegExp(`^${parts[1]}@`),
-            new RegExp(`^${reversed}@`),
-          ],
-        },
-      });
-      if (collisionCheck) {
-        return res.status(409).json({
-          message: `A similar name (${parts[0]} or ${parts[1]}) is already registered.`,
-        });
-      }
-    }
 
     // ── On-chain availability check ─────────────────────────────────────────
     const namespace = await getNamespace(registryAddress);
@@ -1279,17 +1259,17 @@ app.post('/api/alias/check-name', async (req, res) => {
     const pureName = name.trim().toLowerCase();
 
     // 2. Character rules: a-z, 2-9, one underscore max, no 0/1, min length 2
-    if (!/^[a-z2-9_]{1,32}$/.test(pureName)) {
-      return res.status(400).json({
-        message: 'Use lowercase a–z, digits 2–9, one underscore max. No 0 or 1.',
-      });
-    }
-    if ((pureName.match(/_/g) || []).length > 1) {
-      return res.status(400).json({ message: 'Only one underscore allowed.' });
-    }
-    if (pureName.startsWith('_') || pureName.endsWith('_')) {
-      return res.status(400).json({ message: 'Name cannot start or end with underscore.' });
-    }
+    if (!/^[a-z2-9.]{1,32}$/.test(pureName)) {
+  return res.status(400).json({
+    message: 'Use lowercase a–z, digits 2–9, one dot max. No 0 or 1.',
+  });
+}
+if ((pureName.match(/\./g) || []).length > 1) {
+  return res.status(400).json({ message: 'Only one dot allowed.' });
+}
+if (pureName.startsWith('.') || pureName.endsWith('.')) {
+  return res.status(400).json({ message: 'Name cannot start or end with a dot.' });
+}
     if (pureName.length < 2) {
       return res.status(400).json({ message: 'Name must be at least 2 characters.' });
     }
