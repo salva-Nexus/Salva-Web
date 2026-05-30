@@ -302,7 +302,7 @@ const NameResolutionVisual = () => {
     {
       alias: 'cboi@salva',
       type: 'Individual · Salva',
-      dest: '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045',
+      dest: '0x8d7050a29c112638f0c9e0f103f3c498c2bd948b',
     },
     {
       alias: 'suzy@coinbase',
@@ -310,12 +310,12 @@ const NameResolutionVisual = () => {
       dest: '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9f',
     },
     {
-      alias: 'charles_pool@salva',
+      alias: 'charles.pool@salva',
       type: 'Pool Contract · Salva',
       dest: '0x85B839dA40615A5ad7439d200768F0603418F881',
     },
     {
-      alias: 'usdc_eth@usdc',
+      alias: 'usdc.eth@usdc',
       type: 'Protocol · USDC',
       dest: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
     },
@@ -943,7 +943,7 @@ const Home = () => {
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Name your pool.</strong> V3 lets you
-                link your pool contract to an SNS name like charles_pool@salva. Users see a
+                link your pool contract to an SNS name like charles.pool@salva. Users see a
                 human-readable identity instead of a hex address on the swap marketplace.
               </p>
               <p>
@@ -1178,7 +1178,7 @@ const Home = () => {
             },
             {
               q: 'What is a Salva name?',
-              a: 'A short, human-readable alias — like charles@base or charles_pool@salva. Anyone can send money to that name directly. V3 extends this so your pool contract can also have a name, making it identifiable on the DEX marketplace.',
+              a: 'A short, human-readable alias — like charles@base or charles.pool@salva. Anyone can send money to that name directly. V3 extends this so your pool contract can also have a name, making it identifiable on the DEX marketplace.',
             },
             {
               q: 'Is Salva wallet self-custodial?',

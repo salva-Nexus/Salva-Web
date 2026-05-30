@@ -148,8 +148,9 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
 
     const val = (r) => (r.status === 'fulfilled' ? r.value : 0n);
     const valBool = (r) => (r.status === 'fulfilled' ? r.value : false);
-    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] =
-      settled.slice(0, 8).map(val);
+    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled
+      .slice(0, 8)
+      .map(val);
     const isPaused = valBool(settled[8]);
 
     return {
@@ -179,8 +180,9 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
 
     const val = (r) => (r.status === 'fulfilled' ? r.value : 0n);
     const valBool = (r) => (r.status === 'fulfilled' ? r.value : false);
-    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] =
-      settled.slice(0, 8).map(val);
+    const [ngnsLiq, cNgnLiq, usdtLiq, usdcLiq, buyRate, sellRate, minNgn, minToken] = settled
+      .slice(0, 8)
+      .map(val);
     const isPaused = valBool(settled[8]);
 
     return {
@@ -775,9 +777,7 @@ router.get('/published', async (req, res) => {
     const sellPools = enriched
       .filter(
         (p) =>
-          !p.isPaused &&
-          parseFloat(p.ngnsLiquidity || 0) > 0 &&
-          parseFloat(p.sellRate || 0) > 0
+          !p.isPaused && parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 
@@ -1606,9 +1606,7 @@ router.get('/l1/published', async (req, res) => {
     const sellPools = enriched
       .filter(
         (p) =>
-          !p.isPaused &&
-          parseFloat(p.ngnsLiquidity || 0) > 0 &&
-          parseFloat(p.sellRate || 0) > 0
+          !p.isPaused && parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 

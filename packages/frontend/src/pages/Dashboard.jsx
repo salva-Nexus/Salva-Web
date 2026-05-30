@@ -626,9 +626,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const validateNameLocally = (val) => {
     if (!val) return 'Name is required';
     if (val.includes('0') || val.includes('1')) return 'Digits 0 and 1 are not allowed';
-    if (!/^[a-z2-9_]+$/.test(val)) return 'Only lowercase a–z, digits 2–9, one underscore';
-    if ((val.match(/_/g) || []).length > 1) return 'Only one underscore allowed';
-    if (val.startsWith('_') || val.endsWith('_')) return 'Cannot start or end with underscore';
+    if (!/^[a-z2-9.]+$/.test(val)) return 'Only lowercase a–z, digits 2–9, one dot';
+    if ((val.match(/\./g) || []).length > 1) return 'Only one dot allowed';
+    if (val.startsWith('.') || val.endsWith('.')) return 'Cannot start or end with a dot';
     if (val.length > 32) return 'Max 32 characters';
     if (val.length < 2) return 'At least 2 characters required';
     return '';
@@ -982,7 +982,15 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 placeholder="yourname"
                 value={nameInput}
                 onChange={(e) => {
-                  setNameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                  let cleaned = e.target.value.toLowerCase().replace(/[^a-z2-9.]/g, '');
+                  // Allow only one dot
+                  const firstDot = cleaned.indexOf('.');
+                  if (firstDot !== -1) {
+                    cleaned =
+                      cleaned.slice(0, firstDot + 1) +
+                      cleaned.slice(firstDot + 1).replace(/\./g, '');
+                  }
+                  setNameInput(cleaned);
                   setNameError('');
                 }}
                 maxLength={32}
@@ -1918,7 +1926,7 @@ const Dashboard = () => {
     // treat it as a fullname immediately without waiting for char-by-char typing
     if (cleaned.includes('@')) {
       // Still sanitize but preserve the @ and valid chars
-      cleaned = cleaned.replace(/[^a-z2-9_@]/g, '');
+      cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
       // Collapse multiple @'s to the first one only
       const atIndex = cleaned.indexOf('@');
       if (atIndex !== -1) {
@@ -1930,13 +1938,11 @@ const Dashboard = () => {
       return;
     }
     // 2. Block 0, 1, and any symbol except a-z, 2-9, _, @
-    cleaned = cleaned.replace(/[^a-z2-9_@]/g, '');
+    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
     // 3. Allow only one underscore
-    const firstUnderscore = cleaned.indexOf('_');
-    if (firstUnderscore !== -1) {
-      cleaned =
-        cleaned.slice(0, firstUnderscore + 1) +
-        cleaned.slice(firstUnderscore + 1).replace(/_/g, '');
+    const firstDot = cleaned.indexOf('.');
+    if (firstDot !== -1) {
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
     }
     // 4. Allow only one @
     const firstAt = cleaned.indexOf('@');

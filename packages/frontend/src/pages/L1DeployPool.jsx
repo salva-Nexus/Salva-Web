@@ -1932,7 +1932,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
                         placeholder="poolname"
                         value={renameInput}
                         onChange={(e) => {
-                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9.]/g, ''));
                           setRenameError('');
                         }}
                         maxLength={32}

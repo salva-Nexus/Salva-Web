@@ -1863,7 +1863,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         placeholder="newpoolname"
                         value={renameInput}
                         onChange={(e) => {
-                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9_]/g, ''));
+                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9.]/g, ''));
                           setRenameError('');
                         }}
                         maxLength={32}
