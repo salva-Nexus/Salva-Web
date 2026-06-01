@@ -1,5 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/components/SalvaNGNsChat.jsx
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import NetworkReminder, { useNetworkReminder } from './NetworkReminder';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
 
@@ -376,6 +377,8 @@ const Bubble = memo(({ msg }) => {
 const SalvaNGNsChat = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState(null);
+  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
+  const { isDismissed } = useNetworkReminder('salva_reminder_buysell');
 
   // ── OTC Config ────────────────────────────────────────────────────────────
   const [otcConfig, setOtcConfig] = useState({
@@ -739,29 +742,18 @@ const SalvaNGNsChat = ({ user }) => {
   );
 
   if (!isOpen) {
-    return (
-      <div
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9000,
-        }}
-      >
+  return (
+    <>
+      <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000 }}>
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => setIsOpen(true)}
+          onClick={() => { if (!isDismissed()) { setShowNetworkReminder(true); } else { setIsOpen(true); } }}
           style={{
-            width: '54px',
-            height: '54px',
-            borderRadius: '50%',
+            width: '54px', height: '54px', borderRadius: '50%',
             background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            border: 'none', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)',
             position: 'relative',
           }}
@@ -771,20 +763,26 @@ const SalvaNGNsChat = ({ user }) => {
             animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
             transition={{ repeat: Infinity, duration: 2 }}
             style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: '2px solid #D4AF37',
-              pointerEvents: 'none',
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              border: '2px solid #D4AF37', pointerEvents: 'none',
             }}
           />
         </motion.button>
       </div>
-    );
-  }
+      {showNetworkReminder && (
+        <NetworkReminder
+          storageKey="salva_reminder_buysell"
+          onContinue={() => { setShowNetworkReminder(false); setIsOpen(true); }}
+          onClose={() => setShowNetworkReminder(false)}
+        />
+      )}
+    </>
+  );
+}
 
   return (
     <>
+
       <AnimatePresence>
         {showReceiptUpload && (
           <motion.div

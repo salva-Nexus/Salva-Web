@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
+import NetworkReminder, { useNetworkReminder } from '../components/NetworkReminder';
 
 const POLL_MS = 60_000;
 
@@ -919,6 +920,9 @@ const SwapTab = ({ user, showMsg }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastTime, setLastTime] = useState(null);
   const [selected, setSelected] = useState(null);
+  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
+  const [pendingPool, setPendingPool] = useState(null);
+  const { isDismissed } = useNetworkReminder('salva_reminder_swap');
   const pollRef = useRef(null);
 
   const fetchPools = useCallback(
@@ -1133,12 +1137,36 @@ const SwapTab = ({ user, showMsg }) => {
               key={pool.poolAddress}
               pool={pool}
               section={section}
-              onSwap={setSelected}
+              onSwap={(pool) => {
+                if (!isDismissed()) {
+                  setPendingPool(pool);
+                  setShowNetworkReminder(true);
+                } else {
+                  setSelected(pool);
+                }
+              }}
               index={i}
             />
           ))}
         </div>
       )}
+
+      <AnimatePresence>
+        {showNetworkReminder && (
+          <NetworkReminder
+            storageKey="salva_reminder_swap"
+            onContinue={() => {
+              setShowNetworkReminder(false);
+              setSelected(pendingPool);
+              setPendingPool(null);
+            }}
+            onClose={() => {
+              setShowNetworkReminder(false);
+              setPendingPool(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {selected && (

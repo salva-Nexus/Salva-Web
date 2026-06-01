@@ -12,18 +12,25 @@ import SwapTab from './SwapTab';
 import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-const formatNumber = (value, { minDecimals = 0, maxDecimals = 4 } = {}) => {
+const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   if (value === null || value === undefined || value === '') return '0';
   const num = Number(value);
   if (!Number.isFinite(num)) return '0';
-  const str = num.toFixed(maxDecimals + 2);
-  const dotIndex = str.indexOf('.');
-  const sliced = dotIndex === -1 ? str : str.slice(0, dotIndex + maxDecimals + 1);
-  const truncated = parseFloat(sliced);
-  return truncated.toLocaleString('en-US', {
-    minimumFractionDigits: minDecimals,
-    maximumFractionDigits: maxDecimals,
-  });
+  if (num === 0) return '0';
+
+  // Convert to fixed at maxDecimals to get all digits, no rounding issues
+  const fixed = num.toFixed(maxDecimals);
+  const [intPart, decPart = ''] = fixed.split('.');
+
+  // Smart trim: strip trailing zeros, but keep at least minDecimals
+  let trimmed = decPart;
+  while (trimmed.length > minDecimals && trimmed.endsWith('0')) {
+    trimmed = trimmed.slice(0, -1);
+  }
+
+  const formattedInt = Number(intPart).toLocaleString('en-US');
+
+  return trimmed.length > 0 ? `${formattedInt}.${trimmed}` : formattedInt;
 };
 // Safe decimal string addition — no float garbage
 const addDecimals = (a, b) => {
@@ -201,6 +208,36 @@ const BalanceSpinner = () => (
     <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
+// ── Split Balance Display ──────────────────────────────────────────────────
+// Shows all 6 decimals; digits beyond the 3rd decimal position are dimmed
+const SplitBalance = ({ value, isusd = false, inline = false }) => {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return <span>0</span>;
+
+  const fixed = num.toFixed(6);
+  const [intPart, decPart] = fixed.split('.');
+
+  const formattedInt = Number(intPart).toLocaleString('en-US');
+
+  // For USD show 2 solid + 4 dim, for NGN show 3 solid + 3 dim
+  const solidCount = isusd ? 2 : 3;
+  const solidDec = decPart.slice(0, solidCount);
+  const dimDec = decPart.slice(solidCount); // always 3 chars
+
+  if (inline) {
+    return (
+      <span>
+        {formattedInt}.{solidDec}<span style={{ opacity: 0.3 }}>{dimDec}</span>
+      </span>
+    );
+  }
+
+  return (
+    <span>
+      {formattedInt}.{solidDec}<span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
+    </span>
+  );
+};
 
 // ── Searchable Registry Dropdown ───────────────────────────────────────────
 const RegistryDropdown = ({
@@ -502,23 +539,20 @@ const BalanceCard = ({
             <span
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
-                fontSize:
-                  showBalance && String(totalNgn).length > 10
-                    ? 'clamp(1rem, 5vw, 1.75rem)'
-                    : '1.875rem',
+                fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)',
               }}
             >
-              {showBalance ? formatNumber(totalNgn, { minDecimals: 3, maxDecimals: 3 }) : MASK}
+              {showBalance ? <SplitBalance value={totalNgn} /> : MASK}
             </span>
           )}
         </div>
 
         {!balanceLoading && (
-          <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
+          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(ngnsBalance, { minDecimals: 3, maxDecimals: 3 })} NGNs · ${formatNumber(cNgnBalance, { minDecimals: 3, maxDecimals: 3 })} cNGN`
+              ? <><SplitBalance value={ngnsBalance} inline /> <span className="opacity-60">NGNs</span> · <SplitBalance value={cNgnBalance} inline /> <span className="opacity-60">cNGN</span></>
               : '•••• NGNs · •••• cNGN'}
-          </p>
+          </div>
         )}
       </div>
 
@@ -540,23 +574,20 @@ const BalanceCard = ({
             <span
               className="font-black text-white tracking-tight break-all leading-none"
               style={{
-                fontSize:
-                  showBalance && String(totalUsd).length > 10
-                    ? 'clamp(0.9rem, 4vw, 1.5rem)'
-                    : '1.5rem',
+                fontSize: 'clamp(0.85rem, 4vw, 1.5rem)',
               }}
             >
-              {showBalance ? formatNumber(totalUsd, { minDecimals: 2, maxDecimals: 3 }) : MASK}
+              {showBalance ? <SplitBalance value={totalUsd} isusd /> : MASK}
             </span>
           )}
         </div>
 
         {!balanceLoading && (
-          <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
+          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
             {showBalance
-              ? `${formatNumber(usdtBalance, { minDecimals: 2, maxDecimals: 3 })} USDT · ${formatNumber(usdcBalance, { minDecimals: 2, maxDecimals: 3 })} USDC`
+              ? <><SplitBalance value={usdtBalance} inline /> <span className="opacity-60">USDT</span> · <SplitBalance value={usdcBalance} inline /> <span className="opacity-60">USDC</span></>
               : '•••• USDT · •••• USDC'}
-          </p>
+          </div>
         )}
       </div>
 
