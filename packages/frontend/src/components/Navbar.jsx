@@ -127,7 +127,7 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                 <span
                   className="w-2 h-2 rounded-full animate-pulse"
                   style={{
-                    background: l1ChainId === 1 || l1ChainId === 11155111 ? '#D4AF37' : '#f97316',
+                    background: l1ChainId === 56 || l1ChainId === 97 ? '#D4AF37' : '#f97316',
                   }}
                 />
                 <span className="font-mono font-black text-[11px] text-white">
@@ -167,7 +167,7 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                   <div className="p-4 flex flex-col gap-2">
                     <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
                       <p className="text-[9px] uppercase font-black text-white/25 tracking-widest mb-1">
-                        L1 Wallet
+                        BNB Wallet
                       </p>
                       <p
                         className="font-mono text-[11px] break-all leading-relaxed"
@@ -176,11 +176,11 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
                         {l1Account}
                       </p>
                     </div>
-                    {l1ChainId !== 1 && l1ChainId !== 11155111 && (
+                    {l1ChainId !== 56 && l1ChainId !== 97 && (
                       <div className="p-2.5 rounded-xl bg-orange-500/[0.07] border border-orange-500/20">
-                        <p className="text-[10px] font-black text-orange-400">⚠ Not on Ethereum</p>
+                        <p className="text-[10px] font-black text-orange-400">⚠ Not on BNB Chain</p>
                         <p className="text-[10px] text-white/30 mt-0.5">
-                          Switch to Ethereum in your wallet.
+                          Switch to BNB Smart Chain in your wallet.
                         </p>
                       </div>
                     )}

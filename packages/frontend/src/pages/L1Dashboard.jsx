@@ -98,6 +98,30 @@ const BalanceSpinner = () => (
   </span>
 );
 
+// ── Split Balance Display ─────────────────────────────────────────────────────
+const SplitBalance = ({ value, isusd = false, inline = false }) => {
+  const num = Number(value || 0);
+  if (!Number.isFinite(num)) return <span>0</span>;
+  const fixed = num.toFixed(6);
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = Number(intPart).toLocaleString('en-US');
+  const solidCount = isusd ? 2 : 3;
+  const solidDec = decPart.slice(0, solidCount);
+  const dimDec = decPart.slice(solidCount);
+  if (inline) {
+    return (
+      <span>
+        {formattedInt}.{solidDec}<span style={{ opacity: 0.3 }}>{dimDec}</span>
+      </span>
+    );
+  }
+  return (
+    <span>
+      {formattedInt}.{solidDec}<span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
+    </span>
+  );
+};
+
 // ── L1 Balance Card ───────────────────────────────────────────────────────────
 const L1BalanceCard = ({
   ngnsBalance,
@@ -142,35 +166,25 @@ const L1BalanceCard = ({
           ) : (
             <span
               className="font-black text-white tracking-tight break-all leading-none"
-              style={{
-                fontSize:
-                  showBalance && formatNumber(totalNgn).length > 10
-                    ? 'clamp(1rem, 5vw, 1.75rem)'
-                    : '1.875rem',
-              }}
+              style={{ fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)' }}
             >
-              {showBalance
-                ? formatNumber(totalNgn, {
-                    minDecimals: 3,
-                    maxDecimals: 3,
-                  })
-                : MASK}
+              {showBalance ? <SplitBalance value={totalNgn} /> : MASK}
             </span>
           )}
         </div>
 
         {!balanceLoading && (
-          <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
-            {showBalance
-              ? `${formatNumber(ngnsBalance, {
-                  minDecimals: 3,
-                  maxDecimals: 3,
-                })} NGNs · ${formatNumber(cNgnBalance, {
-                  minDecimals: 3,
-                  maxDecimals: 3,
-                })} cNGN`
-              : '•••• NGNs · •••• cNGN'}
-          </p>
+          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
+            {showBalance ? (
+              <>
+                <SplitBalance value={ngnsBalance} inline /> <span className="opacity-60">NGNs</span>{' '}
+                · <SplitBalance value={cNgnBalance} inline />{' '}
+                <span className="opacity-60">cNGN</span>
+              </>
+            ) : (
+              '•••• NGNs · •••• cNGN'
+            )}
+          </div>
         )}
       </div>
 
@@ -191,35 +205,25 @@ const L1BalanceCard = ({
           ) : (
             <span
               className="font-black text-white tracking-tight break-all leading-none"
-              style={{
-                fontSize:
-                  showBalance && String(totalUsd).length > 10
-                    ? 'clamp(0.9rem, 4vw, 1.5rem)'
-                    : '1.5rem',
-              }}
+              style={{ fontSize: 'clamp(0.85rem, 4vw, 1.5rem)' }}
             >
-              {showBalance
-                ? formatNumber(totalUsd, {
-                    minDecimals: 2,
-                    maxDecimals: 3,
-                  })
-                : MASK}
+              {showBalance ? <SplitBalance value={totalUsd} isusd /> : MASK}
             </span>
           )}
         </div>
 
         {!balanceLoading && (
-          <p className="text-[10px] text-white/60 font-mono mt-2 truncate">
-            {showBalance
-              ? `${formatNumber(usdtBalance, {
-                  minDecimals: 2,
-                  maxDecimals: 3,
-                })} USDT · ${formatNumber(usdcBalance, {
-                  minDecimals: 2,
-                  maxDecimals: 3,
-                })} USDC`
-              : '•••• USDT · •••• USDC'}
-          </p>
+          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
+            {showBalance ? (
+              <>
+                <SplitBalance value={usdtBalance} inline /> <span className="opacity-60">USDT</span>{' '}
+                · <SplitBalance value={usdcBalance} inline />{' '}
+                <span className="opacity-60">USDC</span>
+              </>
+            ) : (
+              '•••• USDT · •••• USDC'
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -304,7 +308,7 @@ const L1Hero = ({ onConnect, connecting }) => (
           transition={{ delay: 0.1 }}
           className="text-[12px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-4"
         >
-          Salva V3 · Ethereum Chain
+          Salva V3 · BNB Chain
         </motion.p>
         <motion.p
           initial={{ opacity: 0, y: 12 }}
@@ -312,7 +316,7 @@ const L1Hero = ({ onConnect, connecting }) => (
           transition={{ delay: 0.2 }}
           className="text-white/70 text-sm max-w-sm mx-auto leading-relaxed"
         >
-          The Salva V3 DEX and NGNs stablecoin — now on Ethereum mainnet. Connect your wallet to
+          The Salva V3 DEX and NGNs stablecoin — now on BNB Chain. Connect your wallet to
           access pools, swaps and OTC exchange.
         </motion.p>
       </div>
@@ -328,19 +332,19 @@ const L1Hero = ({ onConnect, connecting }) => (
           {
             icon: '₦',
             title: 'Buy / Sell NGNs',
-            desc: 'OTC desk — purchase or sell Nigerian Naira stablecoin on ETH CHAIN.',
+            desc: 'OTC desk — purchase or sell Nigerian Naira stablecoin on BNB CHAIN.',
             color: '#D4AF37',
           },
           {
             icon: '⇄',
             title: 'Swap',
-            desc: 'Peer-to-peer NGNs / USD stablecoin exchange via V3 liquidity pools.',
+            desc: 'Peer-to-peer NGN / USD stablecoin exchange via V3 liquidity pools.',
             color: '#22c55e',
           },
           {
             icon: '⛏',
             title: 'Deploy Pool',
-            desc: 'Deploy your own V3 liquidity pool and earn as a market maker on ETH CHAIN.',
+            desc: 'Deploy your own V3 liquidity pool and earn as a market maker on BNB CHAIN.',
             color: '#3b82f6',
           },
         ].map((card, i) => (
@@ -542,7 +546,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
             </div>
             {wrongChain && (
               <p className="text-[9px] text-orange-400 font-black uppercase tracking-widest">
-                ⚠ Switch to Ethereum Mainnet
+                ⚠ Switch to BNB Chain
               </p>
             )}
           </div>
@@ -552,8 +556,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
         {wrongChain && (
           <div className="mb-5 p-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.06]">
             <p className="text-sm font-bold text-orange-400">
-              ⚠ Your wallet is on the wrong network. Please switch to{' '}
-              <strong>Ethereum Mainnet</strong> in your wallet to use Salva.
+              ⚠ Your wallet is on the wrong network. Please switch to <strong>BNB Smart Chain</strong> in your wallet to use Salva.
             </p>
           </div>
         )}
@@ -582,7 +585,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              EOA Wallet · ETH
+              EOA Wallet · BNB
             </p>
             <p className="font-mono text-[10px] text-blue-400/60 truncate mt-0.5">
               {showBalance ? l1Account : '0x••••••••••••••••••••••••••••••••••••••••'}

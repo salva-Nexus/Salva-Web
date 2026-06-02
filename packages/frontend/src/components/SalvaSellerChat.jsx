@@ -571,7 +571,7 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
             margin: '0 0 18px',
           }}
         >
-          This calls ERC20.mint() on-chain.
+          This calls mint() on-chain.
         </p>
         <div
           style={{

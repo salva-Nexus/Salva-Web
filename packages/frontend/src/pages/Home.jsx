@@ -30,12 +30,12 @@ const SEOMeta = () => {
     };
     setMeta(
       'description',
-      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base and Ethereum. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
+      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base and BSC. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
     );
     setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
     setMeta(
       'og:description',
-      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets. Built on Base & Ethereum.',
+      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets. Built on Base & BSC.',
       true
     );
     setMeta('og:type', 'website', true);
@@ -178,7 +178,7 @@ const DEXVisual = () => {
       usd2Label: 'USDC',
       usd2Val: '$50.00',
       ngn: '0',
-      chain: 'ETH',
+      chain: 'BSC',
     },
     {
       name: 'amuobi_pool@salva',
@@ -208,7 +208,7 @@ const DEXVisual = () => {
           <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
             <span className="text-[9px] text-white/40 font-black">Base</span>
             <span className="text-white/20 text-[9px]">·</span>
-            <span className="text-[9px] text-white/40 font-black">ETH</span>
+            <span className="text-[9px] text-white/40 font-black">BSC</span>
           </div>
           <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
             <motion.span
@@ -256,7 +256,7 @@ const DEXVisual = () => {
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-[11px] font-black text-salvaGold truncate">{pool.name}</p>
                 <span
-                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${pool.chain === 'ETH' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'}`}
+                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${pool.chain === 'BSC' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'}`}
                 >
                   {pool.chain}
                 </span>
@@ -288,7 +288,7 @@ const DEXVisual = () => {
         <div className="flex items-center gap-1.5">
           <span className="text-[9px] text-salvaGold/50 font-black">Base ⬡</span>
           <span className="text-white/20 text-[9px]">·</span>
-          <span className="text-[9px] text-blue-400/50 font-black">ETH ◆</span>
+          <span className="text-[9px] text-blue-400/50 font-black">BSC ◆</span>
         </div>
       </div>
     </div>
@@ -583,7 +583,7 @@ const Ticker = () => {
     'Gasless Transactions',
     'On-Chain Identity',
     'LP Earn Fees',
-    'Base + ETH Chain',
+    'Base + BNB Chain',
     'Naira ↔ USD Stablecoins',
   ];
   return (
@@ -835,7 +835,7 @@ const Home = () => {
             transition={{ delay: 0.3, duration: 0.9 }}
             className="text-lg sm:text-xl md:text-2xl opacity-50 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
           >
-            DEX. Name Service. Naira Stablecoin. Smart Wallet — on Base & Ethereum.
+            DEX. Name Service. Naira Stablecoin. Smart Wallet — on Base & BSC.
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}
@@ -902,19 +902,19 @@ const Home = () => {
           badge="🔄"
           tag="Salva V3 DEX"
           title="Swap between Naira & USD Stablecoins Instantly."
-          headline="Permissionless liquidity pools on Base and Ethereum — anyone can be an LP."
-          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools on Base or Ethereum and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
+          headline="Permissionless liquidity pools on Base and BSC — anyone can be an LP."
+          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools on Base or BSC and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
           extContent={
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
-                own pool on Base or Ethereum, add Naira or USD stablecoins, set your buy/sell rates,
-                get listed on the swap marketplace. Earn on every swap through your spread.
+                own pool on Base or BSC, add Naira or USD stablecoins, set your buy/sell rates, get
+                listed on the swap marketplace. Earn on every swap through your spread.
               </p>
               <p>
                 <strong className="text-black dark:text-white">Two chains. One marketplace.</strong>{' '}
-                Pools on Base L2 benefit from ultra-low fees and fast confirmations. Pools on
-                Ethereum offer direct access to the broadest liquidity ecosystem. Both are listed
+                Pools on Base L2 benefit from ultra-low fees and fast confirmations. Pools on BSC
+                offer direct access to the broadest liquidity ecosystem. Both are listed
                 side-by-side on the swap marketplace.
               </p>
             </div>
@@ -993,8 +993,8 @@ const Home = () => {
               </p>
               <p>
                 <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
-                Naira stablecoins. Swap on the DEX. Register names. Become an LP on Base or
-                Ethereum. All from the same wallet, all gasless.
+                Naira stablecoins. Swap on the DEX. Register names. Become an LP on Base or BSC. All
+                from the same wallet, all gasless.
               </p>
             </div>
           }
@@ -1028,7 +1028,7 @@ const Home = () => {
               <p>
                 <strong className="text-black dark:text-white">Instant settlement.</strong>{' '}
                 Transactions confirm in seconds. Every transfer is on-chain and permanently
-                verifiable across Base and Ethereum.
+                verifiable across Base and BSC.
               </p>
             </div>
           }
@@ -1077,7 +1077,7 @@ const Home = () => {
             {
               n: '04',
               title: 'Swap on DEX',
-              desc: 'Trade between Naira and USD stablecoins on Salva V3 — on Base or Ethereum. Or become an LP and earn from your spread.',
+              desc: 'Trade between Naira and USD stablecoins on Salva V3 — on Base or BSC. Or become an LP and earn from your spread.',
             },
           ].map((step, i) => (
             <motion.div
@@ -1121,15 +1121,15 @@ const Home = () => {
               <span className="text-salvaGold">Anyone can be an LP.</span>
             </h2>
             <p className="text-base sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-12">
-              Deploy a liquidity pool on Base or Ethereum, fund it with Naira or USD stablecoins,
-              and set your rate. Your pool earns on every swap through your bid-ask spread. Fully
-              on-chain. Fully permissionless.
+              Deploy a liquidity pool on Base or BSC, fund it with Naira or USD stablecoins, and set
+              your rate. Your pool earns on every swap through your bid-ask spread. Fully on-chain.
+              Fully permissionless.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { stat: '100%', label: 'On-chain' },
                 { stat: '₦0', label: 'Gas to swapper' },
-                { stat: 'Base + ETH', label: 'Networks' },
+                { stat: 'Base + BNB', label: 'Networks' },
                 { stat: 'V3', label: 'Permissionless' },
               ].map((item) => (
                 <div
@@ -1170,11 +1170,11 @@ const Home = () => {
           {[
             {
               q: 'What does V3 introduce?',
-              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools on Base or Ethereum, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
+              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools on Base or BSC, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
             },
             {
               q: 'How do I become a liquidity provider?',
-              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base (gasless relay) or Ethereum (direct MetaMask). Deploy your pool, add Naira or USD stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
+              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base (gasless relay) or BSC (direct MetaMask). Deploy your pool, add Naira or USD stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
             },
             {
               q: 'What is a Salva name?',
@@ -1189,8 +1189,8 @@ const Home = () => {
               a: "A Nigerian Naira stablecoin pegged 1:1 and built on Base. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
             },
             {
-              q: 'What is the difference between Base and Ethereum pools?',
-              a: "Base pools are managed via Salva's gasless relay using your Safe smart wallet — no MetaMask needed for pool operations. Ethereum pools are managed directly from MetaMask or any external wallet, with the LP signing transactions on-chain. Both pool types appear together on the Salva swap marketplace.",
+              q: 'What is the difference between Base and BSC pools?',
+              a: "Base pools are managed via Salva's gasless relay using your Safe smart wallet — no MetaMask needed for pool operations. BSC pools are managed directly from MetaMask or any external wallet, with the LP signing transactions on-chain. Both pool types appear together on the Salva swap marketplace.",
             },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
@@ -1234,8 +1234,8 @@ const Home = () => {
               Swap Your Naira.
             </h2>
             <p className="text-black/55 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access on Base and Ethereum. Naira stablecoin. Human-readable
-              identity. All free to start. Under two minutes.
+              One wallet. DEX access on Base and BSC. Naira stablecoin. Human-readable identity. All
+              free to start. Under two minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
@@ -1269,7 +1269,7 @@ const Home = () => {
               On-Chain Payment Infrastructure
             </p>
             <p className="text-sm opacity-35 leading-relaxed">
-              DEX. Names. Naira Stablecoin. Smart Wallet. Base & Ethereum. Non-custodial.
+              DEX. Names. Naira Stablecoin. Smart Wallet. Base & BSC. Non-custodial.
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 text-sm">
@@ -1348,7 +1348,7 @@ const Home = () => {
                           transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
                           className="w-1.5 h-1.5 bg-blue-400 rounded-full block"
                         />
-                        Ethereum Mainnet
+                        BNB Smart Chain
                       </span>
                     </div>
                   )}

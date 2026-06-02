@@ -227,7 +227,7 @@ const Bubble = memo(({ msg }) => {
       >
         <div style={{ fontSize: '28px', marginBottom: '6px' }}>🎉</div>
         <p style={{ color: '#22c55e', fontWeight: '900', fontSize: '13px', margin: '0 0 4px' }}>
-          NGNs Minted on ETH CHAIN!
+          NGNs Minted on BNB CHAIN!
         </p>
         <p
           style={{
@@ -679,7 +679,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
 
   const handleRecipientSave = () => {
     if (!isValidAddr(recipientDraft)) {
-      showMsg('Invalid Ethereum address', 'error');
+      showMsg('Invalid BNB address', 'error');
       return;
     }
     setRecipient(recipientDraft);
@@ -741,7 +741,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
-              ETH CHAIN · OTC Desk
+              BNB CHAIN · OTC Desk
             </p>
             <h2 className="text-3xl font-black tracking-tight">Buy / Sell NGNs</h2>
           </div>
@@ -760,7 +760,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
           <p className="text-xs font-black text-blue-400 mb-1">OTC Exchange</p>
           <p className="text-[11px] text-white/60 leading-relaxed">
-            Buy NGNs with fiat (minted to any Ethereum address) or sell NGNs for fiat (burned from
+            Buy NGNs with fiat (minted to any BNB address) or sell NGNs for fiat (burned from
             your connected wallet). Tap the ₦ button below to start.
           </p>
         </div>
@@ -772,7 +772,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              Mint-to Address · ETH CHAIN
+              Mint-to Address · BNB CHAIN
             </p>
             {editingRecipient ? (
               <div className="flex items-center gap-2 mt-1">
@@ -1117,8 +1117,8 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                 >
                   {mode
                     ? mode === 'buy'
-                      ? 'Buying NGNs · ETH CHAIN'
-                      : 'Selling NGNs · ETH CHAIN'
+                      ? 'Buying NGNs · BNB CHAIN'
+                      : 'Selling NGNs · BNB CHAIN'
                     : 'Choose an option'}
                 </p>
               </div>
@@ -1136,7 +1136,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                   flexShrink: 0,
                 }}
               >
-                ETH CHAIN
+                BNB CHAIN
               </span>
               <button
                 onClick={() => setIsOpen(false)}
@@ -1260,13 +1260,13 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       fontWeight: '700',
                     }}
                   >
-                    How it works on ETH CHAIN
+                    How it works on BNB CHAIN
                   </p>
                   <p
                     style={{ margin: '0 0 4px', fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}
                   >
                     <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Buy:</strong> Transfer fiat →
-                    NGNs minted to your address on Ethereum
+                    NGNs minted to your address on BNB
                   </p>
                   <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
                     <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Sell:</strong> NGNs burned
@@ -1299,7 +1299,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       margin: '0 0 4px',
                     }}
                   >
-                    Buy NGNs · ETH CHAIN
+                    Buy NGNs · BNB CHAIN
                   </h3>
                   <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
                     Enter the amount you want to purchase
@@ -1555,7 +1555,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                         margin: '0 0 4px',
                       }}
                     >
-                      Sell NGNs · ETH CHAIN
+                      Sell NGNs · BNB CHAIN
                     </h3>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
                       NGNs will be burned from: {truncAddr(l1Account)}
@@ -2041,7 +2041,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       <p
                         style={{ color: '#D4AF37', fontSize: '12px', margin: 0, fontWeight: '700' }}
                       >
-                        Minting on Eth Chain… please wait.
+                        Minting on BNB Chain… please wait.
                       </p>
                     </div>
                   )}

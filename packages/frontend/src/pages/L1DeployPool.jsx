@@ -381,6 +381,24 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
   const [onChainMinNgn, setOnChainMinNgn] = useState(null);
   const [onChainMinUsd, setOnChainMinUsd] = useState(null);
   const [minsLoading, setMinsLoading] = useState(true);
+  const [assetDecimals, setAssetDecimals] = useState({});
+
+  useEffect(() => {
+    if (!l1Config) return;
+    const tokenMap = {
+      NGNS: l1Config.ngnsTokenAddress,
+      CNGN: l1Config.cngnContractAddress,
+      USDT: l1Config.usdtContractAddress,
+      USDC: l1Config.usdcContractAddress,
+    };
+    Object.entries(tokenMap).forEach(([sym, addr]) => {
+      if (!addr) return;
+      fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${addr}`)
+        .then((r) => r.json())
+        .then((d) => setAssetDecimals((prev) => ({ ...prev, [sym]: d.decimals ?? 6 })))
+        .catch(() => setAssetDecimals((prev) => ({ ...prev, [sym]: 6 })));
+    });
+  }, [l1Config]);
 
   useEffect(() => {
     let cancelled = false;
@@ -467,7 +485,8 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       const signer = await getSigner();
       const tokenAddr = resolveToken(liqAsset);
       if (!tokenAddr) throw new Error(`Unknown asset: ${liqAsset}`);
-      const amtWei = ethers.parseUnits(String(liqAmount), 6);
+      const dec = assetDecimals[liqAsset] ?? 6;
+      const amtWei = ethers.parseUnits(String(liqAmount), dec);
       const poolAddr = ethers.getAddress(pool.poolAddress);
 
       const token = new ethers.Contract(ethers.getAddress(tokenAddr), ERC20_ABI, signer);
@@ -493,10 +512,11 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       const tokenAddr = resolveToken(liqAsset);
       if (!tokenAddr) throw new Error(`Unknown asset: ${liqAsset}`);
       const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
+      const dec = assetDecimals[liqAsset] ?? 6;
       await execTx(
         poolC.removeLiquidity(
           ethers.getAddress(tokenAddr),
-          ethers.parseUnits(String(liqAmount), 6),
+          ethers.parseUnits(String(liqAmount), dec),
           { gasLimit: 150_000 }
         )
       );
@@ -537,7 +557,8 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       if (!minNgn || parseFloat(minNgn) < 0) return;
       const signer = await getSigner();
       const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
-      await execTx(poolC.setMinimumNgnAmount(ethers.parseUnits(String(minNgn), 6)));
+      const ngnDec = assetDecimals['NGNS'] ?? 6;
+      await execTx(poolC.setMinimumNgnAmount(ethers.parseUnits(String(minNgn), ngnDec)));
       showMsg('Min NGN updated!');
       setOnChainMinNgn(parseFloat(minNgn));
       setMinNgn('');
@@ -549,7 +570,9 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
       if (!minToken || parseFloat(minToken) < 0) return;
       const signer = await getSigner();
       const poolC = new ethers.Contract(ethers.getAddress(pool.poolAddress), POOL_ABI, signer);
-      await execTx(poolC.setMinimumTokenAmount(ethers.parseUnits(String(minToken), 6)));
+      // Use USDT decimals as the reference for stable minimum (same precision as USDC)
+      const usdDec = assetDecimals['USDT'] ?? 6;
+      await execTx(poolC.setMinimumTokenAmount(ethers.parseUnits(String(minToken), usdDec)));
       showMsg('Min USD updated!');
       setOnChainMinUsd(parseFloat(minToken));
       setMinToken('');
@@ -584,7 +607,7 @@ const L1PoolManagePanel = ({ pool, l1Config, wallet, showMsg, onClose, onRefresh
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-[0.35em] text-blue-400/60 font-black mb-0.5">
-                Manage Pool · ETH CHAIN
+                Manage Pool · BNB CHAIN
               </p>
               <p className="font-black text-lg text-white truncate">
                 {pool.poolName || 'Unnamed Pool'}
@@ -1176,7 +1199,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       return;
     }
     if (wallet.wrongChain) {
-      showMsg('Switch to Ethereum Mainnet first.', 'error');
+      showMsg('Switch to BSC first.', 'error');
       return;
     }
     if (!l1Config?.poolFactoryAddress) {
@@ -1244,7 +1267,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       return;
     }
     if (wallet.wrongChain) {
-      showMsg('Switch to Ethereum Mainnet first.', 'error');
+      showMsg('Switch to BSC first.', 'error');
       return;
     }
     if (!selectedPool || !l1Config?.ngnsTokenAddress || !l1Config?.treasuryAddress) return;
@@ -1253,7 +1276,19 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
     try {
       const monthly = subFees?.monthly || 5000;
       const total = monthly * subTier;
-      const totalWei = ethers.parseUnits(String(total), 6);
+      // Fetch NGNs decimals from the factory before computing wei amounts
+      let ngnsDec = 6;
+      try {
+        const decRes = await fetch(
+          `${SALVA_API_URL}/api/pool/token-decimals?address=${l1Config.ngnsTokenAddress}`
+        );
+        const decData = await decRes.json();
+        ngnsDec = decData.decimals ?? 6;
+      } catch {
+        // fallback to 6 if fetch fails — better than crashing
+      }
+
+      const totalWei = ethers.parseUnits(String(total), ngnsDec);
       const signer = await wallet.getSigner();
 
       const ngnToken = new ethers.Contract(
@@ -1530,7 +1565,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="min-w-0">
             <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
-              Salva V3 · ETH Chain
+              Salva V3 · BNB Chain
             </p>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight">My Pools</h2>
           </div>
@@ -1572,13 +1607,13 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       {wallet.isConnected && wallet.wrongChain && (
         <SwitchChainBanner
           onSwitch={wallet.switchChain}
-          chainName={process.env.NODE_ENV === 'production' ? 'Ethereum Mainnet' : 'Sepolia Testnet'}
+          chainName={process.env.NODE_ENV === 'production' ? 'BNB Smart Chain' : 'BNB Testnet'}
         />
       )}
 
       {/* Info */}
       <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-xs font-black text-blue-400 mb-1">How it works on ETH CHAIN</p>
+        <p className="text-xs font-black text-blue-400 mb-1">How it works on BNB CHAIN</p>
         <p className="text-[11px] text-white/60 leading-relaxed">
           Deploy your pool directly from your wallet. Add liquidity, set rates, then publish it. A
           subscription of{' '}
@@ -1679,7 +1714,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="p-8">
                 <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
-                  Marketplace · ETH CHAIN
+                  Marketplace · BNB CHAIN
                 </p>
                 <h3 className="text-xl font-black mb-1 text-white">Publish Pool</h3>
                 <p className="text-xs text-white/60 mb-5 leading-relaxed">

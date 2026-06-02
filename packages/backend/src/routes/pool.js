@@ -5,6 +5,7 @@ const { provider } = require('../services/walletSigner');
 const relay = require('../services/relayService');
 
 const Pool = require('../models/Pool');
+const { getL1TokenDecimals } = require('../utils/l1Decimals');
 const PoolSubscription = require('../models/PoolSubscription');
 const TrustedPool = require('../models/TrustedPool');
 const FeeConfig = require('../models/FeeConfig');
@@ -18,10 +19,10 @@ const POOL_VIEW_ABI = [
   'function getMinuimumNgnAmount() external view returns (uint256)',
   'function getMinuimumUSDAmount() external view returns (uint256)',
   'function isPaused() external view returns (bool)',
-  'function getExactUSDAmountOut(uint256 ngnAmountIn, uint256 exRate) public pure returns (uint256)',
-  'function getExactNGNAmountOut(uint256 usdAmountIn, uint256 exRate) public pure returns (uint256)',
-  'function getExactNGNAmountIn(uint256 usdAmountOut, uint256 exRate) public pure returns (uint256)',
-  'function getExactUSDAmountIn(uint256 ngnAmountOut, uint256 exRate) public pure returns (uint256)',
+  'function getExactUSDAmountOut(address usdToken, uint256 ngnAmountIn, uint256 exRate) public view returns (uint256)',
+  'function getExactNGNAmountOut(address usdToken, uint256 usdAmountIn, uint256 exRate) public view returns (uint256)',
+  'function getExactNGNAmountIn(address usdToken, uint256 usdAmountOut, uint256 exRate) public view returns (uint256)',
+  'function getExactUSDAmountIn(address usdTokenIn, uint256 ngnAmountOut, uint256 exRate) public view returns (uint256)',
 ];
 
 const POOL_WRITE_ABI = [
@@ -91,18 +92,18 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
 
   if (isL1) {
     ngnsAddr = cleanAddr(
-      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
     );
     cNgnAddr = cleanAddr(
-      isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS
+      isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
     );
     usdtAddr = cleanAddr(
-      isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS
+      isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
     );
     usdcAddr = cleanAddr(
-      isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS
+      isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
     );
-    const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+    const l1Rpc = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     poolProvider = new ethers.JsonRpcProvider(l1Rpc);
   } else {
     ngnsAddr = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
@@ -118,6 +119,14 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
 
   if (isL1) {
     // L1: tokens were sent via raw transfer — read balanceOf on each token contract
+    // Fetch decimals from PoolFactory (BSC testnet or mainnet depending on NODE_ENV)
+    const [ngnsDecimals, cNgnDecimals, usdtDecimals, usdcDecimals] = await Promise.all([
+      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 18) : Promise.resolve(18),
+      cNgnAddr ? getL1TokenDecimals(cNgnAddr).catch(() => 18) : Promise.resolve(18),
+      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18),
+      usdcAddr ? getL1TokenDecimals(usdcAddr).catch(() => 18) : Promise.resolve(18),
+    ]);
+
     const settled = await Promise.allSettled([
       ngnsAddr
         ? new ethers.Contract(ethers.getAddress(ngnsAddr), ERC20_BAL_ABI, poolProvider).balanceOf(
@@ -153,11 +162,14 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
       .map(val);
     const isPaused = valBool(settled[8]);
 
+    // Rates and minimums are stored as 6-decimal fixed-point on the pool contract itself
+    // (that is the pool contract's own internal precision — not the token's decimals).
+    // Only token balances use the token's actual decimals.
     return {
-      ngnsLiquidity: ethers.formatUnits(ngnsLiq, 6),
-      cNgnLiquidity: ethers.formatUnits(cNgnLiq, 6),
-      usdtLiquidity: ethers.formatUnits(usdtLiq, 6),
-      usdcLiquidity: ethers.formatUnits(usdcLiq, 6),
+      ngnsLiquidity: ethers.formatUnits(ngnsLiq, ngnsDecimals),
+      cNgnLiquidity: ethers.formatUnits(cNgnLiq, cNgnDecimals),
+      usdtLiquidity: ethers.formatUnits(usdtLiq, usdtDecimals),
+      usdcLiquidity: ethers.formatUnits(usdcLiq, usdcDecimals),
       buyRate: ethers.formatUnits(buyRate, 6),
       sellRate: ethers.formatUnits(sellRate, 6),
       minNgnAmount: ethers.formatUnits(minNgn, 6),
@@ -496,20 +508,60 @@ router.post('/toggle-pause', async (req, res) => {
 
 router.post('/quote', async (req, res) => {
   try {
-    const { poolAddress, swapFn, amount, isL1 } = req.body;
+    const { poolAddress, swapFn, amount, isL1, stableToken } = req.body;
     const cleanPool = cleanAddr(poolAddress);
 
     if (!cleanPool || !swapFn || !amount)
       return res.status(400).json({ message: 'Missing fields' });
+    if (!stableToken)
+      return res.status(400).json({ message: 'Missing stableToken' });
 
-    const amountWei = ethers.parseUnits(String(parseFloat(amount).toFixed(6)), 6);
+    const isProd = process.env.NODE_ENV === 'production';
+    const isL1Flag = isL1 === true || isL1 === 'true';
+    function resolveQuoteStableAddr(sym) {
+      const s = (sym || '').toUpperCase();
+      if (isL1Flag) {
+        if (s === 'USDT') return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS);
+        if (s === 'USDC') return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS);
+      } else {
+        if (s === 'USDT') return cleanAddr(process.env.USDT_CONTRACT_ADDRESS);
+        if (s === 'USDC') return cleanAddr(process.env.USDC_CONTRACT_ADDRESS);
+      }
+      return null;
+    }
+    const stableAddr = resolveQuoteStableAddr(stableToken);
+    if (!stableAddr)
+      return res.status(400).json({ message: `Cannot resolve address for: ${stableToken}` });
+    const usdTokenAddr = ethers.getAddress(stableAddr);
+
+    // For L1, tokens can be 18 decimals (BSC USDT/USDC/NGNs) — fetch actual decimals.
+    // For L2, all tokens are 6 decimals — hardcode to avoid extra RPC calls.
+    let amountDecimals = 6;
+    let quoteDecimals = 6;
+
+    if (isL1Flag) {
+      // Determine which token the `amount` param represents (the one being scaled to wei)
+      // and which token the quote output represents (needed to format quoteWei back to human)
+      const ngnAddrForDecimals = cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
+      const isAmountNgn = swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactNGNAmount';
+      const amountTokenAddr = isAmountNgn ? ngnAddrForDecimals : stableAddr;
+      const quoteIsNgn = swapFn === 'swapExactUSDAmountForNGN' || swapFn === 'swapForExactUSDAmount';
+      const quoteTokenAddr = quoteIsNgn ? ngnAddrForDecimals : stableAddr;
+
+      [amountDecimals, quoteDecimals] = await Promise.all([
+        amountTokenAddr ? getL1TokenDecimals(ethers.getAddress(amountTokenAddr)).catch(() => 18) : Promise.resolve(18),
+        quoteTokenAddr ? getL1TokenDecimals(ethers.getAddress(quoteTokenAddr)).catch(() => 18) : Promise.resolve(18),
+      ]);
+    }
+
+    const amountWei = ethers.parseUnits(String(parseFloat(amount).toFixed(amountDecimals)), amountDecimals);
 
     const quoteProvider =
       isL1 === true || isL1 === 'true'
         ? new ethers.JsonRpcProvider(
             process.env.NODE_ENV === 'production'
-              ? process.env.ETH_MAINNET_RPC_URL
-              : process.env.ETH_SEPOLIA_RPC_URL
+              ? process.env.BNB_MAINNET_RPC_URL
+              : process.env.BNB_TESTNET_RPC_URL
           )
         : provider;
 
@@ -520,22 +572,21 @@ router.post('/quote', async (req, res) => {
     let quoteWei;
 
     switch (swapFn) {
-      // BUY USDT/USDC: user spends NGNs → gets stable (pool buyRate)
       case 'swapExactNGNAmountForUSD':
         if (buyRate === 0n) return res.status(400).json({ message: 'Pool buy rate not set' });
-        quoteWei = await pool.getExactUSDAmountOut(amountWei, buyRate);
+        quoteWei = await pool.getExactUSDAmountOut(usdTokenAddr, amountWei, buyRate);
         break;
       case 'swapForExactUSDAmount':
         if (buyRate === 0n) return res.status(400).json({ message: 'Pool buy rate not set' });
-        quoteWei = await pool.getExactNGNAmountIn(amountWei, buyRate);
+        quoteWei = await pool.getExactNGNAmountIn(usdTokenAddr, amountWei, buyRate);
         break;
       case 'swapExactUSDAmountForNGN':
         if (sellRate === 0n) return res.status(400).json({ message: 'Pool sell rate not set' });
-        quoteWei = await pool.getExactNGNAmountOut(amountWei, sellRate);
+        quoteWei = await pool.getExactNGNAmountOut(usdTokenAddr, amountWei, sellRate);
         break;
       case 'swapForExactNGNAmount':
         if (sellRate === 0n) return res.status(400).json({ message: 'Pool sell rate not set' });
-        quoteWei = await pool.getExactUSDAmountIn(amountWei, sellRate);
+        quoteWei = await pool.getExactUSDAmountIn(usdTokenAddr, amountWei, sellRate);
         break;
       default:
         return res.status(400).json({ message: `Invalid swapFn: ${swapFn}` });
@@ -543,13 +594,30 @@ router.post('/quote', async (req, res) => {
 
     res.json({
       success: true,
-      quoteHuman: ethers.formatUnits(quoteWei, 6),
+      quoteHuman: ethers.formatUnits(quoteWei, quoteDecimals),
       quoteWei: quoteWei.toString(),
       buyRate: ethers.formatUnits(buyRate, 6),
       sellRate: ethers.formatUnits(sellRate, 6),
     });
   } catch (err) {
     console.error('❌ /pool/quote:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── GET /api/pool/token-decimals?address=0x… ─────────────────────────────────
+// Returns the decimal count for a given L1 token by calling the PoolFactory.
+// Used by the frontend swap modal to build correct amountWei.
+router.get('/token-decimals', async (req, res) => {
+  try {
+    const { address } = req.query;
+    if (!address || !ethers.isAddress(address)) {
+      return res.status(400).json({ message: 'Valid token address required' });
+    }
+    const decimals = await getL1TokenDecimals(ethers.getAddress(address));
+    res.json({ decimals });
+  } catch (err) {
+    console.error('❌ /pool/token-decimals:', err.message);
     res.status(500).json({ message: err.message });
   }
 });
@@ -721,7 +789,7 @@ router.post('/subscribe', async (req, res) => {
 // ── GET /api/pool/published ───────────────────────────────────────────────────
 //
 // DISPLAY RULES:
-//   SELL USDT/USDC tab: subscribed + NGN liquidity > 0 + sellRate > 0
+//   SELL USDT/USDC tab: subscribed + (NGNs or cNGN) liquidity > 0 + sellRate > 0
 //   BUY USDT/USDC tab:  subscribed + (USDT or USDC) liquidity > 0 + buyRate > 0
 //
 //   If rate is not set (= 0), pool is hidden even if subscribed and funded.
@@ -777,7 +845,9 @@ router.get('/published', async (req, res) => {
     const sellPools = enriched
       .filter(
         (p) =>
-          !p.isPaused && parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0
+          !p.isPaused &&
+          (parseFloat(p.ngnsLiquidity || 0) > 0 || parseFloat(p.cNgnLiquidity || 0) > 0) &&
+          parseFloat(p.sellRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 
@@ -958,6 +1028,15 @@ router.post('/swap', async (req, res) => {
     const taskStatus = await waitForTxReceipt(result.txHash);
     if (!taskStatus.success)
       return res.status(400).json({ message: taskStatus.reason || 'Swap reverted on-chain' });
+
+    // If user chose unlimited approve, record trust in DB
+    if (req.body.doApproveMax === true) {
+      await TrustedPool.findOneAndUpdate(
+        { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanTokenIn },
+        { trustedAt: new Date() },
+        { upsert: true, new: true }
+      ).catch(() => {});
+    }
 
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
@@ -1397,18 +1476,18 @@ router.post('/delete-direct', async (req, res) => {
     // ── Liquidity gate — same rules as L2 delete ─────────────────────────────
     const isProd = process.env.NODE_ENV === 'production';
     const ngnsAddr = cleanAddr(
-      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
     );
     const cNgnAddr = cleanAddr(
-      isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS
+      isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
     );
     const usdtAddr = cleanAddr(
-      isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS
+      isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
     );
     const usdcAddr = cleanAddr(
-      isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS
+      isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
     );
-    const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+    const l1Rpc = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const ERC20_BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
     const poolAddr = ethers.getAddress(cleanPool);
@@ -1436,8 +1515,14 @@ router.post('/delete-direct', async (req, res) => {
         : Promise.resolve(0n),
     ]);
 
-    const MAX_NGN = ethers.parseUnits('1000', 6);
-    const MAX_USD = ethers.parseUnits('1', 6);
+    // Fetch actual token decimals from PoolFactory for threshold comparison
+    const [ngnsDecForGate, usdtDecForGate] = await Promise.all([
+      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 18) : Promise.resolve(18),
+      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18),
+    ]);
+
+    const MAX_NGN = ethers.parseUnits('1000', ngnsDecForGate);
+    const MAX_USD = ethers.parseUnits('1', usdtDecForGate);
     const totalNgn = ngnsLiq + cNgnLiq;
     const totalUsd = usdtLiq + usdcLiq;
 
@@ -1571,7 +1656,7 @@ router.get('/l1/published', async (req, res) => {
         try {
           const onChain = await fetchPoolOnChain(p.poolAddress, true);
           const isProd = process.env.NODE_ENV === 'production';
-          const l1Rpc = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+          const l1Rpc = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
           const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
           let isPaused = false;
           try {
@@ -1606,7 +1691,9 @@ router.get('/l1/published', async (req, res) => {
     const sellPools = enriched
       .filter(
         (p) =>
-          !p.isPaused && parseFloat(p.ngnsLiquidity || 0) > 0 && parseFloat(p.sellRate || 0) > 0
+          !p.isPaused &&
+          (parseFloat(p.ngnsLiquidity || 0) > 0 || parseFloat(p.cNgnLiquidity || 0) > 0) &&
+          parseFloat(p.sellRate || 0) > 0
       )
       .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
 
@@ -1634,28 +1721,23 @@ router.get('/l1/trust-status', async (req, res) => {
     // Resolve using L1 token addresses (from .env L1_* vars)
     const isProd = process.env.NODE_ENV === 'production';
     function resolveL1Token(sym) {
-      switch (sym.toUpperCase()) {
-        case 'NGNS':
+  switch (sym.toUpperCase()) {
+    case 'NGNS':
+    case 'NGN':
+      return cleanAddr(
+        isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+      );
+    case 'CNGN':
           return cleanAddr(
-            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
-          );
-        case 'CNGN':
-          return cleanAddr(
-            isProd
-              ? process.env.L1_CNGN_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS
+            isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
           );
         case 'USDT':
           return cleanAddr(
-            isProd
-              ? process.env.L1_USDT_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS
+            isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
           );
         case 'USDC':
           return cleanAddr(
-            isProd
-              ? process.env.L1_USDC_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS
+            isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
           );
         default:
           return null;
@@ -1704,28 +1786,27 @@ router.post('/l1/trust', async (req, res) => {
 
     const isProd = process.env.NODE_ENV === 'production';
     function resolveL1Token(sym) {
-      switch (sym.toUpperCase()) {
-        case 'NGNS':
+  switch (sym.toUpperCase()) {
+    case 'NGNS':
+    case 'NGN':
+      return cleanAddr(
+        isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+      );
+    case 'CNGN':
           return cleanAddr(
-            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
           );
         case 'CNGN':
           return cleanAddr(
-            isProd
-              ? process.env.L1_CNGN_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS
+            isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
           );
         case 'USDT':
           return cleanAddr(
-            isProd
-              ? process.env.L1_USDT_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS
+            isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
           );
         case 'USDC':
           return cleanAddr(
-            isProd
-              ? process.env.L1_USDC_CONTRACT_ADDRESS
-              : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS
+            isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
           );
         default:
           return null;
@@ -1751,6 +1832,30 @@ router.post('/l1/trust', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('❌ /pool/l1/trust:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ── Record trust only (no relay) — called after frontend swap confirms approve-max ──
+router.post('/trust-record', async (req, res) => {
+  try {
+    const { userSafeAddress, poolAddress, tokenSymbol } = req.body;
+    const cleanUser = cleanAddr(userSafeAddress);
+    const cleanPool = cleanAddr(poolAddress);
+    const cleanToken = resolveTokenSymbol(tokenSymbol);
+
+    if (!cleanUser || !cleanPool || !cleanToken)
+      return res.status(400).json({ message: 'Missing or invalid fields' });
+
+    await TrustedPool.findOneAndUpdate(
+      { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanToken },
+      { trustedAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('❌ /pool/trust-record:', err.message);
     res.status(500).json({ message: err.message });
   }
 });

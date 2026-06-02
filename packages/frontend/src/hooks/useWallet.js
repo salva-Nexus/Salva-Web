@@ -16,22 +16,22 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { ethers } from 'ethers';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const TARGET_CHAIN_ID = process.env.NODE_ENV === 'production' ? 1 : 11155111; // Mainnet : Sepolia
+const TARGET_CHAIN_ID = process.env.NODE_ENV === 'production' ? 56 : 97; // BNB Mainnet : BNB Testnet
 
 const CHAIN_PARAMS = {
-  1: {
-    chainId: '0x1',
-    chainName: 'Ethereum Mainnet',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: ['https://cloudflare-eth.com'],
-    blockExplorerUrls: ['https://etherscan.io'],
+  56: {
+    chainId: '0x38',
+    chainName: 'BNB Smart Chain',
+    nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+    rpcUrls: ['https://bsc-dataseed.binance.org/'],
+    blockExplorerUrls: ['https://bscscan.com'],
   },
-  11155111: {
-    chainId: '0xaa36a7',
-    chainName: 'Sepolia Testnet',
-    nativeCurrency: { name: 'Sepolia Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrls: ['https://rpc.sepolia.org'],
-    blockExplorerUrls: ['https://sepolia.etherscan.io'],
+  97: {
+    chainId: '0x61',
+    chainName: 'BNB Testnet',
+    nativeCurrency: { name: 'tBNB', symbol: 'BNB', decimals: 18 },
+    rpcUrls: ['https://data-seed-prebsc-1-s1.binance.org:8545/'],
+    blockExplorerUrls: ['https://testnet.bscscan.com'],
   },
 };
 

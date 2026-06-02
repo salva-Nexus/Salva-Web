@@ -28,6 +28,7 @@ const ERC20_BURN_ABI = [
 ];
 
 const OtcConfig = require('../models/OtcConfig');
+const { getL1TokenDecimals } = require('../utils/l1Decimals');
 
 async function getOtcConfig() {
   let config = await OtcConfig.findById('main');
@@ -44,8 +45,8 @@ function getBackendSigner(isL1 = false) {
   if (isL1) {
     rpcUrl =
       process.env.NODE_ENV === 'production'
-        ? process.env.ETH_MAINNET_RPC_URL
-        : process.env.ETH_SEPOLIA_RPC_URL;
+        ? process.env.BNB_MAINNET_RPC_URL
+        : process.env.BNB_TESTNET_RPC_URL;
   } else {
     rpcUrl =
       process.env.NODE_ENV === 'production'
@@ -349,7 +350,7 @@ router.post('/initiate', async (req, res) => {
     const acctNum = process.env.SELLER_ACCOUNT_NUMBER || '0000000000';
     const bankName = process.env.SELLER_BANK_NAME || 'OPay';
 
-    const networkLabel = isL1 ? 'Ethereum L1' : 'Base Mainnet';
+    const networkLabel = isL1 ? 'BNB Chain' : 'Base Mainnet';
     const mintToDisplay = isL1 ? mintToAddress : mintToAddress;
     const bankMsg = {
       sender: 'seller',
@@ -545,7 +546,7 @@ router.post('/confirm-mint', async (req, res) => {
     const ngnTokenAddress = isL1
       ? isProd
         ? process.env.L1_NGN_TOKEN_ADDRESS
-        : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+        : process.env.L1_BSC_NGN_TOKEN_ADDRESS
       : process.env.NGN_TOKEN_ADDRESS;
 
     if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1 ? 'L1' : 'L2'}`);
@@ -554,10 +555,10 @@ router.post('/confirm-mint', async (req, res) => {
 
     const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
-    const decimals = await ngnToken.decimals();
+    const decimals = isL1 ? await getL1TokenDecimals(ngnTokenAddress) : await ngnToken.decimals();
     const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
 
-    const networkLabel = isL1 ? (isProd ? 'Ethereum Mainnet' : 'Ethereum Sepolia') : 'Base Mainnet';
+    const networkLabel = isL1 ? (isProd ? 'BNB Mainnet' : 'BNB Testnet') : 'Base Mainnet';
     console.log(
       `🔗 Calling mint(${mintTarget}, ${mintAmt}) on ${ngnTokenAddress} [${networkLabel}]`
     );
@@ -575,8 +576,8 @@ router.post('/confirm-mint', async (req, res) => {
       : 'Base Mainnet';
     const explorerBase = isL1
       ? isProd
-        ? 'https://etherscan.io'
-        : 'https://sepolia.etherscan.io'
+        ? 'https://bscscan.com'
+        : 'https://testnet.bscscan.com'
       : isProd
         ? 'https://basescan.org'
         : 'https://sepolia.basescan.org';
@@ -827,7 +828,7 @@ router.post('/initiate-sell', async (req, res) => {
     const ngnTokenAddress = isL1
       ? isProd
         ? process.env.L1_NGN_TOKEN_ADDRESS
-        : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+        : process.env.L1_BSC_NGN_TOKEN_ADDRESS
       : process.env.NGN_TOKEN_ADDRESS;
 
     if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1 ? 'L1' : 'L2'}`);
@@ -840,7 +841,7 @@ router.post('/initiate-sell', async (req, res) => {
 
     const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_BURN_ABI, signer);
-    const decimals = await ngnToken.decimals();
+    const decimals = isL1 ? await getL1TokenDecimals(ngnTokenAddress) : await ngnToken.decimals();
     const balanceWei = await ngnToken.balanceOf(burnTarget);
     const balanceHuman = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
@@ -892,8 +893,8 @@ router.post('/initiate-sell', async (req, res) => {
 
     const networkLabelSell = isL1
       ? isProd
-        ? 'Ethereum Mainnet'
-        : 'Ethereum Sepolia'
+        ? 'BNB Mainnet'
+        : 'BNB Testnet'
       : 'Base Mainnet';
 
     const sellMsg = {
@@ -1105,7 +1106,7 @@ router.post('/mark-minted', async (req, res) => {
     const ngnTokenAddress = isL1Req
       ? isProdReq
         ? process.env.L1_NGN_TOKEN_ADDRESS
-        : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS
+        : process.env.L1_BSC_NGN_TOKEN_ADDRESS
       : process.env.NGN_TOKEN_ADDRESS;
 
     if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1Req ? 'L1' : 'L2'}`);
@@ -1113,7 +1114,9 @@ router.post('/mark-minted', async (req, res) => {
     const mintTargetReq = mintRequest.mintToAddress || mintRequest.userSafeAddress;
     const signer = getBackendSigner(isL1Req);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
-    const decimals = await ngnToken.decimals();
+    const decimals = isL1Req
+      ? await getL1TokenDecimals(ngnTokenAddress)
+      : await ngnToken.decimals();
     const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
 
     const tx = await ngnToken.mint(mintTargetReq, mintAmt);

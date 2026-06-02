@@ -5,11 +5,14 @@ import NetworkReminder, { useNetworkReminder } from '../components/NetworkRemind
 
 const POLL_MS = 60_000;
 
-const fmt = (n, d = 2) =>
-  parseFloat(n || 0).toLocaleString('en-US', {
-    minimumFractionDigits: d,
-    maximumFractionDigits: 2,
-  });
+const fmt = (n, d = 3) => {
+  const num = parseFloat(n || 0);
+  if (!Number.isFinite(num) || num === 0) return '0.000';
+  const fixed = num.toFixed(6);  // full precision, no rounding
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = Number(intPart).toLocaleString('en-US');
+  return `${formattedInt}.${decPart.slice(0, d)}`;  // slice, never round
+};
 
 const fmtInput = (raw) => {
   const d = raw.replace(/[^0-9.]/g, '');
@@ -227,7 +230,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const [isTrusted, setIsTrusted] = useState(false);
   const [showTrust, setShowTrust] = useState(false);
   const [trustLoading, setTrustLoading] = useState(false);
-  const [trustChoice, setTrustChoice] = useState(null);
   const [pinVisible, setPinVisible] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
   const [step, setStep] = useState('input');
@@ -305,6 +307,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             poolAddress: pool.poolAddress,
             swapFn,
             amount: amountRaw,
+            stableToken,
           }),
         });
         const data = await res.json();
@@ -332,74 +335,82 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       setShowTrust(true);
       return;
     }
+    pendingTrustRef.current = false;
     setPinVisible(true);
   };
 
+const pendingTrustRef = React.useRef(false);
+
   const handlePinConfirm = async (pin) => {
-    setPinLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        showMsg(data.message || 'Invalid PIN', 'error');
-        return;
-      }
-      setPinVisible(false);
-      setStep('loading');
-      await executeSwap(data.privateKey);
-    } catch {
-      showMsg('Network error', 'error');
-    } finally {
-      setPinLoading(false);
+  setPinLoading(true);
+  try {
+    const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email, pin }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      showMsg(data.message || 'Invalid PIN', 'error');
+      return;
     }
-  };
+    setPinVisible(false);
+    setStep('loading');
+    await executeSwap(data.privateKey, pendingTrustRef.current);
+  } catch (err) {
+    console.error(err);
+    showMsg('Network error', 'error');
+  } finally {
+    setPinLoading(false);
+  }
+};
 
-  const executeSwap = async (privateKey) => {
-    try {
-      // trustChoice === "trust" means user chose unlimited approve (set isTrusted after)
-      const doApproveMax = trustChoice === 'trust';
-      const approveAmountWei = doApproveMax
-        ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-        : swapType === 'exact_out' && quote
-          ? Math.floor(parseFloat(quote) * 1e6).toString()
-          : amountWei;
+const executeSwap = async (privateKey, doApproveMax = false) => {
+  try {
+    const approveAmountWei = doApproveMax
+      ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+      : swapType === 'exact_out' && quote
+        ? Math.floor(parseFloat(quote) * 1e6).toString()
+        : amountWei;
 
-      const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userSafeAddress: user.safeAddress,
-          userPrivateKey: privateKey,
-          poolAddress: pool.poolAddress,
-          stableToken,
-          ngnToken,
-          swapFn,
-          amountWei,
-          approveAmountWei,
-          trusted: isTrusted,
-          tokenIn,
-          doApproveMax,
-        }),
-      });
-      const swapData = await swapRes.json();
-      if (!swapRes.ok) throw new Error(swapData.message || 'Swap failed');
-      setTxHash(swapData.txHash);
-      const outToken = tokenOut;
-      const outAmt =
-        swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
-      setReceivedAmount(outAmt);
-      setReceivedToken(outToken);
-      setStep('done');
-      onSwapComplete?.();
-    } catch {
-      showMsg('Swap failed — please try again', 'error');
-      setStep('input');
+    const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userSafeAddress: user.safeAddress,
+        userPrivateKey: privateKey,
+        poolAddress: pool.poolAddress,
+        stableToken,
+        ngnToken,
+        swapFn,
+        amountWei,
+        approveAmountWei,
+        trusted: isTrusted,
+        tokenIn,
+        doApproveMax,
+      }),
+    });
+
+    const swapData = await swapRes.json();
+    if (!swapRes.ok) throw new Error(swapData.message || 'Swap failed');
+
+    if (doApproveMax) {
+      setIsTrusted(true);
     }
-  };
+
+    setTxHash(swapData.txHash);
+    const outToken = tokenOut;
+    const outAmt =
+      swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
+    setReceivedAmount(outAmt);
+    setReceivedToken(outToken);
+    setStep('done');
+    onSwapComplete?.();
+  } catch {
+    showMsg('Swap failed — please try again', 'error');
+    setStep('input');
+  }
+};
 
   const inputTokenLabel = section === 'buy' ? ngnLabel : stableToken;
   const outputTokenLabel = section === 'buy' ? stableToken : ngnLabel;
@@ -765,12 +776,12 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             pool={pool}
             tokenLabel={tokenIn === 'NGNS' ? 'NGNs' : tokenIn === 'CNGN' ? 'cNGN' : tokenIn}
             onTrust={() => {
-              setTrustChoice('trust');
+              pendingTrustRef.current = true;
               setShowTrust(false);
               setPinVisible(true);
             }}
             onSkip={() => {
-              setTrustChoice('skip');
+              pendingTrustRef.current = false;
               setShowTrust(false);
               setPinVisible(true);
             }}
@@ -990,7 +1001,7 @@ const SwapTab = ({ user, showMsg }) => {
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
           >
             <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">
-              ETH CHAIN
+              BSC
             </span>
             <span className="text-blue-400 text-[9px]">↗</span>
           </a>

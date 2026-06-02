@@ -359,6 +359,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [pinAction, setPinAction] = useState(null);
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
+  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
 
   const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
@@ -964,6 +965,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </motion.div>
           )}
         </div>
+        {/* ── Network Reminder ── */}
+        <AnimatePresence>
+          {showNetworkReminder && (
+            <NetworkReminder
+              storageKey="salva-network-reminder-base"
+              onContinue={() => {
+                setShowNetworkReminder(false);
+                setPinAction('deploy');
+                setPinVisible(true);
+              }}
+              onClose={() => setShowNetworkReminder(false)}
+            />
+          )}
+        </AnimatePresence>
         {/* ── PIN Modal ── */}
         <AnimatePresence>
           {pinVisible && (
@@ -1136,7 +1151,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
   const [registries, setRegistries] = useState([]);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const { isDismissed } = useNetworkReminder('salva_reminder_deploy');
+  const { isDismissed } = useNetworkReminder('salva-network-reminder-base');
 
   const fetchMyPools = useCallback(
     async (silent = false) => {
@@ -1444,7 +1459,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
       {/* ── THIS SECTION IS FOR LOCKING V3 POOL TABS ────────────────────────────── */}
-      {/* <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
+      <div className="absolute inset-0 z-[999] flex items-center justify-center backdrop-blur-[2px] bg-black/50 pointer-events-auto rounded-3xl">
         <div className="flex flex-col items-center gap-3 px-8 py-8 rounded-3xl border border-white/[0.07] bg-zinc-950/90 shadow-2xl text-center">
           <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center">
             <span className="text-2xl">⚙️</span>
@@ -1457,10 +1472,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             V3 smart contracts are under development and testing.
           </p>
         </div>
-      </div> */}
+      </div>
       {/* ── THIS IS THE END OF THE SECTION ──────────────────────────────────────── */}
 
-      {/* Header */}
+      {/* Header + Deploy Button */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
@@ -1474,7 +1489,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
           >
             <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">
-              ETH CHAIN
+              BSC
             </span>
             <span className="text-blue-400 text-[9px]">↗</span>
           </a>
@@ -1491,9 +1506,16 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
           <button
             onClick={() => {
-              if (!isDismissed()) {
+              console.log('🚀 Deploy button clicked!');
+
+              const dismissed = isDismissed();
+              console.log('Is reminder dismissed?', dismissed);
+
+              if (!dismissed) {
+                console.log('Showing network reminder');
                 setShowNetworkReminder(true);
               } else {
+                console.log('Going straight to PIN');
                 setPinAction('deploy');
                 setPinVisible(true);
               }
@@ -2022,21 +2044,6 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Network Reminder ── */}
-      <AnimatePresence>
-        {showNetworkReminder && (
-          <NetworkReminder
-            storageKey="salva_reminder_deploy"
-            onContinue={() => {
-              setShowNetworkReminder(false);
-              setPinAction('deploy');
-              setPinVisible(true);
-            }}
-            onClose={() => setShowNetworkReminder(false)}
-          />
-        )}
-      </AnimatePresence>
-
       {/* ── PIN Modal ── */}
       <AnimatePresence>
         {pinVisible && (
@@ -2056,6 +2063,21 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Network Reminder Modal - Root Level */}
+      <AnimatePresence>
+        {showNetworkReminder && (
+          <NetworkReminder
+            storageKey="salva-network-reminder-base"
+            onContinue={() => {
+              setShowNetworkReminder(false);
+              setPinAction('deploy');
+              setPinVisible(true);
+            }}
+            onClose={() => setShowNetworkReminder(false)}
           />
         )}
       </AnimatePresence>

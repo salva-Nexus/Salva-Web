@@ -385,6 +385,12 @@ connectDB().catch((err) =>
   console.error('❌ Initial MongoDB connection attempt failed:', err.message)
 );
 
+// Pre-warm L1 token decimal cache on startup
+const { warmL1DecimalsCache } = require('./utils/l1Decimals');
+warmL1DecimalsCache().catch((e) =>
+  console.warn('⚠️ L1 decimal cache warm failed (non-fatal):', e.message)
+);
+
 // ===============================================
 // HELPERS
 // ===============================================
@@ -1487,20 +1493,20 @@ app.get('/api/l1-balance/:address', async (req, res) => {
 
   const isProd = process.env.NODE_ENV === 'production';
 
-  const rpcUrl = isProd ? process.env.ETH_MAINNET_RPC_URL : process.env.ETH_SEPOLIA_RPC_URL;
+  const rpcUrl = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
 
   const NGN_ADDRESS = isProd
     ? process.env.L1_NGN_TOKEN_ADDRESS
-    : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS;
+    : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
   const CNGN_ADDRESS = isProd
     ? process.env.L1_CNGN_CONTRACT_ADDRESS
-    : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS;
+    : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS;
   const USDT_ADDRESS = isProd
     ? process.env.L1_USDT_CONTRACT_ADDRESS
-    : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS;
+    : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
   const USDC_ADDRESS = isProd
     ? process.env.L1_USDC_CONTRACT_ADDRESS
-    : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS;
+    : process.env.L1_BSC_USDC_CONTRACT_ADDRESS;
 
   const L1_ERC20_ABI = [
     'function balanceOf(address owner) view returns (uint256)',
@@ -1589,25 +1595,25 @@ app.get('/api/l1-config', (req, res) => {
   res.json({
     ngnsTokenAddress: isProd
       ? process.env.L1_NGN_TOKEN_ADDRESS || ''
-      : process.env.L1_SEPOLIA_NGN_TOKEN_ADDRESS || '',
+      : process.env.L1_BSC_NGN_TOKEN_ADDRESS || '',
     cngnContractAddress: isProd
       ? process.env.L1_CNGN_CONTRACT_ADDRESS || ''
-      : process.env.L1_SEPOLIA_CNGN_CONTRACT_ADDRESS || '',
+      : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS || '',
     usdtContractAddress: isProd
       ? process.env.L1_USDT_CONTRACT_ADDRESS || ''
-      : process.env.L1_SEPOLIA_USDT_CONTRACT_ADDRESS || '',
+      : process.env.L1_BSC_USDT_CONTRACT_ADDRESS || '',
     usdcContractAddress: isProd
       ? process.env.L1_USDC_CONTRACT_ADDRESS || ''
-      : process.env.L1_SEPOLIA_USDC_CONTRACT_ADDRESS || '',
+      : process.env.L1_BSC_USDC_CONTRACT_ADDRESS || '',
     poolFactoryAddress: isProd
       ? process.env.L1_POOL_FACTORY_ADDRESS || ''
-      : process.env.L1_SEPOLIA_POOL_FACTORY_ADDRESS || '',
+      : process.env.L1_BSC_POOL_FACTORY_ADDRESS || '',
     treasuryAddress: isProd
       ? process.env.L1_TREASURY_CONTRACT_ADDRESS || ''
-      : process.env.L1_SEPOLIA_TREASURY_CONTRACT_ADDRESS || '',
-    rpcUrl: isProd ? process.env.ETH_MAINNET_RPC_URL || '' : process.env.ETH_SEPOLIA_RPC_URL || '',
-    chainId: isProd ? 1 : 11155111,
-    explorerUrl: isProd ? 'https://etherscan.io' : 'https://sepolia.etherscan.io',
+      : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS || '',
+    rpcUrl: isProd ? process.env.BNB_MAINNET_RPC_URL || '' : process.env.BNB_TESTNET_RPC_URL || '',
+    chainId: isProd ? 56 : 97,
+    explorerUrl: isProd ? 'https://bscscan.com' : 'https://testnet.bscscan.com',
   });
 });
 

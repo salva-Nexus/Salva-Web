@@ -10,11 +10,14 @@ import { WalletGate, SwitchChainBanner, NoWalletCard } from '../components/Walle
 
 const POLL_MS = 60_000;
 
-const fmt = (n, d = 2) =>
-  parseFloat(n || 0).toLocaleString('en-US', {
-    minimumFractionDigits: d,
-    maximumFractionDigits: 2,
-  });
+const fmt = (n, d = 3) => {
+  const num = parseFloat(n || 0);
+  if (!Number.isFinite(num) || num === 0) return '0.000';
+  const fixed = num.toFixed(6); // full precision, no rounding
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = Number(intPart).toLocaleString('en-US');
+  return `${formattedInt}.${decPart.slice(0, d)}`; // slice, never round
+};
 
 const fmtInput = (raw) => {
   const d = raw.replace(/[^0-9.]/g, '');
@@ -193,13 +196,60 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   const [receivedToken, setReceivedToken] = useState(null);
   const [swapError, setSwapError] = useState(null);
 
+  const [tokenInDecimals, setTokenInDecimals] = useState(6);
+  const [tokenOutDecimals, setTokenOutDecimals] = useState(6);
+  const [decimalsLoaded, setDecimalsLoaded] = useState(false);
+
   const quoteTimer = useRef(null);
   const l1Account = wallet.account;
 
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
   const ngnLabel = ngnToken === 'CNGN' ? 'cNGN' : 'NGNs';
   const tokenIn = section === 'buy' ? ngnToken : stableToken;
   const tokenOut = section === 'buy' ? stableToken : ngnLabel;
+  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
+
+  const resolveTokenAddress = (sym) => {
+    if (!l1Config) return null;
+    switch (sym.toUpperCase()) {
+      case 'NGNS':
+        return l1Config.ngnsTokenAddress;
+      case 'CNGN':
+        return l1Config.cngnContractAddress;
+      case 'USDT':
+        return l1Config.usdtContractAddress;
+      case 'USDC':
+        return l1Config.usdcContractAddress;
+      default:
+        return null;
+    }
+  };
+
+  useEffect(() => {
+    if (!l1Config) return;
+    setDecimalsLoaded(false);
+    const inAddr = resolveTokenAddress(tokenIn);
+    const outToken = section === 'buy' ? stableToken : ngnToken;
+    const outAddr = resolveTokenAddress(outToken);
+
+    Promise.all([
+      inAddr
+        ? fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${inAddr}`)
+            .then((r) => r.json())
+            .then((d) => d.decimals ?? 6)
+            .catch(() => 6)
+        : Promise.resolve(6),
+      outAddr
+        ? fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${outAddr}`)
+            .then((r) => r.json())
+            .then((d) => d.decimals ?? 6)
+            .catch(() => 6)
+        : Promise.resolve(6),
+    ]).then(([inDec, outDec]) => {
+      setTokenInDecimals(inDec);
+      setTokenOutDecimals(outDec);
+      setDecimalsLoaded(true);
+    });
+  }, [tokenIn, stableToken, ngnToken, section, l1Config]);
 
   const [onChainMinNgn, setOnChainMinNgn] = useState(parseFloat(pool.minNgnAmount || 0));
   const [onChainMinUsd, setOnChainMinUsd] = useState(parseFloat(pool.minTokenAmount || 0));
@@ -246,22 +296,6 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
     return swapType === 'exact_in' ? 'swapExactUSDAmountForNGN' : 'swapForExactNGNAmount';
   })();
 
-  const resolveTokenAddress = (sym) => {
-    if (!l1Config) return null;
-    switch (sym.toUpperCase()) {
-      case 'NGNS':
-        return l1Config.ngnsTokenAddress;
-      case 'CNGN':
-        return l1Config.cngnContractAddress;
-      case 'USDT':
-        return l1Config.usdtContractAddress;
-      case 'USDC':
-        return l1Config.usdcContractAddress;
-      default:
-        return null;
-    }
-  };
-
   // ── User balances ─────────────────────────────────────────────────────────
   const [userBal, setUserBal] = useState({});
   const [userBalLoading, setUserBalLoading] = useState(true);
@@ -287,10 +321,10 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   useEffect(() => {
     if (!l1Account) return;
     setTrustChecked(false);
-    const sym = tokenIn === 'NGNS' ? 'NGN' : tokenIn;
-    fetch(
-      `${SALVA_API_URL}/api/pool/l1/trust-status?userSafeAddress=${l1Account}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`
-    )
+    const sym = tokenIn;
+fetch(
+  `${SALVA_API_URL}/api/pool/l1/trust-status?userSafeAddress=${l1Account}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`
+)
       .then((r) => r.json())
       .then((d) => {
         setIsTrusted(!!d.trusted);
@@ -317,6 +351,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
             swapFn,
             amount: amountRaw,
             isL1: true,
+            stableToken,
           }),
         });
         const data = await res.json();
@@ -330,7 +365,16 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
     return () => clearTimeout(quoteTimer.current);
   }, [amountRaw, swapFn, pool.poolAddress]);
 
-  const amountWei = amountRaw > 0 ? Math.floor(amountRaw * 1e6).toString() : '0';
+  // exact_in: user specifies input amount → scale by tokenInDecimals
+  // exact_out: user specifies output amount → scale by tokenOutDecimals
+  const amountScaleDecimals = swapType === 'exact_in' ? tokenInDecimals : tokenOutDecimals;
+  const amountWei = (() => {
+    if (amountRaw <= 0) return '0';
+    // Use string math to avoid float precision loss on 18-decimal tokens
+    const [intPart, fracPart = ''] = amountRaw.toString().split('.');
+    const padded = (fracPart + '0'.repeat(amountScaleDecimals)).slice(0, amountScaleDecimals);
+    return BigInt(intPart + padded).toString();
+  })();
 
   const sendAmt = swapType === 'exact_in' ? amountRaw : quote ? parseFloat(quote) : 0;
   const receiveAmt = swapType === 'exact_out' ? amountRaw : quote ? parseFloat(quote) : 0;
@@ -349,18 +393,20 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   const poolEmpty = poolReceiveBal <= 0;
 
   const canProceed =
-    amountRaw > 0 &&
-    minsLoaded &&
-    !isBelowMin &&
-    trustChecked &&
-    !userCantAfford &&
-    !poolCantCover &&
-    !poolEmpty &&
-    !userBalLoading &&
-    step === 'idle';
+  amountRaw > 0 &&
+  minsLoaded &&
+  decimalsLoaded &&
+  !isBelowMin &&
+  trustChecked &&
+  !userCantAfford &&
+  !poolCantCover &&
+  !poolEmpty &&
+  !userBalLoading &&
+  step === 'idle';
 
   // ── Core swap executor — runs ONCE per user intent ────────────────────────
   const executeSwap = async (doApproveMax) => {
+      console.log('executeSwap called', { doApproveMax, l1Config, tokenIn, tokenInAddr: l1Config ? resolveTokenAddress(tokenIn) : 'NO CONFIG' });
     if (!l1Config) {
       showMsg('Config not loaded — please refresh', 'error');
       return;
@@ -374,7 +420,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
       const signer = await wallet.getSigner();
 
       const tokenInAddr = resolveTokenAddress(tokenIn);
-      const ngnAddr = resolveTokenAddress('NGNS');
+      const ngnAddr = resolveTokenAddress(ngnToken);
       const stableAddr = resolveTokenAddress(stableToken);
 
       if (!tokenInAddr) throw new Error(`Token address not found for ${tokenIn}`);
@@ -385,11 +431,17 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
       const tokenContract = new ethers.Contract(ethers.getAddress(tokenInAddr), ERC20_ABI, signer);
 
       // ── Step 1: Approve (only if needed) ─────────────────────────────────
-      const neededWei = BigInt(
-        swapType === 'exact_out' && quote
-          ? Math.floor(parseFloat(quote) * 1e6).toString()
-          : amountWei
-      );
+      // For exact_out: quote = input amount needed (human), scale to tokenInDecimals.
+      // For exact_in: amountWei is already the input amount in tokenInDecimals.
+      const neededWei = (() => {
+        if (swapType === 'exact_out' && quote) {
+          const q = parseFloat(quote);
+          const [intPart, fracPart = ''] = q.toString().split('.');
+          const padded = (fracPart + '0'.repeat(tokenInDecimals)).slice(0, tokenInDecimals);
+          return BigInt(intPart + padded);
+        }
+        return BigInt(amountWei);
+      })();
       let approvedAlready = isTrusted;
       if (!isTrusted) {
         setStep('approving');
@@ -400,7 +452,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
         );
 
         const approveAmt = doApproveMax ? ethers.MaxUint256 : neededWei;
-        const approveTx = await tokenContract.approve(poolAddr, approveAmt, { gasLimit: 60_000 });
+        const approveTx = await tokenContract.approve(poolAddr, approveAmt, { gasLimit: 100_000 });
 
         setStep('waiting_approve');
         setStepMsg('Waiting for approval to confirm on-chain…');
@@ -408,8 +460,8 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
         await waitWithTimeout(approveTx, 1, 90_000);
 
         if (doApproveMax) {
-          const sym = tokenIn === 'NGNS' ? 'NGN' : tokenIn;
-          fetch(`${SALVA_API_URL}/api/pool/l1/trust`, {
+          const sym = tokenIn;
+        fetch(`${SALVA_API_URL}/api/pool/l1/trust`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -446,7 +498,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
           });
           break;
         case 'swapForExactUSDAmount':
-          swapTx = await poolContract.swapForExactTokenAmount(...swapArgs, { gasLimit: 200_000 });
+          swapTx = await poolContract.swapForExactUSDAmount(...swapArgs, { gasLimit: 200_000 });
           break;
         case 'swapForExactNGNAmount':
           swapTx = await poolContract.swapForExactNGNAmount(...swapArgs, { gasLimit: 200_000 });
@@ -769,7 +821,7 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
                       boxShadow: `0 8px 24px ${accentColor}33`,
                     }}
                   >
-                    {!minsLoaded ? 'Loading…' : !trustChecked ? 'Checking…' : 'Continue →'}
+                    {!minsLoaded || !decimalsLoaded ? 'Loading…' : !trustChecked ? 'Checking…' : 'Continue →'}
                   </button>
                 </div>
               </motion.div>
@@ -827,12 +879,12 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
 
                 {txHash && (
                   <a
-                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'sepolia.'}etherscan.io/tx/${txHash}`}
+                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'testnet.'}bscscan.com/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
                     className="block text-[10px] font-black text-blue-400 underline break-all text-center"
                   >
-                    Track on Etherscan ↗
+                    Track on BscScan ↗
                   </a>
                 )}
               </motion.div>
@@ -861,12 +913,12 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
                 )}
                 {txHash && (
                   <a
-                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'sepolia.'}etherscan.io/tx/${txHash}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
-                  >
-                    View on Etherscan ↗
+                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'testnet.'}bscscan.com/tx/${txHash}`}
+target="_blank"
+rel="noreferrer"
+className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
+>
+View on BscScan ↗
                   </a>
                 )}
                 <button
@@ -1122,7 +1174,7 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
-            Salva V3 · Ethereum Chain
+            Salva V3 · BNB Chain
           </p>
           <h2 className="text-3xl font-black tracking-tight">Naira Exchange</h2>
         </div>
@@ -1158,7 +1210,7 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
       {wallet.isConnected && wallet.wrongChain && (
         <SwitchChainBanner
           onSwitch={wallet.switchChain}
-          chainName={process.env.NODE_ENV === 'production' ? 'Ethereum Mainnet' : 'Sepolia Testnet'}
+          chainName={process.env.NODE_ENV === 'production' ? 'BNB Smart Chain' : 'BNB Testnet'}
         />
       )}
 
@@ -1283,7 +1335,7 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
                   return;
                 }
                 if (wallet.wrongChain) {
-                  showMsg('Switch to Ethereum Mainnet first.', 'error');
+                  showMsg('Switch to BNB Mainnet first.', 'error');
                   return;
                 }
                 setSelected(p);

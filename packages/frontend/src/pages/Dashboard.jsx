@@ -2513,7 +2513,7 @@ const Dashboard = () => {
                   className="mt-4 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
                 >
                   <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-                    Buy/Sell on ETHEREUM CHAIN
+                    Buy/Sell on BNB CHAIN
                   </span>
                   <span className="text-blue-400 text-[11px]">↗</span>
                 </a>

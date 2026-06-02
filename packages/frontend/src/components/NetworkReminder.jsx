@@ -1,9 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 
-export function useNetworkReminder(storageKey) {
+export function useNetworkReminder(storageKey = 'salva-network-reminder') {
   const isDismissed = () => {
-    try { return localStorage.getItem(storageKey) === 'true'; } catch { return false; }
+    try {
+      return localStorage.getItem(storageKey) === 'true';
+    } catch {
+      return false;
+    }
   };
   return { isDismissed };
 }
@@ -50,16 +54,16 @@ const NetworkReminder = ({ onContinue, onClose, storageKey }) => {
           </p>
           <div className="bg-blue-500/[0.07] border border-blue-500/20 rounded-2xl p-4 mb-5 text-left">
             <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/60 font-black mb-1.5">
-              Want Ethereum Mainnet?
+              Want BSC Mainnet?
             </p>
             <p className="text-[11px] text-white/55 leading-relaxed mb-3">
-              To interact with ERC-20 tokens on Ethereum (L1), use the ETH Chain dashboard.
+              To interact with BEP-20 tokens on BNB CHAIN, use the BSC dashboard.
             </p>
             <a
               href="/l1"
               className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors"
             >
-              Go to ETH Chain <span className="text-sm">↗</span>
+              Go to BSC <span className="text-sm">↗</span>
             </a>
           </div>
           <label className="flex items-center justify-center gap-2.5 cursor-pointer mb-5 group">

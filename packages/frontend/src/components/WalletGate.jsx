@@ -222,7 +222,7 @@ export const WalletGate = ({
     return (
       <SwitchChainBanner
         onSwitch={wallet.switchChain}
-        chainName={process.env.NODE_ENV === 'production' ? 'Ethereum Mainnet' : 'Sepolia Testnet'}
+        chainName={process.env.NODE_ENV === 'production' ? 'BNB Smart Chain' : 'BNB Testnet'}
       />
     );
   }
