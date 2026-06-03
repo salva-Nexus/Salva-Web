@@ -35,7 +35,7 @@ const SEOMeta = () => {
     setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
     setMeta(
       'og:description',
-      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets. Built on Base & BSC.',
+      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets.',
       true
     );
     setMeta('og:type', 'website', true);
@@ -835,7 +835,7 @@ const Home = () => {
             transition={{ delay: 0.3, duration: 0.9 }}
             className="text-lg sm:text-xl md:text-2xl opacity-50 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
           >
-            DEX. Name Service. Naira Stablecoin. Smart Wallet — on Base & BSC.
+            DEX. Name Service. Naira Stablecoin. Smart Wallet.
           </motion.p>
           <motion.p
             initial={{ opacity: 0 }}
@@ -903,17 +903,17 @@ const Home = () => {
           tag="Salva V3 DEX"
           title="Swap between Naira & USD Stablecoins Instantly."
           headline="Permissionless liquidity pools — anyone can be an LP."
-          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools on Base or BSC and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
+          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
           extContent={
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
-                own pool on Base or BSC, add Naira or USD stablecoins, set your buy/sell rates, get
+                own pool, add Naira or USD stablecoins, set your buy/sell rates, get
                 listed on the swap marketplace. Earn on every swap through your spread.
               </p>
               <p>
                 <strong className="text-black dark:text-white">Two chains. One marketplace.</strong>{' '}
-                Pools on Base L2 benefit from ultra-low fees and fast confirmations. Pools on BSC
+                Pools benefit from ultra-low fees and fast confirmations. Pools on BSC
                 offer direct access to the broadest liquidity ecosystem. Both are listed
                 side-by-side on the swap marketplace.
               </p>
@@ -993,7 +993,7 @@ const Home = () => {
               </p>
               <p>
                 <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
-                Naira stablecoins. Swap on the DEX. Register names. Become an LP on Base or BSC. All
+                Naira stablecoins. Swap on the DEX. Register names. Become an LP. All
                 from the same wallet, all gasless.
               </p>
             </div>
@@ -1077,7 +1077,7 @@ const Home = () => {
             {
               n: '04',
               title: 'Swap on DEX',
-              desc: 'Trade between Naira and USD stablecoins on Salva V3 — on Base or BSC. Or become an LP and earn from your spread.',
+              desc: 'Trade between Naira and USD stablecoins on Salva V3. Or become an LP and earn from your spread.',
             },
           ].map((step, i) => (
             <motion.div
@@ -1121,7 +1121,7 @@ const Home = () => {
               <span className="text-salvaGold">Anyone can be an LP.</span>
             </h2>
             <p className="text-base sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-12">
-              Deploy a liquidity pool on Base or BSC, fund it with Naira or USD stablecoins, and set
+              Deploy a liquidity pool, fund it with Naira or USD stablecoins, and set
               your rate. Your pool earns on every swap through your bid-ask spread. Fully on-chain.
               Fully permissionless.
             </p>
@@ -1170,7 +1170,7 @@ const Home = () => {
           {[
             {
               q: 'What does V3 introduce?',
-              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools on Base or BSC, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
+              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
             },
             {
               q: 'How do I become a liquidity provider?',
@@ -1186,7 +1186,7 @@ const Home = () => {
             },
             {
               q: 'What is NGNs?',
-              a: "A Nigerian Naira stablecoin pegged 1:1 and built on Base. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
+              a: "A Nigerian Naira stablecoin pegged 1:1. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
             },
             {
               q: 'What is the difference between Base and BSC pools?',
