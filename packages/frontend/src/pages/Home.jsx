@@ -30,7 +30,7 @@ const SEOMeta = () => {
     };
     setMeta(
       'description',
-      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin on Base and BSC. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
+      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
     );
     setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
     setMeta(
@@ -902,7 +902,7 @@ const Home = () => {
           badge="🔄"
           tag="Salva V3 DEX"
           title="Swap between Naira & USD Stablecoins Instantly."
-          headline="Permissionless liquidity pools on Base and BSC — anyone can be an LP."
+          headline="Permissionless liquidity pools — anyone can be an LP."
           body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools on Base or BSC and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
           extContent={
             <div className="space-y-4">
@@ -1234,7 +1234,7 @@ const Home = () => {
               Swap Your Naira.
             </h2>
             <p className="text-black/55 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access on Base and BSC. Naira stablecoin. Human-readable identity. All
+              One wallet. DEX access. Naira stablecoin. Human-readable identity. All
               free to start. Under two minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
