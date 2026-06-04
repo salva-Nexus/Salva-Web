@@ -29,10 +29,11 @@ function App() {
   const [l1Account, setL1Account] = useState(() => localStorage.getItem('l1_account') || null);
   const [l1Connecting, setL1Connecting] = useState(false);
   const [l1ChainId, setL1ChainId] = useState(null);
+  const [l1NoWallet, setL1NoWallet] = useState(false);
 
-  const handleL1Connect = useCallback(async () => {
+const handleL1Connect = useCallback(async () => {
     if (!window.ethereum) {
-      alert('MetaMask or another injected wallet is required. Please install MetaMask.');
+      setL1NoWallet(true);
       return;
     }
     setL1Connecting(true);
@@ -129,6 +130,8 @@ function App() {
                   l1ChainId={l1ChainId}
                   onConnect={handleL1Connect}
                   l1Connecting={l1Connecting}
+                  l1NoWallet={l1NoWallet}
+                  onL1NoWalletDismiss={() => setL1NoWallet(false)}
                 />
               }
             />

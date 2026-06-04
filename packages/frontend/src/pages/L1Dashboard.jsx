@@ -6,6 +6,7 @@ import Stars from '../components/Stars';
 import L1BuyNGNs from './L1BuyNGNs';
 import L1SwapTab from './L1SwapTab';
 import L1DeployPool from './L1DeployPool';
+import { NoWalletCard } from '../components/WalletGate';
 
 // ── Notification ──────────────────────────────────────────────────────────────
 const L1Notification = ({ notification, onClose }) => {
@@ -279,7 +280,7 @@ const TAB_ICONS = {
 };
 
 // ── Hero — shown before wallet connect ────────────────────────────────────────
-const L1Hero = ({ onConnect, connecting }) => (
+const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => (
   <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
     <Stars />
     <div className="max-w-2xl mx-auto relative z-10">
@@ -393,6 +394,11 @@ const L1Hero = ({ onConnect, connecting }) => (
         </p>
       </motion.div>
 
+      {noWallet && (
+        <div className="w-full max-w-sm mx-auto mt-2">
+          <NoWalletCard onDismiss={onNoWalletDismiss} />
+        </div>
+      )}
       {/* L2 link */}
       <div className="mt-14 text-center">
         <a
@@ -406,7 +412,7 @@ const L1Hero = ({ onConnect, connecting }) => (
   </div>
 );
 
-const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
+const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting, l1NoWallet, onL1NoWalletDismiss }) => {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('l1_active_tab') || 'buy');
   const [l1Config, setL1Config] = useState(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -506,7 +512,7 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
 
   // No wallet — show hero
   if (!l1Account) {
-    return <L1Hero onConnect={onConnect} connecting={l1Connecting} />;
+    return <L1Hero onConnect={onConnect} connecting={l1Connecting} noWallet={l1NoWallet} onNoWalletDismiss={onL1NoWalletDismiss} />;
   }
 
   return (
