@@ -846,17 +846,6 @@ router.post('/initiate-sell', async (req, res) => {
         .status(400)
         .json({ message: 'Bank name, account number and account name are required' });
 
-    let userEmail = null;
-    let username = null;
-    if (!isL1) {
-      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-      if (!user) return res.status(404).json({ message: 'User not found' });
-      userEmail = user.email;
-      username = user.username;
-    } else {
-      username = `${burnTarget.slice(0, 6)}…${burnTarget.slice(-4)}`;
-    }
-
     const ngnTokenAddress = isL1
       ? isProd
         ? process.env.L1_NGN_TOKEN_ADDRESS
