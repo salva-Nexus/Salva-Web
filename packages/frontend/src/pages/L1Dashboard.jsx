@@ -398,7 +398,7 @@ const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => (
         <div className="w-full max-w-sm mx-auto mt-2">
           <NoWalletCard onDismiss={onNoWalletDismiss} />
         </div>
-      )}//
+      )}
       {/* L2 link */}
       <div className="mt-14 text-center">
         <a
