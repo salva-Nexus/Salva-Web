@@ -36,7 +36,7 @@ const MintRequestSchema = new mongoose.Schema({
   },
 
   isL1: { type: Boolean, default: false },
-  chain: { type: String, enum: ['base', 'ethereum'], default: 'base' },
+  chain: { type: String, enum: ['base', 'bnb'], default: 'base' },
   mintToAddress: { type: String, lowercase: true, default: null },
 
   txHash: { type: String, default: null },

@@ -94,7 +94,7 @@ function TypeBadge({ type }) {
 }
 
 function ChainBadge({ chain, isL1 }) {
-  const onL1 = isL1 === true || chain === 'ethereum';
+  const onL1 = isL1 === true || chain === 'bnb';
   if (!onL1) return null;
   return (
     <span
@@ -721,7 +721,7 @@ const EthL1Banner = memo(({ selected }) => {
           flexShrink: 0,
         }}
       >
-        ⚡ ETH L1
+        ⚡ BSC · BNB Chain
       </span>
 
       {/* mint-to address — truncated cleanly */}

@@ -318,15 +318,23 @@ router.post('/initiate', async (req, res) => {
   try {
     const { safeAddress, amountNgn, isL1: isL1Flag, recipientAddress } = req.body;
     const isL1 = isL1Flag === true || isL1Flag === 'true';
-    const chain = isL1 ? 'ethereum' : 'base';
+    const chain = isL1 ? 'bnb' : 'base';
+    const isProd = process.env.NODE_ENV === 'production';
+
+    // For L1: mintTo comes from recipientAddress (the Mint-to Address card on frontend).
+    // For L2: mintTo is the Safe address.
+    // safeAddress is the wallet the request is keyed to (EOA on L1, Safe on L2).
     const mintToAddress =
       isL1 && recipientAddress ? recipientAddress.toLowerCase() : safeAddress.toLowerCase();
+
     console.log(
       `💳 initiate: safeAddress=${safeAddress} amount=${amountNgn} isL1=${isL1} mintTo=${mintToAddress}`
     );
 
     if (!safeAddress || !safeAddress.startsWith('0x'))
-      return res.status(400).json({ message: 'Invalid safeAddress' });
+      return res.status(400).json({ message: 'Invalid wallet address' });
+    if (!mintToAddress || !mintToAddress.startsWith('0x'))
+      return res.status(400).json({ message: 'Invalid recipient address' });
 
     const otcConfig = await getOtcConfig();
     const amount = parseFloat(amountNgn);
@@ -339,8 +347,21 @@ router.post('/initiate', async (req, res) => {
         .status(400)
         .json({ message: `Maximum is ₦${otcConfig.maxNgn.toLocaleString()} per request` });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    // For L1 buys, the wallet is an EOA — no User record required.
+    // For L2, we still look up by safeAddress to get email/username for notifications.
+    let userEmail = null;
+    let username = null;
+    if (!isL1) {
+      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      userEmail = user.email;
+      username = user.username;
+    } else {
+      // For L1, try to find a user by safeAddress OR by any address match, but don't hard-fail.
+      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+      userEmail = user?.email || null;
+      username = user?.username || `${safeAddress.slice(0, 6)}…${safeAddress.slice(-4)}`;
+    }
 
     const feeNgn = computeFee(amount, otcConfig.feePercent);
     const mintAmount = amount - feeNgn;
@@ -348,11 +369,17 @@ router.post('/initiate', async (req, res) => {
     const acctNum = process.env.SELLER_ACCOUNT_NUMBER || '0000000000';
     const bankName = process.env.SELLER_BANK_NAME || 'OPay';
 
-    const networkLabel = isL1 ? 'BNB Chain' : 'Base Mainnet';
-    const mintToDisplay = isL1 ? mintToAddress : mintToAddress;
+    const networkLabel = isL1
+      ? isProd
+        ? 'BNB Chain (Mainnet)'
+        : 'BNB Chain (Testnet)'
+      : isProd
+        ? 'Base Mainnet'
+        : 'Base Sepolia';
+
     const bankMsg = {
       sender: 'seller',
-      text: `👋 Hi **${user.username}**!\n\n💳 Billed: **₦${amount.toLocaleString()}** (includes ₦${feeNgn.toLocaleString()} fee)\n🪙 Will mint: **${mintAmount.toLocaleString()} NGNs**\n\nTransfer **₦${amount.toLocaleString()}** to:\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n🌐 Network: **${networkLabel}**\n📍 Minting to: \`${mintToDisplay.slice(0, 10)}…${mintToDisplay.slice(-6)}\`\n\nTap **"I Have Paid"** after sending.`,
+      text: `👋 Hi **${username}**!\n\n💳 Billed: **₦${amount.toLocaleString()}** (includes ₦${feeNgn.toLocaleString()} fee)\n🪙 Will mint: **${mintAmount.toLocaleString()} NGNs**\n\nTransfer **₦${amount.toLocaleString()}** to:\n🏦 **${bankName}**\n👤 **${acctName}**\n🔢 **${acctNum}**\n\n🌐 Network: **${networkLabel}**\n📍 Minting to: \`${mintToAddress.slice(0, 10)}…${mintToAddress.slice(-6)}\`\n\nTap **"I Have Paid"** after sending.`,
       createdAt: new Date(),
     };
 
@@ -385,32 +412,34 @@ router.post('/initiate', async (req, res) => {
     } else {
       mintRequest = await MintRequest.create({
         userSafeAddress: safeAddress.toLowerCase(),
-        userEmail: user.email,
-        username: user.username,
+        userEmail: userEmail || '',
+        username,
         amountNgn: amount,
         feeNgn,
         mintAmountNgn: mintAmount,
         isL1,
         chain,
-        mintToAddress: mintToAddress,
+        mintToAddress,
         status: 'pending',
         sellerRead: false,
         messages: [bankMsg],
       });
     }
 
-    console.log(`✅ MintRequest ${mintRequest._id} created/reused for buy`);
+    console.log(`✅ MintRequest ${mintRequest._id} created/reused for buy (${networkLabel})`);
 
-    // Emails — non-blocking
-    sendEmail(
-      user.email,
-      `[SALVA] Buy Request — ₦${amount.toLocaleString()} NGNs`,
-      buyInitiatedUserEmail(user.username, amount, feeNgn, mintAmount, bankName, acctName, acctNum)
-    ).catch(() => {});
+    // Emails — non-blocking, only if we have an email address
+    if (userEmail) {
+      sendEmail(
+        userEmail,
+        `[SALVA] Buy Request — ₦${amount.toLocaleString()} NGNs`,
+        buyInitiatedUserEmail(username, amount, feeNgn, mintAmount, bankName, acctName, acctNum)
+      ).catch(() => {});
+    }
 
     notifySellers(
-      `[SALVA] 🛒 New Buy Request — ₦${amount.toLocaleString()} — ${user.username}`,
-      buyInitiatedSellerEmail(user.username, amount, feeNgn, mintAmount)
+      `[SALVA] 🛒 New Buy Request — ₦${amount.toLocaleString()} — ${username} [${networkLabel}]`,
+      buyInitiatedSellerEmail(username, amount, feeNgn, mintAmount)
     ).catch(() => {});
 
     return res.json({
@@ -569,9 +598,11 @@ router.post('/confirm-mint', async (req, res) => {
 
     const networkLabelSuccess = isL1
       ? isProd
-        ? 'Ethereum Mainnet'
-        : 'Ethereum Sepolia'
-      : 'Base Mainnet';
+        ? 'BNB Chain (Mainnet)'
+        : 'BNB Chain (Testnet)'
+      : isProd
+        ? 'Base Mainnet'
+        : 'Base Sepolia';
     const explorerBase = isL1
       ? isProd
         ? 'https://bscscan.com'
@@ -802,7 +833,7 @@ router.post('/initiate-sell', async (req, res) => {
     console.log(`🔥 initiate-sell: safeAddress=${safeAddress} amount=${amountNgn} isL1=${isL1}`);
 
     if (!safeAddress || !safeAddress.startsWith('0x'))
-      return res.status(400).json({ message: 'Invalid safeAddress' });
+      return res.status(400).json({ message: 'Invalid wallet address' });
 
     const otcConfig = await getOtcConfig();
     const amount = parseFloat(amountNgn);
@@ -820,8 +851,20 @@ router.post('/initiate-sell', async (req, res) => {
         .status(400)
         .json({ message: 'Bank name, account number and account name are required' });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    // For L1 sells, the connected address is the EOA — no User record required.
+    // For L2, look up by safeAddress.
+    let userEmail = null;
+    let username = null;
+    if (!isL1) {
+      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      userEmail = user.email;
+      username = user.username;
+    } else {
+      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+      userEmail = user?.email || null;
+      username = user?.username || `${safeAddress.slice(0, 6)}…${safeAddress.slice(-4)}`;
+    }
 
     const ngnTokenAddress = isL1
       ? isProd
@@ -831,7 +874,8 @@ router.post('/initiate-sell', async (req, res) => {
 
     if (!ngnTokenAddress) throw new Error(`NGN token address not set for ${isL1 ? 'L1' : 'L2'}`);
 
-    // For L1: burn from the connected EOA wallet, not the L2 Safe
+    // For L1: burn from the connected EOA. burnFromAddress is sent explicitly by the frontend.
+    // For L2: burn from the Safe address.
     const burnTarget =
       isL1 && burnFromAddress ? burnFromAddress.toLowerCase() : safeAddress.toLowerCase();
     const feeNgn = computeFee(amount, otcConfig.feePercent);
@@ -874,7 +918,7 @@ router.post('/initiate-sell', async (req, res) => {
         await Transaction.create({
           fromAddress: burnTarget,
           toAddress: ngnTokenAddress,
-          fromUsername: user.username,
+          fromUsername: username,
           toUsername: 'Salva Burn',
           amount,
           coin: 'NGN',
@@ -891,14 +935,16 @@ router.post('/initiate-sell', async (req, res) => {
 
     const networkLabelSell = isL1
       ? isProd
-        ? 'BNB Mainnet'
-        : 'BNB Testnet'
-      : 'Base Mainnet';
+        ? 'BNB Chain (Mainnet)'
+        : 'BNB Chain (Testnet)'
+      : isProd
+        ? 'Base Mainnet'
+        : 'Base Sepolia';
 
     const sellMsg = {
       sender: 'user',
       isBurned: true,
-      text: `🔥 Sell request submitted!\n\n💸 Burned from wallet: **${amount.toLocaleString()} NGNs** (includes ${feeNgn.toLocaleString()} NGNs fee)\n💵 Send to user: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}`,
+      text: `🔥 Sell request submitted!\n\n💸 Burned: **${amount.toLocaleString()} NGNs** (fee: ${feeNgn.toLocaleString()} NGNs)\n💵 Payout to user: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}\n📍 Burned from: \`${burnTarget.slice(0, 10)}…${burnTarget.slice(-6)}\``,
       createdAt: new Date(),
     };
 
@@ -931,8 +977,8 @@ router.post('/initiate-sell', async (req, res) => {
     } else {
       mintRequest = await MintRequest.create({
         userSafeAddress: safeAddress.toLowerCase(),
-        userEmail: user.email,
-        username: user.username,
+        userEmail: userEmail || '',
+        username,
         type: 'sell',
         isL1,
         chain,
@@ -953,24 +999,26 @@ router.post('/initiate-sell', async (req, res) => {
 
     console.log(`✅ Sell request ${mintRequest._id} created`);
 
-    // Emails — non-blocking
-    sendEmail(
-      user.email,
-      `[SALVA] Sell Request — ${amount.toLocaleString()} NGNs Burned`,
-      sellInitiatedUserEmail(
-        user.username,
-        amount,
-        tx.hash,
-        bankName.trim(),
-        accountName.trim(),
-        accountNumber.trim()
-      )
-    ).catch(() => {});
+    // Emails — non-blocking, only if we have an address
+    if (userEmail) {
+      sendEmail(
+        userEmail,
+        `[SALVA] Sell Request — ${amount.toLocaleString()} NGNs Burned`,
+        sellInitiatedUserEmail(
+          username,
+          amount,
+          tx.hash,
+          bankName.trim(),
+          accountName.trim(),
+          accountNumber.trim()
+        )
+      ).catch(() => {});
+    }
 
     notifySellers(
-      `[SALVA] 💸 New Sell Request — ₦${amount.toLocaleString()} — ${user.username}`,
+      `[SALVA] 💸 New Sell Request — ₦${amount.toLocaleString()} — ${username} [${networkLabelSell}]`,
       sellInitiatedSellerEmail(
-        user.username,
+        username,
         amount,
         tx.hash,
         bankName.trim(),
@@ -1124,9 +1172,11 @@ router.post('/mark-minted', async (req, res) => {
 
     const networkLabelMark = isL1Req
       ? isProdReq
-        ? 'Ethereum Mainnet'
-        : 'Ethereum Sepolia'
-      : 'Base Mainnet';
+        ? 'BNB Chain (Mainnet)'
+        : 'BNB Chain (Testnet)'
+      : isProdReq
+        ? 'Base Mainnet'
+        : 'Base Sepolia';
 
     const successMsg = {
       sender: 'seller',

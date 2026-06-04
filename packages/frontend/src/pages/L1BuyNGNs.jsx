@@ -509,6 +509,9 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
       setInitError('Invalid recipient address');
       return;
     }
+    // recipient is read from the Mint-to Address card (defaults to l1Account EOA)
+    const mintTo = recipient.trim().toLowerCase();
+    const walletKey = (l1Account || mintTo).trim().toLowerCase();
     setInitError('');
     setInitiating(true);
     try {
@@ -516,10 +519,10 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: l1Account,
+          safeAddress: walletKey,
           amountNgn: amountRaw,
           isL1: true,
-          recipientAddress: recipient,
+          recipientAddress: mintTo,
         }),
       });
       const data = await res.json();
@@ -538,18 +541,26 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
   const handleSellInitiate = async () => {
     setSellError('');
     setSellInitiating(true);
+    // l1Account is the connected EOA — both safeAddress (record key) and burnFromAddress
+    // must be the same EOA on L1. No Safe involved.
+    const eoaAddress = (l1Account || '').trim().toLowerCase();
+    if (!eoaAddress || !isValidAddr(eoaAddress)) {
+      setSellError('No wallet connected. Please connect your wallet and try again.');
+      setSellInitiating(false);
+      return;
+    }
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/initiate-sell`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: l1Account,
+          safeAddress: eoaAddress,
           amountNgn: sellAmountRaw,
           bankName,
           accountNumber,
           accountName,
           isL1: true,
-          burnFromAddress: l1Account,
+          burnFromAddress: eoaAddress,
         }),
       });
       const data = await res.json();
