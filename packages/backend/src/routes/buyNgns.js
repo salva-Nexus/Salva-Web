@@ -868,7 +868,7 @@ router.post('/initiate-sell', async (req, res) => {
     // For L1: burn from the connected EOA. burnFromAddress is sent explicitly by the frontend.
     // For L2: burn from the Safe address.
     const burnTarget = safeAddress.toLowerCase();
-    const feeNgn = computeFee(amount, otcConfig.feePercent);
+    const feeNgn = computeFee(amount, otcConfig.feePercent); //
 
     let userEmail = null;
     let username = null;
