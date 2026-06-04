@@ -357,14 +357,6 @@ const Bubble = memo(({ msg }) => {
 });
 
 const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
-  const l2User = (() => {
-    try {
-      return JSON.parse(localStorage.getItem('salva_user') || '{}');
-    } catch {
-      return {};
-    }
-  })();
-  const l2SafeAddress = l2User?.safeAddress || null;
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState(null);
 
@@ -438,10 +430,10 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
   }, [messages]);
 
   const loadRequest = useCallback(async () => {
-    if (!l2SafeAddress) return;
+    if (!l1Account) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/buy-ngns/my-request/${l2SafeAddress.toLowerCase()}`
+        `${SALVA_API_URL}/api/buy-ngns/my-request/${l1Account.toLowerCase()}`
       );
       const data = await res.json();
       if (
@@ -494,7 +486,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
     const poll = async () => {
       try {
         const res = await fetch(
-          `${SALVA_API_URL}/api/buy-ngns/my-request/${l2SafeAddress.toLowerCase()}`
+          `${SALVA_API_URL}/api/buy-ngns/my-request/${l1Account.toLowerCase()}`
         );
         if (!res.ok) throw new Error('bad response');
         const data = await res.json();
@@ -524,7 +516,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: l2SafeAddress,
+          safeAddress: l1Account,
           amountNgn: amountRaw,
           isL1: true,
           recipientAddress: recipient,
@@ -551,7 +543,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: l2SafeAddress,
+          safeAddress: l1Account,
           amountNgn: sellAmountRaw,
           bankName,
           accountNumber,
@@ -584,7 +576,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: mintRequest._id,
-          safeAddress: l2SafeAddress,
+          safeAddress: l1Account,
           text,
           sender: 'user',
         }),
@@ -616,7 +608,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           requestId: mintRequest._id,
-          safeAddress: l2SafeAddress,
+          safeAddress: l1Account,
           imageBase64,
           sender: 'user',
         }),
@@ -659,7 +651,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             requestId: mintRequest._id,
-            safeAddress: l2SafeAddress,
+            safeAddress: l1Account,
             receiptBase64: ev.target.result,
           }),
         });

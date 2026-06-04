@@ -190,7 +190,6 @@ function buyMintedUserEmail(username, mintAmount, txHash) {
   <h2 style="margin:0 0 6px;font-size:20px;font-weight:900;color:#22c55e;">NGNs Minted Successfully!</h2>
   <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your NGNs have been minted and sent to your wallet.</p>
   ${statBadge('Amount Minted', `${parseFloat(mintAmount).toLocaleString()} NGNs`, '#22c55e')}
-  ${statBadge('Network', 'Base Mainnet', '#3b82f6')}
   ${txHashBlock(txHash)}
   <p style="font-size:12px;color:#666;margin:16px 0 0;line-height:1.6;">Your NGNs are now available in your Salva wallet. You can use them for transfers, swaps, and more.</p>
   ${ctaButton('View My Wallet', 'https://salva-nexus.org/dashboard')}`;
@@ -235,7 +234,6 @@ function sellInitiatedUserEmail(username, amount, txHash, bankName, acctName, ac
   <p style="margin:0 0 20px;font-size:13px;color:#888;">Hi <strong style="color:#fff;">${username}</strong>, your NGNs have been burned and your sell request is being processed.</p>
   ${statBadge('NGNs Burned', `${parseFloat(amount).toLocaleString()} NGNs`, '#ef4444')}
   ${statBadge('You Will Receive', `₦${parseFloat(amount).toLocaleString()}`, '#22c55e')}
-  ${statBadge('Network', 'Base Mainnet', '#3b82f6')}
   ${txHashBlock(txHash)}
   <table cellpadding="0" cellspacing="0" style="width:100%;background:#0A0A0B;border:1px solid #D4AF37;border-radius:12px;margin:16px 0;">
     <tr><td style="padding:16px 18px;">

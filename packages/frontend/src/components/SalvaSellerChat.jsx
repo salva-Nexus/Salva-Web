@@ -111,7 +111,7 @@ function ChainBadge({ chain, isL1 }) {
         flexShrink: 0,
       }}
     >
-      ETH L1
+      BSC
     </span>
   );
 }
@@ -1494,7 +1494,7 @@ const SalvaSellerChat = ({ user }) => {
           {/* ── CHAT VIEW ── */}
           {view === 'chat' && selected && (
             <>
-              {/* ── ETH L1 Banner — own dedicated row, no overlap ── */}
+              {/* ── BSC L1 Banner — own dedicated row, no overlap ── */}
               <EthL1Banner selected={selected} />
 
               {/* ── Summary bar ── */}
