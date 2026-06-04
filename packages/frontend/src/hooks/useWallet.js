@@ -103,11 +103,6 @@ export function useWallet() {
     setError(null);
     const detected = detectInjectedWallet();
 
-    if (isMobile() && !detected) {
-      setStatus('no_wallet');
-      return;
-    }
-
     // Desktop with no wallet → show install prompt
     if (!detected) {
       setStatus('no_wallet');

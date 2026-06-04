@@ -112,13 +112,15 @@ const SplitBalance = ({ value, isusd = false, inline = false }) => {
   if (inline) {
     return (
       <span>
-        {formattedInt}.{solidDec}<span style={{ opacity: 0.3 }}>{dimDec}</span>
+        {formattedInt}.{solidDec}
+        <span style={{ opacity: 0.3 }}>{dimDec}</span>
       </span>
     );
   }
   return (
     <span>
-      {formattedInt}.{solidDec}<span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
+      {formattedInt}.{solidDec}
+      <span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
     </span>
   );
 };
@@ -280,139 +282,173 @@ const TAB_ICONS = {
 };
 
 // ── Hero — shown before wallet connect ────────────────────────────────────────
-const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => (
-  <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
-    <Stars />
-    <div className="max-w-2xl mx-auto relative z-10">
-      {/* Eyebrow + Headline */}
-      <div className="text-center mb-14">
-        <motion.p
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-[12px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-4"
-        >
-          Salva V3 · BNB Chain
-        </motion.p>
-        <motion.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="text-white/70 text-sm max-w-sm mx-auto leading-relaxed"
-        >
-          The Salva V3 DEX and NGNs stablecoin — now on BNB Chain. Connect your wallet to
-          access pools, swaps and OTC exchange.
-        </motion.p>
-      </div>
+const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => {
+  const walletCardRef = React.useRef(null);
 
-      {/* Feature cards */}
-      <motion.div
-        initial={{ opacity: 0, y: 16 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-12"
-      >
-        {[
-          {
-            icon: '₦',
-            title: 'Buy / Sell NGNs',
-            desc: 'OTC desk — purchase or sell Nigerian Naira stablecoin on BNB CHAIN.',
-            color: '#D4AF37',
-          },
-          {
-            icon: '⇄',
-            title: 'Swap',
-            desc: 'Peer-to-peer NGN / USD stablecoin exchange via V3 liquidity pools.',
-            color: '#22c55e',
-          },
-          {
-            icon: '⛏',
-            title: 'Deploy Pool',
-            desc: 'Deploy your own V3 liquidity pool and earn as a market maker on BNB CHAIN.',
-            color: '#3b82f6',
-          },
-        ].map((card, i) => (
-          <motion.div
-            key={card.title}
+  const handleConnect = () => {
+    onConnect();
+    // On mobile, scroll down after a tick so the card has rendered
+    if (window.innerWidth < 640) {
+      setTimeout(() => {
+        walletCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+    }
+  };
+
+  // Also scroll when noWallet flips to true (async — wallet detection completes after click)
+  React.useEffect(() => {
+    if (noWallet && window.innerWidth < 640) {
+      setTimeout(() => {
+        walletCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 80);
+    }
+  }, [noWallet]);
+
+  return (
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
+      <Stars />
+      <div className="max-w-2xl mx-auto relative z-10">
+        {/* Eyebrow + Headline */}
+        <div className="text-center mb-14">
+          <motion.p
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-[12px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-4"
+          >
+            Salva V3 · BNB Chain
+          </motion.p>
+          <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.32 + i * 0.06 }}
-            className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col gap-3 hover:border-white/[0.1] transition-all"
+            transition={{ delay: 0.2 }}
+            className="text-white/70 text-sm max-w-sm mx-auto leading-relaxed"
           >
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-xl"
-              style={{
-                background: `${card.color}15`,
-                color: card.color,
-                border: `1px solid ${card.color}30`,
-              }}
-            >
-              {card.icon}
-            </div>
-            <p className="font-black text-sm text-white">{card.title}</p>
-            <p className="text-[11px] text-white/50 leading-relaxed">{card.desc}</p>
-          </motion.div>
-        ))}
-      </motion.div>
+            The Salva V3 DEX and NGNs stablecoin — now on BNB Chain. Connect your wallet to access
+            pools, swaps and OTC exchange.
+          </motion.p>
+        </div>
 
-      {/* Connect wallet CTA */}
-      <motion.div
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
-        className="flex flex-col items-center gap-5"
-      >
-        <div className="flex items-center gap-3 mb-1">
-          {['🦊', '🔵', '🔗'].map((icon, i) => (
-            <div
-              key={i}
-              className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-base"
+        {/* Feature cards */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-12"
+        >
+          {[
+            {
+              icon: '₦',
+              title: 'Buy / Sell NGNs',
+              desc: 'OTC desk — purchase or sell Nigerian Naira stablecoin on BNB CHAIN.',
+              color: '#D4AF37',
+            },
+            {
+              icon: '⇄',
+              title: 'Swap',
+              desc: 'Peer-to-peer NGN / USD stablecoin exchange via V3 liquidity pools.',
+              color: '#22c55e',
+            },
+            {
+              icon: '⛏',
+              title: 'Deploy Pool',
+              desc: 'Deploy your own V3 liquidity pool and earn as a market maker on BNB CHAIN.',
+              color: '#3b82f6',
+            },
+          ].map((card, i) => (
+            <motion.div
+              key={card.title}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.32 + i * 0.06 }}
+              className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] flex flex-col gap-3 hover:border-white/[0.1] transition-all"
             >
-              {icon}
-            </div>
+              <div
+                className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-xl"
+                style={{
+                  background: `${card.color}15`,
+                  color: card.color,
+                  border: `1px solid ${card.color}30`,
+                }}
+              >
+                {card.icon}
+              </div>
+              <p className="font-black text-sm text-white">{card.title}</p>
+              <p className="text-[11px] text-white/50 leading-relaxed">{card.desc}</p>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
-        <button
-          onClick={onConnect}
-          disabled={connecting}
-          className="flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
-          style={{
-            background: '#D4AF37',
-            color: '#000',
-            boxShadow: '0 8px 32px rgba(212,175,55,0.3)',
-          }}
+        {/* Connect wallet CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5 }}
+          className="flex flex-col items-center gap-5"
         >
-          {connecting && (
-            <span className="w-4 h-4 border-2 border-black/25 border-t-black rounded-full animate-spin" />
+          <div className="flex items-center gap-3 mb-1">
+            {['🦊', '🔵', '🔗'].map((icon, i) => (
+              <div
+                key={i}
+                className="w-9 h-9 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-base"
+              >
+                {icon}
+              </div>
+            ))}
+          </div>
+
+          <button
+            onClick={handleConnect}
+            disabled={connecting}
+            className="flex items-center gap-3 px-10 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98] disabled:opacity-50"
+            style={{
+              background: '#D4AF37',
+              color: '#000',
+              boxShadow: '0 8px 32px rgba(212,175,55,0.3)',
+            }}
+          >
+            {connecting && (
+              <span className="w-4 h-4 border-2 border-black/25 border-t-black rounded-full animate-spin" />
+            )}
+            {connecting ? 'Connecting…' : 'Connect Wallet'}
+          </button>
+
+          <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
+            MetaMask · Coinbase Wallet · WalletConnect
+          </p>
+        </motion.div>
+
+        {/* Wallet card — ref'd for scroll target */}
+        <div ref={walletCardRef}>
+          {noWallet && (
+            <div className="w-full max-w-sm mx-auto mt-6">
+              <NoWalletCard onDismiss={onNoWalletDismiss} />
+            </div>
           )}
-          {connecting ? 'Connecting…' : 'Connect Wallet'}
-        </button>
-
-        <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest">
-          MetaMask · Coinbase Wallet · WalletConnect
-        </p>
-      </motion.div>
-
-      {noWallet && (
-        <div className="w-full max-w-sm mx-auto mt-2">
-          <NoWalletCard onDismiss={onNoWalletDismiss} />
         </div>
-      )}
-      {/* L2 link */}
-      <div className="mt-14 text-center">
-        <a
-          href="/dashboard"
-          className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
-        >
-          ← Back to Salva Wallet on Base
-        </a>
+
+        {/* L2 link */}
+        <div className="mt-14 text-center">
+          <a
+            href="/dashboard"
+            className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+          >
+            ← Back to Salva Wallet on Base
+          </a>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
-const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting, l1NoWallet, onL1NoWalletDismiss }) => {
+const L1Dashboard = ({
+  l1Account,
+  l1ChainId,
+  onConnect,
+  l1Connecting,
+  l1NoWallet,
+  onL1NoWalletDismiss,
+}) => {
   const [activeTab, setActiveTab] = useState(() => localStorage.getItem('l1_active_tab') || 'buy');
   const [l1Config, setL1Config] = useState(null);
   const [configLoading, setConfigLoading] = useState(true);
@@ -512,7 +548,14 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting, l1NoWallet
 
   // No wallet — show hero
   if (!l1Account) {
-    return <L1Hero onConnect={onConnect} connecting={l1Connecting} noWallet={l1NoWallet} onNoWalletDismiss={onL1NoWalletDismiss} />;
+    return (
+      <L1Hero
+        onConnect={onConnect}
+        connecting={l1Connecting}
+        noWallet={l1NoWallet}
+        onNoWalletDismiss={onL1NoWalletDismiss}
+      />
+    );
   }
 
   return (
@@ -545,7 +588,8 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting, l1NoWallet
         {wrongChain && (
           <div className="mb-5 p-4 rounded-2xl border border-orange-500/20 bg-orange-500/[0.06]">
             <p className="text-sm font-bold text-orange-400">
-              ⚠ Your wallet is on the wrong network. Please switch to <strong>BNB Smart Chain</strong> in your wallet to use Salva.
+              ⚠ Your wallet is on the wrong network. Please switch to{' '}
+              <strong>BNB Smart Chain</strong> in your wallet to use Salva.
             </p>
           </div>
         )}
@@ -569,7 +613,11 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting, l1NoWallet
           }}
           className="mb-6 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-blue-500/20 transition-all flex items-center gap-3"
         >
-          <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" alt="BSC" />
+          <img
+            src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
+            className="w-7 h-7 rounded-lg object-cover flex-shrink-0"
+            alt="BSC"
+          />
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
               EOA Wallet · BSC
