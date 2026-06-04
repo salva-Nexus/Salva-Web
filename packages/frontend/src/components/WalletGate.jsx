@@ -96,11 +96,30 @@ export const NoWalletCard = ({ onDismiss }) => {
         </div>
 
         {mobile && (
-          <div className="p-3.5 rounded-xl bg-blue-500/5 border border-blue-500/15 mb-4">
-            <p className="text-[11px] text-blue-400/90 font-bold leading-relaxed">
-              📱 On mobile, tap "Open" on MetaMask above. It will open this page inside the MetaMask
-              browser where you can sign transactions.
-            </p>
+          <div className="flex flex-col gap-2 mb-4">
+            <a
+              href={mmDeepLink}
+              className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
+              style={{
+                background: '#D4AF37',
+                color: '#000',
+                boxShadow: '0 8px 24px rgba(212,175,55,0.25)',
+              }}
+            >
+              <span>🦊</span> Open in MetaMask
+            </a>
+            <a
+              href="https://go.cb-wallet.io/dapp"
+              className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
+            >
+              <span>🔵</span> Open in Coinbase Wallet
+            </a>
+            <a
+              href={`https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`}
+              className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
+            >
+              <span>🔗</span> Open in Trust Wallet
+            </a>
           </div>
         )}
 

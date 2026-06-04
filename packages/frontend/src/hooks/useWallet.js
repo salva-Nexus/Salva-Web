@@ -53,8 +53,7 @@ export function detectInjectedWallet() {
 
 // ── Build a MetaMask Mobile deep link ─────────────────────────────────────────
 export function buildMetaMaskDeepLink() {
-  const url = encodeURIComponent(window.location.href);
-  return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}`;
+  return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
 }
 
 // ── tx.wait() with timeout so we never hang indefinitely ─────────────────────
@@ -104,7 +103,6 @@ export function useWallet() {
     setError(null);
     const detected = detectInjectedWallet();
 
-    // Mobile with no injected wallet → deep link to MetaMask Mobile
     if (isMobile() && !detected) {
       setStatus('no_wallet');
       return;
