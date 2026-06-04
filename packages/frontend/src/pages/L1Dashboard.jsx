@@ -580,12 +580,10 @@ const L1Dashboard = ({ l1Account, l1ChainId, onConnect, l1Connecting }) => {
           }}
           className="mb-6 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-blue-500/20 transition-all flex items-center gap-3"
         >
-          <div className="w-7 h-7 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-blue-400 text-[10px]">⛓</span>
-          </div>
+          <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png" className="w-7 h-7 rounded-lg object-cover flex-shrink-0" alt="BSC" />
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              EOA Wallet · BNB
+              EOA Wallet · BSC
             </p>
             <p className="font-mono text-[10px] text-blue-400/60 truncate mt-0.5">
               {showBalance ? l1Account : '0x••••••••••••••••••••••••••••••••••••••••'}

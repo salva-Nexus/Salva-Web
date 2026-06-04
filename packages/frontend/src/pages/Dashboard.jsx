@@ -227,14 +227,16 @@ const SplitBalance = ({ value, isusd = false, inline = false }) => {
   if (inline) {
     return (
       <span>
-        {formattedInt}.{solidDec}<span style={{ opacity: 0.3 }}>{dimDec}</span>
+        {formattedInt}.{solidDec}
+        <span style={{ opacity: 0.3 }}>{dimDec}</span>
       </span>
     );
   }
 
   return (
     <span>
-      {formattedInt}.{solidDec}<span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
+      {formattedInt}.{solidDec}
+      <span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
     </span>
   );
 };
@@ -549,9 +551,15 @@ const BalanceCard = ({
 
         {!balanceLoading && (
           <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
-            {showBalance
-              ? <><SplitBalance value={ngnsBalance} inline /> <span className="opacity-60">NGNs</span> · <SplitBalance value={cNgnBalance} inline /> <span className="opacity-60">cNGN</span></>
-              : '•••• NGNs · •••• cNGN'}
+            {showBalance ? (
+              <>
+                <SplitBalance value={ngnsBalance} inline /> <span className="opacity-60">NGNs</span>{' '}
+                · <SplitBalance value={cNgnBalance} inline />{' '}
+                <span className="opacity-60">cNGN</span>
+              </>
+            ) : (
+              '•••• NGNs · •••• cNGN'
+            )}
           </div>
         )}
       </div>
@@ -584,9 +592,15 @@ const BalanceCard = ({
 
         {!balanceLoading && (
           <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
-            {showBalance
-              ? <><SplitBalance value={usdtBalance} inline /> <span className="opacity-60">USDT</span> · <SplitBalance value={usdcBalance} inline /> <span className="opacity-60">USDC</span></>
-              : '•••• USDT · •••• USDC'}
+            {showBalance ? (
+              <>
+                <SplitBalance value={usdtBalance} inline /> <span className="opacity-60">USDT</span>{' '}
+                · <SplitBalance value={usdcBalance} inline />{' '}
+                <span className="opacity-60">USDC</span>
+              </>
+            ) : (
+              '•••• USDT · •••• USDC'
+            )}
           </div>
         )}
       </div>
@@ -2360,8 +2374,26 @@ const Dashboard = () => {
           }}
           className="mb-4 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
         >
-          <div className="w-7 h-7 rounded-lg bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-salvaGold text-[10px]">⛓</span>
+          <div className="w-7 h-7 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <svg
+              viewBox="0 0 111 111"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              className="w-5 h-5"
+            >
+              <path
+                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
+                fill="#0052FF"
+              />
+              <path
+                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
+                fill="#0052FF"
+              />
+              <path
+                d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z"
+                fill="white"
+              />
+            </svg>
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
