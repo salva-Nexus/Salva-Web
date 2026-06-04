@@ -347,8 +347,6 @@ router.post('/initiate', async (req, res) => {
         .status(400)
         .json({ message: `Maximum is ₦${otcConfig.maxNgn.toLocaleString()} per request` });
 
-    // For L1 buys, the wallet is an EOA — no User record required.
-    // For L2, we still look up by safeAddress to get email/username for notifications.
     let userEmail = null;
     let username = null;
     if (!isL1) {
@@ -357,10 +355,7 @@ router.post('/initiate', async (req, res) => {
       userEmail = user.email;
       username = user.username;
     } else {
-      // For L1, try to find a user by safeAddress OR by any address match, but don't hard-fail.
-      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-      userEmail = user?.email || null;
-      username = user?.username || `${safeAddress.slice(0, 6)}…${safeAddress.slice(-4)}`;
+      username = `${mintToAddress.slice(0, 6)}…${mintToAddress.slice(-4)}`;
     }
 
     const feeNgn = computeFee(amount, otcConfig.feePercent);
@@ -851,8 +846,6 @@ router.post('/initiate-sell', async (req, res) => {
         .status(400)
         .json({ message: 'Bank name, account number and account name are required' });
 
-    // For L1 sells, the connected address is the EOA — no User record required.
-    // For L2, look up by safeAddress.
     let userEmail = null;
     let username = null;
     if (!isL1) {
@@ -861,9 +854,7 @@ router.post('/initiate-sell', async (req, res) => {
       userEmail = user.email;
       username = user.username;
     } else {
-      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
-      userEmail = user?.email || null;
-      username = user?.username || `${safeAddress.slice(0, 6)}…${safeAddress.slice(-4)}`;
+      username = `${burnTarget.slice(0, 6)}…${burnTarget.slice(-4)}`;
     }
 
     const ngnTokenAddress = isL1
@@ -876,9 +867,19 @@ router.post('/initiate-sell', async (req, res) => {
 
     // For L1: burn from the connected EOA. burnFromAddress is sent explicitly by the frontend.
     // For L2: burn from the Safe address.
-    const burnTarget =
-      isL1 && burnFromAddress ? burnFromAddress.toLowerCase() : safeAddress.toLowerCase();
+    const burnTarget = safeAddress.toLowerCase();
     const feeNgn = computeFee(amount, otcConfig.feePercent);
+
+    let userEmail = null;
+    let username = null;
+    if (!isL1) {
+      const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      userEmail = user.email;
+      username = user.username;
+    } else {
+      username = `${safeAddress.slice(0, 6)}…${safeAddress.slice(-4)}`;
+    }
     const payoutAmount = amount - feeNgn;
 
     const signer = getBackendSigner(isL1);
@@ -927,7 +928,7 @@ router.post('/initiate-sell', async (req, res) => {
           fee: 0,
           date: new Date(),
         });
-        console.log(`📒 Sell tx saved for ${user.username}`);
+        console.log(`📒 Sell tx saved for ${username}`);
       } catch (txErr) {
         console.error('⚠️ Tx history save failed:', txErr.message);
       }

@@ -12,7 +12,7 @@ const MessageSchema = new mongoose.Schema({
 
 const MintRequestSchema = new mongoose.Schema({
   userSafeAddress: { type: String, lowercase: true, required: true },
-  userEmail: { type: String, lowercase: true, required: true },
+  userEmail: { type: String, lowercase: true, default: '' },
   username: { type: String, required: true },
 
   // "buy" or "sell"
