@@ -308,6 +308,17 @@ const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => {
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-2xl mx-auto relative z-10">
+
+        {/* L2 link */}
+        <div className="mt-14 text-center">
+          <a
+            href="/dashboard"
+            className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+          >
+            ← Back to Salva Wallet on Base
+          </a>
+        </div>
+        
         {/* Eyebrow + Headline */}
         <div className="text-center mb-14">
           <motion.p
@@ -425,16 +436,6 @@ const L1Hero = ({ onConnect, connecting, noWallet, onNoWalletDismiss }) => {
               <NoWalletCard onDismiss={onNoWalletDismiss} />
             </div>
           )}
-        </div>
-
-        {/* L2 link */}
-        <div className="mt-14 text-center">
-          <a
-            href="/dashboard"
-            className="text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
-          >
-            ← Back to Salva Wallet on Base
-          </a>
         </div>
       </div>
     </div>
