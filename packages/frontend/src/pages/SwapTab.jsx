@@ -5,7 +5,7 @@ import NetworkReminder, { useNetworkReminder } from '../components/NetworkRemind
 
 const POLL_MS = 60_000;
 
-const fmt = (n, d = 3) => {
+const fmt = (n, d = 6) => {
   const num = parseFloat(n || 0);
   if (!Number.isFinite(num) || num === 0) return '0.000';
   const fixed = num.toFixed(6);  // full precision, no rounding
@@ -239,6 +239,13 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const quoteTimer = useRef(null);
   const [receivedAmount, setReceivedAmount] = useState(null);
   const [receivedToken, setReceivedToken] = useState(null);
+  const defaultReceiver = user?.safeAddress || '';
+  const [receiverRaw, setReceiverRaw] = useState(defaultReceiver);
+  const [receiverInputType, setReceiverInputType] = useState('address');
+  const [receiverError, setReceiverError] = useState('');
+  const [receiverResolved, setReceiverResolved] = useState(defaultReceiver);
+  const [receiverResolving, setReceiverResolving] = useState(false);
+  const receiverResolveTimer = useRef(null);
 
   // ── User wallet balances ──────────────────────────────────────────────────
   const [userBal, setUserBal] = useState({});
@@ -329,6 +336,90 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const poolCantCover = receiveAmt > 0 && poolReceiveBal < receiveAmt;
   const poolEmpty = poolReceiveBal <= 0;
 
+const handleReceiverChange = (val) => {
+  setReceiverError('');
+
+  // 0x address — pass through directly, same as Dashboard
+  if (val.toLowerCase().startsWith('0x')) {
+    setReceiverRaw(val);
+    setReceiverInputType('address');
+    setReceiverResolved(val.trim());
+    return;
+  }
+
+  // Sanitize — same strict rules as Dashboard handleRecipientChange
+  let cleaned = val.toLowerCase();
+
+  // Full name with @ — handle paste case first
+  if (cleaned.includes('@')) {
+    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+    const atIndex = cleaned.indexOf('@');
+    if (atIndex !== -1) {
+      cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
+    }
+    setReceiverRaw(cleaned);
+    setReceiverInputType('fullname');
+    const parts = cleaned.split('@');
+    if (parts[0] && parts[1]) {
+      clearTimeout(receiverResolveTimer.current);
+      receiverResolveTimer.current = setTimeout(async () => {
+        setReceiverResolving(true);
+        setReceiverError('');
+        try {
+          const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fullName: cleaned }),
+          });
+          const data = await res.json();
+          if (res.ok && data.resolvedAddress) {
+            setReceiverResolved(data.resolvedAddress);
+          } else {
+            setReceiverResolved('');
+            setReceiverError(data.message || 'Name not found');
+          }
+        } catch {
+          setReceiverResolved('');
+          setReceiverError('Network error — could not resolve name');
+        } finally {
+          setReceiverResolving(false);
+        }
+      }, 600);
+    } else {
+      setReceiverResolved('');
+    }
+    return;
+  }
+
+  // Plain chars — allow a-z, 2-9, dot, @ only (no 0, no 1)
+  cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+  // One dot max
+  const firstDot = cleaned.indexOf('.');
+  if (firstDot !== -1) {
+    cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+  }
+  // One @ max
+  const firstAt = cleaned.indexOf('@');
+  if (firstAt !== -1) {
+    cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
+  }
+
+  setReceiverRaw(cleaned);
+
+  if (!cleaned) {
+    setReceiverInputType('empty');
+    setReceiverResolved(defaultReceiver);
+    return;
+  }
+
+  // Not a 0x, not a fullname — no registry dropdown for swap, show error
+  setReceiverInputType('invalid');
+  setReceiverResolved('');
+  if (cleaned.length > 1) {
+    setReceiverError('Enter a full name (e.g. charles@salva) or a 0x address');
+  }
+};
+
   const handleContinue = () => {
     if (amountRaw <= 0 || isBelowMin) return;
     if (!isTrusted) {
@@ -388,6 +479,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
         trusted: isTrusted,
         tokenIn,
         doApproveMax,
+        receiverAddress: receiverResolved || user.safeAddress,
       }),
     });
 
@@ -430,7 +522,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
           onClick={step !== 'loading' ? onClose : undefined}
         />
         <motion.div
-          className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
+          className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh]"
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
@@ -445,15 +537,15 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
             }}
           />
 
-          <div className="p-6 sm:p-8">
-            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
+          <div className="overflow-y-auto flex-1 overscroll-contain px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
+            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
 
             {/* ── INPUT ── */}
             {step === 'input' && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
+                className="space-y-3"
               >
                 {/* Header */}
                 <div className="mb-2">
@@ -564,16 +656,16 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                 </div>
 
                 {/* ── Send / Receive balance info ── */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="px-3 py-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 mb-1">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
                       Your balance
                     </p>
                     {userBalLoading ? (
-                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block flex-shrink-0" />
                     ) : (
                       <p
-                        className={`text-xs font-black ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                        className={`text-xs font-black text-right min-w-0 ${userCantAfford ? 'text-red-400' : 'text-white'}`}
                       >
                         {userSendBal !== null ? fmt(userSendBal) : '—'}{' '}
                         <span className="font-normal opacity-60">
@@ -583,13 +675,13 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     )}
                   </div>
                   <div
-                    className={`px-3 py-2.5 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
                   >
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 mb-1">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
                       Pool available
                     </p>
                     <p
-                      className={`text-xs font-black ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
+                      className={`text-xs font-black text-right min-w-0 ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
                     >
                       {fmt(poolReceiveBal)}{' '}
                       <span className="font-normal opacity-60">
@@ -599,12 +691,12 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </div>
                 </div>
                 {userCantAfford && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-2">
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">
                     ⚠ Insufficient balance to send
                   </p>
                 )}
                 {(poolEmpty || poolCantCover) && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-2">
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">
                     {poolEmpty
                       ? `⚠ Pool has no ${section === 'buy' ? stableToken : ngnLabel} liquidity`
                       : `⚠ Pool only has ${fmt(poolReceiveBal)} ${section === 'buy' ? stableToken : ngnLabel}`}
@@ -670,39 +762,89 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     Exchange Rate
                   </span>
                   <span className="font-black text-sm text-white">
-                    ₦{fmt(displayRate, 0)}
+                    ₦{fmt(displayRate, 2)}
                     <span className="text-white/60 font-normal text-xs"> / USD</span>
                   </span>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-3 pt-1">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleContinue}
-                    disabled={
-                      amountRaw <= 0 ||
-                      !trustChecked ||
-                      isBelowMin ||
-                      userCantAfford ||
-                      poolCantCover ||
-                      poolEmpty ||
-                      userBalLoading
-                    }
-                    className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
-                    style={{
-                      background: accentColor,
-                      color: '#000',
-                      boxShadow: `0 8px 24px ${accentColor}33`,
-                    }}
-                  >
-                    {!trustChecked ? 'Checking…' : 'Continue →'}
-                  </button>
+                {/* ── Receiver ── */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      Receiver
+                    </label>
+                    {receiverRaw !== defaultReceiver && (
+                      <button
+                        onClick={() => {
+                          setReceiverRaw(defaultReceiver);
+                          setReceiverInputType('address');
+                          setReceiverResolved(defaultReceiver);
+                          setReceiverError('');
+                        }}
+                        className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                      >
+                        Reset ↺
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={receiverRaw}
+                      onChange={(e) => handleReceiverChange(e.target.value)}
+                      placeholder="0x… or charles@salva"
+                      className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
+                        receiverError
+                          ? 'border-red-500/60'
+                          : receiverInputType === 'fullname' && receiverResolved
+                            ? 'border-green-500/40'
+                            : 'border-white/10 focus:border-salvaGold'
+                      }`}
+                    />
+                    {receiverResolving && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    )}
+                    {!receiverResolving && receiverInputType === 'fullname' && receiverResolved && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  {receiverRaw === defaultReceiver && (
+                    <p className="text-[10px] text-white/30 font-bold mt-1.5">
+                      Default: your Safe wallet
+                    </p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && (
+                    <p className="text-[10px] mt-1.5 font-bold">
+                      {receiverInputType === 'address' && (
+                        <span className="text-blue-400">↗ Custom address</span>
+                      )}
+                      {receiverInputType === 'fullname' && receiverResolved && (
+                        <span className="text-green-400">
+                          ✓ {receiverResolved.slice(0, 10)}…{receiverResolved.slice(-8)}
+                        </span>
+                      )}
+                      {receiverInputType === 'fullname' &&
+                        !receiverResolved &&
+                        !receiverResolving && (
+                          <span className="text-white/30">
+                            Complete the name — e.g. charles@salva
+                          </span>
+                        )}
+                    </p>
+                  )}
+                  {receiverError && (
+                    <p className="text-[10px] text-red-400 font-bold mt-1.5">⚠ {receiverError}</p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && receiverResolved && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                      <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
+                      <p className="text-[10px] text-yellow-400/80 font-bold">
+                        Funds go to a different address — double-check before continuing.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -767,6 +909,42 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
               </div>
             )}
           </div>
+          {step === 'input' && (
+            <div className="flex-shrink-0 px-4 pb-5 pt-3 sm:px-6 border-t border-white/[0.06] bg-zinc-950">
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleContinue}
+                  disabled={
+                    amountRaw <= 0 ||
+                    !trustChecked ||
+                    isBelowMin ||
+                    userCantAfford ||
+                    poolCantCover ||
+                    poolEmpty ||
+                    userBalLoading ||
+                    !!receiverError ||
+                    receiverResolving ||
+                    (receiverInputType === 'fullname' && !receiverResolved) ||
+                    receiverInputType === 'invalid'
+                  }
+                  className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
+                  style={{
+                    background: accentColor,
+                    color: '#000',
+                    boxShadow: `0 8px 24px ${accentColor}33`,
+                  }}
+                >
+                  {!trustChecked ? 'Checking…' : 'Continue →'}
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -846,61 +1024,65 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
 
         {/* Stats */}
         {section === 'buy' ? (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
+          <div className="flex flex-col gap-1.5 mb-4">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
                 Rate
               </p>
-              <p className="font-black text-sm text-salvaGold">
-                ₦{fmt(rate, 0)}
-                <span className="text-[10px] text-white/60 font-normal">/USD</span>
-              </p>
-              {parseFloat(pool.minNgnAmount || 0) > 0 && (
-                <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN
-                </p>
-              )}
+              <div className="text-right min-w-0">
+                <span className="font-black text-sm text-salvaGold">
+                  ₦{fmt(rate, 2)}
+                  <span className="text-[10px] text-white/60 font-normal">/USD</span>
+                </span>
+                {parseFloat(pool.minNgnAmount || 0) > 0 && (
+                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
+                    Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black mb-1">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black flex-shrink-0 mr-3">
                 USDT
               </p>
-              <p className="font-black text-sm text-green-400">${fmt(usdtAvail)}</p>
+              <span className="font-black text-sm text-green-400 truncate">{fmt(usdtAvail)}</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black mb-1">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black flex-shrink-0 mr-3">
                 USDC
               </p>
-              <p className="font-black text-sm text-blue-400">${fmt(usdcAvail)}</p>
+              <span className="font-black text-sm text-blue-400 truncate">{fmt(usdcAvail)}</span>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
+          <div className="flex flex-col gap-1.5 mb-4">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
                 Rate
               </p>
-              <p className="font-black text-sm text-green-400">
-                ₦{fmt(rate, 0)}
-                <span className="text-[10px] text-white/60 font-normal">/USD</span>
-              </p>
-              {parseFloat(pool.minTokenAmount || 0) > 0 && (
-                <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minTokenAmount))} USD
-                </p>
-              )}
+              <div className="text-right min-w-0">
+                <span className="font-black text-sm text-green-400">
+                  ₦{fmt(rate, 2)}
+                  <span className="text-[10px] text-white/60 font-normal">/USD</span>
+                </span>
+                {parseFloat(pool.minTokenAmount || 0) > 0 && (
+                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
+                    Min: {fmt(parseFloat(pool.minTokenAmount))} USD
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black mb-1">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black flex-shrink-0 mr-3">
                 NGNs
               </p>
-              <p className="font-black text-sm text-salvaGold">{fmt(ngnsAvail)}</p>
+              <span className="font-black text-sm text-salvaGold truncate">{fmt(ngnsAvail)}</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
                 cNGN
               </p>
-              <p className="font-black text-sm text-white/60">{fmt(cNgnAvail)}</p>
+              <span className="font-black text-sm text-white/60 truncate">{fmt(cNgnAvail)}</span>
             </div>
           </div>
         )}

@@ -163,7 +163,7 @@ const DEXVisual = () => {
     {
       name: 'charles_pool@salva',
       rate: '₦1,490',
-      usd1Label: 'USDT',
+      usd1Label: 'USDC',
       usd1Val: '$29.01',
       usd2Label: 'USDC',
       usd2Val: '$0.00',

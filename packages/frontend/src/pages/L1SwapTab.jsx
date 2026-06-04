@@ -10,7 +10,7 @@ import { WalletGate, SwitchChainBanner, NoWalletCard } from '../components/Walle
 
 const POLL_MS = 60_000;
 
-const fmt = (n, d = 3) => {
+const fmt = (n, d = 6) => {
   const num = parseFloat(n || 0);
   if (!Number.isFinite(num) || num === 0) return '0.000';
   const fixed = num.toFixed(6); // full precision, no rounding
@@ -171,6 +171,7 @@ const TxStepRow = ({ active, done, label, sub }) => (
 
 // ── Swap Modal ────────────────────────────────────────────────────────────────
 const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwapComplete }) => {
+  const l1Account = wallet.account;
   const [swapType, setSwapType] = useState('exact_in');
   const [amountDisplay, setAmountDisplay] = useState('');
   const [amountRaw, setAmountRaw] = useState(0);
@@ -195,18 +196,24 @@ const L1SwapModal = ({ pool, section, wallet, l1Config, onClose, showMsg, onSwap
   const [receivedAmount, setReceivedAmount] = useState(null);
   const [receivedToken, setReceivedToken] = useState(null);
   const [swapError, setSwapError] = useState(null);
+  const defaultReceiver = l1Account || '';
+  const [receiverRaw, setReceiverRaw] = useState(l1Account || '');
+  const [receiverInputType, setReceiverInputType] = useState('address');
+  const [receiverError, setReceiverError] = useState('');
+  const [receiverResolved, setReceiverResolved] = useState(l1Account || '');
+  const [receiverResolving, setReceiverResolving] = useState(false);
+  const receiverResolveTimer = useRef(null);
 
   const [tokenInDecimals, setTokenInDecimals] = useState(6);
   const [tokenOutDecimals, setTokenOutDecimals] = useState(6);
   const [decimalsLoaded, setDecimalsLoaded] = useState(false);
 
   const quoteTimer = useRef(null);
-  const l1Account = wallet.account;
 
   const ngnLabel = ngnToken === 'CNGN' ? 'cNGN' : 'NGNs';
   const tokenIn = section === 'buy' ? ngnToken : stableToken;
   const tokenOut = section === 'buy' ? stableToken : ngnLabel;
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
+  const accentColor = '#3b82f6';
 
   const resolveTokenAddress = (sym) => {
     if (!l1Config) return null;
@@ -392,17 +399,23 @@ fetch(
   const poolCantCover = receiveAmt > 0 && poolReceiveBal < receiveAmt;
   const poolEmpty = poolReceiveBal <= 0;
 
+  const receiverValid =
+    (receiverInputType === 'address' && receiverResolved.trim().startsWith('0x') && receiverResolved.trim().length === 42) ||
+    (receiverInputType === 'fullname' && !!receiverResolved && !receiverError);
+
   const canProceed =
-  amountRaw > 0 &&
-  minsLoaded &&
-  decimalsLoaded &&
-  !isBelowMin &&
-  trustChecked &&
-  !userCantAfford &&
-  !poolCantCover &&
-  !poolEmpty &&
-  !userBalLoading &&
-  step === 'idle';
+    amountRaw > 0 &&
+    minsLoaded &&
+    decimalsLoaded &&
+    !isBelowMin &&
+    trustChecked &&
+    !userCantAfford &&
+    !poolCantCover &&
+    !poolEmpty &&
+    !userBalLoading &&
+    receiverValid &&
+    !receiverResolving &&
+    step === 'idle';
 
   // ── Core swap executor — runs ONCE per user intent ────────────────────────
   const executeSwap = async (doApproveMax) => {
@@ -480,7 +493,11 @@ fetch(
       setStepMsg('Confirm the swap in your wallet…');
 
       const poolContract = new ethers.Contract(poolAddr, POOL_ABI, signer);
-      const receiver = ethers.getAddress(l1Account);
+      const finalReceiver =
+        receiverResolved && ethers.isAddress(receiverResolved)
+          ? receiverResolved
+          : l1Account;
+      const receiver = ethers.getAddress(finalReceiver);
       const amtBn = BigInt(amountWei);
       const swapArgs = [receiver, ethers.getAddress(stableAddr), ethers.getAddress(ngnAddr), amtBn];
 
@@ -534,6 +551,83 @@ fetch(
     }
   };
 
+  const handleReceiverChange = (val) => {
+    setReceiverError('');
+
+    if (val.toLowerCase().startsWith('0x')) {
+      setReceiverRaw(val);
+      setReceiverInputType('address');
+      setReceiverResolved(val.trim());
+      return;
+    }
+
+    let cleaned = val.toLowerCase();
+
+    if (cleaned.includes('@')) {
+      cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+      const atIndex = cleaned.indexOf('@');
+      if (atIndex !== -1) {
+        cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
+      }
+      setReceiverRaw(cleaned);
+      setReceiverInputType('fullname');
+      const parts = cleaned.split('@');
+      if (parts[0] && parts[1]) {
+        clearTimeout(receiverResolveTimer.current);
+        receiverResolveTimer.current = setTimeout(async () => {
+          setReceiverResolving(true);
+          setReceiverError('');
+          try {
+            const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fullName: cleaned }),
+            });
+            const data = await res.json();
+            if (res.ok && data.resolvedAddress) {
+              setReceiverResolved(data.resolvedAddress);
+            } else {
+              setReceiverResolved('');
+              setReceiverError(data.message || 'Name not found');
+            }
+          } catch {
+            setReceiverResolved('');
+            setReceiverError('Network error — could not resolve name');
+          } finally {
+            setReceiverResolving(false);
+          }
+        }, 600);
+      } else {
+        setReceiverResolved('');
+      }
+      return;
+    }
+
+    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+    const firstDot = cleaned.indexOf('.');
+    if (firstDot !== -1) {
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+    }
+    const firstAt = cleaned.indexOf('@');
+    if (firstAt !== -1) {
+      cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
+    }
+
+    setReceiverRaw(cleaned);
+
+    if (!cleaned) {
+      setReceiverInputType('empty');
+      setReceiverResolved(defaultReceiver);
+      return;
+    }
+
+    setReceiverInputType('invalid');
+    setReceiverResolved('');
+    if (cleaned.length > 1) {
+      setReceiverError('Enter a full name (e.g. charles@salva) or a 0x address');
+    }
+  };
+
   const handleContinue = () => {
     if (!canProceed) return;
     if (!isTrusted) {
@@ -569,7 +663,7 @@ fetch(
           onClick={isProcessing ? undefined : onClose}
         />
         <motion.div
-          className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl overflow-hidden"
+          className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh]"
           initial={{ y: '100%' }}
           animate={{ y: 0 }}
           exit={{ y: '100%' }}
@@ -577,12 +671,12 @@ fetch(
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className="h-px"
+            className="h-px flex-shrink-0"
             style={{
               background: `linear-gradient(90deg, transparent, ${accentColor}66, transparent)`,
             }}
           />
-          <div className="p-6 sm:p-8">
+          <div className="overflow-y-auto flex-1 overscroll-contain px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
             <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
 
             {/* ── INPUT ── */}
@@ -590,9 +684,9 @@ fetch(
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="space-y-4"
+                className="space-y-3"
               >
-                <div className="mb-2">
+                <div className="mb-1">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p
                       className="text-[9px] uppercase tracking-[0.45em] font-black"
@@ -692,16 +786,16 @@ fetch(
                 </div>
 
                 {/* ── Balances ── */}
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="px-3 py-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 mb-1">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02]">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
                       Your balance
                     </p>
                     {userBalLoading ? (
-                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block flex-shrink-0" />
                     ) : (
                       <p
-                        className={`text-xs font-black ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                        className={`text-xs font-black text-right min-w-0 ${userCantAfford ? 'text-red-400' : 'text-white'}`}
                       >
                         {userSendBal !== null ? fmt(userSendBal) : '—'}{' '}
                         <span className="font-normal opacity-60">
@@ -711,13 +805,13 @@ fetch(
                     )}
                   </div>
                   <div
-                    className={`px-3 py-2.5 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`flex items-center justify-between px-3 py-2 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
                   >
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 mb-1">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
                       Pool available
                     </p>
                     <p
-                      className={`text-xs font-black ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
+                      className={`text-xs font-black text-right min-w-0 ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
                     >
                       {fmt(poolReceiveBal)}{' '}
                       <span className="font-normal opacity-60">
@@ -728,10 +822,10 @@ fetch(
                 </div>
 
                 {userCantAfford && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-2">⚠ Insufficient balance</p>
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">⚠ Insufficient balance</p>
                 )}
                 {(poolEmpty || poolCantCover) && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-2">
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">
                     {poolEmpty
                       ? `⚠ No ${section === 'buy' ? stableToken : ngnLabel} liquidity in pool`
                       : `⚠ Pool only has ${fmt(poolReceiveBal)} ${section === 'buy' ? stableToken : ngnLabel}`}
@@ -792,7 +886,7 @@ fetch(
                     Exchange Rate
                   </span>
                   <span className="font-black text-sm text-white">
-                    ₦{fmt(displayRate, 0)}
+                    ₦{fmt(displayRate, 2)}
                     <span className="text-white/60 font-normal text-xs"> / USD</span>
                   </span>
                 </div>
@@ -804,25 +898,84 @@ fetch(
                   </p>
                 </div>
 
-                <div className="flex gap-3 pt-1">
-                  <button
-                    onClick={onClose}
-                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleContinue}
-                    disabled={!canProceed}
-                    className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
-                    style={{
-                      background: accentColor,
-                      color: '#000',
-                      boxShadow: `0 8px 24px ${accentColor}33`,
-                    }}
-                  >
-                    {!minsLoaded || !decimalsLoaded ? 'Loading…' : !trustChecked ? 'Checking…' : 'Continue →'}
-                  </button>
+                {/* ── Receiver ── */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      Receiver
+                    </label>
+                    {receiverRaw !== defaultReceiver && (
+                      <button
+                        onClick={() => {
+                          setReceiverRaw(defaultReceiver);
+                          setReceiverInputType('address');
+                          setReceiverResolved(defaultReceiver);
+                          setReceiverError('');
+                        }}
+                        className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                      >
+                        Reset ↺
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={receiverRaw}
+                      onChange={(e) => handleReceiverChange(e.target.value)}
+                      placeholder="0x… or charles@salva"
+                      className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
+                        receiverError
+                          ? 'border-red-500/60'
+                          : receiverInputType === 'fullname' && receiverResolved
+                            ? 'border-green-500/40'
+                            : 'border-white/10 focus:border-blue-400'
+                      }`}
+                    />
+                    {receiverResolving && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    )}
+                    {!receiverResolving && receiverInputType === 'fullname' && receiverResolved && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">
+                        ✓
+                      </span>
+                    )}
+                  </div>
+                  {receiverRaw === defaultReceiver && (
+                    <p className="text-[10px] text-white/30 font-bold mt-1.5">
+                      Default: your connected wallet
+                    </p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && (
+                    <p className="text-[10px] mt-1.5 font-bold">
+                      {receiverInputType === 'address' && (
+                        <span className="text-blue-400">↗ Custom address</span>
+                      )}
+                      {receiverInputType === 'fullname' && receiverResolved && (
+                        <span className="text-green-400">
+                          ✓ {receiverResolved.slice(0, 10)}…{receiverResolved.slice(-8)}
+                        </span>
+                      )}
+                      {receiverInputType === 'fullname' &&
+                        !receiverResolved &&
+                        !receiverResolving && (
+                          <span className="text-white/30">
+                            Complete the name — e.g. charles@salva
+                          </span>
+                        )}
+                    </p>
+                  )}
+                  {receiverError && (
+                    <p className="text-[10px] text-red-400 font-bold mt-1.5">⚠ {receiverError}</p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && receiverResolved && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                      <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
+                      <p className="text-[10px] text-yellow-400/80 font-bold">
+                        Funds go to a different address — double-check before continuing.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -914,11 +1067,11 @@ fetch(
                 {txHash && (
                   <a
                     href={`https://${process.env.NODE_ENV === 'production' ? '' : 'testnet.'}bscscan.com/tx/${txHash}`}
-target="_blank"
-rel="noreferrer"
-className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
->
-View on BscScan ↗
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
+                  >
+                    View on BscScan ↗
                   </a>
                 )}
                 <button
@@ -960,6 +1113,34 @@ View on BscScan ↗
               </div>
             )}
           </div>
+          {step === 'idle' && (
+            <div className="flex-shrink-0 px-4 pb-5 pt-3 sm:px-6 border-t border-white/[0.06] bg-zinc-950">
+              <div className="flex gap-3">
+                <button
+                  onClick={onClose}
+                  className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleContinue}
+                  disabled={!canProceed}
+                  className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
+                  style={{
+                    background: accentColor,
+                    color: '#000',
+                    boxShadow: `0 8px 24px ${accentColor}33`,
+                  }}
+                >
+                  {!minsLoaded || !decimalsLoaded
+                    ? 'Loading…'
+                    : !trustChecked
+                      ? 'Checking…'
+                      : 'Continue →'}
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
 
@@ -991,7 +1172,7 @@ const L1PoolCard = ({ pool, section, onSwap, index }) => {
   const cNgnAvail = parseFloat(pool.cNgnLiquidity || 0);
   const usdtAvail = parseFloat(pool.usdtLiquidity || 0);
   const usdcAvail = parseFloat(pool.usdcLiquidity || 0);
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
+  const accentColor = '#3b82f6';
 
   return (
     <motion.div
@@ -1024,65 +1205,46 @@ const L1PoolCard = ({ pool, section, onSwap, index }) => {
         </div>
 
         {section === 'buy' ? (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
-                Rate
-              </p>
-              <p className="font-black text-sm text-salvaGold">
-                ₦{fmt(rate, 0)}
-                <span className="text-[10px] text-white/60 font-normal">/USD</span>
-              </p>
-              {parseFloat(pool.minNgnAmount || 0) > 0 && (
-                <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN
-                </p>
-              )}
+          <div className="flex flex-col gap-1.5 mb-4">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">Rate</p>
+              <div className="text-right min-w-0">
+                <span className="font-black text-sm text-blue-400">₦{fmt(rate, 2)}<span className="text-[10px] text-white/60 font-normal">/USD</span></span>
+                {parseFloat(pool.minNgnAmount || 0) > 0 && (
+                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">Min: {fmt(parseFloat(pool.minNgnAmount), 0)} NGN</p>
+                )}
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black mb-1">
-                USDT
-              </p>
-              <p className="font-black text-sm text-green-400">${fmt(usdtAvail)}</p>
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/60 font-black flex-shrink-0 mr-3">USDT</p>
+              <span className="font-black text-sm text-blue-300 truncate">{fmt(usdtAvail)}</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black mb-1">
-                USDC
-              </p>
-              <p className="font-black text-sm text-blue-400">${fmt(usdcAvail)}</p>
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/60 font-black flex-shrink-0 mr-3">USDC</p>
+              <span className="font-black text-sm text-blue-300 truncate">{fmt(usdcAvail)}</span>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-3 gap-2 mb-4">
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
-                Rate
-              </p>
-              <p className="font-black text-sm text-green-400">
-                ₦{fmt(rate, 0)}
-                <span className="text-[10px] text-white/60 font-normal">/USD</span>
-              </p>
-              {parseFloat(pool.minTokenAmount || 0) > 0 && (
-                <p className="text-[9px] text-yellow-400/70 mt-0.5 font-bold">
-                  Min: {fmt(parseFloat(pool.minTokenAmount))} USD
-                </p>
-              )}
+          <div className="flex flex-col gap-1.5 mb-4">
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">Rate</p>
+              <div className="text-right min-w-0">
+                <span className="font-black text-sm text-blue-400">₦{fmt(rate, 2)}<span className="text-[10px] text-white/60 font-normal">/USD</span></span>
+                {parseFloat(pool.minTokenAmount || 0) > 0 && (
+                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">Min: {fmt(parseFloat(pool.minTokenAmount))} USD</p>
+                )}
+              </div>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black mb-1">
-                NGNs
-              </p>
-              <p className="font-black text-sm text-salvaGold">{fmt(ngnsAvail)}</p>
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/60 font-black flex-shrink-0 mr-3">NGNs</p>
+              <span className="font-black text-sm text-blue-300 truncate">{fmt(ngnsAvail)}</span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black mb-1">
-                cNGN
-              </p>
-              <p className="font-black text-sm text-white/60">{fmt(cNgnAvail)}</p>
+            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/60 font-black flex-shrink-0 mr-3">cNGN</p>
+              <span className="font-black text-sm text-blue-300 truncate">{fmt(cNgnAvail)}</span>
             </div>
           </div>
         )}
-
         <button
           onClick={() => onSwap(pool)}
           className="w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98]"
@@ -1166,7 +1328,6 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
   }, [wallet.status]);
 
   const activePools = section === 'buy' ? buyPools : sellPools;
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
@@ -1257,14 +1418,14 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
             label: 'NGN → USD',
             sub: 'Spend NGN, get USD',
             count: buyPools.length,
-            color: '#D4AF37',
+            color: '#3b82f6',
           },
           {
             id: 'sell',
             label: 'USD → NGN',
             sub: 'Spend USD, get NGN',
             count: sellPools.length,
-            color: '#22c55e',
+            color: '#60a5fa',
           },
         ].map(({ id, label, sub, count, color }) => (
           <button
@@ -1362,5 +1523,5 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
     </motion.div>
   );
 };
-
+ 
 export default L1SwapTab;

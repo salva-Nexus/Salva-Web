@@ -121,13 +121,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 function sanitizeObject(obj) {
   if (typeof obj !== 'object' || obj === null) return obj;
 
-  const sanitized = Array.isArray(obj) ? [] : {};
+  const sanitized = Array.isArray(obj) ? [] : Object.create(null);
 
-  for (const key in obj) {
-    // Remove keys starting with $ or containing .
-    if (key.startsWith('$') || key.includes('.')) continue;
-
-    sanitized[key] = typeof obj[key] === 'object' ? sanitizeObject(obj[key]) : obj[key];
+  for (const key of Object.keys(obj)) {
+    if (
+      key.startsWith('$') ||
+      key.includes('.') ||
+      key === '__proto__' ||
+      key === 'constructor' ||
+      key === 'prototype'
+    )
+      continue;
+    const val = obj[key];
+    sanitized[key] = typeof val === 'object' && val !== null ? sanitizeObject(val) : val;
   }
 
   return sanitized;
@@ -268,7 +274,7 @@ function validateRegistration(req, res, next) {
 
 function validateAmount(amount) {
   const num = parseFloat(amount);
-  if (isNaN(num) || num <= 0 || num > 1000000000) {
+  if (!Number.isFinite(num) || num <= 0 || num > 1000000000) {
     throw new Error('Invalid amount');
   }
   return num;
@@ -574,6 +580,10 @@ async function getFeeForAmount(amountHuman, coin = 'NGN') {
   if (!config) config = await FeeConfig.create({ _id: 'main' });
 
   const amount = parseFloat(amountHuman);
+
+  if (!Number.isFinite(amount) || amount < 0) {
+    return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
+  }
 
   if (amount >= config.tier2Min) {
     return {
@@ -2053,6 +2063,8 @@ app.post('/api/user/verify-pin', authLimiter, async (req, res) => {
     const isValid = verifyPin(pin, user.transactionPin);
 
     if (!isValid) {
+      // Constant-time delay to prevent timing oracle on PIN length/validity
+      await new Promise((r) => setTimeout(r, 200 + Math.floor(Math.random() * 100)));
       return res.status(401).json({ success: false, message: 'Invalid PIN' });
     }
 
@@ -2322,9 +2334,14 @@ app.post('/api/queue/process/:address', async (req, res) => {
       return res.json({ processing: false, reason: 'No pending transactions' });
     }
 
-    entry.status = 'SENDING';
-    entry.updatedAt = new Date();
-    await entry.save();
+    const claimed = await TransactionQueue.findOneAndUpdate(
+      { _id: entry._id, status: 'PENDING' },
+      { $set: { status: 'SENDING', updatedAt: new Date() } },
+      { new: true }
+    );
+    if (!claimed) {
+      return res.json({ processing: false, reason: 'Race condition — already claimed' });
+    }
 
     res.json({ processing: true, queueId: entry._id });
 
@@ -2342,7 +2359,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
           feeHuman,
           toInput,
           senderDisplayIdentifier,
-        } = entry.payload;
+        } = claimed.payload;
 
         const senderUser = await User.findOne({
           safeAddress: safeAddress.toLowerCase(),
@@ -2404,7 +2421,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
         }).save();
 
         if (taskStatus.success) {
-          await TransactionQueue.deleteOne({ _id: entry._id });
+          await TransactionQueue.deleteOne({ _id: claimed._id });
           await applyCooldown(safeAddress, 20);
           console.log(`✅ Processed and removed: ${result.txHash}`);
           if (senderUser?.email) {
@@ -2440,7 +2457,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
       } catch (err) {
         console.error('❌ Queue processor crashed:', err.message);
         try {
-          const freshEntry = await TransactionQueue.findById(entry._id);
+          const freshEntry = await TransactionQueue.findById(claimed._id);
           if (!freshEntry) return;
           freshEntry.status = 'PENDING';
           freshEntry.errorMessage = `Processor error: ${err.message}`;
@@ -2503,6 +2520,7 @@ app.use((err, req, res, next) => {
 // START SERVER
 // ===============================================
 const PORT = process.env.PORT || 3001;
+
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SALVA BACKEND ACTIVE ON PORT ${PORT}`);

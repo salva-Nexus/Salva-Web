@@ -677,12 +677,12 @@ router.get('/subscription-fee', async (req, res) => {
     if (!config) config = await FeeConfig.create({ _id: 'main' });
     const monthly = config.poolSubscriptionMonthlyFee || 5000;
     res.json({
-      monthly,
+      monthly: 3000,
       tiers: [
-        { months: 1, total: monthly * 1, label: '1 Month' },
-        { months: 2, total: monthly * 2, label: '2 Months' },
-        { months: 6, total: monthly * 6, label: '6 Months' },
-        { months: 12, total: monthly * 12, label: '12 Months' },
+        { months: 1, total: 3000, label: '1 Month' },
+        { months: 2, total: 6000, label: '2 Months' },
+        { months: 6, total: 18000, label: '6 Months' },
+        { months: 12, total: 36000, label: '12 Months' },
       ],
     });
   } catch (err) {
@@ -714,8 +714,9 @@ router.post('/subscribe', async (req, res) => {
     let config = await FeeConfig.findById('main');
     if (!config) config = await FeeConfig.create({ _id: 'main' });
 
-    const monthlyFee = config.poolSubscriptionMonthlyFee || 5000;
-    const totalFee = monthlyFee * m;
+    const TIER_PRICES = { 1: 3000, 2: 6000, 6: 18000, 12: 36000 };
+    const totalFee = TIER_PRICES[m];
+    if (!totalFee) return res.status(400).json({ message: 'Invalid subscription tier' });
     const feeWei = ethers.parseUnits(String(totalFee), 6);
 
     const ngnsAddr = cleanAddr(process.env.NGN_TOKEN_ADDRESS);
@@ -992,7 +993,18 @@ router.post('/swap', async (req, res) => {
       rawApprove && rawApprove !== 'max'
         ? BigInt(rawApprove)
         : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
-    const receiver = ethers.getAddress(cleanUser);
+
+    // Optional custom receiver — validated strictly, falls back to signer's Safe
+    const rawReceiver = req.body.receiverAddress;
+    let cleanReceiver = cleanUser;
+    if (rawReceiver) {
+      const r = cleanAddr(rawReceiver);
+      if (!r || !ethers.isAddress(ethers.getAddress(r))) {
+        return res.status(400).json({ message: 'Invalid receiverAddress' });
+      }
+      cleanReceiver = r;
+    }
+    const receiver = ethers.getAddress(cleanReceiver);
 
     const swapCalldata = relay.buildSwapCalldata(
       swapFn,
@@ -1792,10 +1804,6 @@ router.post('/l1/trust', async (req, res) => {
       return cleanAddr(
         isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
       );
-    case 'CNGN':
-          return cleanAddr(
-            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
-          );
         case 'CNGN':
           return cleanAddr(
             isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
