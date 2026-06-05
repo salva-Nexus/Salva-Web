@@ -609,13 +609,13 @@ const BalanceCard = ({
       <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pb-5 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-3.5 rounded-2xl text-sm uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
+          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-3.5 rounded-2xl text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↓</span> Receive
         </button>
@@ -2338,16 +2338,16 @@ const Dashboard = () => {
     'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pt-28 px-4 pb-16 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-4 pb-16 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-2xl mx-auto relative z-10">
         {/* ── Header ── */}
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+            <p className="text-[8px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-1">
               {user.isValidator ? 'Salva Validator' : 'Salva Citizen'}
             </p>
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-none">
+            <h1 className="text-xl sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
             </h1>
           </div>
@@ -2372,7 +2372,7 @@ const Dashboard = () => {
             navigator.clipboard.writeText(user.safeAddress);
             showMsg('Wallet address copied!');
           }}
-          className="mb-4 px-3 py-2.5 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
+          className="mb-3 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-2"
         >
           <div className="w-7 h-7 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
             <svg
@@ -2409,7 +2409,7 @@ const Dashboard = () => {
         {/* ── Transaction History link ── */}
         <Link
           to="/transactions"
-          className="flex items-center justify-between mb-5 px-3 py-3 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
+          className="flex items-center justify-between mb-4 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
         >
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
@@ -2460,7 +2460,7 @@ const Dashboard = () => {
                   {/* Circle icon */}
                   <div
                     className={`
-                      relative w-11 h-11 rounded-full flex items-center justify-center
+                      relative w-9 h-9 rounded-full flex items-center justify-center
                       transition-all duration-200 active:scale-95
                       ${
                         isActive
@@ -2470,7 +2470,7 @@ const Dashboard = () => {
                     `}
                   >
                     <span
-                      className={`w-[18px] h-[18px] transition-colors duration-200 ${
+                      className={`w-[15px] h-[15px] transition-colors duration-200 ${
                         isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
@@ -2484,8 +2484,8 @@ const Dashboard = () => {
                   {/* Short label */}
                   <span
                     className={`
-                      text-[8px] font-black uppercase tracking-[0.08em] leading-tight
-                    text-center max-w-[56px] break-words transition-colors duration-200
+                      text-[7px] font-black uppercase tracking-[0.06em] leading-tight
+                    text-center max-w-[48px] break-words transition-colors duration-200
                       ${isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/50'}
                     `}
                   >

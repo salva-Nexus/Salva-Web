@@ -1564,7 +1564,7 @@ const L1DeployPool = ({ l1Config, configLoading, showMsg }) => {
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0 flex-shrink-0">
-            <h2 className="text-xl sm:text-3xl font-black tracking-tight">My Pools</h2>
+            <h2 className="text-lg sm:text-3xl font-black tracking-tight">My Pools</h2>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <a

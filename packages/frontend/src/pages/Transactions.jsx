@@ -638,24 +638,24 @@ const Transactions = () => {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pt-20 px-4 pb-16 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-2 pb-12 relative overflow-hidden">
       <Stars />
 
       <div className="max-w-2xl mx-auto relative z-10">
         {/* ── Back ── */}
         <Link
           to="/dashboard"
-          className="inline-flex items-center gap-2 text-[9px] uppercase tracking-[0.35em] text-white/25 hover:text-salvaGold transition-colors mb-8 font-black"
+          className="inline-flex items-center gap-2 text-[8px] uppercase tracking-[0.3em] text-white/25 hover:text-salvaGold transition-colors mb-5 font-black"
         >
           ← Dashboard
         </Link>
 
         {/* ── Header ── */}
-        <header className="mb-8">
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+        <header className="mb-5">
+          <p className="text-[8px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-1">
             Transaction History
           </p>
-          <h1 className="text-3xl sm:text-4xl font-black tracking-tight">{user.username}</h1>
+          <h1 className="text-xl sm:text-4xl font-black tracking-tight">{user.username}</h1>
         </header>
 
         {/* ── Toolbar ── */}

@@ -1334,7 +1334,7 @@ const L1SwapTab = ({ l1Config, configLoading, showMsg }) => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight">Naira Exchange</h2>
+          <h2 className="text-xl font-black tracking-tight">Naira Exchange</h2>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a

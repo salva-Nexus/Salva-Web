@@ -559,7 +559,7 @@ const L1Dashboard = ({
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pt-20 px-3 pb-16 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-2 pb-12 relative overflow-x-hidden">
       <Stars />
       <div className="max-w-2xl mx-auto relative z-10"></div>
       <div className="max-w-2xl mx-auto relative z-10">
@@ -611,7 +611,7 @@ const L1Dashboard = ({
             navigator.clipboard.writeText(l1Account);
             showMsg('Wallet address copied!');
           }}
-          className="mb-5 px-3 py-2.5 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-blue-500/20 transition-all flex items-center gap-3"
+          className="mb-4 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-blue-500/20 transition-all flex items-center gap-2"
         >
           <img
             src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
@@ -663,7 +663,7 @@ const L1Dashboard = ({
                 >
                   <div
                     className={`
-                    relative w-11 h-11 rounded-full flex items-center justify-center
+                    relative w-9 h-9 rounded-full flex items-center justify-center
                     transition-all duration-200 active:scale-95
                     ${
                       isActive
@@ -673,7 +673,7 @@ const L1Dashboard = ({
                   `}
                   >
                     <span
-                      className={`w-[18px] h-[18px] transition-colors duration-200 ${
+                      className={`w-[15px] h-[15px] transition-colors duration-200 ${
                         isActive ? 'text-blue-400' : 'text-white/60 group-hover:text-white/85'
                       }`}
                     >
@@ -685,8 +685,8 @@ const L1Dashboard = ({
                   </div>
                   <span
                     className={`
-                    text-[8px] font-black uppercase tracking-[0.08em] leading-tight
-                    text-center max-w-[56px] break-words transition-colors duration-200
+                    text-[7px] font-black uppercase tracking-[0.06em] leading-tight
+                    text-center max-w-[48px] break-words transition-colors duration-200
                     ${isActive ? 'text-blue-400' : 'text-white/60 group-hover:text-white/70'}
                   `}
                   >

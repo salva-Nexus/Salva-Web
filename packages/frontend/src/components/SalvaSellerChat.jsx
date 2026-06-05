@@ -483,7 +483,7 @@ const SellerBubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: '12px',
+              fontSize: '11px',
               color: isMine ? '#000' : '#f5f0e8',
               margin: 0,
               lineHeight: '1.5',
@@ -1035,8 +1035,8 @@ const SalvaSellerChat = ({ user }) => {
           whileTap={{ scale: 0.95 }}
           onClick={() => setView('list')}
           style={{
-            width: '54px',
-            height: '54px',
+            width: '44px',
+            height: '44px',
             borderRadius: '50%',
             background: 'linear-gradient(135deg, #1a1500, #2d2500)',
             border: '1.5px solid rgba(212,175,55,0.5)',
@@ -1106,22 +1106,31 @@ const SalvaSellerChat = ({ user }) => {
         )}
       </AnimatePresence>
 
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 8999 }}
+        onClick={() => {
+          setView('closed');
+          setSelected(null);
+          setMessages([]);
+        }}
+      />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
           bottom: '24px',
           left: '24px',
           zIndex: 9000,
-          width: '380px',
-          maxWidth: 'calc(100vw - 2rem)',
+          width: '320px',
+          maxWidth: 'calc(100vw - 1.5rem)',
         }}
       >
         <div
           style={{
-            height: '580px',
+            height: '500px',
             background: '#0d0d0e',
             border: '1px solid rgba(212,175,55,0.18)',
             borderRadius: '22px',
@@ -1136,7 +1145,7 @@ const SalvaSellerChat = ({ user }) => {
             style={{
               background: 'linear-gradient(135deg, #1a1500, #111100)',
               borderBottom: '1px solid rgba(212,175,55,0.2)',
-              padding: '13px 16px',
+              padding: '10px 12px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',

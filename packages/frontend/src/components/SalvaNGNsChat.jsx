@@ -101,7 +101,7 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
   return (
     <div
       style={{
-        padding: '10px 12px',
+        padding: '7px 10px',
         background: '#0d0d0e',
         borderTop: '1px solid rgba(212,175,55,0.15)',
         flexShrink: 0,
@@ -344,7 +344,7 @@ const Bubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: '12.5px',
+              fontSize: '11px',
               color: isMe ? '#000' : '#f5f0e8',
               margin: 0,
               lineHeight: '1.55',
@@ -748,12 +748,23 @@ const SalvaNGNsChat = ({ user }) => {
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
-          onClick={() => { if (!isDismissed()) { setShowNetworkReminder(true); } else { setIsOpen(true); } }}
+          onClick={() => {
+            if (!isDismissed()) {
+              setShowNetworkReminder(true);
+            } else {
+              setIsOpen(true);
+            }
+          }}
           style={{
-            width: '54px', height: '54px', borderRadius: '50%',
+            width: '44px',
+            height: '44px',
+            borderRadius: '50%',
             background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-            border: 'none', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)',
             position: 'relative',
           }}
@@ -763,8 +774,11 @@ const SalvaNGNsChat = ({ user }) => {
             animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
             transition={{ repeat: Infinity, duration: 2 }}
             style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              border: '2px solid #D4AF37', pointerEvents: 'none',
+              position: 'absolute',
+              inset: 0,
+              borderRadius: '50%',
+              border: '2px solid #D4AF37',
+              pointerEvents: 'none',
             }}
           />
         </motion.button>
@@ -772,7 +786,10 @@ const SalvaNGNsChat = ({ user }) => {
       {showNetworkReminder && (
         <NetworkReminder
           storageKey="salva_reminder_buysell"
-          onContinue={() => { setShowNetworkReminder(false); setIsOpen(true); }}
+          onContinue={() => {
+            setShowNetworkReminder(false);
+            setIsOpen(true);
+          }}
           onClose={() => setShowNetworkReminder(false)}
         />
       )}
@@ -782,7 +799,6 @@ const SalvaNGNsChat = ({ user }) => {
 
   return (
     <>
-
       <AnimatePresence>
         {showReceiptUpload && (
           <motion.div
@@ -944,21 +960,23 @@ const SalvaNGNsChat = ({ user }) => {
         )}
       </AnimatePresence>
 
+      <div style={{ position: 'fixed', inset: 0, zIndex: 8999 }} onClick={() => setIsOpen(false)} />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
+        onClick={(e) => e.stopPropagation()}
         style={{
           position: 'fixed',
           bottom: '24px',
           right: '24px',
           zIndex: 9000,
-          width: '360px',
-          maxWidth: 'calc(100vw - 2rem)',
+          width: '320px',
+          maxWidth: 'calc(100vw - 1.5rem)',
         }}
       >
         <div
           style={{
-            height: '580px',
+            height: '500px',
             background: '#0d0d0e',
             border: '1px solid rgba(212,175,55,0.2)',
             borderRadius: '22px',
@@ -973,7 +991,7 @@ const SalvaNGNsChat = ({ user }) => {
             style={{
               background: 'linear-gradient(135deg, #1a1500, #111100)',
               borderBottom: '1px solid rgba(212,175,55,0.25)',
-              padding: '14px 16px',
+              padding: '10px 12px',
               display: 'flex',
               alignItems: 'center',
               gap: '10px',

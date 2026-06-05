@@ -329,7 +329,7 @@ const Bubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: '12.5px',
+              fontSize: '11px',
               color: isMe ? '#000' : '#f5f0e8',
               margin: 0,
               lineHeight: '1.55',
@@ -763,8 +763,8 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
         <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
           <p className="text-xs font-black text-blue-400 mb-1">OTC Exchange</p>
           <p className="text-[11px] text-white/60 leading-relaxed">
-            Buy NGNs with fiat (minted to any BNB address) or sell NGNs for fiat (burned from
-            your connected wallet). Tap the ₦ button below to start.
+            Buy NGNs with fiat (minted to any BNB address) or sell NGNs for fiat (burned from your
+            connected wallet). Tap the ₦ button below to start.
           </p>
         </div>
 
@@ -1024,532 +1024,290 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
       {/* Chat widget */}
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 16 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.88, y: 16 }}
-            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            style={{
-              position: 'fixed',
-              bottom: '90px',
-              right: '16px',
-              zIndex: 75,
-              width: 'min(390px, calc(100vw - 32px))',
-              height: 'min(560px, calc(100vh - 110px))',
-              background: '#0D0D0D',
-              border: '1px solid rgba(212,175,55,0.2)',
-              borderRadius: '20px',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
-              overflow: 'hidden',
-            }}
-          >
-            {/* Header */}
+          <>
             <div
+              style={{ position: 'fixed', inset: 0, zIndex: 74 }}
+              onClick={() => setIsOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.88, y: 16 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
               style={{
-                background: 'linear-gradient(135deg,#1a1500,#111100)',
-                borderBottom: '1px solid rgba(212,175,55,0.25)',
-                padding: '12px 14px',
+                position: 'fixed',
+                bottom: '90px',
+                right: '16px',
+                zIndex: 75,
+                width: 'min(340px, calc(100vw - 24px))',
+                height: 'min(490px, calc(100vh - 100px))',
+                background: '#0D0D0D',
+                border: '1px solid rgba(212,175,55,0.2)',
+                borderRadius: '20px',
                 display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                flexShrink: 0,
+                flexDirection: 'column',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                overflow: 'hidden',
               }}
             >
+              {/* Header */}
               <div
                 style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '10px',
-                  background: 'rgba(212,175,55,0.15)',
-                  border: '1px solid rgba(212,175,55,0.3)',
+                  background: 'linear-gradient(135deg,#1a1500,#111100)',
+                  borderBottom: '1px solid rgba(212,175,55,0.25)',
+                  padding: '9px 11px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '16px',
-                  fontWeight: '900',
-                  color: '#D4AF37',
+                  gap: '10px',
                   flexShrink: 0,
                 }}
               >
-                ₦
-              </div>
-              {mode && buyPhase !== 'chat' && sellPhase !== 'chat' && (
-                <button
-                  onClick={() => {
-                    if (mode === 'buy') {
-                      if (buyPhase === 'confirm') setBuyPhase('amount');
-                      else {
-                        setMode(null);
-                        setBuyPhase('amount');
-                      }
-                    } else {
-                      if (sellPhase === 'bank') setSellPhase('amount');
-                      else {
-                        setMode(null);
-                        setSellPhase('amount');
-                      }
-                    }
-                  }}
+                <div
                   style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(212,175,55,0.6)',
-                    fontSize: '18px',
-                    cursor: 'pointer',
-                    padding: '2px 6px 2px 0',
-                    lineHeight: 1,
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '10px',
+                    background: 'rgba(212,175,55,0.15)',
+                    border: '1px solid rgba(212,175,55,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px',
+                    fontWeight: '900',
+                    color: '#D4AF37',
                     flexShrink: 0,
                   }}
                 >
-                  ←
-                </button>
-              )}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontSize: '12px', fontWeight: '900', color: '#D4AF37' }}>
-                  NGNs Exchange
-                </p>
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: '9px',
-                    color: 'rgba(255,255,255,0.3)',
-                    fontWeight: '700',
-                  }}
-                >
-                  {mode
-                    ? mode === 'buy'
-                      ? 'Buying NGNs · BNB CHAIN'
-                      : 'Selling NGNs · BNB CHAIN'
-                    : 'Choose an option'}
-                </p>
-              </div>
-              <span
-                style={{
-                  fontSize: '8px',
-                  fontWeight: '900',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.1em',
-                  color: '#60a5fa',
-                  padding: '3px 7px',
-                  borderRadius: '6px',
-                  border: '1px solid rgba(96,165,250,0.35)',
-                  background: 'rgba(96,165,250,0.08)',
-                  flexShrink: 0,
-                }}
-              >
-                BNB CHAIN
-              </span>
-              <button
-                onClick={() => setIsOpen(false)}
-                style={{
-                  width: '28px',
-                  height: '28px',
-                  borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.07)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                  cursor: 'pointer',
-                  color: 'rgba(255,255,255,0.5)',
-                  fontSize: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {/* ── MODE SELECTOR ── */}
-            {!mode && (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '20px',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ textAlign: 'center', marginBottom: '4px' }}>
-                  <div
+                  ₦
+                </div>
+                {mode && buyPhase !== 'chat' && sellPhase !== 'chat' && (
+                  <button
+                    onClick={() => {
+                      if (mode === 'buy') {
+                        if (buyPhase === 'confirm') setBuyPhase('amount');
+                        else {
+                          setMode(null);
+                          setBuyPhase('amount');
+                        }
+                      } else {
+                        if (sellPhase === 'bank') setSellPhase('amount');
+                        else {
+                          setMode(null);
+                          setSellPhase('amount');
+                        }
+                      }
+                    }}
                     style={{
-                      width: '52px',
-                      height: '52px',
-                      borderRadius: '16px',
-                      margin: '0 auto 12px',
-                      background: 'rgba(212,175,55,0.12)',
-                      border: '1px solid rgba(212,175,55,0.25)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '24px',
-                      fontWeight: '900',
-                      color: '#D4AF37',
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(212,175,55,0.6)',
+                      fontSize: '18px',
+                      cursor: 'pointer',
+                      padding: '2px 6px 2px 0',
+                      lineHeight: 1,
+                      flexShrink: 0,
                     }}
                   >
-                    ₦
-                  </div>
-                  <p style={{ margin: 0, fontSize: '15px', fontWeight: '900', color: '#fff' }}>
+                    ←
+                  </button>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: '12px', fontWeight: '900', color: '#D4AF37' }}>
                     NGNs Exchange
                   </p>
                   <p
-                    style={{ margin: '4px 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}
-                  >
-                    Buy NGNs with fiat or sell NGNs for fiat
-                  </p>
-                </div>
-                <button
-                  onClick={() => {
-                    setMintRequest(null);
-                    setMessages([]);
-                    setBuyPhase('amount');
-                    setMode('buy');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg,#D4AF37,#b8960c)',
-                    border: 'none',
-                    color: '#000',
-                    fontWeight: '900',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  🏦 Buy NGNs
-                </button>
-                <button
-                  onClick={() => {
-                    setMintRequest(null);
-                    setMessages([]);
-                    setSellPhase('amount');
-                    setMode('sell');
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '14px',
-                    borderRadius: '12px',
-                    background: 'rgba(239,68,68,0.12)',
-                    border: '1px solid rgba(239,68,68,0.3)',
-                    color: '#f87171',
-                    fontWeight: '900',
-                    fontSize: '13px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  🔥 Sell NGNs
-                </button>
-                <div
-                  style={{
-                    background: 'rgba(255,255,255,0.03)',
-                    borderRadius: '10px',
-                    padding: '12px',
-                    width: '100%',
-                  }}
-                >
-                  <p
                     style={{
-                      color: 'rgba(212,175,55,0.5)',
+                      margin: 0,
                       fontSize: '9px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.15em',
-                      margin: '0 0 8px',
+                      color: 'rgba(255,255,255,0.3)',
                       fontWeight: '700',
                     }}
                   >
-                    How it works on BNB CHAIN
-                  </p>
-                  <p
-                    style={{ margin: '0 0 4px', fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}
-                  >
-                    <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Buy:</strong> Transfer fiat →
-                    NGNs minted to your address on BNB
-                  </p>
-                  <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
-                    <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Sell:</strong> NGNs burned
-                    from your wallet → receive fiat in bank
+                    {mode
+                      ? mode === 'buy'
+                        ? 'Buying NGNs · BNB CHAIN'
+                        : 'Selling NGNs · BNB CHAIN'
+                      : 'Choose an option'}
                   </p>
                 </div>
-              </div>
-            )}
-
-            {/* ── BUY: AMOUNT ── */}
-            {mode === 'buy' && buyPhase === 'amount' && (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  padding: '24px 20px',
-                  gap: '16px',
-                  overflowY: 'auto',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '8px' }}>🛒</div>
-                  <h3
-                    style={{
-                      color: '#f5f0e8',
-                      fontSize: '17px',
-                      fontWeight: '900',
-                      margin: '0 0 4px',
-                    }}
-                  >
-                    Buy NGNs · BNB CHAIN
-                  </h3>
-                  <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
-                    Enter the amount you want to purchase
-                  </p>
-                </div>
-                <div>
-                  <SectionLabel>Amount (NGNs)</SectionLabel>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
-                      value={amountDisplay}
-                      onChange={(e) => {
-                        const f = fmtInput(e.target.value);
-                        setAmountDisplay(f);
-                        setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
-                        setInitError('');
-                      }}
-                      style={{
-                        width: '100%',
-                        padding: '13px 52px 13px 14px',
-                        borderRadius: '12px',
-                        border: '1px solid rgba(212,175,55,0.25)',
-                        background: '#1a1a1b',
-                        color: '#f5f0e8',
-                        fontSize: '18px',
-                        fontWeight: '900',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                    />
-                    <span
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: '#D4AF37',
-                        fontWeight: '900',
-                        fontSize: '12px',
-                      }}
-                    >
-                      NGNs
-                    </span>
-                  </div>
-                  <p
-                    style={{ color: 'rgba(255,255,255,0.3)', fontSize: '10px', margin: '5px 0 0' }}
-                  >
-                    Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
-                    {otcConfig.maxNgn.toLocaleString()}
-                  </p>
-                </div>
-                {buyValid && (
-                  <div
-                    style={{
-                      background: 'rgba(212,175,55,0.05)',
-                      border: '1px solid rgba(212,175,55,0.15)',
-                      borderRadius: '12px',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    {[
-                      ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`],
-                      ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free'],
-                      ['You Receive', `${mintAmt.toLocaleString()} NGNs`],
-                    ].map(([l, v], i) => (
-                      <div
-                        key={l}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          marginBottom: i < 2 ? '6px' : 0,
-                          paddingTop: i === 2 ? '8px' : 0,
-                          borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
-                        }}
-                      >
-                        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px' }}>
-                          {l}
-                        </span>
-                        <span
-                          style={{
-                            color: i === 1 && fee > 0 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
-                            fontWeight: i === 2 ? '900' : '700',
-                            fontSize: i === 2 ? '14px' : '11px',
-                          }}
-                        >
-                          {v}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {initError && (
-                  <p style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', margin: 0 }}>
-                    ⚠️ {initError}
-                  </p>
-                )}
-                <button
-                  onClick={() => buyValid && setBuyPhase('confirm')}
-                  disabled={!buyValid}
+                <span
                   style={{
-                    width: '100%',
-                    padding: '13px',
-                    background: buyValid
-                      ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
-                      : 'rgba(212,175,55,0.2)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
-                    fontSize: '13px',
+                    fontSize: '8px',
                     fontWeight: '900',
-                    cursor: buyValid ? 'pointer' : 'not-allowed',
                     textTransform: 'uppercase',
+                    letterSpacing: '0.1em',
+                    color: '#60a5fa',
+                    padding: '3px 7px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(96,165,250,0.35)',
+                    background: 'rgba(96,165,250,0.08)',
+                    flexShrink: 0,
                   }}
                 >
-                  Continue →
+                  BNB CHAIN
+                </span>
+                <button
+                  onClick={() => setIsOpen(false)}
+                  style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    cursor: 'pointer',
+                    color: 'rgba(255,255,255,0.5)',
+                    fontSize: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  ×
                 </button>
               </div>
-            )}
 
-            {/* ── BUY: CONFIRM ── */}
-            {mode === 'buy' && buyPhase === 'confirm' && (
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  padding: '24px 20px',
-                  gap: '14px',
-                  overflowY: 'auto',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '8px' }}>⚡</div>
-                  <h3
-                    style={{
-                      color: '#f5f0e8',
-                      fontSize: '17px',
-                      fontWeight: '900',
-                      margin: '0 0 4px',
-                    }}
-                  >
-                    Confirm Purchase
-                  </h3>
-                </div>
-                <div
-                  style={{
-                    background: 'rgba(212,175,55,0.06)',
-                    border: '1px solid rgba(212,175,55,0.2)',
-                    borderRadius: '14px',
-                    padding: '16px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                  }}
-                >
-                  {[
-                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
-                    ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
-                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
-                    ['Mint To', truncAddr(recipient), '#60a5fa'],
-                  ].map(([l, v, c]) => (
-                    <div
-                      key={l}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                      }}
-                    >
-                      <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>{l}</span>
-                      <span
-                        style={{
-                          color: c,
-                          fontWeight: '900',
-                          fontSize: l === 'You Receive' ? '16px' : '13px',
-                        }}
-                      >
-                        {v}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {initError && (
-                  <p style={{ color: '#ef4444', fontSize: '11px', textAlign: 'center' }}>
-                    {initError}
-                  </p>
-                )}
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    onClick={() => setBuyPhase('amount')}
-                    style={{
-                      flex: 1,
-                      padding: '12px',
-                      borderRadius: '12px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: 'rgba(255,255,255,0.6)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleBuyInitiate}
-                    disabled={initiating}
-                    style={{
-                      flex: 2,
-                      padding: '12px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                      border: 'none',
-                      color: '#000',
-                      fontSize: '13px',
-                      fontWeight: '900',
-                      cursor: initiating ? 'wait' : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                    }}
-                  >
-                    {initiating && <Spinner />}
-                    {initiating ? 'Starting…' : 'Confirm & Start'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── SELL: AMOUNT ── */}
-            {mode === 'sell' && sellPhase === 'amount' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {/* ── MODE SELECTOR ── */}
+              {!mode && (
                 <div
                   style={{
                     flex: 1,
-                    overflowY: 'auto',
-                    padding: '20px 20px 12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '14px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '20px',
+                    gap: '12px',
+                  }}
+                >
+                  <div style={{ textAlign: 'center', marginBottom: '4px' }}>
+                    <div
+                      style={{
+                        width: '52px',
+                        height: '52px',
+                        borderRadius: '16px',
+                        margin: '0 auto 12px',
+                        background: 'rgba(212,175,55,0.12)',
+                        border: '1px solid rgba(212,175,55,0.25)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '24px',
+                        fontWeight: '900',
+                        color: '#D4AF37',
+                      }}
+                    >
+                      ₦
+                    </div>
+                    <p style={{ margin: 0, fontSize: '15px', fontWeight: '900', color: '#fff' }}>
+                      NGNs Exchange
+                    </p>
+                    <p
+                      style={{
+                        margin: '4px 0 0',
+                        fontSize: '11px',
+                        color: 'rgba(255,255,255,0.3)',
+                      }}
+                    >
+                      Buy NGNs with fiat or sell NGNs for fiat
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setMintRequest(null);
+                      setMessages([]);
+                      setBuyPhase('amount');
+                      setMode('buy');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      background: 'linear-gradient(135deg,#D4AF37,#b8960c)',
+                      border: 'none',
+                      color: '#000',
+                      fontWeight: '900',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🏦 Buy NGNs
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMintRequest(null);
+                      setMessages([]);
+                      setSellPhase('amount');
+                      setMode('sell');
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '14px',
+                      borderRadius: '12px',
+                      background: 'rgba(239,68,68,0.12)',
+                      border: '1px solid rgba(239,68,68,0.3)',
+                      color: '#f87171',
+                      fontWeight: '900',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    🔥 Sell NGNs
+                  </button>
+                  <div
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      width: '100%',
+                    }}
+                  >
+                    <p
+                      style={{
+                        color: 'rgba(212,175,55,0.5)',
+                        fontSize: '9px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.15em',
+                        margin: '0 0 8px',
+                        fontWeight: '700',
+                      }}
+                    >
+                      How it works on BNB CHAIN
+                    </p>
+                    <p
+                      style={{
+                        margin: '0 0 4px',
+                        fontSize: '11px',
+                        color: 'rgba(255,255,255,0.35)',
+                      }}
+                    >
+                      <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Buy:</strong> Transfer fiat
+                      → NGNs minted to your address on BNB
+                    </p>
+                    <p style={{ margin: 0, fontSize: '11px', color: 'rgba(255,255,255,0.35)' }}>
+                      <strong style={{ color: 'rgba(255,255,255,0.5)' }}>Sell:</strong> NGNs burned
+                      from your wallet → receive fiat in bank
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* ── BUY: AMOUNT ── */}
+              {mode === 'buy' && buyPhase === 'amount' && (
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    padding: '24px 20px',
+                    gap: '16px',
+                    overflowY: 'auto',
                   }}
                 >
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '36px', marginBottom: '8px' }}>💸</div>
+                    <div style={{ fontSize: '36px', marginBottom: '8px' }}>🛒</div>
                     <h3
                       style={{
                         color: '#f5f0e8',
@@ -1558,40 +1316,33 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                         margin: '0 0 4px',
                       }}
                     >
-                      Sell NGNs · BNB CHAIN
+                      Buy NGNs · BNB CHAIN
                     </h3>
                     <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
-                      NGNs will be burned from: {truncAddr(l1Account)}
+                      Enter the amount you want to purchase
                     </p>
                   </div>
                   <div>
-                    <SectionLabel>Amount to Burn (NGNs)</SectionLabel>
+                    <SectionLabel>Amount (NGNs)</SectionLabel>
                     <div style={{ position: 'relative' }}>
                       <input
                         type="text"
                         inputMode="decimal"
                         placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
-                        value={sellAmountDisplay}
+                        value={amountDisplay}
                         onChange={(e) => {
                           const f = fmtInput(e.target.value);
-                          setSellAmountDisplay(f);
-                          const raw = parseFloat(f.replace(/,/g, '')) || 0;
-                          setSellAmountRaw(raw);
-                          setSellAmountError(
-                            raw > 0 && raw < otcConfig.minNgn
-                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
-                              : raw > otcConfig.maxNgn
-                                ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
-                                : ''
-                          );
+                          setAmountDisplay(f);
+                          setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
+                          setInitError('');
                         }}
                         style={{
                           width: '100%',
                           padding: '13px 52px 13px 14px',
                           borderRadius: '12px',
-                          border: `2px solid ${sellAmountError ? '#ef4444' : 'rgba(212,175,55,0.25)'}`,
+                          border: '1px solid rgba(212,175,55,0.25)',
                           background: '#1a1a1b',
-                          color: sellAmountError ? '#ef4444' : '#f5f0e8',
+                          color: '#f5f0e8',
                           fontSize: '18px',
                           fontWeight: '900',
                           outline: 'none',
@@ -1604,7 +1355,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                           right: '12px',
                           top: '50%',
                           transform: 'translateY(-50%)',
-                          color: sellAmountError ? '#ef4444' : '#D4AF37',
+                          color: '#D4AF37',
                           fontWeight: '900',
                           fontSize: '12px',
                         }}
@@ -1612,18 +1363,6 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                         NGNs
                       </span>
                     </div>
-                    {sellAmountError && (
-                      <p
-                        style={{
-                          color: '#ef4444',
-                          fontSize: '10px',
-                          margin: '4px 0 0',
-                          fontWeight: '700',
-                        }}
-                      >
-                        ⚠️ {sellAmountError}
-                      </p>
-                    )}
                     <p
                       style={{
                         color: 'rgba(255,255,255,0.3)',
@@ -1635,8 +1374,7 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       {otcConfig.maxNgn.toLocaleString()}
                     </p>
                   </div>
-
-                  {sellValid && (
+                  {buyValid && (
                     <div
                       style={{
                         background: 'rgba(212,175,55,0.05)',
@@ -1646,9 +1384,9 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       }}
                     >
                       {[
-                        ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`],
-                        ['Fee', `-${sellFee.toLocaleString()} NGNs`],
-                        ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`],
+                        ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`],
+                        ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free'],
+                        ['You Receive', `${mintAmt.toLocaleString()} NGNs`],
                       ].map(([l, v], i) => (
                         <div
                           key={l}
@@ -1665,7 +1403,8 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                           </span>
                           <span
                             style={{
-                              color: i === 1 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
+                              color:
+                                i === 1 && fee > 0 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
                               fontWeight: i === 2 ? '900' : '700',
                               fontSize: i === 2 ? '14px' : '11px',
                             }}
@@ -1676,441 +1415,737 @@ const L1BuyNGNs = ({ l1Account, l1Config, configLoading, showMsg }) => {
                       ))}
                     </div>
                   )}
-
-                  <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      background: 'rgba(239,68,68,0.06)',
-                      border: '1px solid rgba(239,68,68,0.15)',
-                    }}
-                  >
-                    <p style={{ color: '#ef4444', fontSize: '10px', margin: 0 }}>
-                      ⚠️ NGNs are burned immediately on-chain from your connected wallet. Cannot be
-                      undone.
+                  {initError && (
+                    <p style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', margin: 0 }}>
+                      ⚠️ {initError}
                     </p>
-                  </div>
-                </div>
-                <div
-                  style={{
-                    flexShrink: 0,
-                    padding: '12px 20px',
-                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                    background: '#0d0d0e',
-                  }}
-                >
+                  )}
                   <button
-                    onClick={() => sellValid && setSellPhase('bank')}
-                    disabled={!sellValid}
+                    onClick={() => buyValid && setBuyPhase('confirm')}
+                    disabled={!buyValid}
                     style={{
                       width: '100%',
                       padding: '13px',
-                      background: !sellValid
-                        ? 'rgba(239,68,68,0.2)'
-                        : 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                      background: buyValid
+                        ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
+                        : 'rgba(212,175,55,0.2)',
                       border: 'none',
                       borderRadius: '12px',
-                      color: !sellValid ? 'rgba(239,68,68,0.4)' : '#fff',
+                      color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
                       fontSize: '13px',
                       fontWeight: '900',
-                      cursor: !sellValid ? 'not-allowed' : 'pointer',
+                      cursor: buyValid ? 'pointer' : 'not-allowed',
                       textTransform: 'uppercase',
                     }}
                   >
                     Continue →
                   </button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* ── SELL: BANK DETAILS ── */}
-            {mode === 'sell' && sellPhase === 'bank' && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+              {/* ── BUY: CONFIRM ── */}
+              {mode === 'buy' && buyPhase === 'confirm' && (
                 <div
                   style={{
                     flex: 1,
-                    overflowY: 'auto',
-                    padding: '16px 20px 12px',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '12px',
+                    justifyContent: 'center',
+                    padding: '24px 20px',
+                    gap: '14px',
+                    overflowY: 'auto',
                   }}
                 >
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏦</div>
+                    <div style={{ fontSize: '36px', marginBottom: '8px' }}>⚡</div>
                     <h3
                       style={{
                         color: '#f5f0e8',
-                        fontSize: '16px',
+                        fontSize: '17px',
                         fontWeight: '900',
-                        margin: '0 0 3px',
+                        margin: '0 0 4px',
                       }}
                     >
-                      Your Bank Details
+                      Confirm Purchase
                     </h3>
-                    <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
-                      Seller will pay ₦{sellPayout.toLocaleString()} here
-                    </p>
                   </div>
-                  {[
-                    {
-                      label: 'Bank Name',
-                      value: bankName,
-                      setter: setBankName,
-                      placeholder: 'e.g. OPay, GTBank',
-                    },
-                    {
-                      label: 'Account Number',
-                      value: accountNumber,
-                      setter: setAccountNumber,
-                      placeholder: '10-digit account number',
-                    },
-                    {
-                      label: 'Account Name',
-                      value: accountName,
-                      setter: setAccountName,
-                      placeholder: 'Full account name',
-                    },
-                  ].map(({ label, value, setter, placeholder }) => (
-                    <div key={label}>
-                      <SectionLabel>{label}</SectionLabel>
-                      <input
-                        type="text"
-                        placeholder={placeholder}
-                        value={value}
-                        onChange={(e) => setter(e.target.value)}
-                        style={{
-                          width: '100%',
-                          padding: '11px 14px',
-                          borderRadius: '10px',
-                          border: '1px solid rgba(212,175,55,0.2)',
-                          background: '#1a1a1b',
-                          color: '#f5f0e8',
-                          fontSize: '13px',
-                          outline: 'none',
-                          boxSizing: 'border-box',
-                        }}
-                      />
-                    </div>
-                  ))}
                   <div
                     style={{
-                      background: 'rgba(239,68,68,0.08)',
-                      border: '1px solid rgba(239,68,68,0.2)',
-                      borderRadius: '10px',
-                      padding: '10px 12px',
+                      background: 'rgba(212,175,55,0.06)',
+                      border: '1px solid rgba(212,175,55,0.2)',
+                      borderRadius: '14px',
+                      padding: '16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '10px',
                     }}
                   >
-                    <p style={{ color: '#ef4444', fontSize: '11px', margin: 0 }}>
-                      ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You
-                      receive ₦{sellPayout.toLocaleString()}. Double-check details.
-                    </p>
+                    {[
+                      ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
+                      ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
+                      ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
+                      ['Mint To', truncAddr(recipient), '#60a5fa'],
+                    ].map(([l, v, c]) => (
+                      <div
+                        key={l}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                        }}
+                      >
+                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px' }}>
+                          {l}
+                        </span>
+                        <span
+                          style={{
+                            color: c,
+                            fontWeight: '900',
+                            fontSize: l === 'You Receive' ? '16px' : '13px',
+                          }}
+                        >
+                          {v}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                  {sellError && (
-                    <p style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', margin: 0 }}>
-                      ⚠️ {sellError}
+                  {initError && (
+                    <p style={{ color: '#ef4444', fontSize: '11px', textAlign: 'center' }}>
+                      {initError}
                     </p>
                   )}
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => setBuyPhase('amount')}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleBuyInitiate}
+                      disabled={initiating}
+                      style={{
+                        flex: 2,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                        border: 'none',
+                        color: '#000',
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        cursor: initiating ? 'wait' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {initiating && <Spinner />}
+                      {initiating ? 'Starting…' : 'Confirm & Start'}
+                    </button>
+                  </div>
                 </div>
-                <div
-                  style={{
-                    flexShrink: 0,
-                    padding: '12px 20px',
-                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                    background: '#0d0d0e',
-                    display: 'flex',
-                    gap: '8px',
-                  }}
-                >
-                  <button
-                    onClick={() => setSellPhase('amount')}
+              )}
+
+              {/* ── SELL: AMOUNT ── */}
+              {mode === 'sell' && sellPhase === 'amount' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                  <div
                     style={{
                       flex: 1,
-                      padding: '12px',
-                      borderRadius: '12px',
-                      background: 'rgba(255,255,255,0.05)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      color: 'rgba(255,255,255,0.6)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
+                      overflowY: 'auto',
+                      padding: '20px 20px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '14px',
                     }}
                   >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleSellInitiate}
-                    disabled={
-                      sellInitiating ||
-                      !bankName.trim() ||
-                      !accountNumber.trim() ||
-                      !accountName.trim()
-                    }
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '36px', marginBottom: '8px' }}>💸</div>
+                      <h3
+                        style={{
+                          color: '#f5f0e8',
+                          fontSize: '17px',
+                          fontWeight: '900',
+                          margin: '0 0 4px',
+                        }}
+                      >
+                        Sell NGNs · BNB CHAIN
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
+                        NGNs will be burned from: {truncAddr(l1Account)}
+                      </p>
+                    </div>
+                    <div>
+                      <SectionLabel>Amount to Burn (NGNs)</SectionLabel>
+                      <div style={{ position: 'relative' }}>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
+                          value={sellAmountDisplay}
+                          onChange={(e) => {
+                            const f = fmtInput(e.target.value);
+                            setSellAmountDisplay(f);
+                            const raw = parseFloat(f.replace(/,/g, '')) || 0;
+                            setSellAmountRaw(raw);
+                            setSellAmountError(
+                              raw > 0 && raw < otcConfig.minNgn
+                                ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
+                                : raw > otcConfig.maxNgn
+                                  ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
+                                  : ''
+                            );
+                          }}
+                          style={{
+                            width: '100%',
+                            padding: '13px 52px 13px 14px',
+                            borderRadius: '12px',
+                            border: `2px solid ${sellAmountError ? '#ef4444' : 'rgba(212,175,55,0.25)'}`,
+                            background: '#1a1a1b',
+                            color: sellAmountError ? '#ef4444' : '#f5f0e8',
+                            fontSize: '18px',
+                            fontWeight: '900',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                        <span
+                          style={{
+                            position: 'absolute',
+                            right: '12px',
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            color: sellAmountError ? '#ef4444' : '#D4AF37',
+                            fontWeight: '900',
+                            fontSize: '12px',
+                          }}
+                        >
+                          NGNs
+                        </span>
+                      </div>
+                      {sellAmountError && (
+                        <p
+                          style={{
+                            color: '#ef4444',
+                            fontSize: '10px',
+                            margin: '4px 0 0',
+                            fontWeight: '700',
+                          }}
+                        >
+                          ⚠️ {sellAmountError}
+                        </p>
+                      )}
+                      <p
+                        style={{
+                          color: 'rgba(255,255,255,0.3)',
+                          fontSize: '10px',
+                          margin: '5px 0 0',
+                        }}
+                      >
+                        Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
+                        {otcConfig.maxNgn.toLocaleString()}
+                      </p>
+                    </div>
+
+                    {sellValid && (
+                      <div
+                        style={{
+                          background: 'rgba(212,175,55,0.05)',
+                          border: '1px solid rgba(212,175,55,0.15)',
+                          borderRadius: '12px',
+                          padding: '12px 14px',
+                        }}
+                      >
+                        {[
+                          ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`],
+                          ['Fee', `-${sellFee.toLocaleString()} NGNs`],
+                          ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`],
+                        ].map(([l, v], i) => (
+                          <div
+                            key={l}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              marginBottom: i < 2 ? '6px' : 0,
+                              paddingTop: i === 2 ? '8px' : 0,
+                              borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
+                            }}
+                          >
+                            <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: '11px' }}>
+                              {l}
+                            </span>
+                            <span
+                              style={{
+                                color: i === 1 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
+                                fontWeight: i === 2 ? '900' : '700',
+                                fontSize: i === 2 ? '14px' : '11px',
+                              }}
+                            >
+                              {v}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(239,68,68,0.06)',
+                        border: '1px solid rgba(239,68,68,0.15)',
+                      }}
+                    >
+                      <p style={{ color: '#ef4444', fontSize: '10px', margin: 0 }}>
+                        ⚠️ NGNs are burned immediately on-chain from your connected wallet. Cannot
+                        be undone.
+                      </p>
+                    </div>
+                  </div>
+                  <div
                     style={{
-                      flex: 2,
-                      padding: '12px',
-                      borderRadius: '12px',
-                      background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: '13px',
-                      fontWeight: '900',
-                      cursor:
+                      flexShrink: 0,
+                      padding: '12px 20px',
+                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                      background: '#0d0d0e',
+                    }}
+                  >
+                    <button
+                      onClick={() => sellValid && setSellPhase('bank')}
+                      disabled={!sellValid}
+                      style={{
+                        width: '100%',
+                        padding: '13px',
+                        background: !sellValid
+                          ? 'rgba(239,68,68,0.2)'
+                          : 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                        border: 'none',
+                        borderRadius: '12px',
+                        color: !sellValid ? 'rgba(239,68,68,0.4)' : '#fff',
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        cursor: !sellValid ? 'not-allowed' : 'pointer',
+                        textTransform: 'uppercase',
+                      }}
+                    >
+                      Continue →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ── SELL: BANK DETAILS ── */}
+              {mode === 'sell' && sellPhase === 'bank' && (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                  <div
+                    style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '16px 20px 12px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '12px',
+                    }}
+                  >
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏦</div>
+                      <h3
+                        style={{
+                          color: '#f5f0e8',
+                          fontSize: '16px',
+                          fontWeight: '900',
+                          margin: '0 0 3px',
+                        }}
+                      >
+                        Your Bank Details
+                      </h3>
+                      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '11px', margin: 0 }}>
+                        Seller will pay ₦{sellPayout.toLocaleString()} here
+                      </p>
+                    </div>
+                    {[
+                      {
+                        label: 'Bank Name',
+                        value: bankName,
+                        setter: setBankName,
+                        placeholder: 'e.g. OPay, GTBank',
+                      },
+                      {
+                        label: 'Account Number',
+                        value: accountNumber,
+                        setter: setAccountNumber,
+                        placeholder: '10-digit account number',
+                      },
+                      {
+                        label: 'Account Name',
+                        value: accountName,
+                        setter: setAccountName,
+                        placeholder: 'Full account name',
+                      },
+                    ].map(({ label, value, setter, placeholder }) => (
+                      <div key={label}>
+                        <SectionLabel>{label}</SectionLabel>
+                        <input
+                          type="text"
+                          placeholder={placeholder}
+                          value={value}
+                          onChange={(e) => setter(e.target.value)}
+                          style={{
+                            width: '100%',
+                            padding: '11px 14px',
+                            borderRadius: '10px',
+                            border: '1px solid rgba(212,175,55,0.2)',
+                            background: '#1a1a1b',
+                            color: '#f5f0e8',
+                            fontSize: '13px',
+                            outline: 'none',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </div>
+                    ))}
+                    <div
+                      style={{
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                      }}
+                    >
+                      <p style={{ color: '#ef4444', fontSize: '11px', margin: 0 }}>
+                        ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You
+                        receive ₦{sellPayout.toLocaleString()}. Double-check details.
+                      </p>
+                    </div>
+                    {sellError && (
+                      <p
+                        style={{ color: '#ef4444', fontSize: '11px', fontWeight: '700', margin: 0 }}
+                      >
+                        ⚠️ {sellError}
+                      </p>
+                    )}
+                  </div>
+                  <div
+                    style={{
+                      flexShrink: 0,
+                      padding: '12px 20px',
+                      borderTop: '1px solid rgba(255,255,255,0.06)',
+                      background: '#0d0d0e',
+                      display: 'flex',
+                      gap: '8px',
+                    }}
+                  >
+                    <button
+                      onClick={() => setSellPhase('amount')}
+                      style={{
+                        flex: 1,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        background: 'rgba(255,255,255,0.05)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Back
+                    </button>
+                    <button
+                      onClick={handleSellInitiate}
+                      disabled={
                         sellInitiating ||
                         !bankName.trim() ||
                         !accountNumber.trim() ||
                         !accountName.trim()
-                          ? 'not-allowed'
-                          : 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      opacity:
-                        !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
-                    }}
-                  >
-                    {sellInitiating && <Spinner color="#fff" />}
-                    {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── SHARED CHAT ── */}
-            {((mode === 'buy' && buyPhase === 'chat') ||
-              (mode === 'sell' && sellPhase === 'chat')) && (
-              <>
-                <div
-                  ref={chatContainerRef}
-                  onScroll={(e) => {
-                    const el = e.currentTarget;
-                    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-                  }}
-                  style={{
-                    flex: 1,
-                    overflowY: 'auto',
-                    padding: '14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '8px',
-                    background: '#0a0a0b',
-                  }}
-                >
-                  {messages.length === 0 && (
-                    <div
+                      }
                       style={{
-                        flex: 1,
+                        flex: 2,
+                        padding: '12px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        cursor:
+                          sellInitiating ||
+                          !bankName.trim() ||
+                          !accountNumber.trim() ||
+                          !accountName.trim()
+                            ? 'not-allowed'
+                            : 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        opacity: 0.4,
+                        gap: '6px',
+                        opacity:
+                          !bankName.trim() || !accountNumber.trim() || !accountName.trim()
+                            ? 0.5
+                            : 1,
                       }}
                     >
-                      <p style={{ color: '#D4AF37', fontSize: '12px' }}>Loading messages…</p>
-                    </div>
-                  )}
-                  {messages.map((msg, i) => (
-                    <Bubble key={msg._id || i} msg={msg} />
-                  ))}
+                      {sellInitiating && <Spinner color="#fff" />}
+                      {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
+                    </button>
+                  </div>
+                </div>
+              )}
 
-                  {mode === 'buy' && status === 'pending' && sellerInfo && (
-                    <div
-                      style={{
-                        padding: '12px 14px',
-                        background: 'rgba(212,175,55,0.06)',
-                        border: '1px solid rgba(212,175,55,0.2)',
-                        borderRadius: '12px',
-                        margin: '4px 0',
-                      }}
-                    >
-                      <p
+              {/* ── SHARED CHAT ── */}
+              {((mode === 'buy' && buyPhase === 'chat') ||
+                (mode === 'sell' && sellPhase === 'chat')) && (
+                <>
+                  <div
+                    ref={chatContainerRef}
+                    onScroll={(e) => {
+                      const el = e.currentTarget;
+                      isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                    }}
+                    style={{
+                      flex: 1,
+                      overflowY: 'auto',
+                      padding: '14px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px',
+                      background: '#0a0a0b',
+                    }}
+                  >
+                    {messages.length === 0 && (
+                      <div
                         style={{
-                          color: 'rgba(212,175,55,0.7)',
-                          fontSize: '9px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.12em',
-                          fontWeight: '700',
-                          margin: '0 0 10px',
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          opacity: 0.4,
                         }}
                       >
-                        📤 Send your payment to:
-                      </p>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        {[
-                          { label: 'Bank', value: sellerInfo.bankName },
-                          { label: 'Account Name', value: sellerInfo.accountName },
-                          { label: 'Account Number', value: sellerInfo.accountNumber },
-                        ].map(({ label, value }) => (
-                          <div
-                            key={label}
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              gap: '8px',
-                            }}
-                          >
-                            <span
-                              style={{
-                                color: 'rgba(255,255,255,0.35)',
-                                fontSize: '10px',
-                                flexShrink: 0,
-                              }}
-                            >
-                              {label}
-                            </span>
+                        <p style={{ color: '#D4AF37', fontSize: '12px' }}>Loading messages…</p>
+                      </div>
+                    )}
+                    {messages.map((msg, i) => (
+                      <Bubble key={msg._id || i} msg={msg} />
+                    ))}
+
+                    {mode === 'buy' && status === 'pending' && sellerInfo && (
+                      <div
+                        style={{
+                          padding: '12px 14px',
+                          background: 'rgba(212,175,55,0.06)',
+                          border: '1px solid rgba(212,175,55,0.2)',
+                          borderRadius: '12px',
+                          margin: '4px 0',
+                        }}
+                      >
+                        <p
+                          style={{
+                            color: 'rgba(212,175,55,0.7)',
+                            fontSize: '9px',
+                            textTransform: 'uppercase',
+                            letterSpacing: '0.12em',
+                            fontWeight: '700',
+                            margin: '0 0 10px',
+                          }}
+                        >
+                          📤 Send your payment to:
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                          {[
+                            { label: 'Bank', value: sellerInfo.bankName },
+                            { label: 'Account Name', value: sellerInfo.accountName },
+                            { label: 'Account Number', value: sellerInfo.accountNumber },
+                          ].map(({ label, value }) => (
                             <div
+                              key={label}
                               style={{
                                 display: 'flex',
+                                justifyContent: 'space-between',
                                 alignItems: 'center',
-                                gap: '6px',
-                                minWidth: 0,
+                                gap: '8px',
                               }}
                             >
                               <span
                                 style={{
-                                  color: '#f5f0e8',
-                                  fontSize: '12px',
-                                  fontWeight: '700',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
+                                  color: 'rgba(255,255,255,0.35)',
+                                  fontSize: '10px',
+                                  flexShrink: 0,
                                 }}
                               >
-                                {value || '—'}
+                                {label}
                               </span>
-                              {value && <CopyBtn value={value} />}
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  minWidth: 0,
+                                }}
+                              >
+                                <span
+                                  style={{
+                                    color: '#f5f0e8',
+                                    fontSize: '12px',
+                                    fontWeight: '700',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                  }}
+                                >
+                                  {value || '—'}
+                                </span>
+                                {value && <CopyBtn value={value} />}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-
-                  {mode === 'buy' &&
-                    status === 'pending' &&
-                    messages.length > 0 &&
-                    !showReceiptUpload && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        style={{ display: 'flex', justifyContent: 'flex-end' }}
-                      >
-                        <button
-                          onClick={() => setShowReceiptUpload(true)}
-                          style={{
-                            padding: '10px 16px',
-                            borderRadius: '12px',
-                            background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                            border: 'none',
-                            color: '#000',
-                            fontSize: '12px',
-                            fontWeight: '900',
-                            cursor: 'pointer',
-                            boxShadow: '0 0 16px rgba(212,175,55,0.4)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                          }}
-                        >
-                          <span>✅</span> I Have Paid
-                        </button>
-                      </motion.div>
                     )}
 
-                  {status === 'minting' && (
-                    <div
-                      style={{
-                        padding: '12px',
-                        background: 'rgba(212,175,55,0.06)',
-                        border: '1px solid rgba(212,175,55,0.2)',
-                        borderRadius: '12px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '10px',
-                      }}
-                    >
+                    {mode === 'buy' &&
+                      status === 'pending' &&
+                      messages.length > 0 &&
+                      !showReceiptUpload && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          style={{ display: 'flex', justifyContent: 'flex-end' }}
+                        >
+                          <button
+                            onClick={() => setShowReceiptUpload(true)}
+                            style={{
+                              padding: '10px 16px',
+                              borderRadius: '12px',
+                              background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                              border: 'none',
+                              color: '#000',
+                              fontSize: '12px',
+                              fontWeight: '900',
+                              cursor: 'pointer',
+                              boxShadow: '0 0 16px rgba(212,175,55,0.4)',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                            }}
+                          >
+                            <span>✅</span> I Have Paid
+                          </button>
+                        </motion.div>
+                      )}
+
+                    {status === 'minting' && (
                       <div
                         style={{
-                          width: '16px',
-                          height: '16px',
-                          border: '2px solid rgba(212,175,55,0.3)',
-                          borderTopColor: '#D4AF37',
-                          borderRadius: '50%',
-                          animation: 'spin 0.8s linear infinite',
-                          flexShrink: 0,
+                          padding: '12px',
+                          background: 'rgba(212,175,55,0.06)',
+                          border: '1px solid rgba(212,175,55,0.2)',
+                          borderRadius: '12px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '10px',
                         }}
-                      />
-                      <p
-                        style={{ color: '#D4AF37', fontSize: '12px', margin: 0, fontWeight: '700' }}
                       >
-                        Minting on BNB Chain… please wait.
-                      </p>
-                    </div>
+                        <div
+                          style={{
+                            width: '16px',
+                            height: '16px',
+                            border: '2px solid rgba(212,175,55,0.3)',
+                            borderTopColor: '#D4AF37',
+                            borderRadius: '50%',
+                            animation: 'spin 0.8s linear infinite',
+                            flexShrink: 0,
+                          }}
+                        />
+                        <p
+                          style={{
+                            color: '#D4AF37',
+                            fontSize: '12px',
+                            margin: 0,
+                            fontWeight: '700',
+                          }}
+                        >
+                          Minting on BNB Chain… please wait.
+                        </p>
+                      </div>
+                    )}
+
+                    {(isMinted || isRejected || isBurned) && (
+                      <button
+                        onClick={resetAll}
+                        style={{
+                          padding: '11px',
+                          borderRadius: '12px',
+                          background: isMinted ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)',
+                          border: `1px solid ${isMinted ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                          color: isMinted ? '#22c55e' : '#ef4444',
+                          fontSize: '12px',
+                          fontWeight: '700',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {isMinted
+                          ? 'Buy More NGNs →'
+                          : isBurned
+                            ? 'New Transaction →'
+                            : 'Start New Request →'}
+                      </button>
+                    )}
+
+                    <div ref={chatEndRef} />
+                  </div>
+
+                  {canChat && (
+                    <MessageInput
+                      onSend={handleSend}
+                      onImage={handleSendImage}
+                      disabled={sending}
+                    />
                   )}
 
-                  {(isMinted || isRejected || isBurned) && (
-                    <button
-                      onClick={resetAll}
-                      style={{
-                        padding: '11px',
-                        borderRadius: '12px',
-                        background: isMinted ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)',
-                        border: `1px solid ${isMinted ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                        color: isMinted ? '#22c55e' : '#ef4444',
-                        fontSize: '12px',
-                        fontWeight: '700',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {isMinted
-                        ? 'Buy More NGNs →'
-                        : isBurned
-                          ? 'New Transaction →'
-                          : 'Start New Request →'}
-                    </button>
-                  )}
-
-                  <div ref={chatEndRef} />
-                </div>
-
-                {canChat && (
-                  <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
-                )}
-
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    borderTop: '1px solid rgba(255,255,255,0.04)',
-                    display: 'flex',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      setMintRequest(null);
-                      setMessages([]);
-                      setBuyPhase('amount');
-                      setSellPhase('amount');
-                      setMode(null);
-                    }}
+                  <div
                     style={{
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      color: 'rgba(255,255,255,0.2)',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em',
+                      padding: '8px 12px',
+                      borderTop: '1px solid rgba(255,255,255,0.04)',
+                      display: 'flex',
+                      justifyContent: 'center',
                     }}
                   >
-                    ← Switch Mode
-                  </button>
-                </div>
-              </>
-            )}
-          </motion.div>
+                    <button
+                      onClick={() => {
+                        setMintRequest(null);
+                        setMessages([]);
+                        setBuyPhase('amount');
+                        setSellPhase('amount');
+                        setMode(null);
+                      }}
+                      style={{
+                        fontSize: '10px',
+                        fontWeight: '700',
+                        color: 'rgba(255,255,255,0.2)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.1em',
+                      }}
+                    >
+                      ← Switch Mode
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>

@@ -996,14 +996,14 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      className="rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-white/[0.14] transition-all"
+      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-white/[0.14] transition-all"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-5">
+      <div className="p-3.5">
         {/* Identity */}
-        <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
-            <p className="font-black text-base text-white truncate">
+            <p className="font-black text-sm text-white truncate">
               {pool.poolName || 'Anonymous Pool'}
             </p>
             <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
@@ -1155,7 +1155,7 @@ const SwapTab = ({ user, showMsg }) => {
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-black tracking-tight">Naira Exchange</h2>
+          <h2 className="text-xl font-black tracking-tight">Naira Exchange</h2>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
