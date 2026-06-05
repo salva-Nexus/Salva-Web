@@ -2400,7 +2400,12 @@ const Dashboard = () => {
               Smart Wallet · Base
             </p>
             <p className="font-mono text-[10px] text-salvaGold/60 truncate mt-0.5">
-              {showBalance ? user.safeAddress : '0x••••••••••••••••••••••••••••••••••••••••'}
+              {showBalance
+                ? <span>
+                    <span className="sm:hidden">{user.safeAddress.slice(0, 10)}…{user.safeAddress.slice(-6)}</span>
+                    <span className="hidden sm:inline">{user.safeAddress}</span>
+                  </span>
+                : '0x••••••••••••••••••••••••••••••••••••••••'}
             </p>
           </div>
           <span className="text-[10px] text-white/60 flex-shrink-0">Copy</span>
