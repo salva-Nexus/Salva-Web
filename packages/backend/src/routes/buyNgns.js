@@ -823,7 +823,7 @@ router.post('/initiate-sell', async (req, res) => {
       burnFromAddress,
     } = req.body;
     const isL1 = isL1Flag === true || isL1Flag === 'true';
-    const chain = isL1 ? 'ethereum' : 'base';
+    const chain = isL1 ? 'bnb' : 'base';
     const isProd = process.env.NODE_ENV === 'production';
     console.log(`🔥 initiate-sell: safeAddress=${safeAddress} amount=${amountNgn} isL1=${isL1}`);
 
