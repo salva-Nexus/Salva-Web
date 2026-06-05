@@ -43,60 +43,31 @@ export const NoWalletCard = ({ onDismiss }) => {
   const mobile = isMobile();
   const mmDeepLink = buildMetaMaskDeepLink();
 
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 10 }}
-      className="rounded-3xl border border-white/10 bg-zinc-950 overflow-hidden"
-    >
-      <div className="h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
-      <div className="p-7">
-        <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
-            <span className="text-2xl">🔐</span>
+  // On mobile: primary action is deep-linking into the wallet app,
+  // not installing — wallet is almost certainly already installed.
+  if (mobile) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 10 }}
+        className="rounded-3xl border border-white/10 bg-zinc-950 overflow-hidden"
+      >
+        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/50 to-transparent" />
+        <div className="p-7">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-12 h-12 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-2xl">🔗</span>
+            </div>
+            <div>
+              <h3 className="font-black text-lg text-white">Open in Wallet App</h3>
+              <p className="text-[11px] text-white/60 mt-0.5">
+                Tap below to open this page inside your wallet's browser
+              </p>
+            </div>
           </div>
-          <div>
-            <h3 className="font-black text-lg text-white">No Wallet Found</h3>
-            <p className="text-[11px] text-white/60 mt-0.5">
-              {mobile
-                ? 'Install a wallet app to sign transactions'
-                : 'Install a browser wallet to get started'}
-            </p>
-          </div>
-        </div>
 
-        <div className="space-y-2.5 mb-5">
-          {WALLETS.map((w) => {
-            let href = mobile
-              ? w.deepLink
-                ? mmDeepLink
-                : w.mobileUrl || w.desktopUrl
-              : w.desktopUrl;
-
-            return (
-              <a
-                key={w.name}
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-3 p-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:border-blue-500/30 hover:bg-blue-500/[0.04] transition-all group"
-              >
-                <span className="text-2xl">{w.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-sm text-white">{w.name}</p>
-                  <p className="text-[10px] text-white/50">{w.description}</p>
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                  {mobile && w.deepLink ? 'Open ↗' : 'Install ↗'}
-                </span>
-              </a>
-            );
-          })}
-        </div>
-
-        {mobile && (
-          <div className="flex flex-col gap-2 mb-4">
+          <div className="flex flex-col gap-2 mb-5">
             <a
               href={mmDeepLink}
               className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
@@ -121,7 +92,87 @@ export const NoWalletCard = ({ onDismiss }) => {
               <span>🔗</span> Open in Trust Wallet
             </a>
           </div>
-        )}
+
+          <p className="text-[10px] text-white/30 text-center font-bold mb-4">
+            Don't have a wallet yet?
+          </p>
+
+          <div className="space-y-2 mb-5">
+            {WALLETS.map((w) => (
+              <a
+                key={w.name}
+                href={w.deepLink ? mmDeepLink : w.mobileUrl || w.desktopUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:border-salvaGold/30 transition-all group"
+              >
+                <span className="text-xl">{w.icon}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-sm text-white">{w.name}</p>
+                  <p className="text-[10px] text-white/50">{w.description}</p>
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-salvaGold/60 flex-shrink-0">
+                  Install ↗
+                </span>
+              </a>
+            ))}
+          </div>
+
+          {onDismiss && (
+            <button
+              onClick={onDismiss}
+              className="w-full py-3 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:text-white transition-all"
+            >
+              Back
+            </button>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Desktop: original install-focused layout
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
+      className="rounded-3xl border border-white/10 bg-zinc-950 overflow-hidden"
+    >
+      <div className="h-px bg-gradient-to-r from-transparent via-orange-500/50 to-transparent" />
+      <div className="p-7">
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-2xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center flex-shrink-0">
+            <span className="text-2xl">🔐</span>
+          </div>
+          <div>
+            <h3 className="font-black text-lg text-white">No Wallet Found</h3>
+            <p className="text-[11px] text-white/60 mt-0.5">
+              Install a browser wallet extension to get started
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-2.5 mb-5">
+          {WALLETS.map((w) => (
+            <a
+              key={w.name}
+              href={w.desktopUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-3 p-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] hover:border-blue-500/30 hover:bg-blue-500/[0.04] transition-all group"
+            >
+              <span className="text-2xl">{w.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-sm text-white">{w.name}</p>
+                <p className="text-[10px] text-white/50">{w.description}</p>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                Install ↗
+              </span>
+            </a>
+          ))}
+        </div>
 
         {onDismiss && (
           <button

@@ -623,12 +623,16 @@ const L1Dashboard = ({
               EOA Wallet · BSC
             </p>
             <p className="font-mono text-[10px] text-blue-400/60 truncate mt-0.5">
-              {showBalance
-                ? <span>
-                    <span className="sm:hidden">{l1Account.slice(0, 10)}…{l1Account.slice(-6)}</span>
-                    <span className="hidden sm:inline">{l1Account}</span>
+              {showBalance ? (
+                <span>
+                  <span className="sm:hidden">
+                    {l1Account.slice(0, 10)}…{l1Account.slice(-6)}
                   </span>
-                : '0x••••••••••••••••••••••••••••••••••••••••'}
+                  <span className="hidden sm:inline">{l1Account}</span>
+                </span>
+              ) : (
+                '0x••••••••••••••••••••••••••••••••••••••••'
+              )}
             </p>
           </div>
           <button
