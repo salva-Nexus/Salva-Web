@@ -75,7 +75,7 @@ function emailBase(bodyHtml) {
         <!-- Logo -->
         <tr><td style="padding:32px 36px 0;">
           <p style="margin:0;font-size:26px;font-weight:900;letter-spacing:0.12em;color:#D4AF37;">SALVA</p>
-          <p style="margin:4px 0 0;font-size:10px;color:#555;letter-spacing:0.3em;text-transform:uppercase;">Digital Finance · Base Network</p>
+          <p style="margin:4px 0 0;font-size:10px;color:#555;letter-spacing:0.3em;text-transform:uppercase;">NEXUS OTC</p>
         </td></tr>
         <!-- Body -->
         <tr><td style="padding:28px 36px 36px;">
