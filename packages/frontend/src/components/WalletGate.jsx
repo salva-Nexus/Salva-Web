@@ -70,7 +70,18 @@ export const NoWalletCard = ({ onDismiss }) => {
           <div className="flex flex-col gap-2 mb-5">
             <button
               onClick={() => {
-                window.location.href = mmDeepLink;
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if (isIOS) {
+                  const appLink = `metamask://dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+                  const fallback = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+                  window.location.href = appLink;
+                  // If app didn't open within 1.5s, go to App Store
+                  setTimeout(() => {
+                    window.location.href = fallback;
+                  }, 1500);
+                } else {
+                  window.location.href = mmDeepLink;
+                }
               }}
               className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
               style={{
@@ -83,7 +94,15 @@ export const NoWalletCard = ({ onDismiss }) => {
             </button>
             <button
               onClick={() => {
-                window.location.href = 'https://go.cb-wallet.io/dapp';
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if (isIOS) {
+                  window.location.href = `cbwallet://dapp?url=${encodeURIComponent(window.location.href)}`;
+                  setTimeout(() => {
+                    window.location.href = 'https://go.cb-wallet.io/dapp';
+                  }, 1500);
+                } else {
+                  window.location.href = 'https://go.cb-wallet.io/dapp';
+                }
               }}
               className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
             >
@@ -91,7 +110,16 @@ export const NoWalletCard = ({ onDismiss }) => {
             </button>
             <button
               onClick={() => {
-                window.location.href = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`;
+                const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+                const url = encodeURIComponent(window.location.href);
+                if (isIOS) {
+                  window.location.href = `trust://open_url?coin_id=60&url=${url}`;
+                  setTimeout(() => {
+                    window.location.href = `https://link.trustwallet.com/open_url?coin_id=60&url=${url}`;
+                  }, 1500);
+                } else {
+                  window.location.href = `https://link.trustwallet.com/open_url?coin_id=60&url=${url}`;
+                }
               }}
               className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
             >

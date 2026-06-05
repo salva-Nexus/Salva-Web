@@ -53,7 +53,12 @@ export function detectInjectedWallet() {
 
 // ── Build a MetaMask Mobile deep link ─────────────────────────────────────────
 export function buildMetaMaskDeepLink() {
-  return `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+  const universal = `https://metamask.app.link/dapp/${window.location.host}${window.location.pathname}${window.location.search}`;
+  // iOS: try the custom URL scheme first, fall back to universal link
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  return isIOS
+    ? `metamask://dapp/${window.location.host}${window.location.pathname}${window.location.search}`
+    : universal;
 }
 
 // ── tx.wait() with timeout so we never hang indefinitely ─────────────────────
