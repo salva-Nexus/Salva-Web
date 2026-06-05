@@ -68,8 +68,10 @@ export const NoWalletCard = ({ onDismiss }) => {
           </div>
 
           <div className="flex flex-col gap-2 mb-5">
-            <a
-              href={mmDeepLink}
+            <button
+              onClick={() => {
+                window.location.href = mmDeepLink;
+              }}
               className="flex items-center justify-center gap-3 w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98]"
               style={{
                 background: '#D4AF37',
@@ -78,19 +80,23 @@ export const NoWalletCard = ({ onDismiss }) => {
               }}
             >
               <span>🦊</span> Open in MetaMask
-            </a>
-            <a
-              href="https://go.cb-wallet.io/dapp"
+            </button>
+            <button
+              onClick={() => {
+                window.location.href = 'https://go.cb-wallet.io/dapp';
+              }}
               className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
             >
               <span>🔵</span> Open in Coinbase Wallet
-            </a>
-            <a
-              href={`https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`}
+            </button>
+            <button
+              onClick={() => {
+                window.location.href = `https://link.trustwallet.com/open_url?coin_id=60&url=${encodeURIComponent(window.location.href)}`;
+              }}
               className="flex items-center justify-center gap-3 w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-widest border border-white/10 bg-white/[0.03] transition-all active:scale-[0.98] text-white"
             >
               <span>🔗</span> Open in Trust Wallet
-            </a>
+            </button>
           </div>
 
           <p className="text-[10px] text-white/30 text-center font-bold mb-4">
