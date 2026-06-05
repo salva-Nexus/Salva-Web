@@ -77,8 +77,8 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
           src="/salva-logo.png"
           alt="Salva"
           style={{
-            width: '72px',
-            height: '72px',
+            width: '52px',
+            height: '52px',
             objectFit: 'contain',
             display: 'block',
             flexShrink: 0,
@@ -87,10 +87,10 @@ const Navbar = ({ l1Account, l1Connecting, onL1Connect, onL1Disconnect, l1ChainI
         <span
           className="font-black tracking-tighter text-white"
           style={{
-            fontSize: '1.45rem',
+            fontSize: '1.1rem',
             lineHeight: 1,
             position: 'relative',
-            left: '-14px',
+            left: '-1px',
             letterSpacing: '-0.04em',
           }}
         >

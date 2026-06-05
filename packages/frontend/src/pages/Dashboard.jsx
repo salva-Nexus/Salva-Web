@@ -2347,7 +2347,7 @@ const Dashboard = () => {
             <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
               {user.isValidator ? 'Salva Validator' : 'Salva Citizen'}
             </p>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight leading-none">
+            <h1 className="text-2xl sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
             </h1>
           </div>
@@ -2372,7 +2372,7 @@ const Dashboard = () => {
             navigator.clipboard.writeText(user.safeAddress);
             showMsg('Wallet address copied!');
           }}
-          className="mb-4 px-4 py-3 bg-white/[0.03] rounded-2xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
+          className="mb-4 px-3 py-2.5 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-3"
         >
           <div className="w-7 h-7 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
             <svg
@@ -2409,7 +2409,7 @@ const Dashboard = () => {
         {/* ── Transaction History link ── */}
         <Link
           to="/transactions"
-          className="flex items-center justify-between mb-6 px-4 py-3.5 bg-white/[0.03] rounded-2xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
+          className="flex items-center justify-between mb-5 px-3 py-3 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
         >
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
@@ -2460,7 +2460,7 @@ const Dashboard = () => {
                   {/* Circle icon */}
                   <div
                     className={`
-                      relative w-14 h-14 rounded-full flex items-center justify-center
+                      relative w-11 h-11 rounded-full flex items-center justify-center
                       transition-all duration-200 active:scale-95
                       ${
                         isActive
@@ -2470,7 +2470,7 @@ const Dashboard = () => {
                     `}
                   >
                     <span
-                      className={`w-[22px] h-[22px] transition-colors duration-200 ${
+                      className={`w-[18px] h-[18px] transition-colors duration-200 ${
                         isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
@@ -2484,8 +2484,8 @@ const Dashboard = () => {
                   {/* Short label */}
                   <span
                     className={`
-                      text-[9px] font-black uppercase tracking-[0.1em] leading-tight
-                      text-center max-w-[64px] break-words transition-colors duration-200
+                      text-[8px] font-black uppercase tracking-[0.08em] leading-tight
+                    text-center max-w-[56px] break-words transition-colors duration-200
                       ${isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/50'}
                     `}
                   >
