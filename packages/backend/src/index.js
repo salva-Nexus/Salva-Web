@@ -2480,17 +2480,38 @@ app.get('/api/stats', async (req, res) => {
   try {
     await connectDB();
     const citizenCount = await User.countDocuments();
-    let totalSupply = '0';
 
+    const isProd = process.env.NODE_ENV === 'production';
+    const TOKEN_ABI = ['function totalSupply() view returns (uint256)'];
+
+    // Base chain supply
+    let baseSupply = 0;
     try {
-      const TOKEN_ABI = ['function totalSupply() view returns (uint256)'];
-      const tokenContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
-      const supplyWei = await retryRPCCall(async () => await tokenContract.totalSupply());
-      totalSupply = ethers.formatUnits(supplyWei, 6);
-    } catch (rpcError) {
-      console.error('Failed to fetch total supply:', rpcError.message);
-      totalSupply = '0';
+      const baseContract = new ethers.Contract(process.env.NGN_TOKEN_ADDRESS, TOKEN_ABI, provider);
+      const baseWei = await retryRPCCall(() => baseContract.totalSupply());
+      baseSupply = parseFloat(ethers.formatUnits(baseWei, 6));
+    } catch (e) {
+      console.error('Failed to fetch Base NGNs supply:', e.message);
     }
+
+    // BNB chain supply
+    let bnbSupply = 0;
+    try {
+      const bnbRpc = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
+      const bnbTokenAddress = isProd
+        ? process.env.L1_NGN_TOKEN_ADDRESS
+        : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+      const bnbProvider = new ethers.JsonRpcProvider(bnbRpc);
+      const bnbContract = new ethers.Contract(bnbTokenAddress, TOKEN_ABI, bnbProvider);
+      const bnbWei = await retryRPCCall(() => bnbContract.totalSupply());
+      // BNB NGNs token has 18 decimals per .env deploy
+      bnbSupply = parseFloat(ethers.formatUnits(bnbWei, 6));
+    } catch (e) {
+      console.error('Failed to fetch BNB NGNs supply:', e.message);
+    }
+
+    const totalSupply = (baseSupply + bnbSupply).toFixed(6);
+    console.log(`📊 Stats: Base=${baseSupply} + BNB=${bnbSupply} = ${totalSupply}`);
 
     res.json({ userCount: citizenCount.toString(), totalMinted: totalSupply });
   } catch (error) {
