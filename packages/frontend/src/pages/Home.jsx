@@ -161,7 +161,7 @@ const DEXVisual = () => {
   const [tab, setTab] = useState('buy');
   const pools = [
     {
-      name: 'charles_pool@salva',
+      name: 'charles.pool@salva',
       rate: '₦1,490',
       usd1Label: 'USDC',
       usd1Val: '$29.01',
@@ -171,7 +171,7 @@ const DEXVisual = () => {
       chain: 'Base',
     },
     {
-      name: 'jefta_pool@salva',
+      name: 'jefta.pool@salva',
       rate: '₦1,500',
       usd1Label: 'USDT',
       usd1Val: '$0.00',
@@ -181,7 +181,7 @@ const DEXVisual = () => {
       chain: 'BSC',
     },
     {
-      name: 'amuobi_pool@salva',
+      name: 'amuobi.pool@salva',
       rate: '₦1,480',
       usd1Label: 'USDT',
       usd1Val: '$100.00',
