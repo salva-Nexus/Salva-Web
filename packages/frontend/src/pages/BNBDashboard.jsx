@@ -514,11 +514,11 @@ const BalanceCard = ({
   const MASK = '••••••';
 
   return (
-    <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
+    <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-3 sm:mb-5">
       <div className="h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6/40 to-transparent" />
 
       {/* NGN — TOP */}
-      <div className="px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06]">
+      <div className="px-4 sm:px-7 pt-4 sm:pt-7 pb-3 sm:pb-4 border-b border-white/[0.06]">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <motion.span
@@ -567,7 +567,7 @@ const BalanceCard = ({
       </div>
 
       {/* USD — BOTTOM */}
-      <div className="px-5 sm:px-7 pt-4 pb-5 sm:pb-6">
+      <div className="px-4 sm:px-7 pt-3 sm:pt-4 pb-3 sm:pb-6">
         <div className="flex items-center gap-1.5 mb-3">
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
@@ -608,7 +608,7 @@ const BalanceCard = ({
       </div>
 
       {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pb-5 sm:pb-7">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3 px-4 sm:px-7 pb-4 sm:pb-7">
         <button
           onClick={onSend}
           className="bg-blue-500 hover:brightness-110 active:scale-[0.98] transition-all text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
@@ -2420,7 +2420,7 @@ const Dashboard = () => {
         />
 
         {/* ── Chain Switcher ── */}
-        <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03]">
+        <div className="mb-2 sm:mb-3 flex items-center gap-2 px-2.5 py-1.5 sm:py-2 rounded-xl border border-white/[0.06] bg-white/[0.03]">
           <div className="flex items-center gap-1.5 flex-1">
             <img
               src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
@@ -2451,7 +2451,7 @@ const Dashboard = () => {
             navigator.clipboard.writeText(user.safeAddress);
             showMsg('Wallet address copied!');
           }}
-          className="mb-3 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-blue-500/#3b82f6/20 transition-all flex items-center gap-2"
+          className="mb-2 sm:mb-3 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-blue-500/#3b82f6/20 transition-all flex items-center gap-2"
         >
           <div className="w-7 h-7 rounded-lg bg-[#F0B90B] flex items-center justify-center flex-shrink-0 overflow-hidden">
             <img
@@ -2484,7 +2484,7 @@ const Dashboard = () => {
 
         <a
           href="/transactions?chain=bnb"
-          className="flex items-center justify-between mb-4 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-yellow-500/20 transition-all group"
+          className="flex items-center justify-between mb-3 sm:mb-4 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-yellow-500/20 transition-all group"
         >
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">

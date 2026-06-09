@@ -112,7 +112,7 @@ router.get('/:safeAddress', async (req, res) => {
     // ── 2. Block range ────────────────────────────────────────────────────────
     // BNB ~3s blocks → 500 blocks ≈ 25 min; Base ~2s → 500 blocks ≈ 17 min
     const latestBlock = await provider.getBlockNumber();
-    const blockRange = process.env.NODE_ENV === 'production' ? 9 : 9;
+    const blockRange = 300;
     const fromBlock = Math.max(0, latestBlock - blockRange);
 
     let synced = 0;
