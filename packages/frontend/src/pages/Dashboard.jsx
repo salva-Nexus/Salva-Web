@@ -1790,6 +1790,7 @@ const Dashboard = () => {
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
   const [amountError, setAmountError] = useState(false);
+  const [feeExceedsAmount, setFeeExceedsAmount] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -1919,10 +1920,17 @@ const Dashboard = () => {
       else if (selectedCoin === 'USDT')
         setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? '0'));
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? '0'));
+
+      // Fee exceeds amount check
+      const fee = (selectedCoin === 'NGN' || selectedCoin === 'CNGN')
+        ? feePreview.feeNGN
+        : feePreview.feeUsd;
+      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && fee >= amt);
     } else {
       setAmountError(false);
+      setFeeExceedsAmount(false);
     }
-  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin]);
+  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin, feePreview]);
 
   const fetchMeta = async () => {
     try {
@@ -2791,7 +2799,7 @@ const Dashboard = () => {
                   {(selectedCoin === 'NGN' || selectedCoin === 'CNGN') &&
                     transferAmount &&
                     !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] space-y-1">
+                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2804,12 +2812,17 @@ const Dashboard = () => {
                             </span>
                           )}
                         </div>
+                        {feeExceedsAmount && (
+                          <p className="text-red-400 font-black animate-pulse">
+                            ⚠ Fee exceeds amount — increase your send amount
+                          </p>
+                        )}
                       </div>
                     )}
                   {(selectedCoin === 'USDT' || selectedCoin === 'USDC') &&
                     transferAmount &&
                     !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px]">
+                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2822,11 +2835,16 @@ const Dashboard = () => {
                             </span>
                           )}
                         </div>
+                        {feeExceedsAmount && (
+                          <p className="text-red-400 font-black animate-pulse">
+                            ⚠ Fee exceeds amount — increase your send amount
+                          </p>
+                        )}
                       </div>
                     )}
                 </div>
                 <button
-                  disabled={loading || amountError || !recipientInput || recipientNameError}
+                  disabled={loading || amountError || feeExceedsAmount || !recipientInput || recipientNameError}
                   type="submit"
                   className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
                     loading || amountError || !recipientInput

@@ -611,13 +611,13 @@ const BalanceCard = ({
       <div className="grid grid-cols-2 gap-2 sm:gap-3 px-4 sm:px-7 pb-4 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
+          className="bg-blue-500 hover:brightness-110 active:scale-[0.98] transition-all text-white font-black py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+          className="border border-white/10 hover:border-blue-500/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↓</span> Receive
         </button>
@@ -1808,6 +1808,7 @@ const Dashboard = () => {
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
   const [amountError, setAmountError] = useState(false);
+  const [feeExceedsAmount, setFeeExceedsAmount] = useState(false);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
@@ -1970,10 +1971,17 @@ const Dashboard = () => {
       else if (selectedCoin === 'USDT')
         setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? '0'));
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? '0'));
+
+      // Fee exceeds amount check
+      const fee = (selectedCoin === 'NGN' || selectedCoin === 'CNGN')
+        ? feePreview.feeNGN
+        : feePreview.feeUsd;
+      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && fee >= amt);
     } else {
       setAmountError(false);
+      setFeeExceedsAmount(false);
     }
-  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin]);
+  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin, feePreview]);
 
   const fetchMeta = async () => {
     try {
@@ -2484,7 +2492,7 @@ const Dashboard = () => {
 
         <a
           href="/transactions?chain=bnb"
-          className="flex items-center justify-between mb-3 sm:mb-4 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-yellow-500/20 transition-all group"
+          className="flex items-center justify-between mb-3 sm:mb-4 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-blue-500/20 transition-all group"
         >
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
@@ -2494,7 +2502,7 @@ const Dashboard = () => {
               Transaction History
             </p>
           </div>
-          <span className="text-yellow-400 text-sm group-hover:translate-x-0.5 transition-transform">
+          <span className="text-blue-400 text-sm group-hover:translate-x-0.5 transition-transform">
             →
           </span>
         </a>
@@ -2835,7 +2843,7 @@ const Dashboard = () => {
                   {(selectedCoin === 'NGN' || selectedCoin === 'CNGN') &&
                     transferAmount &&
                     !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] space-y-1">
+                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2848,12 +2856,17 @@ const Dashboard = () => {
                             </span>
                           )}
                         </div>
+                        {feeExceedsAmount && (
+                          <p className="text-red-400 font-black animate-pulse">
+                            ⚠ Fee exceeds amount — increase your send amount
+                          </p>
+                        )}
                       </div>
                     )}
                   {(selectedCoin === 'USDT' || selectedCoin === 'USDC') &&
                     transferAmount &&
                     !amountError && (
-                      <div className="mt-2 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px]">
+                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2866,11 +2879,16 @@ const Dashboard = () => {
                             </span>
                           )}
                         </div>
+                        {feeExceedsAmount && (
+                          <p className="text-red-400 font-black animate-pulse">
+                            ⚠ Fee exceeds amount — increase your send amount
+                          </p>
+                        )}
                       </div>
                     )}
                 </div>
                 <button
-                  disabled={loading || amountError || !recipientInput || recipientNameError}
+                  disabled={loading || amountError || feeExceedsAmount || !recipientInput || recipientNameError}
                   type="submit"
                   className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
                     loading || amountError || !recipientInput

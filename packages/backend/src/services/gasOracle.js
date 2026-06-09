@@ -137,8 +137,11 @@ const GAS_UNITS = {
   multisend: 150_000n, // multisend (amount + fee to treasury)
 };
 
-// ── BUFFER: 20% on top of raw gas cost ───────────────────────────────────────
-const BUFFER_MULTIPLIER = 1.2;
+// ── BUFFER: chain-aware gas buffer ───────────────────────────────────────────
+// Base is stable L2 — 20% is sufficient
+// BNB mainnet can spike 5–10x during congestion — 50% is more defensive
+const BUFFER_BASE = 1.2;
+const BUFFER_BNB  = 1.5;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // estimateTransferFee(chain, coin, hasFee)
@@ -180,8 +183,8 @@ async function estimateTransferFee(chain, coin) {
   const gasCostNativeToken = parseFloat(ethers.formatEther(gasCostWei));
   const gasCostUSD = gasCostNativeToken * nativeUSD;
 
-  // Apply 20% buffer
-  const feeUSD = gasCostUSD * BUFFER_MULTIPLIER;
+// Apply chain-aware buffer
+  const feeUSD = gasCostUSD * (isBNB ? BUFFER_BNB : BUFFER_BASE);
 
   console.log(
     `⛽ [GasOracle] chain=${chain} coin=${coin} | ` +
@@ -295,7 +298,7 @@ async function estimatePoolFee(chain) {
   const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);
   const gasCostNativeToken = parseFloat(ethers.formatEther(gasCostWei));
   const gasCostUSD = gasCostNativeToken * nativeUSD;
-  const rawFeeUSD = gasCostUSD * BUFFER_MULTIPLIER;
+  const rawFeeUSD = gasCostUSD * (isBNB ? BUFFER_BNB : BUFFER_BASE);
   const rawFeeNGN = rawFeeUSD * usdNGN;
 
   console.log(
