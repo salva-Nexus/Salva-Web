@@ -15,6 +15,7 @@ const AccountSettings = () => {
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
   const [pinStatus, setPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
+  const [bnbPinStatus, setBnbPinStatus] = useState({ hasPin: false });
 
   // New State for Modern Confirmation Cards
   const [confirmDialog, setConfirmDialog] = useState({
@@ -33,6 +34,11 @@ const AccountSettings = () => {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
         checkPinStatus(parsedUser.email);
+        // Check BNB pin status
+        fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(parsedUser.email)}`)
+          .then((r) => r.json())
+          .then((d) => setBnbPinStatus(d))
+          .catch(() => {});
       } catch (error) {
         navigate('/login');
       }
@@ -157,6 +163,12 @@ const AccountSettings = () => {
           ? { email: user.email, oldPin: formData.oldPin, newPin: formData.newValue }
           : { email: user.email, pin: formData.newValue };
         break;
+      case 'bnbpin':
+        endpoint = bnbPinStatus.hasPin ? '/api/bnb/reset-pin' : '/api/bnb/set-pin';
+        body = bnbPinStatus.hasPin
+          ? { email: user.email, oldPin: formData.oldPin, newPin: formData.newValue }
+          : { email: user.email, pin: formData.newValue };
+        break;
       case 'username':
         endpoint = '/api/user/update-username';
         body = { email: user.email, newUsername: formData.newValue };
@@ -208,7 +220,7 @@ const AccountSettings = () => {
 
   if (!user) return null;
 
-  const requiresOTP = ['email', 'password', 'pin'].includes(activeModal);
+  const requiresOTP = ['email', 'password', 'pin', 'bnbpin'].includes(activeModal);
   const isFirstTimePin = activeModal === 'pin' && !pinStatus.hasPin;
   const isResetPin = activeModal === 'pin' && pinStatus.hasPin;
 
@@ -292,18 +304,37 @@ const AccountSettings = () => {
           </button>
 
           {/* PIN */}
+          {/* PIN — Base Chain */}
           <button
             onClick={() => openModal('pin')}
             className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
           >
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">Transaction Security</p>
+                <p className="text-xs uppercase opacity-40 font-bold mb-1">Base Chain Security</p>
                 <p className="text-lg font-black">
-                  {pinStatus.hasPin ? 'Reset' : 'Set'} Transaction PIN
+                  {pinStatus.hasPin ? 'Reset' : 'Set'} Base Transaction PIN
                 </p>
               </div>
               <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Key size={18} />
+              </div>
+            </div>
+          </button>
+
+          {/* PIN — BNB Chain */}
+          <button
+            onClick={() => openModal('bnbpin')}
+            className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left"
+          >
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-xs uppercase opacity-40 font-bold mb-1">BNB Chain Security</p>
+                <p className="text-lg font-black">
+                  {bnbPinStatus.hasPin ? 'Reset' : 'Set'} BNB Transaction PIN
+                </p>
+              </div>
+              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-yellow-500 group-hover:text-black rounded-xl transition-all shadow-sm">
                 <Key size={18} />
               </div>
             </div>

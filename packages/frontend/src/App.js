@@ -9,7 +9,9 @@ import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import SetTransactionPin from './pages/SetTransactionPin';
 import AccountSettings from './pages/AccountSettings';
-import L1Dashboard from './pages/L1Dashboard';
+import BNBDashboard from './pages/BNBDashboard';
+import BNBSetPin from './pages/BNBSetPin';
+import BNBDeployWallet from './pages/BNBDeployWallet';
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -26,73 +28,6 @@ const ProtectedRoute = ({ children, isLoading }) => {
 
 function App() {
   const [isLoading, setIsLoading] = useState(true);
-  const [l1Account, setL1Account] = useState(() => localStorage.getItem('l1_account') || null);
-  const [l1Connecting, setL1Connecting] = useState(false);
-  const [l1ChainId, setL1ChainId] = useState(null);
-  const [l1NoWallet, setL1NoWallet] = useState(false);
-
-const handleL1Connect = useCallback(async () => {
-    if (!window.ethereum) {
-      setL1NoWallet(true);
-      return;
-    }
-    setL1Connecting(true);
-    localStorage.removeItem('l1_account');
-    try {
-      const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
-      });
-      if (accounts.length > 0) {
-        setL1Account(accounts[0]);
-        localStorage.setItem('l1_account', accounts[0]);
-        const chainIdHex = await window.ethereum.request({
-          method: 'eth_chainId',
-        });
-        setL1ChainId(parseInt(chainIdHex, 16));
-      }
-    } catch (err) {
-      console.error('L1 connect error:', err);
-    } finally {
-      setL1Connecting(false);
-    }
-  }, []);
-
-  const handleL1Disconnect = useCallback(() => {
-    setL1Account(null);
-    setL1ChainId(null);
-    localStorage.removeItem('l1_account');
-  }, []);
-
-  // Restore chain ID on mount if account was persisted
-  useEffect(() => {
-    if (l1Account && window.ethereum) {
-      window.ethereum
-        .request({ method: 'eth_chainId' })
-        .then((hex) => setL1ChainId(parseInt(hex, 16)))
-        .catch(() => {});
-    }
-  }, [l1Account]);
-
-  useEffect(() => {
-    if (!window.ethereum) return;
-    const onAccountsChanged = (accounts) => {
-      if (accounts.length === 0) {
-        setL1Account(null);
-        setL1ChainId(null);
-        localStorage.removeItem('l1_account');
-      } else {
-        setL1Account(accounts[0]);
-        localStorage.setItem('l1_account', accounts[0]);
-      }
-    };
-    const onChainChanged = (hex) => setL1ChainId(parseInt(hex, 16));
-    window.ethereum.on('accountsChanged', onAccountsChanged);
-    window.ethereum.on('chainChanged', onChainChanged);
-    return () => {
-      window.ethereum.removeListener('accountsChanged', onAccountsChanged);
-      window.ethereum.removeListener('chainChanged', onChainChanged);
-    };
-  }, []);
 
   useEffect(() => {
     const checkSession = async () => {
@@ -110,31 +45,15 @@ const handleL1Connect = useCallback(async () => {
   return (
     <Router>
       <div className="min-h-screen bg-black">
-        <Navbar
-          l1Account={l1Account}
-          l1Connecting={l1Connecting}
-          l1ChainId={l1ChainId}
-          onL1Connect={handleL1Connect}
-          onL1Disconnect={handleL1Disconnect}
-        />
+        <Navbar />
         <main>
           <Routes>
             <Route path="/" element={<Home />} />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route
-              path="/l1"
-              element={
-                <L1Dashboard
-                  l1Account={l1Account}
-                  l1ChainId={l1ChainId}
-                  onConnect={handleL1Connect}
-                  l1Connecting={l1Connecting}
-                  l1NoWallet={l1NoWallet}
-                  onL1NoWalletDismiss={() => setL1NoWallet(false)}
-                />
-              }
-            />
+            <Route path="/bnb" element={<BNBDashboard />} />
+            <Route path="/bnb/set-pin" element={<BNBSetPin />} />
+            <Route path="/bnb/deploy-wallet" element={<BNBDeployWallet />} />
             <Route
               path="/dashboard"
               element={

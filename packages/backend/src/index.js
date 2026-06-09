@@ -336,26 +336,14 @@ async function connectDB() {
       cache.promise = null;
       console.log('🍃 MongoDB Connected');
 
-      // Sync FeeConfig immediately after connection is confirmed
+      // FeeConfig is kept only for pool subscriptions — transfer fees are now gas-based
       FeeConfig.findOneAndUpdate(
         { _id: 'main' },
-        {
-          $set: {
-            tier0Max: 999,
-            tier0Fee: 0,
-            tier1Min: 1000,
-            tier1Max: 9999,
-            tier1Fee: 10,
-            tier2Min: 10000,
-            tier2Fee: 20,
-            usdTierFee: 0.015,
-            usdTierMin: 5,
-          },
-        },
+        { $setOnInsert: { poolSubscriptionMonthlyFee: 3000 } },
         { upsert: true }
       )
-        .then(() => console.log('✅ FeeConfig synced'))
-        .catch((e) => console.error('❌ FeeConfig sync failed:', e.message));
+        .then(() => console.log('✅ FeeConfig seeded (pool subscription only)'))
+        .catch((e) => console.error('❌ FeeConfig seed failed:', e.message));
 
       OtcConfig.findOneAndUpdate(
         { _id: 'main' },
@@ -395,6 +383,12 @@ connectDB().catch((err) =>
 const { warmL1DecimalsCache } = require('./utils/l1Decimals');
 warmL1DecimalsCache().catch((e) =>
   console.warn('⚠️ L1 decimal cache warm failed (non-fatal):', e.message)
+);
+
+// Pre-warm gas oracle price cache on startup
+const { estimateTransferFee, estimatePoolFee, warmCache: warmGasOracleCache } = require('./services/gasOracle');
+warmGasOracleCache().catch((e) =>
+  console.warn('⚠️ Gas oracle cache warm failed (non-fatal):', e.message)
 );
 
 // ===============================================
@@ -542,7 +536,7 @@ async function applyCooldown(walletAddress, seconds = 20) {
 }
 
 async function cleanupStaleQueueEntries() {
-  const stuckDate = new Date(Date.now() - 10 * 60 * 1000);
+  const stuckDate = new Date(Date.now() - 5 * 60 * 1000);
   await TransactionQueue.updateMany(
     { status: 'SENDING', updatedAt: { $lt: stuckDate } },
     {
@@ -561,47 +555,299 @@ async function cleanupStaleQueueEntries() {
   });
 }
 
-// ── getFeeForAmount ────────────────────────────────────────────────────────────
-// Returns fee info for a given amount and coin.
-// NGN: uses new 3-tier system from FeeConfig.
-// USDT/USDC: flat $0.015 for >= $5.
-async function getFeeForAmount(amountHuman, coin = 'NGN') {
-  if (coin === 'USDT' || coin === 'USDC') {
-    const amount = parseFloat(amountHuman);
-    if (amount >= 5) {
-      const feeWei = ethers.parseUnits('0.015', 6);
-      return { feeNGN: 0, feeUsd: 0.015, feeWei };
+// ── resolvePoolFeeToken ────────────────────────────────────────────────────────
+// Determines which token to collect the pool operation fee from.
+// Priority: NGNs → cNGN → USDT → USDC
+// Returns null if no token has sufficient balance.
+//
+// chain      : 'base' | 'bnb'
+// safeAddress: user's Safe wallet address
+// feeNGN     : fee amount in NGN units
+// feeUSD     : fee amount in USD units
+// feeWeiNGN  : fee as wei (NGN decimals)
+// feeWeiUSD  : fee as wei (USD decimals)
+//
+// Returns: { tokenAddress, symbol, feeWei, decimals } | null
+// ─────────────────────────────────────────────────────────────────────────────
+async function resolvePoolFeeToken(chain, safeAddress, feeNGN, feeUSD, feeWeiNGN, feeWeiUSD) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const isBNB = chain === 'bnb';
+
+  // Token candidates in priority order
+  const candidates = isBNB
+    ? [
+        {
+          symbol: 'NGN',
+          address: isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS,
+          feeWei: feeWeiNGN,
+          feeAmount: feeNGN,
+          isNGN: true,
+        },
+        {
+          symbol: 'CNGN',
+          address: isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS,
+          feeWei: feeWeiNGN,
+          feeAmount: feeNGN,
+          isNGN: true,
+        },
+        {
+          symbol: 'USDT',
+          address: isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS,
+          feeWei: feeWeiUSD,
+          feeAmount: feeUSD,
+          isNGN: false,
+        },
+        {
+          symbol: 'USDC',
+          address: isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS,
+          feeWei: feeWeiUSD,
+          feeAmount: feeUSD,
+          isNGN: false,
+        },
+      ]
+    : [
+        {
+          symbol: 'NGN',
+          address: process.env.NGN_TOKEN_ADDRESS,
+          feeWei: feeWeiNGN,
+          feeAmount: feeNGN,
+          isNGN: true,
+        },
+        {
+          symbol: 'CNGN',
+          address: process.env.CNGN_CONTRACT_ADDRESS,
+          feeWei: feeWeiNGN,
+          feeAmount: feeNGN,
+          isNGN: true,
+        },
+        {
+          symbol: 'USDT',
+          address: process.env.USDT_CONTRACT_ADDRESS,
+          feeWei: feeWeiUSD,
+          feeAmount: feeUSD,
+          isNGN: false,
+        },
+        {
+          symbol: 'USDC',
+          address: process.env.USDC_CONTRACT_ADDRESS,
+          feeWei: feeWeiUSD,
+          feeAmount: feeUSD,
+          isNGN: false,
+        },
+      ];
+
+  // RPC for balance check
+  const rpcUrl = isBNB
+    ? (isProd ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com')
+    : (isProd ? 'https://mainnet.base.org' : 'https://sepolia.base.org');
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+  for (const candidate of candidates) {
+    if (!candidate.address) continue;
+    try {
+      let decimals = 6; // Base hardcoded; BNB fetched
+      if (isBNB) {
+        try {
+          const { getL1TokenDecimals } = require('./utils/l1Decimals');
+          decimals = await getL1TokenDecimals(candidate.address);
+        } catch {
+          decimals = 6;
+        }
+      }
+
+      const contract = new ethers.Contract(candidate.address, TOKEN_ABI, provider);
+      const balanceWei = await contract.balanceOf(safeAddress);
+      const balanceNum = parseFloat(ethers.formatUnits(balanceWei, decimals));
+
+      if (balanceNum >= candidate.feeAmount) {
+        console.log(
+          `✅ [poolFee] Fee token resolved: ${candidate.symbol} | ` +
+            `balance=${balanceNum.toFixed(4)} fee=${candidate.feeAmount} chain=${chain}`
+        );
+        return {
+          tokenAddress: candidate.address,
+          symbol: candidate.symbol,
+          feeWei: candidate.feeWei,
+          decimals,
+        };
+      } else {
+        console.log(
+          `⏭️ [poolFee] Skipping ${candidate.symbol}: balance=${balanceNum.toFixed(4)} < fee=${candidate.feeAmount}`
+        );
+      }
+    } catch (e) {
+      console.warn(`⚠️ [poolFee] Balance check failed for ${candidate.symbol}:`, e.message);
     }
-    return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
   }
 
-  // NGN and CNGN path
-  let config = await FeeConfig.findById('main');
-  if (!config) config = await FeeConfig.create({ _id: 'main' });
-
-  const amount = parseFloat(amountHuman);
-
-  if (!Number.isFinite(amount) || amount < 0) {
-    return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
-  }
-
-  if (amount >= config.tier2Min) {
-    return {
-      feeNGN: config.tier2Fee,
-      feeUsd: 0,
-      feeWei: ethers.parseUnits(config.tier2Fee.toString(), 6),
-    };
-  }
-  if (amount >= config.tier1Min && amount <= config.tier1Max) {
-    return {
-      feeNGN: config.tier1Fee,
-      feeUsd: 0,
-      feeWei: ethers.parseUnits(config.tier1Fee.toString(), 6),
-    };
-  }
-  // FREE tier (< 1,000)
-  return { feeNGN: 0, feeUsd: 0, feeWei: 0n };
+  return null; // no token has enough balance
 }
+
+// ── getPoolOperationFee ───────────────────────────────────────────────────────
+// Wraps estimatePoolFee with fallback. Always returns both NGN and USD values.
+// ─────────────────────────────────────────────────────────────────────────────
+async function getPoolOperationFee(chain) {
+  try {
+    return await estimatePoolFee(chain);
+  } catch (err) {
+    console.error('❌ [getPoolOperationFee] Gas oracle failed, using fallback:', err.message);
+    const isProd = process.env.NODE_ENV === 'production';
+    const isBNB = chain === 'bnb';
+    // Fallback minimums — same conservative values as transfer
+    const feeNGN = isBNB ? 50 : 20;
+    const feeUSD = isBNB ? 0.04 : 0.015;
+    const ngnDecimals = 6;
+    const usdDecimals = 6;
+    return {
+      feeNGN,
+      feeUSD,
+      feeWeiNGN: ethers.parseUnits(feeNGN.toFixed(ngnDecimals), ngnDecimals),
+      feeWeiUSD: ethers.parseUnits(feeUSD.toFixed(usdDecimals), usdDecimals),
+      ngnDecimals,
+      usdDecimals,
+    };
+  }
+}
+
+// ── getFeeForTransfer ──────────────────────────────────────────────────────────
+// Single unified fee function for ALL chains and ALL coins.
+// Uses live gas oracle — no hardcoded tiers, no free thresholds.
+// Every transfer is charged what the blockchain actually costs + 20% buffer.
+//
+// chain : 'base' | 'bnb'
+// coin  : 'NGN' | 'CNGN' | 'USDT' | 'USDC'
+//
+// Returns: { feeNGN, feeUsd, feeWei }
+async function getFeeForTransfer(chain, coin) {
+  try {
+    const result = await estimateTransferFee(chain, coin);
+    return {
+      feeNGN: result.feeNGN,
+      feeUsd: result.feeUSD,
+      feeWei: result.feeWei,
+    };
+  } catch (err) {
+    // Oracle failure fallback — chain-aware minimums so transactions never break
+    console.error('❌ [getFeeForTransfer] Gas oracle failed, using fallback:', err.message);
+    const isNGN = coin === 'NGN' || coin === 'CNGN';
+    const isBNB = chain === 'bnb';
+    if (isNGN) {
+      // Base: ₦20 | BNB: ₦50
+      const fallbackNGN = isBNB ? '50' : '20';
+      let decimals = 6;
+      if (isBNB) {
+        try {
+          const { getL1TokenDecimals } = require('./utils/l1Decimals');
+          const isProd = process.env.NODE_ENV === 'production';
+          const tokenAddr = isProd
+            ? process.env.L1_NGN_TOKEN_ADDRESS
+            : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+          if (tokenAddr) decimals = await getL1TokenDecimals(tokenAddr);
+        } catch (e) {
+          console.warn('⚠️ Fallback decimals fetch failed, using 6:', e.message);
+        }
+      }
+      const feeWei = ethers.parseUnits(fallbackNGN, decimals);
+      return { feeNGN: parseFloat(fallbackNGN), feeUsd: 0, feeWei };
+    } else {
+      // Base: $0.015 | BNB: $0.04
+      const fallbackUsd = isBNB ? '0.04' : '0.015';
+      let decimals = 6;
+      if (isBNB) {
+        try {
+          const { getL1TokenDecimals } = require('./utils/l1Decimals');
+          const isProd = process.env.NODE_ENV === 'production';
+          const usdEnvKey =
+            coin === 'USDC'
+              ? isProd
+                ? 'L1_USDC_CONTRACT_ADDRESS'
+                : 'L1_BSC_USDC_CONTRACT_ADDRESS'
+              : isProd
+                ? 'L1_USDT_CONTRACT_ADDRESS'
+                : 'L1_BSC_USDT_CONTRACT_ADDRESS';
+          const tokenAddr = process.env[usdEnvKey];
+          if (tokenAddr) decimals = await getL1TokenDecimals(tokenAddr);
+        } catch (e) {
+          console.warn('⚠️ Fallback decimals fetch failed, using 6:', e.message);
+        }
+      }
+      const feeWei = ethers.parseUnits(fallbackUsd, decimals);
+      return { feeNGN: 0, feeUsd: parseFloat(fallbackUsd), feeWei };
+    }
+  }
+}
+
+// ===============================================
+// ESTIMATE POOL OPERATION FEE — GET /api/estimate-pool-fee?chain=base|bnb
+// Returns BOTH NGN and USD fee values so frontend can display either.
+// Frontend fetches this once on mount, caches 30s.
+// ===============================================
+app.get('/api/estimate-pool-fee', async (req, res) => {
+  try {
+    const { chain = 'base' } = req.query;
+    if (!['base', 'bnb'].includes(chain)) {
+      return res.status(400).json({ message: 'Invalid chain. Use base or bnb.' });
+    }
+    let result;
+    try {
+      result = await estimatePoolFee(chain);
+    } catch (err) {
+      // Fallback — never leave frontend without a value
+      console.error('❌ /api/estimate-pool-fee fallback:', err.message);
+      const isBNB = chain === 'bnb';
+      result = {
+        feeNGN: isBNB ? 50 : 20,
+        feeUSD: isBNB ? 0.04 : 0.015,
+        feeWeiNGN: (isBNB ? 50n : 20n) * BigInt(1e6),
+        feeWeiUSD: isBNB ? 40000n : 15000n,
+        ngnDecimals: 6,
+        usdDecimals: 6,
+      };
+    }
+    res.json({
+      chain,
+      feeNGN: result.feeNGN,
+      feeUSD: result.feeUSD,
+      feeWeiNGN: result.feeWeiNGN.toString(),
+      feeWeiUSD: result.feeWeiUSD.toString(),
+      ngnDecimals: result.ngnDecimals,
+      usdDecimals: result.usdDecimals,
+    });
+  } catch (err) {
+    console.error('❌ /api/estimate-pool-fee error:', err.message);
+    res.status(500).json({ message: 'Failed to estimate pool fee' });
+  }
+});
+
+// ===============================================
+// ESTIMATE TRANSFER FEE — called by frontend before send modal
+// Returns live gas-based fee in NGN or USD depending on coin
+// ===============================================
+app.get('/api/estimate-fee', async (req, res) => {
+  try {
+    const { chain = 'base', coin = 'NGN' } = req.query;
+
+    const validChains = ['base', 'bnb'];
+    const validCoins  = ['NGN', 'CNGN', 'USDT', 'USDC'];
+
+    if (!validChains.includes(chain)) return res.status(400).json({ message: 'Invalid chain' });
+    if (!validCoins.includes(coin))   return res.status(400).json({ message: 'Invalid coin' });
+
+    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(chain, coin);
+
+    res.json({
+      chain,
+      coin,
+      feeNGN,
+      feeUsd,
+      feeWei: feeWei.toString(),
+    });
+  } catch (err) {
+    console.error('❌ /api/estimate-fee error:', err.message);
+    res.status(500).json({ message: 'Failed to estimate fee' });
+  }
+});
 
 // ===============================================
 // GET ALL ACTIVE REGISTRIES (for frontend dropdown)
@@ -635,20 +881,13 @@ app.get('/api/otc-config', async (req, res) => {
   }
 });
 
+// /api/fee-config kept for backward compat — only pool subscription fee now
 app.get('/api/fee-config', async (req, res) => {
   try {
     let config = await FeeConfig.findById('main');
-    if (!config) {
-      config = await FeeConfig.create({ _id: 'main' });
-    }
+    if (!config) config = await FeeConfig.create({ _id: 'main' });
     res.json({
-      tier0Max: config.tier0Max,
-      tier0Fee: config.tier0Fee,
-      tier1Min: config.tier1Min,
-      tier1Max: config.tier1Max,
-      tier1Fee: config.tier1Fee,
-      tier2Min: config.tier2Min,
-      tier2Fee: config.tier2Fee,
+      poolSubscriptionMonthlyFee: config.poolSubscriptionMonthlyFee ?? 3000,
     });
   } catch (error) {
     return handleError(error, res, 'Failed to fetch fee config');
@@ -943,7 +1182,21 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
     }
 
     // ── Find user ───────────────────────────────────────────────────────────
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    let user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    let isL1User = false;
+    if (!user) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          user = await UserBNB.findOne({ safeAddress: safeAddress.toLowerCase() });
+          if (user) isL1User = true;
+        }
+      } catch (e) {
+        console.error('⚠️ L1 user lookup failed:', e.message);
+      }
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // ── Balance gate ─────────────────────────────────────────────────────────
@@ -1038,6 +1291,7 @@ app.post('/api/alias/execute-link', async (req, res) => {
   try {
     const {
       safeAddress,
+      bnbSafeAddress,
       pureName,
       weldedName,
       walletToLink,
@@ -1054,7 +1308,21 @@ app.post('/api/alias/execute-link', async (req, res) => {
     if (!pureName || !weldedName || !walletToLink || !registryAddress || !signature)
       return res.status(400).json({ message: 'Missing prepared link data' });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    let user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    let isL1User = false;
+    if (!user) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          user = await UserBNB.findOne({ safeAddress: safeAddress.toLowerCase() });
+          if (user) isL1User = true;
+        }
+      } catch (e) {
+        console.error('⚠️ L1 user lookup failed:', e.message);
+      }
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const nameBytes = ethers.toUtf8Bytes(pureName);
@@ -1093,10 +1361,32 @@ app.post('/api/alias/execute-link', async (req, res) => {
       wallet: walletAddress.toLowerCase(),
       registryAddress: registryAddress.toLowerCase(),
     };
-    user.nameAliases = user.nameAliases || [];
-    user.nameAliases.push(aliasEntry);
-    if (!user.nameAlias) user.nameAlias = weldedName;
-    await user.save();
+
+    // If bnbSafeAddress provided, save to UserBNB instead of Base User
+    if (bnbSafeAddress && bnbSafeAddress.toLowerCase() !== safeAddress.toLowerCase()) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          const bnbUser = await UserBNB.findOne({ safeAddress: bnbSafeAddress.toLowerCase() });
+          if (bnbUser) {
+            bnbUser.nameAliases = bnbUser.nameAliases || [];
+            bnbUser.nameAliases.push(aliasEntry);
+            if (!bnbUser.nameAlias) bnbUser.nameAlias = weldedName;
+            await bnbUser.save();
+            console.log(`✅ "${weldedName}" saved to UserBNB (${bnbSafeAddress})`);
+          }
+        }
+      } catch (e) {
+        console.error('⚠️ Failed to save alias to UserBNB:', e.message);
+      }
+    } else {
+      user.nameAliases = user.nameAliases || [];
+      user.nameAliases.push(aliasEntry);
+      if (!user.nameAlias) user.nameAlias = weldedName;
+      await user.save();
+    }
 
     console.log(`✅ "${weldedName}" linked to ${walletAddress} (tx: ${result.txHash})`);
 
@@ -1126,16 +1416,45 @@ app.post('/api/alias/unlink-name', async (req, res) => {
     if (!userPrivateKey)
       return res.status(400).json({ message: 'Private key required (unlock with PIN first)' });
 
-    const user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    let user = await User.findOne({ safeAddress: safeAddress.toLowerCase() });
+    if (!user) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          user = await UserBNB.findOne({ safeAddress: safeAddress.toLowerCase() });
+        }
+      } catch (e) {
+        console.error('⚠️ L1 user lookup failed:', e.message);
+      }
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    const aliasIndex = (user.nameAliases || []).findIndex(
+    // If bnbSafeAddress provided, the execution Safe is the Base Safe but the DB record lives in UserBNB
+    const { bnbSafeAddress } = req.body;
+    let dbUser = user;
+    let isL1DbUser = false;
+    if (bnbSafeAddress && bnbSafeAddress.toLowerCase() !== safeAddress.toLowerCase()) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          const bnbUser = await UserBNB.findOne({ safeAddress: bnbSafeAddress.toLowerCase() });
+          if (bnbUser) { dbUser = bnbUser; isL1DbUser = true; }
+        }
+      } catch (e) { console.error('⚠️ L1 user lookup for unlink failed:', e.message); }
+    }
+
+    const aliasIndex = (dbUser.nameAliases || []).findIndex(
       (a) => a.name.toLowerCase() === weldedName.toLowerCase()
     );
+
     if (aliasIndex === -1)
       return res.status(404).json({ message: 'This name is not in your linked names list.' });
 
-    const aliasEntry = user.nameAliases[aliasIndex];
+    const aliasEntry = dbUser.nameAliases[aliasIndex];
     const targetRegistryAddress =
       registryAddress || aliasEntry.registryAddress || process.env.REGISTRY_CONTRACT_ADDRESS;
 
@@ -1211,15 +1530,12 @@ app.post('/api/alias/unlink-name', async (req, res) => {
       return res.status(400).json({ message: 'On-chain unlink failed.' });
 
     // Remove from DB
-    user.nameAliases.splice(aliasIndex, 1);
-    if (user.nameAlias === weldedName) {
-      user.nameAlias = user.nameAliases[0]?.name || null;
+    dbUser.nameAliases.splice(aliasIndex, 1);
+    if (dbUser.nameAlias === weldedName) {
+      dbUser.nameAlias = dbUser.nameAliases[0]?.name || null;
     }
-    await user.save();
+    await dbUser.save();
 
-    // Clear poolName on any Pool that held this name
-    // Clear poolName on any Pool that held this name
-    // aliasEntry.wallet is the pool address (works for both L2 and L1)
     const linkedPoolAddress = aliasEntry.wallet?.toLowerCase();
     const Pool = require('./models/Pool');
 
@@ -1254,6 +1570,9 @@ app.use('/api/buy-ngns', buyNgnsRoutes);
 
 const poolRoutes = require('./routes/pool');
 app.use('/api/pool', poolRoutes);
+
+const bnbRoutes = require('./routes/bnb');
+app.use('/api/bnb', bnbRoutes);
 
 app.use('/api/sync-incoming', require('./routes/syncIncoming'));
 
@@ -1564,9 +1883,19 @@ app.get('/api/l1-balance/:address', async (req, res) => {
 
 app.get('/api/alias/list/:safeAddress', async (req, res) => {
   try {
-    const user = await User.findOne({
+    let user = await User.findOne({
       safeAddress: req.params.safeAddress.toLowerCase(),
     });
+    if (!user) {
+      try {
+        const l1db = require('./services/l1db');
+        if (l1db.readyState === 1) {
+          const UserBNBSchema = require('./models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          user = await UserBNB.findOne({ safeAddress: req.params.safeAddress.toLowerCase() });
+        }
+      } catch (e) { /* ignore */ }
+    }
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     // Migrate legacy single nameAlias if nameAliases array is empty
@@ -1762,12 +2091,33 @@ app.post('/api/transfer', async (req, res) => {
 
     const envRegistryAddress = process.env.REGISTRY_CONTRACT_ADDRESS;
 
-    // Determine token contract address from env based on coin
+    const isBnbChain = (req.body.chain || '').toLowerCase() === 'bnb';
+    const isProdEnv = process.env.NODE_ENV === 'production';
+
     let tokenAddress;
-    if (coin === 'USDT') tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
-    else if (coin === 'USDC') tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
-    else if (coin === 'CNGN') tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
-    else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
+    if (isBnbChain) {
+      if (coin === 'USDT')
+        tokenAddress = isProdEnv
+          ? process.env.L1_USDT_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
+      else if (coin === 'USDC')
+        tokenAddress = isProdEnv
+          ? process.env.L1_USDC_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDC_CONTRACT_ADDRESS;
+      else if (coin === 'CNGN')
+        tokenAddress = isProdEnv
+          ? process.env.L1_CNGN_CONTRACT_ADDRESS
+          : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS;
+      else
+        tokenAddress = isProdEnv
+          ? process.env.L1_NGN_TOKEN_ADDRESS
+          : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+    } else {
+      if (coin === 'USDT') tokenAddress = process.env.USDT_CONTRACT_ADDRESS;
+      else if (coin === 'USDC') tokenAddress = process.env.USDC_CONTRACT_ADDRESS;
+      else if (coin === 'CNGN') tokenAddress = process.env.CNGN_CONTRACT_ADDRESS;
+      else tokenAddress = process.env.NGN_TOKEN_ADDRESS;
+    }
 
     if (!tokenAddress) {
       return res.status(400).json({ message: `Token address not configured for coin: ${coin}` });
@@ -1802,15 +2152,35 @@ app.post('/api/transfer', async (req, res) => {
       return res.status(404).json({ message: error.message });
     }
 
-    // ── 2. Fee Calculation ───────────────────────────────────────────────────
-    const { feeNGN, feeUsd, feeWei } = await getFeeForAmount(amount, coin);
+    // ── 2. Fee Calculation — live gas oracle, no hardcoded tiers ────────────
+    const txChain = isBnbChain ? 'bnb' : 'base';
+    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(txChain, coin);
     const amountNum = parseFloat(amount);
 
-    // Check balance of the selected token
+    // Check balance — use BNB provider if chain=bnb, Base provider otherwise
     const TOKEN_ABI = ['function balanceOf(address) view returns (uint256)'];
-    const tokenContract = new ethers.Contract(tokenAddress, TOKEN_ABI, provider);
+    const txChainForBalance = req.body.chain || 'base';
+    let balanceProvider = provider;
+    if (txChainForBalance === 'bnb') {
+      const isProdBal = process.env.NODE_ENV === 'production';
+      balanceProvider = new ethers.JsonRpcProvider(
+        isProdBal ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL
+      );
+    }
+    const tokenContract = new ethers.Contract(tokenAddress, TOKEN_ABI, balanceProvider);
     const balanceWei = await tokenContract.balanceOf(safeAddress);
-    const decimals = 6;
+
+    let decimals = 6; // Base — all tokens are 6 decimals, hardcoded
+    if (isBnbChain) {
+      try {
+        const { getL1TokenDecimals } = require('./utils/l1Decimals');
+        decimals = await getL1TokenDecimals(tokenAddress);
+      } catch (e) {
+        console.warn('⚠️ Could not fetch BNB token decimals, using fallback 6:', e.message);
+        decimals = 6;
+      }
+    }
+
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
     let actualAmountWei;
@@ -1859,6 +2229,7 @@ app.post('/api/transfer', async (req, res) => {
         actualFeeWei: actualFeeWei.toString(),
         tokenAddress,
         coin,
+        chain: req.body.chain || 'base',
         amount,
         feeHuman,
         toInput: finalToInput,
@@ -2317,6 +2688,19 @@ app.post('/api/queue/process/:address', async (req, res) => {
   try {
     const address = req.params.address.toLowerCase();
 
+    // Reset any SENDING entries stuck longer than 10 minutes before checking
+    const stuckCutoff = new Date(Date.now() - 10 * 60 * 1000);
+    await TransactionQueue.updateMany(
+      { walletAddress: address, status: 'SENDING', updatedAt: { $lt: stuckCutoff } },
+      {
+        $set: {
+          status: 'PENDING',
+          errorMessage: 'Stuck in SENDING — reset on process call',
+          updatedAt: new Date(),
+        },
+      }
+    );
+
     const inFlight = await TransactionQueue.findOne({
       walletAddress: address,
       status: 'SENDING',
@@ -2369,29 +2753,109 @@ app.post('/api/queue/process/:address', async (req, res) => {
         });
 
         let result;
+        let broadcastChain = 'base';
         try {
-          result = await sponsorSafeTransfer(
-            safeAddress,
-            userPrivateKey,
-            recipientAddress,
-            BigInt(actualAmountWei),
-            BigInt(actualFeeWei),
-            tokenAddress
-          );
+          // Fallback: if chain not tagged (pre-fix entries), detect from DB
+          let chain = claimed.payload.chain;
+          if (!chain) {
+            try {
+              const l1db = require('./services/l1db');
+              if (l1db.readyState === 1) {
+                const UserBNBSchema = require('./models/UserBNB');
+                const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+                const isBnbUser = await UserBNB.findOne({
+                  safeAddress: claimed.payload.safeAddress?.toLowerCase(),
+                }).lean();
+                chain = isBnbUser ? 'bnb' : 'base';
+              } else {
+                chain = 'base';
+              }
+            } catch {
+              chain = 'base';
+            }
+          }
+          broadcastChain = chain;
+          console.log(`🔗 Processing queue entry for chain: ${chain} | safe: ${safeAddress}`);
+          if (chain === 'bnb') {
+            const { sponsorBNBTransfer } = require('./services/relayServiceBNB');
+            const isProd = process.env.NODE_ENV === 'production';
+            const treasury = isProd
+              ? process.env.L1_TREASURY_CONTRACT_ADDRESS
+              : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS;
+            result = await sponsorBNBTransfer(
+              safeAddress,
+              userPrivateKey,
+              recipientAddress,
+              BigInt(actualAmountWei),
+              BigInt(actualFeeWei),
+              tokenAddress,
+              treasury
+            );
+          } else {
+            result = await sponsorSafeTransfer(
+              safeAddress,
+              userPrivateKey,
+              recipientAddress,
+              BigInt(actualAmountWei),
+              BigInt(actualFeeWei),
+              tokenAddress
+            );
+          }
         } catch (broadcastErr) {
-          console.warn(`⚠️ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
-          entry.status = 'PENDING';
-          entry.errorMessage = broadcastErr.message;
-          entry.updatedAt = new Date();
-          await entry.save();
+          console.error(`❌ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
+          // Record as a failed transaction in history so user can see it
+          await new Transaction({
+            fromAddress: safeAddress.toLowerCase(),
+            fromUsername: senderUser?.username || null,
+            fromNameAlias: senderUser?.nameAlias || null,
+            toAddress: recipientAddress.toLowerCase(),
+            toUsername: recipientUser?.username || null,
+            toNameAlias: recipientUser?.nameAlias || null,
+            senderDisplayIdentifier: senderDisplayIdentifier || toInput,
+            amount,
+            fee: feeHuman > 0 ? String(feeHuman) : null,
+            coin,
+            status: 'failed',
+            taskId: null,
+            type: 'transfer',
+            date: new Date(),
+          }).save().catch(() => {});
+          // Mark queue entry as failed — never leave it as PENDING
+          await TransactionQueue.findByIdAndUpdate(claimed._id, {
+            $set: {
+              status: 'FAILED_ONCHAIN',
+              errorMessage: broadcastErr.message,
+              updatedAt: new Date(),
+            },
+          }).catch(() => {});
           return;
         }
 
         if (!result || !result.txHash) {
-          entry.status = 'PENDING';
-          entry.errorMessage = 'No txHash returned from broadcast';
-          entry.updatedAt = new Date();
-          await entry.save();
+          console.error(`❌ No txHash returned for ${safeAddress}`);
+          await new Transaction({
+            fromAddress: safeAddress.toLowerCase(),
+            fromUsername: senderUser?.username || null,
+            fromNameAlias: senderUser?.nameAlias || null,
+            toAddress: recipientAddress.toLowerCase(),
+            toUsername: recipientUser?.username || null,
+            toNameAlias: recipientUser?.nameAlias || null,
+            senderDisplayIdentifier: senderDisplayIdentifier || toInput,
+            amount,
+            fee: feeHuman > 0 ? String(feeHuman) : null,
+            coin,
+            status: 'failed',
+            taskId: null,
+            type: 'transfer',
+            date: new Date(),
+          }).save().catch(() => {});
+          await TransactionQueue.findByIdAndUpdate(claimed._id, {
+            $set: {
+              status: 'FAILED_ONCHAIN',
+              errorMessage: 'No txHash returned from broadcast',
+              updatedAt: new Date(),
+            },
+          }).catch(() => {});
           return;
         }
 
@@ -2401,7 +2865,26 @@ app.post('/api/queue/process/:address', async (req, res) => {
         entry.updatedAt = new Date();
         await entry.save();
 
-        const taskStatus = await waitForTxReceipt(result.txHash);
+        const txChain = claimed.payload.chain || 'base';
+        let taskStatus;
+        if (txChain === 'bnb') {
+          const isProdEnv = process.env.NODE_ENV === 'production';
+          const bnbRpc = isProdEnv
+            ? process.env.BNB_MAINNET_RPC_URL
+            : process.env.BNB_TESTNET_RPC_URL;
+          const bnbProvider = new ethers.JsonRpcProvider(bnbRpc);
+          try {
+            const receipt = await bnbProvider.waitForTransaction(result.txHash, 1, 120_000);
+            taskStatus =
+              receipt && receipt.status === 1
+                ? { success: true, status: 'successful' }
+                : { success: false, status: 'failed', reason: 'Transaction reverted on BNB chain' };
+          } catch (err) {
+            taskStatus = { success: false, status: 'failed', reason: err.message };
+          }
+        } else {
+          taskStatus = await waitForTxReceipt(result.txHash);
+        }
 
         await new Transaction({
           fromAddress: safeAddress.toLowerCase(),
@@ -2504,7 +2987,7 @@ app.get('/api/stats', async (req, res) => {
       const bnbProvider = new ethers.JsonRpcProvider(bnbRpc);
       const bnbContract = new ethers.Contract(bnbTokenAddress, TOKEN_ABI, bnbProvider);
       const bnbWei = await retryRPCCall(() => bnbContract.totalSupply());
-      // BNB NGNs token has 18 decimals per .env deploy
+      // BNB NGNs token has 6 decimals per .env deploy
       bnbSupply = parseFloat(ethers.formatUnits(bnbWei, 6));
     } catch (e) {
       console.error('Failed to fetch BNB NGNs supply:', e.message);

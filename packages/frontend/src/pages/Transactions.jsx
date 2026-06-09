@@ -1,7 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Transactions.jsx
 import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import Stars from '../components/Stars';
 
@@ -57,7 +56,6 @@ const FILTERS = ['All', 'Pending', 'Sent', 'Received', 'Failed'];
 const PAGE_SIZE = 20;
 
 // ── Network label — driven by NODE_ENV ────────────────────────────────────────
-const NETWORK_LABEL = process.env.NODE_ENV === 'production' ? 'Base Mainnet' : 'Base Testnet';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 // ── TX Row Card ────────────────────────────────────────────────────────────
@@ -253,16 +251,24 @@ const Transactions = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [toast, setToast] = useState({ show: false, message: '' });
+  const [isBNBChain, setIsBNBChain] = useState(false);
 
   const pollRef = useRef(null);
+  const chainRef = useRef('base');
 
   useEffect(() => {
-    const saved = localStorage.getItem('salva_user');
+    const params = new URLSearchParams(window.location.search);
+    const chainIsBNB = params.get('chain') === 'bnb';
+    setIsBNBChain(chainIsBNB);
+    chainRef.current = chainIsBNB ? 'bnb' : 'base';
+
+    const storageKey = chainIsBNB ? 'bnb_user' : 'salva_user';
+    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setUser(parsed);
-        fetchTransactions(parsed.safeAddress);
+        fetchTransactions(parsed.safeAddress, null, chainIsBNB ? 'bnb' : 'base');
       } catch {
         window.location.href = '/login';
       }
@@ -281,9 +287,9 @@ const Transactions = () => {
     }
   }, [toast]);
 
-  const fetchTransactions = async (address, prevTxs = null) => {
+  const fetchTransactions = async (address, prevTxs = null, chainParam = 'base') => {
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/transactions/${address}?chain=${chainParam}`);
       const data = await res.json();
       const txList = Array.isArray(data) ? data : [];
 
@@ -325,7 +331,7 @@ const Transactions = () => {
           pollRef.current = setInterval(() => {
             setTransactions((current) => {
               // pass current as prevTxs so we can detect changes
-              fetchTransactions(address, current);
+              fetchTransactions(address, current, chainRef.current);
               return current;
             });
           }, 8000);
@@ -400,7 +406,6 @@ const Transactions = () => {
     const GREEN = '#22C55E';
     const RED = '#EF4444';
     const DARK = '#0A0A0B';
-    const GREY = '#3F3F46';
 
     function roundRect(x, y, w, h, r) {
       ctx.beginPath();
@@ -491,7 +496,7 @@ const Transactions = () => {
     ctx.fillStyle = badgeColor;
     ctx.textAlign = 'center';
     const badgeText = isSuccessful
-      ? `✓  VERIFIED  ·  ${NETWORK_LABEL.toUpperCase()}`
+      ? `✓  VERIFIED  ·  ${(IS_PRODUCTION ? (isBNBChain ? 'BNB MAINNET' : 'BASE MAINNET') : (isBNBChain ? 'BNB TESTNET' : 'BASE TESTNET'))}`
       : '✗  TRANSACTION FAILED';
     ctx.fillText(badgeText, W / 2, badgeY + 21);
 
@@ -592,7 +597,12 @@ const Transactions = () => {
     // ── Network ───────────────────────────────────────────────────────────
     const netY = dateY + 82;
     label('Network', 40, netY);
-    value(NETWORK_LABEL, 40, netY + 24, 14, '#ffffff', '700');
+    value(
+      IS_PRODUCTION
+        ? (isBNBChain ? 'BNB Mainnet' : 'Base Mainnet')
+        : (isBNBChain ? 'BNB Testnet' : 'Base Testnet'),
+      40, netY + 24, 14, '#ffffff', '700'
+    );
 
     // ── Tx Hash ───────────────────────────────────────────────────────────
     if (tx.taskId) {
@@ -643,12 +653,12 @@ const Transactions = () => {
 
       <div className="max-w-2xl mx-auto relative z-10">
         {/* ── Back ── */}
-        <Link
-          to="/dashboard"
+        <a
+          href={isBNBChain ? '/bnb' : '/dashboard'}
           className="inline-flex items-center gap-2 text-[8px] uppercase tracking-[0.3em] text-white/25 hover:text-salvaGold transition-colors mb-5 font-black"
         >
-          ← Dashboard
-        </Link>
+          ← {isBNBChain ? 'BNB Dashboard' : 'Dashboard'}
+        </a>
 
         {/* ── Header ── */}
         <header className="mb-5">

@@ -1,7 +1,11 @@
+/* global BigInt */
+// packages/frontend/src/pages/BNBSwapTab.jsx
+// L1 (BNB Chain) AA Swap Tab — mirrors SwapTab.jsx but hits /api/pool/l1/* routes
+// PIN verification uses /api/bnb/verify-pin
+// No NetworkReminder, no "Go to BSC" links — user is already on BNB Chain
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
-import NetworkReminder, { useNetworkReminder } from '../components/NetworkReminder';
 
 const POLL_MS = 60_000;
 
@@ -43,9 +47,9 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
         transition={{ type: 'spring', stiffness: 380, damping: 28 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+        <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
         <div className="p-8 text-center">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🔐</span>
           </div>
           <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
@@ -58,7 +62,7 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
+            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
           />
           <div className="flex gap-3">
             <button
@@ -71,10 +75,10 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             <button
               onClick={() => onConfirm(pin)}
               disabled={loading || pin.length !== 4}
-              className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20 transition-all"
+              className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
             >
               {loading && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
               {loading ? 'Verifying…' : 'Confirm'}
             </button>
@@ -102,15 +106,15 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
       transition={{ type: 'spring', stiffness: 380, damping: 28 }}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
       <div className="p-8">
         <div className="text-center mb-6">
-          <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <span className="text-2xl">🔓</span>
           </div>
           <h3 className="text-xl font-black text-white mb-1">Trust This Pool?</h3>
           <p className="text-xs text-white/60">
-            <span className="text-salvaGold font-black">
+            <span className="text-blue-400 font-black">
               {pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}
             </span>
           </p>
@@ -127,8 +131,7 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
               ⚠️ Trust Pool — Use with caution
             </p>
             <p className="text-[11px] text-white/60 leading-relaxed">
-              Approve unlimited {tokenLabel} spending. Future swaps skip the approval step, but
-              grants full spending access.
+              Approve unlimited {tokenLabel} spending. Future swaps skip the approval step.
             </p>
           </div>
         </div>
@@ -147,7 +150,7 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
           </button>
           <button
             onClick={onTrust}
-            className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+            className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
           >
             Trust
           </button>
@@ -157,28 +160,18 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
   </div>
 );
 
-// ─── Token Pill Selector ──────────────────────────────────────────────────────
-const TokenPills = ({ options, value, onChange, accentColor }) => (
+// ─── Token Pills ──────────────────────────────────────────────────────────────
+const TokenPills = ({ options, value, onChange }) => (
   <div className="flex gap-2">
     {options.map((t) => (
       <button
         key={t}
         onClick={() => onChange(t)}
-        className="flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all"
-        style={
+        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
           value === t
-            ? {
-                background: accentColor,
-                color: '#000',
-                borderColor: accentColor,
-                boxShadow: `0 4px 16px ${accentColor}33`,
-              }
-            : {
-                borderColor: 'rgba(255,255,255,0.08)',
-                background: 'rgba(255,255,255,0.03)',
-                color: 'rgba(255,255,255,0.3)',
-              }
-        }
+            ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20'
+            : 'border-white/[0.08] bg-white/[0.03] text-white/30 hover:text-white/50'
+        }`}
       >
         {t}
       </button>
@@ -191,7 +184,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const [swapType, setSwapType] = useState('exact_in');
   const [amountDisplay, setAmountDisplay] = useState('');
   const [amountRaw, setAmountRaw] = useState(0);
-
   const [onChainMinNgn, setOnChainMinNgn] = useState(parseFloat(pool.minNgnAmount || 0));
   const [onChainMinUsd, setOnChainMinUsd] = useState(parseFloat(pool.minTokenAmount || 0));
 
@@ -215,23 +207,20 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const isBelowMin =
     swapType === 'exact_in' && amountRaw > 0 && minAmount > 0 && amountRaw < minAmount;
 
-  const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
-  const hasUSDC = parseFloat(pool.usdcLiquidity || 0) > 0;
-  const hasNGNs = parseFloat(pool.ngnsLiquidity || 0) > 0;
-  const hasCNGN = parseFloat(pool.cNgnLiquidity || 0) > 0;
-  const [stableToken, setStableToken] = useState(hasUSDT ? 'USDT' : 'USDC');
-  const [ngnToken, setNgnToken] = useState(hasNGNs ? 'NGNS' : 'CNGN');
-
-  const tokenIn = section === 'buy' ? ngnToken : stableToken;
+  const [stableToken, setStableToken] = useState(
+    parseFloat(pool.usdtLiquidity || 0) > 0 ? 'USDT' : 'USDC'
+  );
+  const [ngnToken, setNgnToken] = useState(
+    parseFloat(pool.ngnsLiquidity || 0) > 0 ? 'NGNS' : 'CNGN'
+  );
   const ngnLabel = ngnToken === 'CNGN' ? 'cNGN' : 'NGNs';
-  const tokenOut = section === 'buy' ? stableToken : ngnLabel;
   const displayRate =
     section === 'buy' ? parseFloat(pool.buyRate || 0) : parseFloat(pool.sellRate || 0);
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
+  const accentColor = section === 'buy' ? '#3b82f6' : '#22c55e';
 
   const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
   useEffect(() => {
-    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=base`)
+    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
       .then((r) => r.json())
       .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
       .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
@@ -240,7 +229,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);
   const [showTrust, setShowTrust] = useState(false);
-  const [trustLoading, setTrustLoading] = useState(false);
   const [pinVisible, setPinVisible] = useState(false);
   const [pinLoading, setPinLoading] = useState(false);
   const [step, setStep] = useState('input');
@@ -250,21 +238,18 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const quoteTimer = useRef(null);
   const [receivedAmount, setReceivedAmount] = useState(null);
   const [receivedToken, setReceivedToken] = useState(null);
-  const defaultReceiver = user?.safeAddress || '';
-  const [receiverRaw, setReceiverRaw] = useState(defaultReceiver);
-  const [receiverInputType, setReceiverInputType] = useState('address');
-  const [receiverError, setReceiverError] = useState('');
-  const [receiverResolved, setReceiverResolved] = useState(defaultReceiver);
-  const [receiverResolving, setReceiverResolving] = useState(false);
-  const receiverResolveTimer = useRef(null);
+  const pendingTrustRef = useRef(false);
 
-  // ── User wallet balances ──────────────────────────────────────────────────
+  const tokenIn = section === 'buy' ? ngnToken : stableToken;
+  const tokenOut = section === 'buy' ? stableToken : ngnLabel;
+
+  // L1 user balance
   const [userBal, setUserBal] = useState({});
   const [userBalLoading, setUserBalLoading] = useState(true);
   useEffect(() => {
     if (!user?.safeAddress) return;
     setUserBalLoading(true);
-    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
+    fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`)
       .then((r) => r.json())
       .then((d) =>
         setUserBal({
@@ -288,12 +273,12 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           ? parseFloat(pool.cNgnLiquidity || 0)
           : parseFloat(pool.ngnsLiquidity || 0);
 
+  // Trust check via L1 endpoint
   useEffect(() => {
     setTrustChecked(false);
     setIsTrusted(false);
-    const sym = tokenIn;
     fetch(
-      `${SALVA_API_URL}/api/pool/trust-status?userSafeAddress=${user.safeAddress}&poolAddress=${pool.poolAddress}&tokenSymbol=${sym}`
+      `${SALVA_API_URL}/api/pool/l1/trust-status?userSafeAddress=${user.safeAddress}&poolAddress=${pool.poolAddress}&tokenSymbol=${tokenIn}`
     )
       .then((r) => r.json())
       .then((d) => {
@@ -309,6 +294,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     return swapType === 'exact_in' ? 'swapExactUSDAmountForNGN' : 'swapForExactNGNAmount';
   })();
 
+  // Quote via shared /api/pool/quote with isL1: true
   useEffect(() => {
     if (amountRaw <= 0) {
       setQuote(null);
@@ -325,6 +311,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             poolAddress: pool.poolAddress,
             swapFn,
             amount: amountRaw,
+            isL1: true,
             stableToken,
           }),
         });
@@ -337,9 +324,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       }
     }, 500);
     return () => clearTimeout(quoteTimer.current);
-  }, [amountRaw, swapFn, pool.poolAddress]);
-
-  const amountWei = amountRaw > 0 ? Math.floor(amountRaw * 1e6).toString() : '0';
+  }, [amountRaw, swapFn, pool.poolAddress, stableToken]);
 
   const sendAmt = swapType === 'exact_in' ? amountRaw : quote ? parseFloat(quote) : 0;
   const receiveAmt = swapType === 'exact_out' ? amountRaw : quote ? parseFloat(quote) : 0;
@@ -347,89 +332,13 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const poolCantCover = receiveAmt > 0 && poolReceiveBal < receiveAmt;
   const poolEmpty = poolReceiveBal <= 0;
 
-const handleReceiverChange = (val) => {
-  setReceiverError('');
-
-  // 0x address — pass through directly, same as Dashboard
-  if (val.toLowerCase().startsWith('0x')) {
-    setReceiverRaw(val);
-    setReceiverInputType('address');
-    setReceiverResolved(val.trim());
-    return;
-  }
-
-  // Sanitize — same strict rules as Dashboard handleRecipientChange
-  let cleaned = val.toLowerCase();
-
-  // Full name with @ — handle paste case first
-  if (cleaned.includes('@')) {
-    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
-    const atIndex = cleaned.indexOf('@');
-    if (atIndex !== -1) {
-      cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
-    }
-    setReceiverRaw(cleaned);
-    setReceiverInputType('fullname');
-    const parts = cleaned.split('@');
-    if (parts[0] && parts[1]) {
-      clearTimeout(receiverResolveTimer.current);
-      receiverResolveTimer.current = setTimeout(async () => {
-        setReceiverResolving(true);
-        setReceiverError('');
-        try {
-          const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fullName: cleaned }),
-          });
-          const data = await res.json();
-          if (res.ok && data.resolvedAddress) {
-            setReceiverResolved(data.resolvedAddress);
-          } else {
-            setReceiverResolved('');
-            setReceiverError(data.message || 'Name not found');
-          }
-        } catch {
-          setReceiverResolved('');
-          setReceiverError('Network error — could not resolve name');
-        } finally {
-          setReceiverResolving(false);
-        }
-      }, 600);
-    } else {
-      setReceiverResolved('');
-    }
-    return;
-  }
-
-  // Plain chars — allow a-z, 2-9, dot, @ only (no 0, no 1)
-  cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
-  // One dot max
-  const firstDot = cleaned.indexOf('.');
-  if (firstDot !== -1) {
-    cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
-  }
-  // One @ max
-  const firstAt = cleaned.indexOf('@');
-  if (firstAt !== -1) {
-    cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
-  }
-
-  setReceiverRaw(cleaned);
-
-  if (!cleaned) {
-    setReceiverInputType('empty');
-    setReceiverResolved(defaultReceiver);
-    return;
-  }
-
-  // Not a 0x, not a fullname — no registry dropdown for swap, show error
-  setReceiverInputType('invalid');
-  setReceiverResolved('');
-  if (cleaned.length > 1) {
-    setReceiverError('Enter a full name (e.g. charles@salva) or a 0x address');
-  }
-};
+  const inputTokenLabel = section === 'buy' ? ngnLabel : stableToken;
+  const outputTokenLabel = section === 'buy' ? stableToken : ngnLabel;
+  const amountInputLabel =
+    swapType === 'exact_in' ? `${inputTokenLabel} to spend` : `${outputTokenLabel} to receive`;
+  const amountInputSuffix = swapType === 'exact_in' ? inputTokenLabel : outputTokenLabel;
+  const quoteLabel = swapType === 'exact_in' ? 'You receive' : 'You need to send';
+  const quoteSuffix = swapType === 'exact_in' ? outputTokenLabel : inputTokenLabel;
 
   const handleContinue = () => {
     if (amountRaw <= 0 || isBelowMin) return;
@@ -441,87 +350,98 @@ const handleReceiverChange = (val) => {
     setPinVisible(true);
   };
 
-const pendingTrustRef = React.useRef(false);
-
   const handlePinConfirm = async (pin) => {
-  setPinLoading(true);
-  try {
-    const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: user.email, pin }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      showMsg(data.message || 'Invalid PIN', 'error');
-      return;
+    setPinLoading(true);
+    try {
+      // BNB PIN verify — NOT /api/user/verify-pin
+      const res = await fetch(`${SALVA_API_URL}/api/bnb/verify-pin`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, pin }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showMsg(data.message || 'Invalid PIN', 'error');
+        return;
+      }
+      setPinVisible(false);
+      setStep('loading');
+      await executeSwap(data.privateKey, pendingTrustRef.current);
+    } catch {
+      showMsg('Network error', 'error');
+    } finally {
+      setPinLoading(false);
     }
-    setPinVisible(false);
-    setStep('loading');
-    await executeSwap(data.privateKey, pendingTrustRef.current);
-  } catch (err) {
-    console.error(err);
-    showMsg('Network error', 'error');
-  } finally {
-    setPinLoading(false);
-  }
-};
+  };
 
-const executeSwap = async (privateKey, doApproveMax = false) => {
-  try {
-    const approveAmountWei = doApproveMax
-      ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-      : swapType === 'exact_out' && quote
-        ? Math.floor(parseFloat(quote) * 1e6).toString()
-        : amountWei;
+  const executeSwap = async (privateKey, doApproveMax = false) => {
+    try {
+      // Resolve token addresses from backend config
+      const configRes = await fetch(`${SALVA_API_URL}/api/l1-config`);
+      const config = await configRes.json();
 
-    const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userSafeAddress: user.safeAddress,
-        userPrivateKey: privateKey,
-        poolAddress: pool.poolAddress,
-        stableToken,
-        ngnToken,
-        swapFn,
-        amountWei,
-        approveAmountWei,
-        trusted: isTrusted,
-        tokenIn,
-        doApproveMax,
-        receiverAddress: receiverResolved || user.safeAddress,
-      }),
-    });
+      const tokenAddrMap = {
+        NGNS: config.ngnsTokenAddress,
+        CNGN: config.cngnContractAddress,
+        USDT: config.usdtContractAddress,
+        USDC: config.usdcContractAddress,
+        cNGN: config.cngnContractAddress,
+      };
 
-    const swapData = await swapRes.json();
-    if (!swapRes.ok) throw new Error(swapData.message || 'Swap failed');
+      const tokenInAddr = tokenAddrMap[tokenIn];
+      const tokenOutAddr =
+        tokenAddrMap[tokenOut] || tokenAddrMap[tokenOut?.replace('cNGN', 'CNGN')];
 
-    if (doApproveMax) {
-      setIsTrusted(true);
+      if (!tokenInAddr) throw new Error(`Cannot resolve address for token: ${tokenIn}`);
+
+      // Fetch decimals from L1 PoolFactory (not hardcoded)
+      const decRes = await fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${tokenInAddr}`);
+      const decData = await decRes.json();
+      const decimals = decData.decimals ?? 18;
+
+      // For approveAmountWei, fetch tokenIn decimals (same as above)
+      const scaledAmount = swapType === 'exact_in' ? amountRaw : quote ? parseFloat(quote) : 0;
+      const amountWeiStr = BigInt(Math.floor(scaledAmount * 10 ** decimals)).toString();
+
+      const approveAmountWei = doApproveMax
+        ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
+        : swapType === 'exact_out' && quote
+          ? BigInt(Math.floor(parseFloat(quote) * 10 ** decimals)).toString()
+          : amountWeiStr;
+
+      const swapRes = await fetch(`${SALVA_API_URL}/api/pool/l1/swap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userSafeAddress: user.safeAddress,
+          userPrivateKey: privateKey,
+          poolAddress: pool.poolAddress,
+          stableToken,
+          ngnToken,
+          swapFn,
+          amountWei: amountWeiStr,
+          approveAmountWei,
+          trusted: isTrusted,
+          tokenIn,
+          doApproveMax,
+          receiverAddress: user.safeAddress,
+        }),
+      });
+      const swapData = await swapRes.json();
+      if (!swapRes.ok) throw new Error(swapData.message || 'Swap failed');
+      if (doApproveMax) setIsTrusted(true);
+      setTxHash(swapData.txHash);
+      const outAmt =
+        swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
+      setReceivedAmount(outAmt);
+      setReceivedToken(tokenOut);
+      setStep('done');
+      onSwapComplete?.();
+    } catch (err) {
+      showMsg(err.message || 'Swap failed — please try again', 'error');
+      setStep('input');
     }
-
-    setTxHash(swapData.txHash);
-    const outToken = tokenOut;
-    const outAmt =
-      swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
-    setReceivedAmount(outAmt);
-    setReceivedToken(outToken);
-    setStep('done');
-    onSwapComplete?.();
-  } catch {
-    showMsg('Swap failed — please try again', 'error');
-    setStep('input');
-  }
-};
-
-  const inputTokenLabel = section === 'buy' ? ngnLabel : stableToken;
-  const outputTokenLabel = section === 'buy' ? stableToken : ngnLabel;
-  const amountInputLabel =
-    swapType === 'exact_in' ? `${inputTokenLabel} to spend` : `${outputTokenLabel} to receive`;
-  const amountInputSuffix = swapType === 'exact_in' ? inputTokenLabel : outputTokenLabel;
-  const quoteLabel = swapType === 'exact_in' ? 'You receive' : 'You need to send';
-  const quoteSuffix = swapType === 'exact_in' ? outputTokenLabel : inputTokenLabel;
+  };
 
   return (
     <>
@@ -540,25 +460,21 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
           transition={{ type: 'spring', damping: 25, stiffness: 200 }}
           onClick={(e) => e.stopPropagation()}
         >
-          {/* Accent top line using the section's accent color */}
           <div
             className="h-px"
             style={{
               background: `linear-gradient(90deg, transparent, ${accentColor}66, transparent)`,
             }}
           />
-
           <div className="overflow-y-auto flex-1 overscroll-contain px-4 pt-4 pb-2 sm:px-6 sm:pt-5">
             <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
 
-            {/* ── INPUT ── */}
             {step === 'input' && (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3"
               >
-                {/* Header */}
                 <div className="mb-2">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
                     <p
@@ -581,7 +497,6 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </p>
                 </div>
 
-                {/* Stablecoin selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                     Stablecoin
@@ -590,24 +505,14 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     options={['USDT', 'USDC']}
                     value={stableToken}
                     onChange={setStableToken}
-                    accentColor={accentColor}
                   />
                 </div>
-
-                {/* NGN token selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                     Naira Token
                   </label>
-                  <TokenPills
-                    options={['NGNS', 'CNGN']}
-                    value={ngnToken}
-                    onChange={setNgnToken}
-                    accentColor={accentColor}
-                  />
+                  <TokenPills options={['NGNS', 'CNGN']} value={ngnToken} onChange={setNgnToken} />
                 </div>
-
-                {/* Mode selector */}
                 <div>
                   <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                     Mode
@@ -628,7 +533,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                         className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
                           swapType === id
                             ? 'bg-white/10 border-white/20 text-white'
-                            : 'border-white/[0.06] bg-white/5 text-white/60 hover:text-white/70'
+                            : 'border-white/[0.06] bg-white/5 text-white/60'
                         }`}
                       >
                         {label}
@@ -637,7 +542,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </div>
                 </div>
 
-                {/* ── Demarcation ── */}
+                {/* Send/Receive demarcation */}
                 <div className="relative flex items-center gap-3 py-1">
                   <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                   <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03]">
@@ -666,17 +571,17 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 </div>
 
-                {/* ── Send / Receive balance info ── */}
+                {/* Balances */}
                 <div className="flex flex-col gap-1.5">
                   <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30">
                       Your balance
                     </p>
                     {userBalLoading ? (
-                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block flex-shrink-0" />
+                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                     ) : (
                       <p
-                        className={`text-xs font-black text-right min-w-0 ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                        className={`text-xs font-black ${userCantAfford ? 'text-red-400' : 'text-white'}`}
                       >
                         {userSendBal !== null ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd') : '—'}{' '}
                         <span className="font-normal opacity-60">
@@ -688,11 +593,11 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   <div
                     className={`flex items-center justify-between px-3 py-2 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
                   >
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 flex-shrink-0 mr-3">
+                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30">
                       Pool available
                     </p>
                     <p
-                      className={`text-xs font-black text-right min-w-0 ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
+                      className={`text-xs font-black ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
                     >
                       {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}{' '}
                       <span className="font-normal opacity-60">
@@ -731,13 +636,10 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                         setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
                       }}
                       className={`w-full p-4 rounded-xl bg-white/5 border outline-none text-xl font-black text-white transition-all pr-20 ${
-                        isBelowMin ? 'border-red-500' : 'border-white/10 focus:border-salvaGold'
+                        isBelowMin ? 'border-red-500' : 'border-white/10 focus:border-blue-500'
                       }`}
                     />
-                    <span
-                      className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-sm"
-                      style={{ color: accentColor }}
-                    >
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-sm text-blue-400">
                       {amountInputSuffix}
                     </span>
                   </div>
@@ -758,7 +660,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       {quoteLabel}
                     </span>
                     {quoteLoading ? (
-                      <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+                      <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
                     ) : (
                       <span className="font-black text-sm" style={{ color: accentColor }}>
                         {fmt(quote, swapType === 'exact_in' ? (section === 'buy' ? 'usd' : 'ngn') : (section === 'buy' ? 'ngn' : 'usd'))} {quoteSuffix}
@@ -791,109 +693,25 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     <span className="text-white/30 text-[10px]">—</span>
                   )}
                 </div>
-
-                {/* ── Receiver ── */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
-                      Receiver
-                    </label>
-                    {receiverRaw !== defaultReceiver && (
-                      <button
-                        onClick={() => {
-                          setReceiverRaw(defaultReceiver);
-                          setReceiverInputType('address');
-                          setReceiverResolved(defaultReceiver);
-                          setReceiverError('');
-                        }}
-                        className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
-                      >
-                        Reset ↺
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={receiverRaw}
-                      onChange={(e) => handleReceiverChange(e.target.value)}
-                      placeholder="0x… or charles@salva"
-                      className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
-                        receiverError
-                          ? 'border-red-500/60'
-                          : receiverInputType === 'fullname' && receiverResolved
-                            ? 'border-green-500/40'
-                            : 'border-white/10 focus:border-salvaGold'
-                      }`}
-                    />
-                    {receiverResolving && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                    )}
-                    {!receiverResolving && receiverInputType === 'fullname' && receiverResolved && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">
-                        ✓
-                      </span>
-                    )}
-                  </div>
-                  {receiverRaw === defaultReceiver && (
-                    <p className="text-[10px] text-white/30 font-bold mt-1.5">
-                      Default: your Safe wallet
-                    </p>
-                  )}
-                  {receiverRaw !== defaultReceiver && !receiverError && (
-                    <p className="text-[10px] mt-1.5 font-bold">
-                      {receiverInputType === 'address' && (
-                        <span className="text-blue-400">↗ Custom address</span>
-                      )}
-                      {receiverInputType === 'fullname' && receiverResolved && (
-                        <span className="text-green-400">
-                          ✓ {receiverResolved.slice(0, 10)}…{receiverResolved.slice(-8)}
-                        </span>
-                      )}
-                      {receiverInputType === 'fullname' &&
-                        !receiverResolved &&
-                        !receiverResolving && (
-                          <span className="text-white/30">
-                            Complete the name — e.g. charles@salva
-                          </span>
-                        )}
-                    </p>
-                  )}
-                  {receiverError && (
-                    <p className="text-[10px] text-red-400 font-bold mt-1.5">⚠ {receiverError}</p>
-                  )}
-                  {receiverRaw !== defaultReceiver && !receiverError && receiverResolved && (
-                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-                      <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
-                      <p className="text-[10px] text-yellow-400/80 font-bold">
-                        Funds go to a different address — double-check before continuing.
-                      </p>
-                    </div>
-                  )}
-                </div>
               </motion.div>
             )}
 
-            {/* ── LOADING ── */}
             {step === 'loading' && (
               <div className="text-center py-14">
                 <div className="relative w-14 h-14 mx-auto mb-6">
-                  <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
-                  <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
-                  <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-                    <span className="text-salvaGold text-sm font-black">₦</span>
+                  <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
+                  <div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
+                  <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
+                    <span className="text-blue-400 text-sm font-black">₦</span>
                   </div>
                 </div>
-                <p className="font-black text-lg text-white">
-                  {trustLoading ? 'Trusting pool…' : 'Executing swap…'}
-                </p>
+                <p className="font-black text-lg text-white">Executing swap…</p>
                 <p className="text-xs text-white/60 mt-2">
-                  Broadcasting via your Safe wallet. Please wait.
+                  Broadcasting via your BNB Safe. Please wait.
                 </p>
               </div>
             )}
 
-            {/* ── DONE ── */}
             {step === 'done' && (
               <div className="text-center py-8">
                 <motion.div
@@ -909,32 +727,29 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   <p className="text-sm text-white/60 mb-4">
                     You received{' '}
                     <span className="font-black text-white">{fmt(receivedAmount, section === 'buy' ? 'usd' : 'ngn')}</span>{' '}
-                    <span className="font-black" style={{ color: accentColor }}>
-                      {receivedToken}
-                    </span>
+                    <span className="font-black text-blue-400">{receivedToken}</span>
                   </p>
                 )}
                 {txHash && (
                   <a
-                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'sepolia.'}basescan.org/tx/${txHash}`}
+                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'testnet.'}bscscan.com/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[11px] font-black underline break-all block mb-2"
-                    style={{ color: accentColor }}
+                    className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
                   >
-                    View on Basescan ↗
+                    View on BscScan ↗
                   </a>
                 )}
                 <button
                   onClick={onClose}
-                  className="w-full mt-5 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                  className="w-full mt-5 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                 >
                   Done
                 </button>
               </div>
             )}
           </div>
-          
+
           {step === 'input' && (
             <div className="flex-shrink-0 px-4 pb-5 pt-3 sm:px-6 border-t border-white/[0.06] bg-zinc-950">
               <div className="flex gap-3">
@@ -953,18 +768,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     userCantAfford ||
                     poolCantCover ||
                     poolEmpty ||
-                    userBalLoading ||
-                    !!receiverError ||
-                    receiverResolving ||
-                    (receiverInputType === 'fullname' && !receiverResolved) ||
-                    receiverInputType === 'invalid'
+                    userBalLoading
                   }
-                  className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
-                  style={{
-                    background: accentColor,
-                    color: '#000',
-                    boxShadow: `0 8px 24px ${accentColor}33`,
-                  }}
+                  className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20"
                 >
                   {!trustChecked ? 'Checking…' : 'Continue →'}
                 </button>
@@ -997,7 +803,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
         {pinVisible && (
           <PinModal
             title="Confirm Swap"
-            subtitle="Enter your PIN to authorize this transaction via your Safe"
+            subtitle="Enter your PIN to authorize this transaction via your BNB Safe"
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
@@ -1015,7 +821,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
   const cNgnAvail = parseFloat(pool.cNgnLiquidity || 0);
   const usdtAvail = parseFloat(pool.usdtLiquidity || 0);
   const usdcAvail = parseFloat(pool.usdcLiquidity || 0);
-  const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
+  const accentColor = section === 'buy' ? '#3b82f6' : '#22c55e';
 
   return (
     <motion.div
@@ -1026,7 +832,6 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <div className="p-3.5">
-        {/* Identity */}
         <div className="flex items-start justify-between gap-2 mb-3">
           <div className="min-w-0">
             <p className="font-black text-sm text-white truncate">
@@ -1048,15 +853,12 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
           </div>
         </div>
 
-        {/* Stats */}
         {section === 'buy' ? (
           <div className="flex flex-col gap-1.5 mb-4">
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
-                Rate
-              </p>
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">Rate</p>
               <div className="text-right min-w-0">
-                <span className="font-black text-sm text-salvaGold">
+                <span className="font-black text-sm text-blue-400">
                   ₦{fmt(rate, 'ngn')}
                   <span className="text-[10px] text-white/60 font-normal">/USD</span>
                 </span>
@@ -1068,24 +870,22 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black flex-shrink-0 mr-3">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black">
                 USDT
               </p>
-              <span className="font-black text-sm text-green-400 truncate">{fmt(usdtAvail, 'usd')}</span>
+              <span className="font-black text-sm text-green-400">{fmt(usdtAvail, 'usd')}</span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black flex-shrink-0 mr-3">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
                 USDC
               </p>
-              <span className="font-black text-sm text-blue-400 truncate">{fmt(usdcAvail, 'usd')}</span>
+              <span className="font-black text-sm text-blue-400">{fmt(usdcAvail, 'usd')}</span>
             </div>
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 mb-4">
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
-                Rate
-              </p>
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">Rate</p>
               <div className="text-right min-w-0">
                 <span className="font-black text-sm text-green-400">
                   ₦{fmt(rate, 'ngn')}
@@ -1099,16 +899,14 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black flex-shrink-0 mr-3">
+              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
                 NGNs
               </p>
-              <span className="font-black text-sm text-salvaGold truncate">{fmt(ngnsAvail, 'ngn')}</span>
+              <span className="font-black text-sm text-blue-400">{fmt(ngnsAvail, 'ngn')}</span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
-                cNGN
-              </p>
-              <span className="font-black text-sm text-white/60 truncate">{fmt(cNgnAvail, 'ngn')}</span>
+              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">cNGN</p>
+              <span className="font-black text-sm text-white/60">{fmt(cNgnAvail, 'ngn')}</span>
             </div>
           </div>
         )}
@@ -1118,7 +916,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
           className="w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98]"
           style={{
             background: accentColor,
-            color: '#000',
+            color: '#fff',
             boxShadow: `0 4px 16px ${accentColor}33`,
           }}
         >
@@ -1129,8 +927,8 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
   );
 };
 
-// ─── Main SwapTab ─────────────────────────────────────────────────────────────
-const SwapTab = ({ user, showMsg }) => {
+// ─── Main BNBSwapTab ──────────────────────────────────────────────────────────
+const BNBSwapTab = ({ user, showMsg }) => {
   const [section, setSection] = useState('buy');
   const [buyPools, setBuyPools] = useState([]);
   const [sellPools, setSellPools] = useState([]);
@@ -1139,9 +937,6 @@ const SwapTab = ({ user, showMsg }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [lastTime, setLastTime] = useState(null);
   const [selected, setSelected] = useState(null);
-  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const [pendingPool, setPendingPool] = useState(null);
-  const { isDismissed } = useNetworkReminder('salva_reminder_swap');
   const pollRef = useRef(null);
 
   const fetchPools = useCallback(
@@ -1149,7 +944,8 @@ const SwapTab = ({ user, showMsg }) => {
       silent ? setRefreshing(true) : setLoading(true);
       try {
         const q = search.trim() ? `?search=${encodeURIComponent(search.trim())}` : '';
-        const res = await fetch(`${SALVA_API_URL}/api/pool/published${q}`);
+        // L1 published endpoint
+        const res = await fetch(`${SALVA_API_URL}/api/pool/l1/published${q}`);
         const d = await res.json();
         setBuyPools(d.buyPools || []);
         setSellPools(d.sellPools || []);
@@ -1178,20 +974,25 @@ const SwapTab = ({ user, showMsg }) => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
-      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-black tracking-tight">Naira Exchange</h2>
+          <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">
+            BNB Chain
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
-            href="/bnb"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
+            href="/dashboard"
+            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
           >
-            <span className="text-[8px] font-black uppercase tracking-widest text-blue-400">
-              BSC
+            <div className="w-3 h-3 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[6px] font-black">B</span>
+            </div>
+            <span className="text-[8px] font-black uppercase tracking-widest text-salvaGold">
+              Base
             </span>
-            <span className="text-blue-400 text-[9px]">↗</span>
+            <span className="text-salvaGold text-[9px]">↗</span>
           </a>
           {lastTime && (
             <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest hidden sm:block">
@@ -1201,12 +1002,12 @@ const SwapTab = ({ user, showMsg }) => {
           <button
             onClick={() => fetchPools(true)}
             disabled={refreshing}
-            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
+            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-500/30 transition-all"
           >
             {refreshing ? (
-              <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+              <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             ) : (
-              <span className="text-salvaGold text-lg leading-none">↻</span>
+              <span className="text-blue-400 text-lg leading-none">↻</span>
             )}
           </button>
         </div>
@@ -1228,12 +1029,12 @@ const SwapTab = ({ user, showMsg }) => {
           placeholder="Search pools by name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-salvaGold/30 transition-all"
+          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-blue-500/30 transition-all"
         />
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors text-xs font-black"
+            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 text-xs font-black"
           >
             ✕
           </button>
@@ -1248,7 +1049,7 @@ const SwapTab = ({ user, showMsg }) => {
             label: 'NGN → USD',
             sub: 'Spend NGN, get USD',
             count: buyPools.length,
-            color: '#D4AF37',
+            color: '#3b82f6',
           },
           {
             id: 'sell',
@@ -1266,21 +1067,12 @@ const SwapTab = ({ user, showMsg }) => {
                 ? 'border-transparent'
                 : 'border-white/[0.06] bg-white/[0.03] hover:border-white/[0.12]'
             }`}
-            style={
-              section === id
-                ? {
-                    background: `${color}18`,
-                    borderColor: `${color}40`,
-                  }
-                : {}
-            }
+            style={section === id ? { background: `${color}18`, borderColor: `${color}40` } : {}}
           >
             <div className="flex items-center justify-between mb-0.5">
               <span
                 className="font-black text-sm"
-                style={{
-                  color: section === id ? color : 'rgba(255,255,255,0.5)',
-                }}
+                style={{ color: section === id ? color : 'rgba(255,255,255,0.5)' }}
               >
                 {label}
               </span>
@@ -1289,10 +1081,7 @@ const SwapTab = ({ user, showMsg }) => {
                 style={
                   section === id
                     ? { background: `${color}20`, color }
-                    : {
-                        background: 'rgba(255,255,255,0.05)',
-                        color: 'rgba(255,255,255,0.25)',
-                      }
+                    : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.25)' }
                 }
               >
                 {count}
@@ -1306,7 +1095,7 @@ const SwapTab = ({ user, showMsg }) => {
       {/* Pool list */}
       {loading ? (
         <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-salvaGold/20 border-t-salvaGold rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : activePools.length === 0 ? (
         <motion.div
@@ -1323,7 +1112,7 @@ const SwapTab = ({ user, showMsg }) => {
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="mt-3 text-[10px] font-black text-salvaGold/60 hover:text-salvaGold uppercase tracking-widest transition-colors"
+              className="mt-3 text-[10px] font-black text-blue-400/60 hover:text-blue-400 uppercase tracking-widest transition-colors"
             >
               Clear search
             </button>
@@ -1336,37 +1125,12 @@ const SwapTab = ({ user, showMsg }) => {
               key={pool.poolAddress}
               pool={pool}
               section={section}
-              onSwap={(pool) => {
-                if (!isDismissed()) {
-                  setPendingPool(pool);
-                  setShowNetworkReminder(true);
-                } else {
-                  setSelected(pool);
-                }
-              }}
+              onSwap={setSelected}
               index={i}
             />
           ))}
         </div>
       )}
-
-      <AnimatePresence>
-        {showNetworkReminder && (
-          <NetworkReminder
-            chain="base"
-            storageKey="salva_reminder_swap"
-            onContinue={() => {
-              setShowNetworkReminder(false);
-              setSelected(pendingPool);
-              setPendingPool(null);
-            }}
-            onClose={() => {
-              setShowNetworkReminder(false);
-              setPendingPool(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
 
       <AnimatePresence>
         {selected && (
@@ -1384,4 +1148,4 @@ const SwapTab = ({ user, showMsg }) => {
   );
 };
 
-export default SwapTab;
+export default BNBSwapTab;

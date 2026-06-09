@@ -21,7 +21,7 @@ const FeeConfigSchema = new mongoose.Schema({
   usdTierFee: { type: Number, default: 0.015 },
   usdTierMin: { type: Number, default: 5 },
 
-  poolSubscriptionMonthlyFee: { type: Number, default: 5000 },
+  poolSubscriptionMonthlyFee: { type: Number, default: 3000 },
 });
 
 module.exports = mongoose.model('FeeConfig', FeeConfigSchema);

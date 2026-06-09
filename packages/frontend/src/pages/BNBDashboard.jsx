@@ -1,14 +1,16 @@
-// Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
+// Salva-Digital-Tech/packages/frontend/src/pages/BNBDashboard.jsx
 import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 import AdminPanel from './AdminPanel';
-import SalvaNGNsChat from '../components/SalvaNGNsChat';
+import BNBDeployWallet from './BNBDeployWallet';
+import BNBSetPin from './BNBSetPin';
+import SalvaNGNsChatBNB from '../components/SalvaNGNsChatBNB';
 import SalvaSellerChat from '../components/SalvaSellerChat';
-import DeployPool from './DeployPool';
-import SwapTab from './SwapTab';
+import BNBDeployPool from './BNBDeployPool';
+import BNBSwapTab from './BNBSwapTab';
 import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -150,7 +152,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
 
         <div className="text-center mb-5">
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
+          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-500/#3b82f6/50 font-black mb-1">
             Scan to Pay
           </p>
           <h3 className="text-xl font-black text-white">Scan Wallet QR</h3>
@@ -173,13 +175,13 @@ const QRScannerModal = ({ onScan, onClose }) => {
             }}
           />
           <div className="absolute inset-0 pointer-events-none z-10">
-            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-salvaGold rounded-tl-lg" />
-            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-salvaGold rounded-tr-lg" />
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-salvaGold rounded-bl-lg" />
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-salvaGold rounded-br-lg" />
+            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-blue-500/#3b82f6 rounded-tl-lg" />
+            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-blue-500/#3b82f6 rounded-tr-lg" />
+            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-blue-500/#3b82f6 rounded-bl-lg" />
+            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-blue-500/#3b82f6 rounded-br-lg" />
           </div>
           <motion.div
-            className="absolute left-4 right-4 h-0.5 bg-salvaGold/60 z-10 pointer-events-none"
+            className="absolute left-4 right-4 h-0.5 bg-blue-500/#3b82f6/60 z-10 pointer-events-none"
             style={{ boxShadow: '0 0 8px #D4AF37' }}
             animate={{ top: ['20%', '80%', '20%'] }}
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
@@ -204,7 +206,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
 // ── Balance Spinner ────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
   <span className="inline-flex items-center gap-1.5">
-    <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
+    <span className="w-4 h-4 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin inline-block flex-shrink-0" />
     <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
@@ -296,16 +298,16 @@ const RegistryDropdown = ({
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left
           ${
             open
-              ? 'border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30'
+              ? 'border-blue-500/#3b82f6 bg-blue-500/#3b82f6/5 ring-1 ring-blue-500/#3b82f6/30'
               : value
-                ? 'border-salvaGold/40 bg-salvaGold/5'
-                : 'border-white/10 bg-white/5 hover:border-salvaGold/40'
+                ? 'border-blue-500/#3b82f6/40 bg-blue-500/#3b82f6/5'
+                : 'border-white/10 bg-white/5 hover:border-blue-500/#3b82f6/40'
           }`}
       >
         {value ? (
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-salvaGold/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-xs font-black">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/#3b82f6/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-500/#3b82f6 text-xs font-black">
                 {value.name.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -409,10 +411,10 @@ const RegistryDropdown = ({
                     key={reg.registryAddress}
                     type="button"
                     onClick={() => handleSelect(reg)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-salvaGold/10' : ''}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/#3b82f6/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/#3b82f6/10' : ''}`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-salvaGold text-sm font-black">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-500/#3b82f6 text-sm font-black">
                         {reg.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -424,7 +426,7 @@ const RegistryDropdown = ({
                       )}
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-salvaGold text-sm">✓</span>
+                      <span className="text-blue-500/#3b82f6 text-sm">✓</span>
                     )}
                   </button>
                 ))
@@ -513,7 +515,7 @@ const BalanceCard = ({
 
   return (
     <div className="rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-5">
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6/40 to-transparent" />
 
       {/* NGN — TOP */}
       <div className="px-5 sm:px-7 pt-5 sm:pt-7 pb-4 border-b border-white/[0.06]">
@@ -522,7 +524,7 @@ const BalanceCard = ({
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-salvaGold block"
+              className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block"
             />
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
           </div>
@@ -570,7 +572,7 @@ const BalanceCard = ({
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
-            className="w-1.5 h-1.5 rounded-full bg-green-400 block"
+            className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block"
           />
           <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
@@ -609,13 +611,13 @@ const BalanceCard = ({
       <div className="grid grid-cols-2 gap-3 px-5 sm:px-7 pb-5 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
+          className="bg-blue-500 hover:brightness-110 active:scale-[0.98] transition-all text-white font-black py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+          className="border border-white/10 hover:border-blue-500/#3b82f6/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↓</span> Receive
         </button>
@@ -766,10 +768,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     if (pinInput.length !== 4) return;
     setPinLoading(true);
     try {
+      const baseUser = (() => { try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; } })();
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, pin: pinInput }),
+        body: JSON.stringify({ email: baseUser?.email || user.email, pin: pinInput }),
       });
       const pinData = await pinRes.json();
       if (!pinRes.ok) {
@@ -782,7 +785,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          safeAddress: baseUser?.safeAddress || user.safeAddress,
           name: nameInput,
           walletToLink: walletInput,
           registryAddress: selectedRegistry.registryAddress,
@@ -808,7 +811,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          safeAddress: baseUser?.safeAddress || user.safeAddress,
+          bnbSafeAddress: user.safeAddress,
           pureName: prepData.pureName,
           weldedName: prepData.weldedName,
           walletToLink: prepData.walletToLink,
@@ -825,7 +829,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         return;
       }
       if (walletInput && execData.alias?.name) {
-        fetch(`${SALVA_API_URL}/api/pool/set-name`, {
+        fetch(`${SALVA_API_URL}/api/pool/l1/set-name`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -838,9 +842,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       setLinkStep('success');
       await fetchLinkedNames();
       try {
-        const saved = JSON.parse(localStorage.getItem('salva_user') || '{}');
+        const saved = JSON.parse(localStorage.getItem('bnb_user') || '{}');
         saved.nameAlias = execData.alias?.name || saved.nameAlias;
-        localStorage.setItem('salva_user', JSON.stringify(saved));
+        localStorage.setItem('bnb_user', JSON.stringify(saved));
       } catch {
         /* ignore */
       }
@@ -856,10 +860,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     if (unlinkPinInput.length !== 4 || !unlinkTarget) return;
     setUnlinkLoading(true);
     try {
+      const baseUser = (() => { try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; } })();
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, pin: unlinkPinInput }),
+        body: JSON.stringify({ email: baseUser?.email || user.email, pin: unlinkPinInput }),
       });
       const pinData = await pinRes.json();
       if (!pinRes.ok) {
@@ -871,7 +876,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          safeAddress: baseUser?.safeAddress || user.safeAddress,
+          bnbSafeAddress: user.safeAddress,
           weldedName: unlinkTarget.name,
           registryAddress: unlinkTarget.registryAddress,
           userPrivateKey: pinData.privateKey,
@@ -880,6 +886,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       const data = await res.json();
       if (res.ok) {
         showMsg(`"${unlinkTarget.name}" unlinked successfully!`);
+        if (unlinkTarget.wallet) {
+          fetch(`${SALVA_API_URL}/api/pool/l1/set-name`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              poolAddress: unlinkTarget.wallet,
+              ownerSafeAddress: user.safeAddress,
+              poolName: '',
+            }),
+          }).catch(() => {});
+        }
         setUnlinkPinStep(false);
         setUnlinkTarget(null);
         await fetchLinkedNames();
@@ -890,7 +907,6 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       setUnlinkLoading(false);
     }
   };
-
   const resetLinkForm = () => {
     setLinkStep('form');
     setNameInput('');
@@ -905,7 +921,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const feeActive = registryFee !== null && registryFee > 0;
   const darkInput =
-    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/#3b82f6 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -917,7 +933,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </p>
           <button
             onClick={fetchLinkedNames}
-            className="text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors"
+            className="text-[10px] uppercase font-black text-blue-500/#3b82f6/60 hover:text-blue-500/#3b82f6 transition-colors"
           >
             Refresh
           </button>
@@ -925,17 +941,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
         {loadingNames ? (
           <div className="flex justify-center py-10">
-            <div className="w-7 h-7 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
           </div>
         ) : linkedNames.length === 0 ? (
           <div className="relative overflow-hidden p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
-            <div className="w-10 h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/#3b82f6/10 border border-blue-500/#3b82f6/20 flex items-center justify-center mx-auto mb-3">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.75}
-                className="w-5 h-5 text-salvaGold/60"
+                className="w-5 h-5 text-blue-500/#3b82f6/60"
               >
                 <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
                 <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
@@ -952,17 +968,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/25 hover:bg-salvaGold/[0.03] transition-all"
+                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/#3b82f6/25 hover:bg-blue-500/#3b82f6/[0.03] transition-all"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-                    <span className="text-salvaGold text-xs font-black">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/25 flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-500/#3b82f6 text-xs font-black">
                       {alias.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <p
-                      className="font-black text-salvaGold text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
+                      className="font-black text-blue-500/#3b82f6 text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.name);
                         showMsg('Name copied!');
@@ -1043,16 +1059,16 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               />
               {nameInput && selectedRegistry && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                  <span className="text-salvaGold/50 text-[10px] font-black">
+                  <span className="text-blue-500/#3b82f6 text-[10px] font-black">
                     {selectedRegistry.nspace}
                   </span>
                 </div>
               )}
             </div>
             {nameInput && (
-              <div className="mt-2 px-3 py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
-                <p className="text-[10px] text-salvaGold font-black">
+              <div className="mt-2 px-3 py-2 rounded-xl bg-blue-500/#3b82f6/5 border border-blue-500/#3b82f6/15 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block flex-shrink-0" />
+                <p className="text-[10px] text-blue-500/#3b82f6 font-black">
                   {nameInput}
                   {selectedRegistry ? selectedRegistry.nspace : '@salva'}
                 </p>
@@ -1103,7 +1119,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           <button
             onClick={handleCheckName}
             disabled={checking || !nameInput || !walletInput || !selectedRegistry}
-            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
+            className="w-full py-4 bg-blue-500 text-white font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
           >
             {checking && (
               <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
@@ -1127,8 +1143,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <div>
               <p className="font-black text-white text-sm">Reserved Name</p>
               <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">
-                <span className="text-salvaGold font-black">{nameInput}</span> is reserved. Share
-                your email and we'll reach out about eligibility.
+                <span className="text-blue-500/#3b82f6 font-black">{nameInput}</span> is reserved.
+                Share your email and we'll reach out about eligibility.
               </p>
             </div>
           </div>
@@ -1165,17 +1181,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           className="space-y-3"
         >
           {/* Name badge */}
-          <div className="p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
-            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">
+          <div className="p-5 rounded-2xl bg-blue-500/#3b82f6/6 border border-blue-500/#3b82f6/20 text-center">
+            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-500/#3b82f6/50 mb-2">
               Name Available
             </p>
-            <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
+            <p className="text-2xl font-black text-blue-500/#3b82f6">{nameCheckResult.welded}</p>
           </div>
 
           {/* Fee */}
           {feeLoading ? (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+              <div className="w-4 h-4 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin flex-shrink-0" />
               <p className="text-xs text-white/60 font-bold">Fetching fee…</p>
             </div>
           ) : feeActive ? (
@@ -1187,7 +1203,8 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 </p>
               </div>
               <p className="font-black text-white text-sm">
-                {registryFee?.toLocaleString()} <span className="text-salvaGold text-xs">NGNs</span>
+                {registryFee?.toLocaleString()}{' '}
+                <span className="text-blue-500/#3b82f6 text-xs">NGNs</span>
               </p>
             </div>
           ) : (
@@ -1212,7 +1229,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 setPinInput('');
               }}
               disabled={feeLoading}
-              className="flex-2 flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
+              className="flex-2 flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-blue-500/20"
             >
               Continue →
             </button>
@@ -1227,7 +1244,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           animate={{ opacity: 1, y: 0 }}
           className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
         >
-          <div className="w-12 h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
+          <div className="w-12 h-12 bg-blue-500/#3b82f6/10 border border-blue-500/#3b82f6/20 rounded-2xl flex items-center justify-center mx-auto">
             <span className="text-xl">🔐</span>
           </div>
           <div>
@@ -1243,7 +1260,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
+            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black text-white"
           />
           <div className="flex gap-3">
             <button
@@ -1256,7 +1273,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <button
               onClick={handleExecuteLink}
               disabled={pinLoading || pinInput.length !== 4}
-              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
             >
               {pinLoading && (
                 <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
@@ -1275,10 +1292,10 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
         >
           <div className="relative w-14 h-14 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
-            <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-              <span className="text-salvaGold text-sm font-black">₦</span>
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500/#3b82f6/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-blue-500/#3b82f6 animate-spin" />
+            <div className="absolute inset-2 rounded-full bg-blue-500/#3b82f6/10 flex items-center justify-center">
+              <span className="text-blue-500/#3b82f6 text-sm font-black">₦</span>
             </div>
           </div>
           <p className="font-black text-white">Linking on-chain…</p>
@@ -1291,13 +1308,13 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="py-12 px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-5"
+          className="py-12 px-6 rounded-2xl border border-blue-500/20 bg-blue-500/[0.04] text-center space-y-5"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 280, delay: 0.1 }}
-            className="w-16 h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
+            className="w-16 h-16 bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/30 rounded-2xl flex items-center justify-center mx-auto"
           >
             <span className="text-3xl">✓</span>
           </motion.div>
@@ -1307,7 +1324,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </div>
           <button
             onClick={resetLinkForm}
-            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-sm"
+            className="w-full py-4 bg-blue-500 text-white font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20 uppercase tracking-widest text-sm"
           >
             Link Another Name
           </button>
@@ -1337,7 +1354,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   <span className="text-xl">⚠️</span>
                 </div>
                 <p className="font-black text-white text-lg">Unlink Name?</p>
-                <p className="text-salvaGold font-black">{unlinkTarget.name}</p>
+                <p className="text-blue-500/#3b82f6 font-black">{unlinkTarget.name}</p>
                 <p className="text-sm text-white/60">
                   This removes the on-chain link and cannot be undone.
                 </p>
@@ -1386,14 +1403,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto">
                 <span className="text-xl">🔐</span>
               </div>
               <div>
                 <p className="font-black text-white text-lg">Enter PIN</p>
                 <p className="text-[11px] text-white/60 mt-1">
                   Confirm unlinking{' '}
-                  <span className="text-red-400 font-black">{unlinkTarget.name}</span>
+                  <span className="text-blue-500/#3b82f6 font-black">{unlinkTarget.name}</span>
                 </p>
               </div>
               <input
@@ -1404,7 +1421,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/#3b82f6 outline-none text-center text-3xl tracking-[1em] font-black text-white"
               />
               <div className="flex gap-3">
                 <button
@@ -1420,7 +1437,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <button
                   onClick={handleExecuteUnlink}
                   disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-xl bg-blue-500/#3b82f6 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {unlinkLoading && (
                     <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1585,7 +1602,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             {selected.status}
           </span>
         </div>
-        <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/20 flex justify-between">
+        <div className="p-4 rounded-2xl bg-blue-500/#3b82f6/5 border border-blue-500/#3b82f6/20 flex justify-between">
           <div>
             <p className="text-[10px] text-white/60">Requested</p>
             <p className="font-black text-white">
@@ -1598,7 +1615,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
           </div>
           <div>
             <p className="text-[10px] text-white/60">To Mint</p>
-            <p className="font-black text-salvaGold">
+            <p className="font-black text-blue-500/#3b82f6">
               {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
             </p>
           </div>
@@ -1621,7 +1638,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
                 className={`flex ${msg.sender === 'seller' ? 'justify-start' : 'justify-end'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-salvaGold text-black'}`}
+                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-blue-500/#3b82f6 text-black'}`}
                 >
                   {msg.text}
                   {msg.imageUrl && (
@@ -1643,7 +1660,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               onClick={sendSellerMessage}
               disabled={sending || !replyText.trim()}
-              className="px-3 py-2 bg-salvaGold text-black font-black rounded-xl text-xs disabled:opacity-50"
+              className="px-3 py-2 bg-blue-500/#3b82f6 text-black font-black rounded-xl text-xs disabled:opacity-50"
             >
               Send
             </button>
@@ -1661,7 +1678,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               onClick={handleMinted}
               disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl bg-blue-500/#3b82f6 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {actioning && (
                 <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
@@ -1682,17 +1699,17 @@ const SellerMintPanel = ({ user, showMsg }) => {
         <button
           onClick={fetchRequests}
           disabled={loading}
-          className="text-[10px] uppercase font-black text-salvaGold hover:opacity-70 flex items-center gap-1"
+          className="text-[10px] uppercase font-black text-blue-500/#3b82f6 hover:opacity-70 flex items-center gap-1"
         >
           {loading && (
-            <span className="w-3 h-3 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+            <span className="w-3 h-3 border border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
           )}
           Refresh
         </button>
       </div>
       {loading ? (
         <div className="flex justify-center py-8">
-          <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
         </div>
       ) : requests.length === 0 ? (
         <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center">
@@ -1704,7 +1721,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               key={r._id}
               onClick={() => setSelected(r)}
-              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
+              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-blue-500/#3b82f6/30 transition-all text-left"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -1712,7 +1729,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
                   <p className="text-xs text-white/60 font-mono truncate">{r.userEmail}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-black text-salvaGold text-sm">
+                  <p className="font-black text-blue-500/#3b82f6 text-sm">
                     {(r.mintAmountNgn || 0).toLocaleString()} NGNs
                   </p>
                   <span
@@ -1738,16 +1755,17 @@ const Dashboard = () => {
 
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem('salva_user');
+      const saved = localStorage.getItem('bnb_user');
       if (!saved) return null;
       const parsed = JSON.parse(saved);
       if (!parsed || !parsed.safeAddress) return null;
       return parsed;
     } catch {
-      localStorage.removeItem('salva_user');
+      localStorage.removeItem('bnb_user');
       return null;
     }
   });
+  const [deployState, setDeployState] = useState('checking'); // checking | need_deploy | need_pin | ready
 
   const [ngnsBalance, setBalance] = useState(null);
   const [cNgnBalance, setCNgnBalance] = useState(null);
@@ -1810,22 +1828,55 @@ const Dashboard = () => {
   );
   const closeNotif = useCallback(() => setNotification((n) => ({ ...n, show: false })), []);
 
+  // Get the base L2 user to know the email
+  const baseUser = (() => {
+    try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; }
+  })();
+
   useEffect(() => {
-    if (!user) navigate('/login', { replace: true });
-  }, [user, navigate]);
+    if (!baseUser?.email) {
+      navigate('/login', { replace: true });
+      return;
+    }
+    // Always verify against DB — localStorage may be stale
+    fetch(`${SALVA_API_URL}/api/bnb/status/${encodeURIComponent(baseUser.email)}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!d.deployed) {
+          localStorage.removeItem('bnb_user');
+          setUser(null);
+          setDeployState('need_deploy');
+        } else if (!d.hasPin) {
+          setDeployState('need_pin');
+        } else {
+          // Ensure bnb_user in localStorage is fresh
+          const saved = localStorage.getItem('bnb_user');
+          if (!saved) {
+            const bnbUser = {
+              email: baseUser.email,
+              username: baseUser.username,
+              safeAddress: d.safeAddress,
+              nameAlias: d.nameAlias || null,
+            };
+            localStorage.setItem('bnb_user', JSON.stringify(bnbUser));
+            setUser(bnbUser);
+          }
+          setDeployState('ready');
+        }
+      })
+      .catch(() => setDeployState('need_deploy'));
+  }, [baseUser?.email]);
 
   const refreshUserStatus = useCallback(async (email, currentUser) => {
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/status/${encodeURIComponent(email)}`);
+      const res = await fetch(`${SALVA_API_URL}/api/bnb/user-status/${encodeURIComponent(email)}`);
       if (!res.ok) return;
       const data = await res.json();
       const updated = {
         ...currentUser,
-        isValidator: data.isValidator,
         nameAlias: data.nameAlias,
-        isSeller: data.isSeller,
       };
-      localStorage.setItem('salva_user', JSON.stringify(updated));
+      localStorage.setItem('bnb_user', JSON.stringify(updated));
       setUser(updated);
     } catch {
       /* silently ignore */
@@ -1836,7 +1887,7 @@ const Dashboard = () => {
     if (!user?.email) return;
     try {
       const res = await fetch(
-        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`
+        `${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`
       );
       if (!res.ok) return;
       const data = await res.json();
@@ -1854,7 +1905,7 @@ const Dashboard = () => {
     if (!address) return;
     if (showSpinner) setBalanceLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/balance/${address}`);
+      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${address}`);
       if (!res.ok) return;
       const data = await res.json();
       setBalance(data.ngnsBalance ?? '0');
@@ -1871,10 +1922,10 @@ const Dashboard = () => {
       if (showSpinner) setBalanceLoading(false);
     }
   }, []);
-  const syncIncoming = useCallback(async (address) => {
+    const syncIncoming = useCallback(async (address) => {
     if (!address) return;
     try {
-      await fetch(`${SALVA_API_URL}/api/sync-incoming/${address}`);
+      await fetch(`${SALVA_API_URL}/api/sync-incoming/${address}?chain=bnb`);
     } catch {
       /* silently ignore */
     }
@@ -1926,7 +1977,7 @@ const Dashboard = () => {
 
   const fetchMeta = async () => {
     try {
-      const [regRes] = await Promise.all([fetch(`${SALVA_API_URL}/api/registries`)]);
+      const regRes = await fetch(`${SALVA_API_URL}/api/registries`);
       const regData = await regRes.json();
       const regsArray = Array.isArray(regData) ? regData : [];
       setRegistries(regsArray);
@@ -1942,7 +1993,8 @@ const Dashboard = () => {
       setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
       return;
     }
-    const cacheKey = `base_${coin}`;
+    // Cache key: coin only — fee doesn't depend on amount (pure gas cost)
+    const cacheKey = `bnb_${coin}`;
     const cached = feeEstimateCache.current[cacheKey];
     if (cached && Date.now() - cached.fetchedAt < 30_000) {
       setFeePreview({ ...cached.data, loading: false });
@@ -1950,7 +2002,7 @@ const Dashboard = () => {
     }
     setFeePreview((prev) => ({ ...prev, loading: true }));
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/estimate-fee?chain=base&coin=${coin}`);
+      const res  = await fetch(`${SALVA_API_URL}/api/estimate-fee?chain=bnb&coin=${coin}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Fee estimation failed');
       const preview = { feeNGN: data.feeNGN ?? 0, feeUsd: data.feeUsd ?? 0, loading: false };
@@ -1958,6 +2010,7 @@ const Dashboard = () => {
       setFeePreview(preview);
     } catch (err) {
       console.error('Fee estimate error:', err.message);
+      // Non-fatal — clear loading, show no fee rather than crashing
       setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
     }
   }, []);
@@ -2101,6 +2154,7 @@ const Dashboard = () => {
     resetSendForm();
     showMsg('Transaction queued — sending…', 'info');
     try {
+      console.log('Sending transfer with chain: bnb');
       const res = await fetch(`${SALVA_API_URL}/api/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2112,6 +2166,7 @@ const Dashboard = () => {
           registryAddress: capturedData.registryAddress || null,
           inputType: capturedData.inputType,
           coin: capturedData.coin,
+          chain: 'bnb',
           senderDisplayIdentifier: capturedData.displayIdentifier,
         }),
       });
@@ -2167,7 +2222,7 @@ const Dashboard = () => {
     if (transactionPin.length !== 4) return showMsg('PIN must be 4 digits', 'error');
     setLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+      const res = await fetch(`${SALVA_API_URL}/api/bnb/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin: transactionPin }),
@@ -2200,26 +2255,51 @@ const Dashboard = () => {
     }
   };
 
-  if (!user)
+  if (deployState === 'checking') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
-        <motion.div
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]"
-        >
-          Salva
-        </motion.div>
+        <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
+  }
+
+  if (deployState === 'need_deploy') {
+    return (
+      <BNBDeployWallet
+        user={baseUser}
+        onDeployed={(bnbUser) => {
+          setUser(bnbUser);
+          setDeployState('need_pin');
+        }}
+      />
+    );
+  }
+
+  if (deployState === 'need_pin') {
+    return (
+      <BNBSetPin
+        onPinSet={() => {
+          const saved = JSON.parse(localStorage.getItem('bnb_user') || '{}');
+          setUser(saved);
+          setDeployState('ready');
+        }}
+      />
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
+        <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   const tabs = [
     { id: 'buy', label: 'Buy / Sell NGNs' },
     { id: 'swap', label: 'Swap' },
     { id: 'deploy', label: 'Deploy Pool' },
     { id: 'names', label: 'Link a Name' },
-    ...(user.isValidator ? [{ id: 'admin', label: 'Admin' }] : []),
-    ...(user.isSeller ? [{ id: 'seller', label: 'Mint Requests' }] : []),
   ];
 
   // ── Icon map for the Bybit-style grid nav ─────────────────────────────────
@@ -2289,34 +2369,6 @@ const Dashboard = () => {
         <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
       </svg>
     ),
-    admin: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        <polyline points="9 12 11 14 15 10" />
-      </svg>
-    ),
-    seller: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        <circle cx="9" cy="10" r="0.5" fill="currentColor" />
-        <circle cx="12" cy="10" r="0.5" fill="currentColor" />
-        <circle cx="15" cy="10" r="0.5" fill="currentColor" />
-      </svg>
-    ),
   };
 
   const TAB_SHORT_LABELS = {
@@ -2324,8 +2376,6 @@ const Dashboard = () => {
     swap: 'Swap',
     deploy: 'Deploy Pool',
     names: 'Link Name',
-    admin: 'Admin',
-    seller: 'Requests',
   };
 
   const showRegistryDropdown = inputType === 'name';
@@ -2341,7 +2391,7 @@ const Dashboard = () => {
     selectedCoin === 'NGN' ? 'NGNs' : selectedCoin === 'CNGN' ? 'cNGN' : selectedCoin;
   const recipientNameError = false;
   const darkInput =
-    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-4 pb-16 relative overflow-x-hidden">
@@ -2350,9 +2400,6 @@ const Dashboard = () => {
         {/* ── Header ── */}
         <header className="mb-7 flex items-start justify-between gap-4">
           <div>
-            <p className="text-[8px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-1">
-              {user.isValidator ? 'Salva Validator' : 'Salva Citizen'}
-            </p>
             <h1 className="text-xl sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
             </h1>
@@ -2375,17 +2422,25 @@ const Dashboard = () => {
         {/* ── Chain Switcher ── */}
         <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.03]">
           <div className="flex items-center gap-1.5 flex-1">
-            <div className="w-5 h-5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[8px] font-black">B</span>
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-salvaGold">Base Chain</span>
+            <img
+              src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
+              className="w-5 h-5 rounded-full flex-shrink-0"
+              alt="BNB"
+            />
+            <span className="text-[10px] font-black uppercase tracking-widest text-yellow-400">
+              BNB Chain
+            </span>
           </div>
           <a
-            href="/bnb"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:border-yellow-500/30 transition-all"
+            href="/dashboard"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:border-blue-500/30 transition-all"
           >
-            <img src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png" className="w-4 h-4 rounded-full" alt="BNB" />
-            <span className="text-[9px] font-black uppercase tracking-widest text-white/60">BNB Chain</span>
+            <div className="w-4 h-4 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[7px] font-black">B</span>
+            </div>
+            <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
+              Base Chain
+            </span>
             <span className="text-white/40 text-[9px]">↗</span>
           </a>
         </div>
@@ -2396,49 +2451,40 @@ const Dashboard = () => {
             navigator.clipboard.writeText(user.safeAddress);
             showMsg('Wallet address copied!');
           }}
-          className="mb-3 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-2"
+          className="mb-3 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-blue-500/#3b82f6/20 transition-all flex items-center gap-2"
         >
-          <div className="w-7 h-7 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <svg
-              viewBox="0 0 111 111"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-5 h-5"
-            >
-              <path
-                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
-                fill="#0052FF"
-              />
-              <path
-                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
-                fill="#0052FF"
-              />
-              <path
-                d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z"
-                fill="white"
-              />
-            </svg>
+          <div className="w-7 h-7 rounded-lg bg-[#F0B90B] flex items-center justify-center flex-shrink-0 overflow-hidden">
+            <img
+              src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
+              className="w-5 h-5 rounded-full"
+              alt="BNB"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              Smart Wallet · Base
+              Smart Wallet · BNB Chain
             </p>
-            <p className="font-mono text-[10px] text-salvaGold/60 truncate mt-0.5">
-              {showBalance
-                ? <span>
-                    <span className="sm:hidden">{user.safeAddress.slice(0, 10)}…{user.safeAddress.slice(-6)}</span>
-                    <span className="hidden sm:inline">{user.safeAddress}</span>
+            <p className="font-mono text-[10px] text-blue-500/#3b82f6/60 truncate mt-0.5">
+              {showBalance ? (
+                <span>
+                  <span className="sm:hidden">
+                    {user.safeAddress.slice(0, 10)}…{user.safeAddress.slice(-6)}
                   </span>
-                : '0x••••••••••••••••••••••••••••••••••••••••'}
+                  <span className="hidden sm:inline">{user.safeAddress}</span>
+                </span>
+              ) : (
+                '0x••••••••••••••••••••••••••••••••••••••••'
+              )}
             </p>
           </div>
           <span className="text-[10px] text-white/60 flex-shrink-0">Copy</span>
         </div>
 
         {/* ── Transaction History link ── */}
-        <Link
-          to="/transactions"
-          className="flex items-center justify-between mb-4 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
+
+        <a
+          href="/transactions?chain=bnb"
+          className="flex items-center justify-between mb-4 px-2.5 py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-yellow-500/20 transition-all group"
         >
           <div className="flex items-center gap-3">
             <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
@@ -2448,10 +2494,10 @@ const Dashboard = () => {
               Transaction History
             </p>
           </div>
-          <span className="text-salvaGold text-sm group-hover:translate-x-0.5 transition-transform">
+          <span className="text-yellow-400 text-sm group-hover:translate-x-0.5 transition-transform">
             →
           </span>
-        </Link>
+        </a>
 
         {/* ── Account locked banner ── */}
         {isAccountLocked && (
@@ -2466,13 +2512,13 @@ const Dashboard = () => {
         <div className="mb-7">
           {/* ── Top separator ── */}
           <div className="relative flex items-center mb-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6 /30 to-transparent" />
             <div className="mx-3 flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
-              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/60 block" />
-              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
+              <span className="w-1 h-1 rounded-full bg-blue-500/#3b82f6 /40 block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 /60 block" />
+              <span className="w-1 h-1 rounded-full bg-blue-500/#3b82f6 /40 block" />
             </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6 /30 to-transparent" />
           </div>
           <div
             className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}
@@ -2493,21 +2539,23 @@ const Dashboard = () => {
                       transition-all duration-200 active:scale-95
                       ${
                         isActive
-                          ? 'bg-[#1C1C1E] ring-2 ring-salvaGold shadow-[0_0_18px_rgba(212,175,55,0.18)]'
+                          ? 'bg-[#1C1C1E] ring-2 ring-blue-500/#3b82f6  shadow-[0_0_18px_rgba(212,175,55,0.18)]'
                           : 'bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]'
                       }
                     `}
                   >
                     <span
                       className={`w-[15px] h-[15px] transition-colors duration-200 ${
-                        isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/65'
+                        isActive
+                          ? 'text-blue-500/#3b82f6 '
+                          : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
                       {TAB_ICONS[tab.id]}
                     </span>
                     {/* Active indicator dot beneath circle */}
                     {isActive && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-salvaGold" />
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500/#3b82f6 " />
                     )}
                   </div>
                   {/* Short label */}
@@ -2515,7 +2563,7 @@ const Dashboard = () => {
                     className={`
                       text-[7px] font-black uppercase tracking-[0.06em] leading-tight
                     text-center max-w-[48px] break-words transition-colors duration-200
-                      ${isActive ? 'text-salvaGold' : 'text-white/60 group-hover:text-white/50'}
+                      ${isActive ? 'text-blue-500/#3b82f6 ' : 'text-white/60 group-hover:text-white/50'}
                     `}
                   >
                     {TAB_SHORT_LABELS[tab.id] || tab.label}
@@ -2526,13 +2574,13 @@ const Dashboard = () => {
           </div>
           {/* ── Bottom separator ── */}
           <div className="relative flex items-center mt-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6 /20 to-transparent" />
             <div className="mx-3 flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
-              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/40 block" />
-              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
+              <span className="w-1 h-1 rounded-full bg-blue-500/#3b82f6 /30 block" />
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 /40 block" />
+              <span className="w-1 h-1 rounded-full bg-blue-500/#3b82f6 /30 block" />
             </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
+            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6 /20 to-transparent" />
           </div>
         </div>
         {/* ══ END ICON GRID NAV ══════════════════════════════════════════════ */}
@@ -2555,28 +2603,31 @@ const Dashboard = () => {
                     duration: 3,
                     ease: 'easeInOut',
                   }}
-                  className="w-16 h-16 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                  className="w-16 h-16 bg-blue-500/#3b82f6 /10 border border-blue-500/#3b82f6 /20 rounded-2xl flex items-center justify-center mx-auto mb-5"
                 >
-                  <span className="text-2xl font-black text-salvaGold">₦</span>
+                  <span className="text-2xl font-black text-blue-500/#3b82f6 ">₦</span>
                 </motion.div>
                 <h3 className="text-xl font-black mb-2">Buy / Sell NGNs</h3>
                 <p className="text-white/60 text-sm mb-5 max-w-xs leading-relaxed">
                   Purchase or sell Nigerian Naira stablecoin via our OTC desk.
                 </p>
-                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-salvaGold/10 border border-salvaGold/20">
-                  <span className="text-salvaGold">₦</span>
-                  <p className="text-[10px] font-black text-salvaGold uppercase tracking-widest">
+                <div className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-blue-500/10 border border-blue-500/20 mb-3">
+                  <span className="text-blue-400">₦</span>
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
                     Tap the ₦ button · bottom right
                   </p>
                 </div>
                 <a
-                  href="/bnb"
-                  className="mt-4 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-2xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
                 >
-                  <span className="text-[10px] font-black uppercase tracking-widest text-blue-400">
-                    Buy/Sell on BNB CHAIN
+                  <div className="w-4 h-4 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-[7px] font-black">B</span>
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-salvaGold">
+                    Buy/Sell on Base Chain
                   </span>
-                  <span className="text-blue-400 text-[11px]">↗</span>
+                  <span className="text-salvaGold text-[9px]">↗</span>
                 </a>
               </div>
             )}
@@ -2590,10 +2641,10 @@ const Dashboard = () => {
               />
             )}
 
-            {activeTab === 'swap' && <SwapTab user={user} showMsg={showMsg} />}
+            {activeTab === 'swap' && <BNBSwapTab user={user} showMsg={showMsg} />}
 
             {activeTab === 'deploy' && (
-              <DeployPool
+              <BNBDeployPool
                 user={user}
                 showMsg={showMsg}
                 onSwitchToLinkName={(poolAddress) => {
@@ -2601,13 +2652,6 @@ const Dashboard = () => {
                   setActiveTab('names');
                 }}
               />
-            )}
-
-            {activeTab === 'admin' && user.isValidator && (
-              <AdminPanel user={user} showMsg={showMsg} />
-            )}
-            {activeTab === 'seller' && user.isSeller && (
-              <SellerMintPanel user={user} showMsg={showMsg} />
             )}
           </motion.div>
         </AnimatePresence>
@@ -2635,17 +2679,17 @@ const Dashboard = () => {
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-white">Send</h3>
-                  <p className="text-[10px] text-salvaGold/60 uppercase tracking-[0.35em] font-black mt-0.5">
+                  <p className="text-[10px] text-blue-500/#3b82f6 /60 uppercase tracking-[0.35em] font-black mt-0.5">
                     Salva Secure Transfer
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsScanOpen(true)}
-                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-salvaGold/40 hover:bg-salvaGold/[0.06] transition-all flex items-center justify-center group mt-1"
+                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-blue-500/#3b82f6 hover:bg-blue-500/#3b82f6/[0.06] transition-all flex items-center justify-center group mt-1"
                 >
                   <svg
-                    className="w-5 h-5 text-white/60 group-hover:text-salvaGold transition-colors"
+                    className="w-5 h-5 text-white/60 group-hover:text-blue-500/#3b82f6 transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -2681,7 +2725,7 @@ const Dashboard = () => {
                         setTransferAmountDisplay('');
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-salvaGold text-black border-salvaGold' : 'border-white/10 text-white/60 hover:text-white/80'}`}
+                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-blue-500 text-white border-blue-500' : 'border-white/10 text-white/60 hover:text-white/80'}`}
                     >
                       {coin === 'NGN' ? 'NGNs' : coin}
                     </button>
@@ -2759,7 +2803,7 @@ const Dashboard = () => {
                         setTransferAmount(String(raw));
                         computeFeePreview(String(raw), selectedCoin);
                       }}
-                      className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
+                      className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
                     </button>
@@ -2779,7 +2823,7 @@ const Dashboard = () => {
                       }}
                       className={`${darkInput} text-lg pr-16 ${amountError ? 'border-red-500' : ''}`}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
                       {coinSymbol}
                     </span>
                   </div>
@@ -2831,7 +2875,7 @@ const Dashboard = () => {
                   className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
                     loading || amountError || !recipientInput
                       ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
-                      : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
+                      : 'bg-blue-500 text-white hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20'
                   }`}
                 >
                   {loading && (
@@ -2873,9 +2917,9 @@ const Dashboard = () => {
                 </p>
               </div>
               <div className="space-y-3 mb-6">
-                <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/15">
+                <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/15">
                   <p className="text-[10px] text-white/60 mb-1">Sending To</p>
-                  <p className="font-black text-sm text-salvaGold break-all leading-snug">
+                  <p className="font-black text-sm text-blue-400 break-all leading-snug">
                     {confirmationData.displayIdentifier}
                   </p>
                   <p className="font-mono text-[10px] text-white/60 mt-1 break-all">
@@ -2894,7 +2938,7 @@ const Dashboard = () => {
                       minDecimals: 0,
                       maxDecimals: 6,
                     })}{' '}
-                    <span className="text-salvaGold">
+                    <span className="text-blue-400">
                       {confirmationData.coin === 'NGN' ? 'NGNs' : confirmationData.coin}
                     </span>
                   </p>
@@ -2924,7 +2968,7 @@ const Dashboard = () => {
                     setTransactionPin('');
                     setPinAttempts(0);
                   }}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
+                  className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:brightness-110 transition-all"
                 >
                   Confirm & Sign
                 </button>
@@ -2953,7 +2997,7 @@ const Dashboard = () => {
               exit={{ opacity: 0, scale: 0.95 }}
             >
               <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
                   <span className="text-2xl">🔐</span>
                 </div>
                 <h3 className="text-2xl font-black mb-1 text-white">Transaction PIN</h3>
@@ -2968,7 +3012,7 @@ const Dashboard = () => {
                 onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
               />
               {pinAttempts > 0 && (
                 <p className="text-xs text-red-400 text-center mb-4 font-bold">
@@ -2986,10 +3030,10 @@ const Dashboard = () => {
                 <button
                   onClick={verifyPinAndProceed}
                   disabled={loading || transactionPin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   )}
                   {loading ? 'Verifying…' : 'Verify'}
                 </button>
@@ -3026,7 +3070,7 @@ const Dashboard = () => {
             >
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-7 sm:hidden" />
               <div className="text-center mb-7">
-                <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
+                <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/50 font-black mb-1">
                   Receive Funds
                 </p>
                 <h3 className="text-2xl font-black text-white">{user.username}</h3>
@@ -3039,8 +3083,8 @@ const Dashboard = () => {
                   }}
                   className="relative group cursor-pointer"
                 >
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-salvaGold/40 via-salvaGold/10 to-transparent blur-md group-hover:blur-lg transition-all" />
-                  <div className="relative p-4 rounded-2xl bg-white border-2 border-salvaGold/30 group-hover:border-salvaGold/60 transition-all shadow-2xl shadow-black">
+                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500/40 via-blue-500/10 to-transparent blur-md group-hover:blur-lg transition-all" />
+                  <div className="relative p-4 rounded-2xl bg-white border-2 border-blue-500/30 group-hover:border-blue-500/60 transition-all shadow-2xl shadow-black">
                     <QRCodeSVG
                       value={user.safeAddress}
                       size={188}
@@ -3062,19 +3106,19 @@ const Dashboard = () => {
                   navigator.clipboard.writeText(user.safeAddress);
                   showMsg('Address copied!');
                 }}
-                className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
+                className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-3"
               >
                 <div className="min-w-0 text-left">
                   <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
                     Wallet Address
                   </p>
-                  <p className="font-mono text-[10px] text-salvaGold/70 truncate">
+                  <p className="font-mono text-[10px] text-blue-400/70 truncate">
                     {user.safeAddress}
                   </p>
                 </div>
-                <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
+                <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
                   <svg
-                    className="w-3 h-3 text-white/60 group-hover:text-salvaGold transition-colors"
+                    className="w-3 h-3 text-white/60 group-hover:text-blue-400 transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -3093,17 +3137,17 @@ const Dashboard = () => {
                     navigator.clipboard.writeText(user.nameAlias);
                     showMsg('Name alias copied!');
                   }}
-                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-3"
+                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-3"
                 >
                   <div className="min-w-0 text-left">
                     <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
                       Name Alias
                     </p>
-                    <p className="font-black text-sm text-salvaGold">{user.nameAlias}</p>
+                    <p className="font-black text-sm text-blue-400">{user.nameAlias}</p>
                   </div>
-                  <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
+                  <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
                     <svg
-                      className="w-3 h-3 text-white/60 group-hover:text-salvaGold transition-colors"
+                      className="w-3 h-3 text-white/60 group-hover:text-blue-400 transition-colors"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -3146,7 +3190,7 @@ const Dashboard = () => {
       </AnimatePresence>
 
       {/* ── Floating Buy NGNs Chat ── */}
-      {!user.isSeller && activeTab === 'buy' && <SalvaNGNsChat user={user} />}
+      {!user.isSeller && activeTab === 'buy' && <SalvaNGNsChatBNB user={user} />}
 
       {/* ── Seller Mint Inbox ── */}
       {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}

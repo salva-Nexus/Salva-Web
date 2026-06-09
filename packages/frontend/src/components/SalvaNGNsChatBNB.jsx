@@ -1,4 +1,4 @@
-// Salva-Digital-Tech/packages/frontend/src/components/SalvaNGNsChat.jsx
+// Salva-Digital-Tech/packages/frontend/src/components/SalvaNGNsChatBNB.jsx
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import NetworkReminder, { useNetworkReminder } from './NetworkReminder';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -378,7 +378,7 @@ const SalvaNGNsChat = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState(null);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const { isDismissed } = useNetworkReminder('salva_reminder_buysell');
+  const { isDismissed } = useNetworkReminder('salva_reminder_buysell_bnb');
 
   // ── OTC Config ────────────────────────────────────────────────────────────
   const [otcConfig, setOtcConfig] = useState({
@@ -465,7 +465,7 @@ const SalvaNGNsChat = ({ user }) => {
   const fetchBalance = useCallback(async () => {
     if (!user?.safeAddress) return;
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`);
+      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`);
       const data = await res.json();
       setNgnBalance(parseFloat(data.ngnsBalance || 0));
     } catch {
@@ -540,6 +540,7 @@ const SalvaNGNsChat = ({ user }) => {
         body: JSON.stringify({
           safeAddress: user.safeAddress,
           amountNgn: amountRaw,
+          isL1: true,
         }),
       });
       const data = await res.json();
@@ -568,6 +569,8 @@ const SalvaNGNsChat = ({ user }) => {
           bankName,
           accountNumber,
           accountName,
+          isL1: true,
+          burnFromAddress: user.safeAddress,
         }),
       });
       const data = await res.json();
@@ -785,8 +788,8 @@ const SalvaNGNsChat = ({ user }) => {
       </div>
       {showNetworkReminder && (
         <NetworkReminder
-          chain="base"
-          storageKey="salva_reminder_buysell"
+          chain="bnb"
+          storageKey="salva_reminder_buysell_bnb"
           onContinue={() => {
             setShowNetworkReminder(false);
             setIsOpen(true);
