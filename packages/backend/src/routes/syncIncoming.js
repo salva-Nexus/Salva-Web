@@ -145,7 +145,7 @@ router.get('/:safeAddress', async (req, res) => {
       for (const log of logs) {
         const txHash = log.transactionHash;
 
-        // ── 3a. Deduplicate: skip if already in DB ───────────────────────────
+        // ── 3a. Deduplicate: skip if already in DB ──
         try {
           const exists = await Transaction.findOne({
             taskId: txHash,

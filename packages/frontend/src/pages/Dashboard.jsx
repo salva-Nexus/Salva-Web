@@ -516,8 +516,8 @@ const BalanceCard = ({
       <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
 
       {/* NGN — TOP */}
-      <div className="px-4 sm:px-7 pt-4 sm:pt-7 pb-3 sm:pb-4 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between mb-3">
+      <div className="px-4 sm:px-7 pt-3 sm:pt-7 pb-2.5 sm:pb-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between mb-1.5 sm:mb-3">
           <div className="flex items-center gap-1.5">
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
@@ -534,7 +534,7 @@ const BalanceCard = ({
           </button>
         </div>
 
-        <div className="min-h-[44px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
+        <div className="min-h-[36px] sm:min-h-[44px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
           {balanceLoading ? (
             <BalanceSpinner />
           ) : (
@@ -550,7 +550,7 @@ const BalanceCard = ({
         </div>
 
         {!balanceLoading && (
-          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
+          <div className="text-[10px] text-white/60 font-mono mt-1 sm:mt-2 truncate">
             {showBalance ? (
               <>
                 <SplitBalance value={ngnsBalance} inline /> <span className="opacity-60">NGNs</span>{' '}
@@ -565,8 +565,8 @@ const BalanceCard = ({
       </div>
 
       {/* USD — BOTTOM */}
-      <div className="px-4 sm:px-7 pt-3 sm:pt-4 pb-3 sm:pb-6">
-        <div className="flex items-center gap-1.5 mb-3">
+      <div className="px-4 sm:px-7 pt-2.5 sm:pt-4 pb-2.5 sm:pb-6">
+        <div className="flex items-center gap-1.5 mb-1.5 sm:mb-3">
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
@@ -575,7 +575,7 @@ const BalanceCard = ({
           <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
 
-        <div className="min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
+        <div className="min-h-[28px] sm:min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
           {balanceLoading ? (
             <BalanceSpinner />
           ) : (
@@ -591,7 +591,7 @@ const BalanceCard = ({
         </div>
 
         {!balanceLoading && (
-          <div className="text-[10px] text-white/60 font-mono mt-2 truncate">
+          <div className="text-[10px] text-white/60 font-mono mt-1 sm:mt-2 truncate">
             {showBalance ? (
               <>
                 <SplitBalance value={usdtBalance} inline /> <span className="opacity-60">USDT</span>{' '}
@@ -609,13 +609,13 @@ const BalanceCard = ({
       <div className="grid grid-cols-2 gap-2 sm:gap-3 px-4 sm:px-7 pb-4 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
+          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
         >
           <span className="text-base leading-none">↓</span> Receive
         </button>
