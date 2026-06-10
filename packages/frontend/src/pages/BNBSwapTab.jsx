@@ -9,13 +9,13 @@ import { SALVA_API_URL } from '../config';
 
 const POLL_MS = 60_000;
 
-// token: 'ngn' → 2 decimals, 'usd' → 4 decimals, fallback uses explicit d param
-// 'ngn' → 2 decimals (₦ amounts, rates), 'usd' → 4 decimals (stablecoin amounts)
 const fmt = (n, tokenType = 'ngn') => {
   const num = parseFloat(n || 0);
-  const d = tokenType === 'usd' ? 4 : 2;
-  if (!Number.isFinite(num) || num === 0) return `0.${'0'.repeat(d)}`;
-  const fixed = num.toFixed(d);
+  if (!Number.isFinite(num) || num === 0) return '0.00';
+  // Sub-threshold: greater than zero but less than 0.01
+  if (num > 0 && num < 0.01) return '<0.01';
+  // Normal display — always 2 decimals regardless of token type
+  const fixed = num.toFixed(2);
   const [intPart, decPart] = fixed.split('.');
   const formattedInt = Number(intPart).toLocaleString('en-US');
   return `${formattedInt}.${decPart}`;

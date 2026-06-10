@@ -211,34 +211,37 @@ const BalanceSpinner = () => (
   </span>
 );
 // ── Split Balance Display ──────────────────────────────────────────────────
-// Shows all 6 decimals; digits beyond the 3rd decimal position are dimmed
+// Shows 2 decimal places for both NGN and USD.
+// If balance is 0 → "0.00"
+// If balance is > 0 but < 0.01 → "<0.01" (Metamask-style)
+// If balance >= 0.01 → normal 2-decimal display
 const SplitBalance = ({ value, isusd = false, inline = false }) => {
   const num = Number(value || 0);
-  if (!Number.isFinite(num)) return <span>0</span>;
-
-  const fixed = num.toFixed(6);
-  const [intPart, decPart] = fixed.split('.');
-
-  const formattedInt = Number(intPart).toLocaleString('en-US');
-
-  // For USD show 2 solid + 4 dim, for NGN show 3 solid + 3 dim
-  const solidCount = isusd ? 2 : 3;
-  const solidDec = decPart.slice(0, solidCount);
-  const dimDec = decPart.slice(solidCount); // always 3 chars
-
-  if (inline) {
-    return (
-      <span>
-        {formattedInt}.{solidDec}
-        <span style={{ opacity: 0.3 }}>{dimDec}</span>
-      </span>
-    );
+  if (!Number.isFinite(num)) {
+    return inline ? <span>0.00</span> : <span>0.00</span>;
   }
+
+  // Sub-threshold: greater than zero but rounds to 0.00
+  if (num > 0 && num < 0.01) {
+    const tag = (
+      <span style={{ opacity: inline ? 0.8 : 1 }}>&lt;0.01</span>
+    );
+    return tag;
+  }
+
+  // Zero
+  if (num === 0) {
+    return <span>0.00</span>;
+  }
+
+  // Normal display — always 2 decimals
+  const fixed = num.toFixed(2);
+  const [intPart, decPart] = fixed.split('.');
+  const formattedInt = Number(intPart).toLocaleString('en-US');
 
   return (
     <span>
-      {formattedInt}.{solidDec}
-      <span style={{ opacity: 0.28, fontSize: '0.88em' }}>{dimDec}</span>
+      {formattedInt}.<span style={{ opacity: inline ? 0.6 : 1 }}>{decPart}</span>
     </span>
   );
 };
