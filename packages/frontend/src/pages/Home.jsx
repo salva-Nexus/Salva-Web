@@ -1174,7 +1174,7 @@ const Home = () => {
             },
             {
               q: 'How do I become a liquidity provider?',
-              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base (gasless relay) or BSC (direct MetaMask). Deploy your pool, add Naira or USD stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
+              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base (gasless relay) or BSC (direct MetaMask). Deploy your pool, add Naira Stablecoins or USD Stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
             },
             {
               q: 'What is a Salva name?',
