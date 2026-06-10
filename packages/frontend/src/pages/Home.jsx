@@ -224,8 +224,8 @@ const DEXVisual = () => {
       {/* Tabs */}
       <div className="flex gap-2 mb-4 relative">
         {[
-          { id: 'buy', label: 'Naira Stables → USD Stables', color: '#D4AF37' },
-          { id: 'sell', label: 'USD Stables → Naira Stables', color: '#22c55e' },
+          { id: 'buy', label: 'NGN → USD', color: '#D4AF37' },
+          { id: 'sell', label: 'USD → NGN', color: '#22c55e' },
         ].map((t) => (
           <button
             key={t.id}
@@ -901,7 +901,7 @@ const Home = () => {
           index={0}
           badge="🔄"
           tag="Salva V3 DEX"
-          title="Swap between Naira & USD Stablecoins Instantly."
+          title="Swap between Naira Stablecoins & USD Stablecoins Instantly."
           headline="Permissionless liquidity pools — anyone can be an LP."
           body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
           extContent={
