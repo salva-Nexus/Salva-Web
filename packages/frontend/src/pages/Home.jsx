@@ -224,8 +224,8 @@ const DEXVisual = () => {
       {/* Tabs */}
       <div className="flex gap-2 mb-4 relative">
         {[
-          { id: 'buy', label: 'Naira → USD Stable', color: '#D4AF37' },
-          { id: 'sell', label: 'USD Stable → Naira', color: '#22c55e' },
+          { id: 'buy', label: 'Naira Stables → USD Stables', color: '#D4AF37' },
+          { id: 'sell', label: 'USD Stables → Naira Stables', color: '#22c55e' },
         ].map((t) => (
           <button
             key={t.id}
@@ -577,14 +577,14 @@ const Ticker = () => {
   const items = [
     'V3 DEX Live',
     'Name Service Protocol',
-    'Naira Stablecoin',
+    'Naira Stablecoins',
     'Safe Smart Wallet',
     'Permissionless Pools',
     'Gasless Transactions',
     'On-Chain Identity',
     'LP Earn Fees',
     'Base + BNB Chain',
-    'Naira ↔ USD Stablecoins',
+    'Naira Stablecoins ↔ USD Stablecoins',
   ];
   return (
     <div className="overflow-hidden py-4 border-y border-black/[0.06] dark:border-white/[0.06] my-24 bg-black/[0.02] dark:bg-white/[0.02]">
@@ -1231,7 +1231,7 @@ const Home = () => {
             <h2 className="text-2xl sm:text-6xl font-black tracking-tighter text-black mb-4 leading-[0.9]">
               Claim Your Name.
               <br />
-              Swap Your Naira.
+              Swap Your Naira Stablecoins.
             </h2>
             <p className="text-black/55 text-sm sm:text-lg mb-7 max-w-lg mx-auto leading-relaxed">
               One wallet. DEX access. Naira stablecoin. Human-readable identity. All free to start.
