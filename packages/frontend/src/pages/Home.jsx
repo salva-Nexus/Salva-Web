@@ -125,14 +125,14 @@ const StatCard = ({ label, value, loading, decimals = 0, suffix = '' }) => {
       initial={{ opacity: 0, y: 32 }}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      className="relative group p-8 rounded-3xl border border-white/[0.07] dark:border-white/[0.07] border-black/[0.07] bg-white/[0.03] dark:bg-white/[0.03] overflow-hidden hover:border-salvaGold/30 transition-all duration-500"
+      className="relative group p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/[0.07] dark:border-white/[0.07] border-black/[0.07] bg-white/[0.03] dark:bg-white/[0.03] overflow-hidden hover:border-salvaGold/30 transition-all duration-500"
     >
       <div className="absolute inset-0 bg-gradient-to-br from-salvaGold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-3 opacity-60">
+      <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold font-black mb-2 opacity-60">
         {label}
       </p>
-      <h3 className="text-4xl sm:text-5xl font-black tracking-tighter">
+      <h3 className="text-3xl sm:text-5xl font-black tracking-tighter">
         {loading ? (
           <span className="opacity-20">—</span>
         ) : typeof value === 'number' ? (
@@ -626,27 +626,27 @@ const FeatureSection = ({
     <section
       id={id}
       ref={ref}
-      className={`flex flex-col ${fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-16 lg:gap-24 items-start py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
+      className={`flex flex-col ${fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-8 lg:gap-24 items-start py-14 sm:py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
     >
       <motion.div
         initial={{ opacity: 0, x: fromLeft ? -40 : 40 }}
         animate={inView ? { opacity: 1, x: 0 } : {}}
         transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="flex-1 space-y-7"
+        className="flex-1 space-y-4 sm:space-y-7"
       >
         <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-[0.35em] border border-salvaGold/30 text-salvaGold bg-salvaGold/5">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.35em] border border-salvaGold/30 text-salvaGold bg-salvaGold/5">
             {badge && <span>{badge}</span>}
             {tag}
           </span>
         </div>
         <div>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-[0.92] mb-4">
+          <h2 className="text-2xl sm:text-5xl font-black tracking-tighter leading-[0.92] mb-3">
             {title}
           </h2>
-          <p className="text-xl text-salvaGold font-bold opacity-75">{headline}</p>
+          <p className="text-base sm:text-xl text-salvaGold font-bold opacity-75">{headline}</p>
         </div>
-        <p className="text-base opacity-55 leading-relaxed">{body}</p>
+        <p className="text-sm sm:text-base opacity-55 leading-relaxed">{body}</p>
         <div className="space-y-4 text-sm leading-relaxed opacity-65">{extContent}</div>
         {cta && <div className="pt-2">{cta}</div>}
       </motion.div>
@@ -801,7 +801,7 @@ const Home = () => {
       {/* ── HERO ─────────────────────────────────────────────────────────── */}
       <motion.section
         style={{ opacity: heroOpacity, y: heroY, scale: heroScale }}
-        className="relative min-h-screen flex flex-col justify-center items-center text-center pt-28 pb-20 px-4 sm:px-6"
+        className="min-h-screen flex flex-col justify-center items-center text-center pt-20 pb-12 px-4 sm:px-6"
       >
         {/* Background glows */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
@@ -820,7 +820,7 @@ const Home = () => {
             initial={{ opacity: 0, y: 28 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15, duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[clamp(2.8rem,8.5vw,7.5rem)] font-black mb-6 tracking-tighter leading-[0.86] px-2"
+            className="text-[clamp(1.9rem,6vw,7.5rem)] font-black mb-6 tracking-tighter leading-[0.86] px-2"
           >
             ON-CHAIN
             <br />
@@ -833,7 +833,7 @@ const Home = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.9 }}
-            className="text-lg sm:text-xl md:text-2xl opacity-50 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
+            className="text-sm sm:text-xl md:text-2xl opacity-50 max-w-2xl mx-auto leading-relaxed mb-3 font-light"
           >
             DEX. Name Service. Naira Stablecoin. Smart Wallet.
           </motion.p>
@@ -850,25 +850,25 @@ const Home = () => {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.55, duration: 0.8 }}
-            className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-20"
+            className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-10"
           >
             <MagneticBtn
               onClick={() => navigate('/login')}
-              className="w-full sm:w-auto px-10 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              Create Free Wallet <ArrowUpRight size={15} />
+              Create Free Wallet <ArrowUpRight size={13} />
             </MagneticBtn>
             <MagneticBtn
               onClick={() => navigate('/login')}
-              className="w-full sm:w-auto px-10 py-4 border border-black/10 dark:border-white/10 font-bold rounded-2xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-7 py-3 border border-black/10 dark:border-white/10 font-bold rounded-xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              Open DEX <ArrowUpRight size={15} />
+              Open DEX <ArrowUpRight size={13} />
             </MagneticBtn>
             <MagneticBtn
               onClick={() =>
                 document.getElementById('explore-dex')?.scrollIntoView({ behavior: 'smooth' })
               }
-              className="w-full sm:w-auto px-10 py-4 border border-black/10 dark:border-white/10 font-bold rounded-2xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-sm uppercase tracking-widest"
+              className="w-full sm:w-auto px-7 py-3 border border-black/10 dark:border-white/10 font-bold rounded-xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-xs uppercase tracking-widest"
             >
               Explore V3 ↓
             </MagneticBtn>
@@ -908,14 +908,14 @@ const Home = () => {
             <div className="space-y-4">
               <p>
                 <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
-                own pool, add Naira or USD stablecoins, set your buy/sell rates, get
-                listed on the swap marketplace. Earn on every swap through your spread.
+                own pool, add Naira or USD stablecoins, set your buy/sell rates, get listed on the
+                swap marketplace. Earn on every swap through your spread.
               </p>
               <p>
                 <strong className="text-black dark:text-white">Two chains. One marketplace.</strong>{' '}
-                Pools benefit from ultra-low fees and fast confirmations. Pools on BSC
-                offer direct access to the broadest liquidity ecosystem. Both are listed
-                side-by-side on the swap marketplace.
+                Pools benefit from ultra-low fees and fast confirmations. Pools on BSC offer direct
+                access to the broadest liquidity ecosystem. Both are listed side-by-side on the swap
+                marketplace.
               </p>
             </div>
           }
@@ -993,8 +993,8 @@ const Home = () => {
               </p>
               <p>
                 <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
-                Naira stablecoins. Swap on the DEX. Register names. Become an LP. All
-                from the same wallet, all gasless.
+                Naira stablecoins. Swap on the DEX. Register names. Become an LP. All from the same
+                wallet, all gasless.
               </p>
             </div>
           }
@@ -1057,7 +1057,7 @@ const Home = () => {
           </p>
           <h2 className="text-4xl sm:text-5xl font-black tracking-tighter mb-16">How It Works</h2>
         </motion.div>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             {
               n: '01',
@@ -1086,14 +1086,14 @@ const Home = () => {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-50px' }}
               transition={{ duration: 0.7, delay: i * 0.1 }}
-              className="relative p-7 rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] hover:border-salvaGold/30 hover:bg-salvaGold/[0.02] transition-all group text-left"
+              className="relative p-4 sm:p-7 rounded-2xl sm:rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] hover:border-salvaGold/30 hover:bg-salvaGold/[0.02] transition-all group text-left"
             >
               <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="text-5xl font-black text-salvaGold/10 group-hover:text-salvaGold/25 transition-colors block mb-5">
+              <span className="text-3xl sm:text-5xl font-black text-salvaGold/10 group-hover:text-salvaGold/25 transition-colors block mb-3">
                 {step.n}
               </span>
-              <h4 className="font-black text-base mb-2">{step.title}</h4>
-              <p className="text-xs opacity-45 leading-relaxed">{step.desc}</p>
+              <h4 className="font-black text-sm mb-1.5">{step.title}</h4>
+              <p className="text-[10px] sm:text-xs opacity-45 leading-relaxed">{step.desc}</p>
             </motion.div>
           ))}
         </div>
@@ -1106,7 +1106,7 @@ const Home = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.9 }}
-          className="relative p-10 sm:p-16 rounded-[3rem] border border-salvaGold/15 overflow-hidden"
+          className="relative p-6 sm:p-16 rounded-[2rem] sm:rounded-[3rem] border border-salvaGold/15 overflow-hidden"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-salvaGold/6 via-transparent to-salvaGold/3" />
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.06),transparent)]" />
@@ -1115,15 +1115,15 @@ const Home = () => {
             <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-5 opacity-60">
               What's new on V3
             </p>
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter mb-5">
+            <h2 className="text-2xl sm:text-5xl font-black tracking-tighter mb-4">
               Permissionless DEX.
               <br />
               <span className="text-salvaGold">Anyone can be an LP.</span>
             </h2>
-            <p className="text-base sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-12">
-              Deploy a liquidity pool, fund it with Naira or USD stablecoins, and set
-              your rate. Your pool earns on every swap through your bid-ask spread. Fully on-chain.
-              Fully permissionless.
+            <p className="text-sm sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-8">
+              Deploy a liquidity pool, fund it with Naira or USD stablecoins, and set your rate.
+              Your pool earns on every swap through your bid-ask spread. Fully on-chain. Fully
+              permissionless.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
@@ -1205,7 +1205,7 @@ const Home = () => {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.9 }}
-          className="relative p-12 sm:p-20 rounded-[3rem] bg-salvaGold overflow-hidden text-center"
+          className="relative p-7 sm:p-20 rounded-[2rem] sm:rounded-[3rem] bg-salvaGold overflow-hidden text-center"
         >
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.2),transparent)]" />
           <motion.div
@@ -1228,27 +1228,27 @@ const Home = () => {
             <p className="text-black/50 font-black text-[10px] uppercase tracking-[0.45em] mb-4">
               V3 is live — start now
             </p>
-            <h2 className="text-4xl sm:text-6xl font-black tracking-tighter text-black mb-5 leading-[0.9]">
+            <h2 className="text-2xl sm:text-6xl font-black tracking-tighter text-black mb-4 leading-[0.9]">
               Claim Your Name.
               <br />
               Swap Your Naira.
             </h2>
-            <p className="text-black/55 text-base sm:text-lg mb-10 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access. Naira stablecoin. Human-readable identity. All
-              free to start. Under two minutes.
+            <p className="text-black/55 text-sm sm:text-lg mb-7 max-w-lg mx-auto leading-relaxed">
+              One wallet. DEX access. Naira stablecoin. Human-readable identity. All free to start.
+              Under two minutes.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => navigate('/login')}
-                className="inline-flex items-center justify-center gap-2 px-12 py-5 bg-black text-salvaGold font-black rounded-2xl hover:bg-zinc-900 active:scale-95 transition-all text-sm uppercase tracking-widest shadow-2xl shadow-black/30"
+                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-salvaGold font-black rounded-xl hover:bg-zinc-900 active:scale-95 transition-all text-xs uppercase tracking-widest shadow-2xl shadow-black/30"
               >
-                Get Started Free <ArrowUpRight size={16} />
+                Get Started Free <ArrowUpRight size={14} />
               </button>
               <button
                 onClick={() => navigate('/login')}
-                className="inline-flex items-center justify-center gap-2 px-10 py-5 border-2 border-black/20 text-black font-black rounded-2xl hover:border-black/40 hover:bg-black/5 active:scale-95 transition-all text-sm uppercase tracking-widest"
+                className="inline-flex items-center justify-center gap-2 px-7 py-4 border-2 border-black/20 text-black font-black rounded-xl hover:border-black/40 hover:bg-black/5 active:scale-95 transition-all text-xs uppercase tracking-widest"
               >
-                Open DEX <ArrowUpRight size={16} />
+                Open DEX <ArrowUpRight size={14} />
               </button>
             </div>
           </div>

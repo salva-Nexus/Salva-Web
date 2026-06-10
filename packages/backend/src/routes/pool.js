@@ -928,16 +928,21 @@ router.get('/published', async (req, res) => {
       { isPublished: false }
     );
 
-    const query = { isPublished: true, deleted: false };
+    let pools;
     if (search?.trim()) {
       const s = search.trim();
-      query.$or = [
-        { poolAddress: { $regex: s, $options: 'i' } },
-        { poolName: { $regex: s, $options: 'i' } },
-      ];
+      // Search includes unsubscribed pools — user is deliberately looking for a specific pool
+      pools = await Pool.find({
+        deleted: false,
+        $or: [
+          { poolAddress: { $regex: s, $options: 'i' } },
+          { poolName: { $regex: s, $options: 'i' } },
+        ],
+      });
+    } else {
+      // No search — only show subscribed pools in the public marketplace
+      pools = await Pool.find({ isPublished: true, deleted: false });
     }
-
-    const pools = await Pool.find(query);
 
     const enriched = await Promise.all(
       pools.map(async (p) => {
@@ -1754,16 +1759,21 @@ router.get('/l1/published', async (req, res) => {
       { isPublished: false }
     );
 
-    const query = { isPublished: true, deleted: false };
+    let pools;
     if (search?.trim()) {
       const s = search.trim();
-      query.$or = [
-        { poolAddress: { $regex: s, $options: 'i' } },
-        { poolName: { $regex: s, $options: 'i' } },
-      ];
+      // Search includes unsubscribed pools — user is deliberately looking for a specific pool
+      pools = await PoolL1.find({
+        deleted: false,
+        $or: [
+          { poolAddress: { $regex: s, $options: 'i' } },
+          { poolName: { $regex: s, $options: 'i' } },
+        ],
+      });
+    } else {
+      // No search — only show subscribed pools in the public marketplace
+      pools = await PoolL1.find({ isPublished: true, deleted: false });
     }
-
-    const pools = await PoolL1.find(query);
 
     const enriched = await Promise.all(
       pools.map(async (p) => {

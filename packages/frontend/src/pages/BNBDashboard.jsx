@@ -442,55 +442,141 @@ const RegistryDropdown = ({
 // ── Notification ───────────────────────────────────────────────────────────
 const SalvaNotification = ({ notification, onClose }) => {
   const cfgMap = {
-    success: { icon: '✓', bar: '#D4AF37', btnBg: '#D4AF37', btnText: '#000' },
-    error: { icon: '✕', bar: '#EF4444', btnBg: '#EF4444', btnText: '#fff' },
-    info: {
-      icon: '↻',
-      bar: '#3B82F6',
-      btnBg: 'rgba(255,255,255,0.15)',
+    success: {
+      icon: '✓',
+      accent: '#3b82f6',
+      iconBg: 'rgba(59,130,246,0.15)',
+      iconBorder: 'rgba(59,130,246,0.35)',
+      iconColor: '#3b82f6',
+      btnBg: '#3b82f6',
       btnText: '#fff',
+      glow: 'rgba(59,130,246,0.12)',
+      label: 'Success',
     },
-    warning: { icon: '⚠', bar: '#F59E0B', btnBg: '#F59E0B', btnText: '#000' },
+    error: {
+      icon: '✕',
+      accent: '#EF4444',
+      iconBg: 'rgba(239,68,68,0.12)',
+      iconBorder: 'rgba(239,68,68,0.30)',
+      iconColor: '#EF4444',
+      btnBg: '#EF4444',
+      btnText: '#fff',
+      glow: 'rgba(239,68,68,0.10)',
+      label: 'Error',
+    },
+    info: {
+      icon: 'ℹ',
+      accent: '#3B82F6',
+      iconBg: 'rgba(59,130,246,0.12)',
+      iconBorder: 'rgba(59,130,246,0.30)',
+      iconColor: '#60a5fa',
+      btnBg: 'rgba(59,130,246,0.20)',
+      btnText: '#93c5fd',
+      glow: 'rgba(59,130,246,0.08)',
+      label: 'Info',
+    },
+    warning: {
+      icon: '⚠',
+      accent: '#F59E0B',
+      iconBg: 'rgba(245,158,11,0.12)',
+      iconBorder: 'rgba(245,158,11,0.30)',
+      iconColor: '#F59E0B',
+      btnBg: '#F59E0B',
+      btnText: '#000',
+      glow: 'rgba(245,158,11,0.08)',
+      label: 'Warning',
+    },
   };
   const cfg = cfgMap[notification.type] || cfgMap.info;
   if (!notification.show) return null;
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
       <motion.div
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/80 backdrop-blur-md"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
       <motion.div
-        className="relative w-full max-w-xs bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl"
-        initial={{ opacity: 0, scale: 0.85, y: 20 }}
+        className="relative w-full max-w-xs overflow-hidden"
+        style={{
+          borderRadius: '28px',
+          background: 'linear-gradient(145deg, rgba(28,28,30,0.98), rgba(18,18,20,0.99))',
+          border: `1px solid rgba(255,255,255,0.07)`,
+          boxShadow: `0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06)`,
+        }}
+        initial={{ opacity: 0, scale: 0.88, y: 24 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.85, y: 20 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+        exit={{ opacity: 0, scale: 0.88, y: 24 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 30 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ height: 4, background: cfg.bar }} />
-        <div className="p-7 text-center">
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ background: cfg.bar }}
+        {/* Top accent line */}
+        <div
+          style={{
+            height: 2,
+            background: `linear-gradient(90deg, transparent, ${cfg.accent}, transparent)`,
+          }}
+        />
+
+        {/* Glow blob behind icon */}
+        <div
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full pointer-events-none"
+          style={{ background: cfg.glow, filter: 'blur(32px)', top: '-16px' }}
+        />
+
+        <div className="relative px-7 pt-8 pb-7 text-center">
+          {/* Type label */}
+          <p
+            className="text-[9px] uppercase tracking-[0.45em] font-black mb-4 opacity-60"
+            style={{ color: cfg.accent }}
           >
-            <span className="text-xl font-black" style={{ color: cfg.btnText }}>
+            {cfg.label}
+          </p>
+
+          {/* Icon */}
+          <motion.div
+            initial={{ scale: 0, rotate: -10 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 22, delay: 0.06 }}
+            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+            style={{
+              background: cfg.iconBg,
+              border: `1.5px solid ${cfg.iconBorder}`,
+              boxShadow: `0 8px 24px ${cfg.glow}`,
+            }}
+          >
+            <span className="text-2xl font-black leading-none" style={{ color: cfg.iconColor }}>
               {cfg.icon}
             </span>
-          </div>
-          <p className="font-black text-sm leading-relaxed mb-6 text-white">
-            {notification.message}
-          </p>
-          <button
-            onClick={onClose}
-            className="w-full py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95"
-            style={{ background: cfg.btnBg, color: cfg.btnText }}
+          </motion.div>
+
+          {/* Message */}
+          <motion.p
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="font-black text-sm leading-relaxed mb-6 text-white/90"
           >
-            OK
-          </button>
+            {notification.message}
+          </motion.p>
+
+          {/* Button */}
+          <motion.button
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.14 }}
+            onClick={onClose}
+            className="w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.97] hover:brightness-110"
+            style={{
+              background: cfg.btnBg,
+              color: cfg.btnText,
+              boxShadow: `0 4px 16px ${cfg.glow}`,
+            }}
+          >
+            Got it
+          </motion.button>
         </div>
       </motion.div>
     </div>
@@ -768,7 +854,13 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     if (pinInput.length !== 4) return;
     setPinLoading(true);
     try {
-      const baseUser = (() => { try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; } })();
+      const baseUser = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('salva_user') || 'null');
+        } catch {
+          return null;
+        }
+      })();
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -860,7 +952,13 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     if (unlinkPinInput.length !== 4 || !unlinkTarget) return;
     setUnlinkLoading(true);
     try {
-      const baseUser = (() => { try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; } })();
+      const baseUser = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('salva_user') || 'null');
+        } catch {
+          return null;
+        }
+      })();
       const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1831,7 +1929,11 @@ const Dashboard = () => {
 
   // Get the base L2 user to know the email
   const baseUser = (() => {
-    try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; }
+    try {
+      return JSON.parse(localStorage.getItem('salva_user') || 'null');
+    } catch {
+      return null;
+    }
   })();
 
   useEffect(() => {
@@ -1923,7 +2025,7 @@ const Dashboard = () => {
       if (showSpinner) setBalanceLoading(false);
     }
   }, []);
-    const syncIncoming = useCallback(async (address) => {
+  const syncIncoming = useCallback(async (address) => {
     if (!address) return;
     try {
       await fetch(`${SALVA_API_URL}/api/sync-incoming/${address}?chain=bnb`);
@@ -1973,15 +2075,22 @@ const Dashboard = () => {
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? '0'));
 
       // Fee exceeds amount check
-      const fee = (selectedCoin === 'NGN' || selectedCoin === 'CNGN')
-        ? feePreview.feeNGN
-        : feePreview.feeUsd;
+      const fee =
+        selectedCoin === 'NGN' || selectedCoin === 'CNGN' ? feePreview.feeNGN : feePreview.feeUsd;
       setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && fee >= amt);
     } else {
       setAmountError(false);
       setFeeExceedsAmount(false);
     }
-  }, [transferAmount, ngnsBalance, cNgnBalance, usdtBalance, usdcBalance, selectedCoin, feePreview]);
+  }, [
+    transferAmount,
+    ngnsBalance,
+    cNgnBalance,
+    usdtBalance,
+    usdcBalance,
+    selectedCoin,
+    feePreview,
+  ]);
 
   const fetchMeta = async () => {
     try {
@@ -2010,7 +2119,7 @@ const Dashboard = () => {
     }
     setFeePreview((prev) => ({ ...prev, loading: true }));
     try {
-      const res  = await fetch(`${SALVA_API_URL}/api/estimate-fee?chain=bnb&coin=${coin}`);
+      const res = await fetch(`${SALVA_API_URL}/api/estimate-fee?chain=bnb&coin=${coin}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Fee estimation failed');
       const preview = { feeNGN: data.feeNGN ?? 0, feeUsd: data.feeUsd ?? 0, loading: false };
@@ -2180,41 +2289,57 @@ const Dashboard = () => {
       });
       const data = await res.json();
       if (res.ok && data.queued) {
-        showMsg('⏳ Transaction queued — processing…', 'info');
-        // Poll for completion — check every 6s, up to ~3 minutes
-        let attempts = 0;
-        const maxAttempts = 30;
-        const pollInterval = setInterval(async () => {
-          attempts++;
-          try {
-            // Trigger processor
-            await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
-              method: 'POST',
-            }).catch(() => {});
-            // Check tx history for a new successful tx
-            const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
-            const txData = await txRes.json();
-            const hasPending =
-              Array.isArray(txData) && txData.some((tx) => tx.displayType === 'pending');
-            const hasNewSuccess =
-              Array.isArray(txData) &&
-              txData.some(
-                (tx) =>
-                  tx.displayType === 'sent' && new Date(tx.date) > new Date(Date.now() - 300_000) // within last 5 min
-              );
-            if (!hasPending && hasNewSuccess) {
-              clearInterval(pollInterval);
-              showMsg('✅ Transfer Successful!');
-              fetchBalance(user.safeAddress);
-            } else if (attempts >= maxAttempts) {
-              clearInterval(pollInterval);
-              // Still show balance refresh even if we timed out polling
-              fetchBalance(user.safeAddress);
-            }
-          } catch {
-            // ignore poll errors
-          }
-        }, 6000);
+  showMsg('⏳ Transaction queued — processing…', 'info');
+  let attempts = 0;
+  const maxAttempts = 30;
+  const queuedAt = Date.now();
+  const pollInterval = setInterval(async () => {
+    attempts++;
+    try {
+      // Trigger processor
+      await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
+        method: 'POST',
+      }).catch(() => {});
+      // Fetch transaction history
+      const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
+      const txData = await txRes.json();
+      if (!Array.isArray(txData)) return;
+
+      // Recent window — transactions created after we queued this one
+      const recentCutoff = new Date(queuedAt - 10_000); // 10s grace for clock skew
+
+      const hasPending = txData.some((tx) => tx.displayType === 'pending');
+
+      const hasNewSuccess = txData.some(
+        (tx) => tx.displayType === 'sent' && new Date(tx.date) > recentCutoff
+      );
+
+      // FAILED_ONCHAIN entries come back as displayType === 'failed'
+      const hasNewFailure = txData.some(
+        (tx) => tx.displayType === 'failed' && new Date(tx.date) > recentCutoff
+      );
+
+      if (hasNewSuccess) {
+        clearInterval(pollInterval);
+        showMsg('✅ Transfer Successful!');
+        fetchBalance(user.safeAddress);
+      } else if (hasNewFailure) {
+        clearInterval(pollInterval);
+        showMsg('Transaction failed — insufficient gas or on-chain error. Please check your BNB balance and try again.', 'error');
+        fetchBalance(user.safeAddress);
+      } else if (!hasPending && attempts >= 5) {
+        // No pending, no success, no explicit failure after 30s — something went wrong silently
+        clearInterval(pollInterval);
+        showMsg('Transaction status unclear — check your transaction history.', 'warning');
+        fetchBalance(user.safeAddress);
+      } else if (attempts >= maxAttempts) {
+        clearInterval(pollInterval);
+        fetchBalance(user.safeAddress);
+      }
+    } catch {
+      // ignore transient poll errors
+    }
+  }, 6000);
       } else if (res.ok) {
         showMsg('✅ Transfer Successful!');
         fetchBalance(user.safeAddress);
@@ -2843,7 +2968,9 @@ const Dashboard = () => {
                   {(selectedCoin === 'NGN' || selectedCoin === 'CNGN') &&
                     transferAmount &&
                     !amountError && (
-                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
+                      <div
+                        className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                      >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2866,7 +2993,9 @@ const Dashboard = () => {
                   {(selectedCoin === 'USDT' || selectedCoin === 'USDC') &&
                     transferAmount &&
                     !amountError && (
-                      <div className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}>
+                      <div
+                        className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                      >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
@@ -2888,7 +3017,13 @@ const Dashboard = () => {
                     )}
                 </div>
                 <button
-                  disabled={loading || amountError || feeExceedsAmount || !recipientInput || recipientNameError}
+                  disabled={
+                    loading ||
+                    amountError ||
+                    feeExceedsAmount ||
+                    !recipientInput ||
+                    recipientNameError
+                  }
                   type="submit"
                   className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
                     loading || amountError || !recipientInput

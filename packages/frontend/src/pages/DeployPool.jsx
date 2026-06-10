@@ -291,18 +291,19 @@ const SubBadge = ({ pool }) => {
   const days = Math.ceil(msLeft / 864e5);
   const timeLabel = mins < 60 ? `${mins}m` : hours < 24 ? `${hours}h` : `${days}d`;
 
-  if (!active) {
+  // Paused always shows regardless of subscription state
+  if (pool.isPaused) {
     return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
-        Unpublished
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
+        {active ? `Paused · ${timeLabel} left` : 'Paused'}
       </span>
     );
   }
 
-  if (pool.isPaused) {
+  if (!active) {
     return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
-        Paused · {timeLabel} left
+      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
+        Unpublished
       </span>
     );
   }
