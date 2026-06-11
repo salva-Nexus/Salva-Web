@@ -15,7 +15,7 @@ const AccountSettings = () => {
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
   const [pinStatus, setPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
-  const [bnbPinStatus, setBnbPinStatus] = useState({ hasPin: false });
+  const [bnbPinStatus, setBnbPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
 
   // New State for Modern Confirmation Cards
   const [confirmDialog, setConfirmDialog] = useState({
@@ -26,6 +26,14 @@ const AccountSettings = () => {
   });
 
   const navigate = useNavigate();
+  const [location] = React.useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('from') || 'base';
+    } catch {
+      return 'base';
+    }
+  });
+  const backPath = location === 'bnb' ? '/bnb' : '/dashboard';
 
   useEffect(() => {
     const savedUser = localStorage.getItem('salva_user');
@@ -37,7 +45,11 @@ const AccountSettings = () => {
         // Check BNB pin status
         fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(parsedUser.email)}`)
           .then((r) => r.json())
-          .then((d) => setBnbPinStatus(d))
+          .then((d) => setBnbPinStatus({
+            hasPin: !!d.hasPin,
+            isLocked: d.isLocked || false,
+            lockedUntil: d.lockedUntil || null,
+          }))
           .catch(() => {});
       } catch (error) {
         navigate('/login');
@@ -129,7 +141,7 @@ const AccountSettings = () => {
     }
 
     if (
-      activeModal === 'pin' &&
+      (activeModal === 'pin' || activeModal === 'bnbpin') &&
       (formData.newValue.length !== 4 || !/^\d{4}$/.test(formData.newValue))
     ) {
       showMsg('PIN must be exactly 4 digits', 'error');
@@ -141,7 +153,16 @@ const AccountSettings = () => {
       pinStatus.hasPin &&
       (!formData.oldPin || formData.oldPin.length !== 4)
     ) {
-      showMsg('Old PIN must be exactly 4 digits', 'error');
+      showMsg('Old Base PIN must be exactly 4 digits', 'error');
+      return;
+    }
+
+    if (
+      activeModal === 'bnbpin' &&
+      bnbPinStatus.hasPin &&
+      (!formData.oldPin || formData.oldPin.length !== 4)
+    ) {
+      showMsg('Old BNB PIN must be exactly 4 digits', 'error');
       return;
     }
 
@@ -164,6 +185,7 @@ const AccountSettings = () => {
           : { email: user.email, pin: formData.newValue };
         break;
       case 'bnbpin':
+        // BNB PIN is completely independent from Base PIN
         endpoint = bnbPinStatus.hasPin ? '/api/bnb/reset-pin' : '/api/bnb/set-pin';
         body = bnbPinStatus.hasPin
           ? { email: user.email, oldPin: formData.oldPin, newPin: formData.newValue }
@@ -200,13 +222,23 @@ const AccountSettings = () => {
         }
 
         if (data.lockedUntil) {
-          setPinStatus((prev) => ({ ...prev, isLocked: true, lockedUntil: data.lockedUntil }));
+          if (activeModal === 'pin') {
+            setPinStatus((prev) => ({ ...prev, isLocked: true, lockedUntil: data.lockedUntil }));
+          } else if (activeModal === 'bnbpin') {
+            setBnbPinStatus((prev) => ({ ...prev, isLocked: true, lockedUntil: data.lockedUntil }));
+          }
         }
 
         closeModal();
 
         if (activeModal === 'pin' && !pinStatus.hasPin) {
           checkPinStatus(user.email);
+        }
+        if (activeModal === 'bnbpin' && !bnbPinStatus.hasPin) {
+          fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`)
+            .then((r) => r.json())
+            .then((d) => setBnbPinStatus({ hasPin: !!d.hasPin, isLocked: d.isLocked || false, lockedUntil: d.lockedUntil || null }))
+            .catch(() => {});
         }
       } else {
         showMsg(data.message || 'Update failed', 'error');
@@ -223,6 +255,12 @@ const AccountSettings = () => {
   const requiresOTP = ['email', 'password', 'pin', 'bnbpin'].includes(activeModal);
   const isFirstTimePin = activeModal === 'pin' && !pinStatus.hasPin;
   const isResetPin = activeModal === 'pin' && pinStatus.hasPin;
+  const isFirstTimeBnbPin = activeModal === 'bnbpin' && !bnbPinStatus.hasPin;
+  const isResetBnbPin = activeModal === 'bnbpin' && bnbPinStatus.hasPin;
+  // PIN modals always show old PIN field if resetting — lockdown doesn't block PIN change
+  const isPinModal = activeModal === 'pin' || activeModal === 'bnbpin';
+  const isAnyFirstTimePin = isFirstTimePin || isFirstTimeBnbPin;
+  const isAnyResetPin = isResetPin || isResetBnbPin;
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-hidden">
@@ -230,7 +268,7 @@ const AccountSettings = () => {
 
       <div className="max-w-2xl mx-auto relative z-10">
         <Link
-          to="/dashboard"
+          to={backPath}
           className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-salvaGold hover:opacity-60 mb-8 font-bold"
         >
           <ArrowLeft size={16} /> Back to Dashboard
@@ -400,7 +438,7 @@ const AccountSettings = () => {
                 exit={{ opacity: 0, scale: 0.95 }}
               >
                 {/* Step 1: Warning */}
-                {modalStep === 1 && requiresOTP && !isFirstTimePin && (
+                {modalStep === 1 && requiresOTP && !isAnyFirstTimePin && (
                   <div className="text-center">
                     <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-6 mx-auto">
                       <AlertTriangle className="text-salvaGold" size={32} />
@@ -463,18 +501,18 @@ const AccountSettings = () => {
                 )}
 
                 {/* Step 3: Input Fields */}
-                {(modalStep === 3 || (isFirstTimePin && modalStep === 1)) && (
+                {(modalStep === 3 || (isAnyFirstTimePin && modalStep === 1)) && (
                   <>
                     <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
                       <CheckCircle2 className="text-salvaGold" />
-                      Update {activeModal}
+                      {activeModal === 'bnbpin' ? 'Update BNB PIN' : activeModal === 'pin' ? 'Update Base PIN' : `Update ${activeModal}`}
                     </h3>
 
                     <div className="space-y-4 mb-8">
-                      {isResetPin && (
+                      {isAnyResetPin && (
                         <div className="space-y-2">
                           <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
-                            Current PIN
+                            Current {activeModal === 'bnbpin' ? 'BNB' : 'Base'} PIN
                           </label>
                           <input
                             type="password"
@@ -495,49 +533,45 @@ const AccountSettings = () => {
 
                       <div className="space-y-2">
                         <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
-                          New {activeModal}
+                          New {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''} PIN
                         </label>
                         <input
-                          type={['password', 'pin'].includes(activeModal) ? 'password' : 'text'}
-                          inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
-                          maxLength={activeModal === 'pin' ? 4 : undefined}
-                          placeholder={activeModal === 'pin' ? '••••' : `Enter new ${activeModal}`}
+                          type={isPinModal ? 'password' : (activeModal === 'password' ? 'password' : 'text')}
+                          inputMode={isPinModal ? 'numeric' : 'text'}
+                          maxLength={isPinModal ? 4 : undefined}
+                          placeholder={isPinModal ? '••••' : `Enter new ${activeModal}`}
                           value={formData.newValue}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              newValue:
-                                activeModal === 'pin'
-                                  ? e.target.value.replace(/\D/g, '')
-                                  : e.target.value,
+                              newValue: isPinModal
+                                ? e.target.value.replace(/\D/g, '')
+                                : e.target.value,
                             })
                           }
-                          className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-bold placeholder:opacity-30"
+                          className={`w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 ${isPinModal ? 'text-center text-2xl tracking-widest' : 'font-bold'}`}
                         />
                       </div>
 
                       <div className="space-y-2">
                         <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
-                          Confirm {activeModal}
+                          Confirm {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''} PIN
                         </label>
                         <input
-                          type={['password', 'pin'].includes(activeModal) ? 'password' : 'text'}
-                          inputMode={activeModal === 'pin' ? 'numeric' : 'text'}
-                          maxLength={activeModal === 'pin' ? 4 : undefined}
-                          placeholder={
-                            activeModal === 'pin' ? '••••' : `Confirm new ${activeModal}`
-                          }
+                          type={isPinModal ? 'password' : (activeModal === 'password' ? 'password' : 'text')}
+                          inputMode={isPinModal ? 'numeric' : 'text'}
+                          maxLength={isPinModal ? 4 : undefined}
+                          placeholder={isPinModal ? '••••' : `Confirm new ${activeModal}`}
                           value={formData.confirmValue}
                           onChange={(e) =>
                             setFormData({
                               ...formData,
-                              confirmValue:
-                                activeModal === 'pin'
-                                  ? e.target.value.replace(/\D/g, '')
-                                  : e.target.value,
+                              confirmValue: isPinModal
+                                ? e.target.value.replace(/\D/g, '')
+                                : e.target.value,
                             })
                           }
-                          className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-bold placeholder:opacity-30"
+                          className={`w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 ${isPinModal ? 'text-center text-2xl tracking-widest' : 'font-bold'}`}
                         />
                       </div>
                     </div>

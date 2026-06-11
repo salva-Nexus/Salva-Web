@@ -340,8 +340,21 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const quoteLabel = swapType === 'exact_in' ? 'You receive' : 'You need to send';
   const quoteSuffix = swapType === 'exact_in' ? outputTokenLabel : inputTokenLabel;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (amountRaw <= 0 || isBelowMin) return;
+    // ── Security lockdown check ──────────────────────────────────────────────
+    try {
+      const pinRes = await fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`);
+      const pinData = await pinRes.json();
+      if (pinData.isLocked) {
+        const h = Math.ceil((new Date(pinData.lockedUntil) - new Date()) / (1000 * 60 * 60));
+        showMsg(`Account locked for ${h} more hour${h !== 1 ? 's' : ''} — swaps disabled during security lockdown`, 'error');
+        return;
+      }
+    } catch {
+      // non-fatal — proceed if check fails
+    }
+    // ────────────────────────────────────────────────────────────────────────
     if (!isTrusted) {
       setShowTrust(true);
       return;
@@ -389,25 +402,59 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       };
 
       const tokenInAddr = tokenAddrMap[tokenIn];
-      const tokenOutAddr =
-        tokenAddrMap[tokenOut] || tokenAddrMap[tokenOut?.replace('cNGN', 'CNGN')];
-
       if (!tokenInAddr) throw new Error(`Cannot resolve address for token: ${tokenIn}`);
 
-      // Fetch decimals from L1 PoolFactory (not hardcoded)
+      // Fetch INPUT token decimals (used for amountWei scaling)
       const decRes = await fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${tokenInAddr}`);
       const decData = await decRes.json();
-      const decimals = decData.decimals ?? 18;
+      const inputDecimals = decData.decimals ?? 18;
 
-      // For approveAmountWei, fetch tokenIn decimals (same as above)
-      const scaledAmount = swapType === 'exact_in' ? amountRaw : quote ? parseFloat(quote) : 0;
-      const amountWeiStr = BigInt(Math.floor(scaledAmount * 10 ** decimals)).toString();
+      // Contract signature for ALL 4 swap functions:
+      //   swapExactNGNAmountForUSD(receiver, usdOut, ngnIn,  ngnAmountIn)   ← param4 = input
+      //   swapForExactUSDAmount   (receiver, usdOut, ngnIn,  usdAmountOut)  ← param4 = output
+      //   swapExactUSDAmountForNGN(receiver, usdIn,  ngnOut, usdAmountIn)   ← param4 = input
+      //   swapForExactNGNAmount   (receiver, usdIn,  ngnOut, ngnAmountOut)  ← param4 = output
+      //
+      // For exact_in:  param4 = amountRaw (what user typed = the input)
+      // For exact_out: param4 = amountRaw (what user typed = the desired output)
+      //
+      // amountWei is ALWAYS scaled from amountRaw.
+      // For exact_out, we scale using OUTPUT token decimals because param4 is the output amount.
 
-      const approveAmountWei = doApproveMax
-        ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
-        : swapType === 'exact_out' && quote
-          ? BigInt(Math.floor(parseFloat(quote) * 10 ** decimals)).toString()
-          : amountWeiStr;
+      let amountWeiStr;
+      if (swapType === 'exact_in') {
+        // param4 = input amount → scale with input token decimals
+        amountWeiStr = BigInt(Math.floor(amountRaw * 10 ** inputDecimals)).toString();
+      } else {
+        // param4 = desired output amount → scale with OUTPUT token decimals
+        const tokenOutAddr = tokenAddrMap[tokenOut] || tokenAddrMap[tokenOut?.replace('cNGN', 'CNGN')];
+        let outputDecimals = inputDecimals; // safe fallback
+        if (tokenOutAddr) {
+          try {
+            const outDecRes = await fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${tokenOutAddr}`);
+            const outDecData = await outDecRes.json();
+            outputDecimals = outDecData.decimals ?? inputDecimals;
+          } catch {
+            // non-fatal — use inputDecimals as fallback
+          }
+        }
+        amountWeiStr = BigInt(Math.floor(amountRaw * 10 ** outputDecimals)).toString();
+      }
+
+      // approveAmountWei = what we need to approve the pool to pull from the Safe
+      // For exact_in:  = amountWeiStr (input amount exactly)
+      // For exact_out: = quote (the required input amount the contract will pull)
+      //                  Use ceil to avoid 1-wei under-approval reverts
+      let approveAmountWei;
+      if (doApproveMax) {
+        approveAmountWei = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+      } else if (swapType === 'exact_out' && quote !== null) {
+        // quote is the required INPUT amount — scale with input token decimals
+        // Use ceil to prevent 1-wei shortfall causing revert
+        approveAmountWei = BigInt(Math.ceil(parseFloat(quote) * 10 ** inputDecimals)).toString();
+      } else {
+        approveAmountWei = amountWeiStr;
+      }
 
       const swapRes = await fetch(`${SALVA_API_URL}/api/pool/l1/swap`, {
         method: 'POST',
@@ -431,8 +478,11 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       if (!swapRes.ok) throw new Error(swapData.message || 'Swap failed');
       if (doApproveMax) setIsTrusted(true);
       setTxHash(swapData.txHash);
-      const outAmt =
-        swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
+      // exact_in  → show quote (what contract computed we'd receive)
+      // exact_out → show amountRaw (the exact output the user requested)
+      const outAmt = swapType === 'exact_in'
+        ? (quote !== null ? parseFloat(quote) : null)
+        : amountRaw;
       setReceivedAmount(outAmt);
       setReceivedToken(tokenOut);
       setStep('done');
@@ -870,15 +920,25 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black">
-                USDT
-              </p>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black">
+                  USDT
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  BEP-20
+                </p>
+              </div>
               <span className="font-black text-sm text-green-400">{fmt(usdtAvail, 'usd')}</span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
-                USDC
-              </p>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
+                  USDC
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  BEP-20
+                </p>
+              </div>
               <span className="font-black text-sm text-blue-400">{fmt(usdcAvail, 'usd')}</span>
             </div>
           </div>
@@ -899,13 +959,25 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
-                NGNs
-              </p>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
+                  NGNs
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  BEP-20
+                </p>
+              </div>
               <span className="font-black text-sm text-blue-400">{fmt(ngnsAvail, 'ngn')}</span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">cNGN</p>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">
+                  cNGN
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  BEP-20
+                </p>
+              </div>
               <span className="font-black text-sm text-white/60">{fmt(cNgnAvail, 'ngn')}</span>
             </div>
           </div>

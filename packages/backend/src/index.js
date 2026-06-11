@@ -2190,21 +2190,26 @@ app.post('/api/transfer', async (req, res) => {
     const feeHuman = coin === 'NGN' || coin === 'CNGN' ? feeNGN : feeUsd;
 
     if (feeHuman === 0) {
+      // No fee — send full amount
       actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
       actualFeeWei = 0n;
       recipientReceives = amountNum;
     } else if (balanceNum >= amountNum + feeHuman) {
+      // Best case: balance covers amount + fee — recipient gets full amount, fee from surplus balance
       actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
       actualFeeWei = feeWei;
       recipientReceives = amountNum;
-    } else if (balanceNum >= amountNum) {
+    } else if (balanceNum >= amountNum && feeHuman < amountNum) {
+      // Balance covers amount but not amount+fee, and fee is less than amount
+      // Deduct fee from amount — recipient gets amount - fee
       recipientReceives = amountNum - feeHuman;
-      if (recipientReceives <= 0)
-        return res.status(400).json({ message: 'Amount too small to cover fee' });
       actualAmountWei = ethers.parseUnits(recipientReceives.toFixed(6), decimals);
       actualFeeWei = feeWei;
-    } else {
+    } else if (balanceNum < amountNum) {
       return res.status(400).json({ message: 'Insufficient balance' });
+    } else {
+      // Balance covers amount but fee >= amount — nothing useful to send
+      return res.status(400).json({ message: 'Amount too small to cover network fee' });
     }
 
     // ── 3. Metadata ──────────────────────────────────────────────────────────

@@ -232,8 +232,11 @@ const SplitBalance = ({ value, isusd = false, inline = false }) => {
     return <span>0.00</span>;
   }
 
-  // Normal display — always 2 decimals
-  const fixed = num.toFixed(2);
+  // Normal display — always 2 decimals, TRUNCATED not rounded
+  // Math.floor(num * 100) / 100 truncates instead of rounding
+  // e.g. 22.997914 → 22.99 (not 23.00)
+  const truncated = Math.floor(num * 100) / 100;
+  const fixed = truncated.toFixed(2);
   const [intPart, decPart] = fixed.split('.');
   const formattedInt = Number(intPart).toLocaleString('en-US');
 
@@ -2010,10 +2013,17 @@ const Dashboard = () => {
         setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? '0'));
       else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? '0'));
 
-      // Fee exceeds amount check
+      // Fee exceeds amount check — only block if balance can't cover fee AND fee >= amount
       const fee =
         selectedCoin === 'NGN' || selectedCoin === 'CNGN' ? feePreview.feeNGN : feePreview.feeUsd;
-      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && fee >= amt);
+      const currentBalance = parseFloat(
+        selectedCoin === 'NGN' ? (ngnsBalance ?? '0') :
+        selectedCoin === 'CNGN' ? (cNgnBalance ?? '0') :
+        selectedCoin === 'USDT' ? (usdtBalance ?? '0') : (usdcBalance ?? '0')
+      ) || 0;
+      // Only block when: balance can't cover amount+fee AND fee >= amount (nothing useful to send)
+      const canCoverFeeFromBalance = currentBalance >= amt + fee;
+      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && !canCoverFeeFromBalance && fee >= amt);
     } else {
       setAmountError(false);
       setFeeExceedsAmount(false);
@@ -2495,98 +2505,77 @@ const Dashboard = () => {
           onReceive={() => setIsReceiveOpen(true)}
         />
 
-        {/* ── Chain Switcher ── */}
-        <div className="mb-2 sm:mb-3 flex items-center gap-2 px-2.5 py-1.5 sm:py-2 rounded-xl border border-white/[0.06] bg-white/[0.03]">
-          <div className="flex items-center gap-1.5 flex-1">
-            <div className="w-5 h-5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[8px] font-black">B</span>
+        {/* ── Info Bar: Chain + Wallet + TX History ── */}
+        <div className="mb-4 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+          {/* Row 1: Chain identifier + switcher */}
+          <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.05]">
+            <div className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-[8px] font-black">B</span>
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-salvaGold">
+                Base Chain
+              </span>
             </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-salvaGold">
-              Base Chain
-            </span>
-          </div>
-          <a
-            href="/bnb"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:border-yellow-500/30 transition-all"
-          >
-            <img
-              src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
-              className="w-4 h-4 rounded-full"
-              alt="BNB"
-            />
-            <span className="text-[9px] font-black uppercase tracking-widest text-white/60">
-              BNB Chain
-            </span>
-            <span className="text-white/40 text-[9px]">↗</span>
-          </a>
-        </div>
-
-        {/* ── Wallet address chip ── */}
-        <div
-          onClick={() => {
-            navigator.clipboard.writeText(user.safeAddress);
-            showMsg('Wallet address copied!');
-          }}
-          className="mb-2 sm:mb-3 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] cursor-pointer hover:border-salvaGold/20 transition-all flex items-center gap-2"
-        >
-          <div className="w-7 h-7 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
-            <svg
-              viewBox="0 0 111 111"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-5 h-5"
+            <a
+              href="/bnb"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-yellow-500/30 hover:bg-yellow-500/[0.04] transition-all"
             >
-              <path
-                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
-                fill="#0052FF"
+              <img
+                src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
+                className="w-3.5 h-3.5 rounded-full"
+                alt="BNB"
               />
-              <path
-                d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
-                fill="#0052FF"
-              />
-              <path
-                d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z"
-                fill="white"
-              />
-            </svg>
+              <span className="text-[9px] font-black uppercase tracking-widest text-white/50">
+                Switch to BNB
+              </span>
+              <span className="text-white/30 text-[9px]">↗</span>
+            </a>
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              Smart Wallet · Base
-            </p>
-            <p className="font-mono text-[10px] text-salvaGold/60 truncate mt-0.5">
-              {showBalance ? (
-                <span>
-                  <span className="sm:hidden">
-                    {user.safeAddress.slice(0, 10)}…{user.safeAddress.slice(-6)}
-                  </span>
-                  <span className="hidden sm:inline">{user.safeAddress}</span>
-                </span>
-              ) : (
-                '0x••••••••••••••••••••••••••••••••••••••••'
-              )}
-            </p>
-          </div>
-          <span className="text-[10px] text-white/60 flex-shrink-0">Copy</span>
-        </div>
 
-        {/* ── Transaction History link ── */}
-        <Link
-          to="/transactions"
-          className="flex items-center justify-between mb-3 sm:mb-4 px-2.5 py-1.5 sm:py-2 bg-white/[0.03] rounded-xl border border-white/[0.06] hover:border-salvaGold/20 transition-all group"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg bg-white/5 flex items-center justify-center">
-              <span className="text-white/60 text-xs">↗</span>
+          {/* Row 2: Wallet address + TX history — side by side */}
+          <div className="flex items-stretch divide-x divide-white/[0.05]">
+            {/* Wallet address */}
+            <div
+              onClick={() => {
+                navigator.clipboard.writeText(user.safeAddress);
+                showMsg('Wallet address copied!');
+              }}
+              className="flex-1 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <svg viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4">
+                  <path d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z" fill="#0052FF"/>
+                  <path d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z" fill="white"/>
+                </svg>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">Smart Wallet</p>
+                <p className="font-mono text-[10px] text-salvaGold/60 truncate group-hover:text-salvaGold/80 transition-colors">
+                  {showBalance ? (
+                    <>
+                      <span className="sm:hidden">{user.safeAddress.slice(0, 10)}…{user.safeAddress.slice(-8)}</span>
+                      <span className="hidden sm:inline">{user.safeAddress}</span>
+                    </>
+                  ) : '0x••••••••••••••••••••••••••••••••••••••••'}
+                </p>
+              </div>
+              <svg className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2"/>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2"/>
+              </svg>
             </div>
-            <p className="text-xs font-black uppercase tracking-widest text-white/50 group-hover:text-white transition-colors">
-              Transaction History
-            </p>
+
+            {/* TX History */}
+            <Link
+              to="/transactions"
+              className="w-[50%] flex items-center justify-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-all group"
+            >
+              <p className="text-[9px] font-black text-white/50 group-hover:text-salvaGold transition-colors uppercase tracking-wider whitespace-nowrap">Transaction History</p>
+              <span className="text-salvaGold/50 text-sm group-hover:text-salvaGold group-hover:translate-x-0.5 transition-all flex-shrink-0">→</span>
+            </Link>
           </div>
-          <span className="text-salvaGold text-sm group-hover:translate-x-0.5 transition-transform">
-            →
-          </span>
-        </Link>
+        </div>
 
         {/* ── Account locked banner ── */}
         {isAccountLocked && (

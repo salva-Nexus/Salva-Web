@@ -91,54 +91,54 @@ const Navbar = () => {
       <div className="flex items-center gap-3 sm:gap-4">
         {/* ── Settings / Login (non-L1 pages) ── */}
         {!isLoggedIn ? (
-            <Link
-              to="/login"
-              className="text-xs font-bold uppercase tracking-[0.2em] text-white opacity-60 hover:opacity-100 transition-opacity"
+          <Link
+            to="/login"
+            className="text-xs font-bold uppercase tracking-[0.2em] text-white opacity-60 hover:opacity-100 transition-opacity"
+          >
+            Login
+          </Link>
+        ) : (
+          <div className="relative" ref={settingsRef}>
+            <motion.button
+              onClick={() => setShowSettingsMenu(!showSettingsMenu)}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.95 }}
+              className="p-2 rounded-full hover:bg-white/5 transition-colors"
+              aria-label="Settings"
             >
-              Login
-            </Link>
-          ) : (
-            <div className="relative" ref={settingsRef}>
-              <motion.button
-                onClick={() => setShowSettingsMenu(!showSettingsMenu)}
-                whileHover={{ scale: 1.1 }}
-                whileTap={{ scale: 0.95 }}
-                className="p-2 rounded-full hover:bg-white/5 transition-colors"
-                aria-label="Settings"
-              >
-                <Settings className="w-5 h-5 text-white opacity-60 hover:opacity-100" />
-              </motion.button>
+              <Settings className="w-5 h-5 text-white opacity-60 hover:opacity-100" />
+            </motion.button>
 
-              <AnimatePresence>
-                {showSettingsMenu && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                    transition={{ duration: 0.2 }}
-                    className="absolute right-0 mt-2 w-48 bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+            <AnimatePresence>
+              {showSettingsMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                  transition={{ duration: 0.2 }}
+                  className="absolute right-0 mt-2 w-48 bg-zinc-900 rounded-2xl border border-white/10 shadow-2xl overflow-hidden"
+                >
+                  <Link
+                    to={isBNBPage ? '/account-settings?from=bnb' : '/account-settings'}
+                    onClick={() => setShowSettingsMenu(false)}
+                    className="block px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
                   >
-                    <Link
-                      to="/account-settings"
-                      onClick={() => setShowSettingsMenu(false)}
-                      className="block px-4 py-3 text-sm font-bold text-white hover:bg-white/5 transition-colors"
-                    >
-                      Account Settings
-                    </Link>
-                    <button
-                      onClick={() => {
-                        setShowSettingsMenu(false);
-                        handleLogout();
-                      }}
-                      className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-white/10"
-                    >
-                      Logout
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )}
+                    Account Settings
+                  </Link>
+                  <button
+                    onClick={() => {
+                      setShowSettingsMenu(false);
+                      handleLogout();
+                    }}
+                    className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-500/10 transition-colors border-t border-white/10"
+                  >
+                    Logout
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
       </div>
     </nav>
   );

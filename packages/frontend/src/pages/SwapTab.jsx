@@ -431,8 +431,21 @@ const handleReceiverChange = (val) => {
   }
 };
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (amountRaw <= 0 || isBelowMin) return;
+    // ── Security lockdown check ──────────────────────────────────────────────
+    try {
+      const pinRes = await fetch(`${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(user.email)}`);
+      const pinData = await pinRes.json();
+      if (pinData.isLocked) {
+        const h = Math.ceil((new Date(pinData.lockedUntil) - new Date()) / (1000 * 60 * 60));
+        showMsg(`Account locked for ${h} more hour${h !== 1 ? 's' : ''} — swaps disabled during security lockdown`, 'error');
+        return;
+      }
+    } catch {
+      // non-fatal — proceed if check fails
+    }
+    // ────────────────────────────────────────────────────────────────────────
     if (!isTrusted) {
       setShowTrust(true);
       return;
@@ -472,7 +485,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
     const approveAmountWei = doApproveMax
       ? '115792089237316195423570985008687907853269984665640564039457584007913129639935'
       : swapType === 'exact_out' && quote
-        ? Math.floor(parseFloat(quote) * 1e6).toString()
+        ? Math.ceil(parseFloat(quote) * 1e6).toString()   // ceil not floor — never under-approve
         : amountWei;
 
     const swapRes = await fetch(`${SALVA_API_URL}/api/pool/swap`, {
@@ -1068,16 +1081,30 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black flex-shrink-0 mr-3">
-                USDT
-              </p>
-              <span className="font-black text-sm text-green-400 truncate">{fmt(usdtAvail, 'usd')}</span>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black">
+                  USDT
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  ERC-20
+                </p>
+              </div>
+              <span className="font-black text-sm text-green-400 truncate">
+                {fmt(usdtAvail, 'usd')}
+              </span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black flex-shrink-0 mr-3">
-                USDC
-              </p>
-              <span className="font-black text-sm text-blue-400 truncate">{fmt(usdcAvail, 'usd')}</span>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
+                  USDC
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  ERC-20
+                </p>
+              </div>
+              <span className="font-black text-sm text-blue-400 truncate">
+                {fmt(usdcAvail, 'usd')}
+              </span>
             </div>
           </div>
         ) : (
@@ -1099,16 +1126,30 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
               </div>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black flex-shrink-0 mr-3">
-                NGNs
-              </p>
-              <span className="font-black text-sm text-salvaGold truncate">{fmt(ngnsAvail, 'ngn')}</span>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black">
+                  NGNs
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  ERC-20
+                </p>
+              </div>
+              <span className="font-black text-sm text-salvaGold truncate">
+                {fmt(ngnsAvail, 'ngn')}
+              </span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black flex-shrink-0 mr-3">
-                cNGN
-              </p>
-              <span className="font-black text-sm text-white/60 truncate">{fmt(cNgnAvail, 'ngn')}</span>
+              <div className="flex flex-col flex-shrink-0 mr-3">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">
+                  cNGN
+                </p>
+                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                  ERC-20
+                </p>
+              </div>
+              <span className="font-black text-sm text-white/60 truncate">
+                {fmt(cNgnAvail, 'ngn')}
+              </span>
             </div>
           </div>
         )}
