@@ -2554,7 +2554,7 @@ const Dashboard = () => {
                 <p className="font-mono text-[10px] text-salvaGold/60 truncate group-hover:text-salvaGold/80 transition-colors">
                   {showBalance ? (
                     <>
-                      <span className="lg:hidden">{user.safeAddress.slice(0, 14)}…{user.safeAddress.slice(-10)}</span>
+                      <span className="lg:hidden">{user.safeAddress.slice(0, 6)}…{user.safeAddress.slice(-10)}</span>
                       <span className="hidden lg:inline">{user.safeAddress}</span>
                     </>
                   ) : '0x••••••••••••••••••••••••••••••••••••••••'}
