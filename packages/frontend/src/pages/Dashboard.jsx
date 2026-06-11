@@ -2550,7 +2550,7 @@ const Dashboard = () => {
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">Smart Wallet</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">Address</p>
                 <p className="font-mono text-[10px] text-salvaGold/60 truncate group-hover:text-salvaGold/80 transition-colors">
                   {showBalance ? (
                     <>
