@@ -1187,6 +1187,31 @@ router.post('/swap', async (req, res) => {
       ).catch(() => {});
     }
 
+    const Transaction = require('../models/Transaction');
+    const User = require('../models/User');
+    const receiverAddr = cleanAddr(req.body.receiverAddress) || cleanUser;
+    const poolDoc = await Pool.findOne({ poolAddress: cleanPool }).lean().catch(() => null);
+    const receiverUser = await User.findOne({ safeAddress: receiverAddr }).lean().catch(() => null);
+    const txTokenOut = (swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount') ? stableToken : (req.body.ngnToken === 'CNGN' ? 'cNGN' : 'NGNs');
+    const txTokenIn = tokenIn;
+    await new Transaction({
+      fromAddress: cleanPool,
+      fromNameAlias: poolDoc?.poolName || null,
+      toAddress: receiverAddr,
+      toUsername: receiverUser?.username || null,
+      toNameAlias: receiverUser?.nameAlias || null,
+      amount: String(parseFloat(amountWei) / 1e6),
+      coin: txTokenOut,
+      status: 'successful',
+      taskId: result.txHash,
+      type: 'transfer',
+      txType: 'swap',
+      poolAddress: cleanPool,
+      poolName: poolDoc?.poolName || null,
+      tokenIn: txTokenIn,
+      tokenOut: txTokenOut,
+      date: new Date(),
+    }).save().catch(() => {});
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /pool/swap:', err.message);
@@ -2081,6 +2106,31 @@ router.post('/l1/swap', async (req, res) => {
       ).catch(() => {});
     }
 
+    const Transaction = require('../models/Transaction');
+    const User = require('../models/User');
+    const l1ReceiverAddr = cleanAddr(req.body.receiverAddress) || cleanUser;
+    const { PoolL1 } = getL1Models();
+    const l1PoolDoc = await PoolL1.findOne({ poolAddress: cleanPool }).lean().catch(() => null);
+    const l1ReceiverUser = await User.findOne({ safeAddress: l1ReceiverAddr }).lean().catch(() => null);
+    const l1TokenOut = (swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount') ? stableToken : (ngnToken === 'CNGN' ? 'cNGN' : 'NGNs');
+    await new Transaction({
+      fromAddress: cleanPool,
+      fromNameAlias: l1PoolDoc?.poolName || null,
+      toAddress: l1ReceiverAddr,
+      toUsername: l1ReceiverUser?.username || null,
+      toNameAlias: l1ReceiverUser?.nameAlias || null,
+      amount: String(parseFloat(amountWei) / 1e6),
+      coin: l1TokenOut,
+      status: 'successful',
+      taskId: result.txHash,
+      type: 'transfer',
+      txType: 'swap',
+      poolAddress: cleanPool,
+      poolName: l1PoolDoc?.poolName || null,
+      tokenIn: tokenIn,
+      tokenOut: l1TokenOut,
+      date: new Date(),
+    }).save().catch(() => {});
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /pool/l1/swap:', err.message);

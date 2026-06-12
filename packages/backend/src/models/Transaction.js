@@ -31,6 +31,11 @@ const TransactionSchema = new mongoose.Schema({
   status: { type: String, default: 'pending' },
   taskId: { type: String, default: null },
   type: { type: String, default: 'transfer' },
+  txType:      { type: String, default: 'transfer' },
+poolAddress: { type: String, default: null, lowercase: true },
+poolName:    { type: String, default: null },
+tokenIn:     { type: String, default: null },
+tokenOut:    { type: String, default: null },
   date: { type: Date, default: Date.now },
 });
 

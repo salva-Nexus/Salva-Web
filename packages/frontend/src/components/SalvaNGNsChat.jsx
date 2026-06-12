@@ -742,61 +742,35 @@ const SalvaNGNsChat = ({ user }) => {
   );
 
   if (!isOpen) {
-  return (
-    <>
-      <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 9000 }}>
-        <motion.button
-          whileHover={{ scale: 1.08 }}
-          whileTap={{ scale: 0.95 }}
-          onClick={() => {
-            if (!isDismissed()) {
-              setShowNetworkReminder(true);
-            } else {
-              setIsOpen(true);
-            }
-          }}
-          style={{
-            width: '44px',
-            height: '44px',
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)',
-            position: 'relative',
-          }}
-        >
-          <span style={{ fontSize: '20px', color: '#000', fontWeight: '900' }}>₦</span>
-          <motion.div
-            animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
-            transition={{ repeat: Infinity, duration: 2 }}
-            style={{
-              position: 'absolute',
-              inset: 0,
-              borderRadius: '50%',
-              border: '2px solid #D4AF37',
-              pointerEvents: 'none',
-            }}
+    return (
+      <>
+        <div className="fixed bottom-6 right-6 z-[9000]">
+          <motion.button
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => { if (!isDismissed()) { setShowNetworkReminder(true); } else { setIsOpen(true); } }}
+            className="relative w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
+            style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)', boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)' }}
+          >
+            <span className="text-xl font-black text-black">₦</span>
+            <motion.div
+              animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+              className="absolute inset-0 rounded-full border-2 border-salvaGold pointer-events-none"
+            />
+          </motion.button>
+        </div>
+        {showNetworkReminder && (
+          <NetworkReminder
+            chain="base"
+            storageKey="salva_reminder_buysell"
+            onContinue={() => { setShowNetworkReminder(false); setIsOpen(true); }}
+            onClose={() => setShowNetworkReminder(false)}
           />
-        </motion.button>
-      </div>
-      {showNetworkReminder && (
-        <NetworkReminder
-          chain="base"
-          storageKey="salva_reminder_buysell"
-          onContinue={() => {
-            setShowNetworkReminder(false);
-            setIsOpen(true);
-          }}
-          onClose={() => setShowNetworkReminder(false)}
-        />
-      )}
-    </>
-  );
-}
+        )}
+      </>
+    );
+  }
 
   return (
     <>
@@ -961,317 +935,81 @@ const SalvaNGNsChat = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <div style={{ position: 'fixed', inset: 0, zIndex: 8999 }} onClick={() => setIsOpen(false)} />
+      <div className="fixed inset-0 z-[8999]" onClick={() => setIsOpen(false)} />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onClick={(e) => e.stopPropagation()}
-        style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          zIndex: 9000,
-          width: '320px',
-          maxWidth: 'calc(100vw - 1.5rem)',
-        }}
+        className="fixed bottom-6 right-6 z-[9000] w-[320px] max-w-[calc(100vw-1.5rem)]"
       >
-        <div
-          style={{
-            height: '500px',
-            background: '#0d0d0e',
-            border: '1px solid rgba(212,175,55,0.2)',
-            borderRadius: '22px',
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            boxShadow: '0 28px 72px rgba(0,0,0,0.8)',
-          }}
-        >
+        <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
           {/* ── HEADER ── */}
-          <div
-            style={{
-              background: 'linear-gradient(135deg, #1a1500, #111100)',
-              borderBottom: '1px solid rgba(212,175,55,0.25)',
-              padding: '10px 12px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '10px',
-              flexShrink: 0,
-            }}
-          >
-            {mode &&
-              (buyPhase === 'amount' ||
-                buyPhase === 'confirm' ||
-                sellPhase === 'amount' ||
-                sellPhase === 'bank') && (
-                <button
-                  onClick={() => {
-                    if (mode === 'buy') {
-                      if (buyPhase === 'amount') {
-                        setMode(null);
-                        setBuyPhase('amount');
-                      } else setBuyPhase('amount');
-                    } else {
-                      if (sellPhase === 'amount') {
-                        setMode(null);
-                        setSellPhase('amount');
-                      } else if (sellPhase === 'bank') setSellPhase('amount');
-                    }
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(212,175,55,0.6)',
-                    fontSize: '18px',
-                    cursor: 'pointer',
-                    padding: '2px 6px 2px 0',
-                    lineHeight: 1,
-                  }}
-                >
-                  ←
-                </button>
-              )}
-            {((mode === 'buy' && buyPhase === 'chat') ||
-              (mode === 'sell' && sellPhase === 'chat')) && (
+          <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/25 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}>
+            {mode && (buyPhase === 'amount' || buyPhase === 'confirm' || sellPhase === 'amount' || sellPhase === 'bank') && (
               <button
                 onClick={() => {
-                  setMintRequest(null);
-                  setMessages([]);
-                  setBuyPhase('amount');
-                  setSellPhase('amount');
-                  setMode(null);
+                  if (mode === 'buy') { if (buyPhase === 'amount') { setMode(null); setBuyPhase('amount'); } else setBuyPhase('amount'); }
+                  else { if (sellPhase === 'amount') { setMode(null); setSellPhase('amount'); } else if (sellPhase === 'bank') setSellPhase('amount'); }
                 }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(212,175,55,0.6)',
-                  fontSize: '18px',
-                  cursor: 'pointer',
-                  padding: '2px 6px 2px 0',
-                  lineHeight: 1,
-                }}
-              >
-                ←
-              </button>
+                className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+              >←</button>
+            )}
+            {((mode === 'buy' && buyPhase === 'chat') || (mode === 'sell' && sellPhase === 'chat')) && (
+              <button
+                onClick={() => { setMintRequest(null); setMessages([]); setBuyPhase('amount'); setSellPhase('amount'); setMode(null); }}
+                className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+              >←</button>
             )}
             <div
-              style={{
-                width: '36px',
-                height: '36px',
-                borderRadius: '10px',
-                background:
-                  mode === 'sell'
-                    ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
-                    : 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-                fontSize: '16px',
-                fontWeight: '900',
-                color: '#fff',
-              }}
-            >
-              ₦
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p
-                style={{
-                  color: '#f5f0e8',
-                  fontSize: '13px',
-                  fontWeight: '900',
-                  margin: 0,
-                }}
-              >
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
+              style={{ background: mode === 'sell' ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'linear-gradient(135deg, #D4AF37, #b8941e)', color: mode === 'sell' ? '#fff' : '#000' }}
+            >₦</div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
                 {!mode ? 'NGNs Exchange' : mode === 'sell' ? 'Sell NGNs' : 'Buy NGNs'}
               </p>
-              <p
-                style={{
-                  color: 'rgba(212,175,55,0.6)',
-                  fontSize: '10px',
-                  margin: 0,
-                }}
-              >
-                {!mode
-                  ? 'Choose an option'
-                  : mode === 'buy'
-                    ? buyPhase === 'chat'
-                      ? status === 'pending'
-                        ? 'Awaiting payment'
-                        : status === 'paid'
-                          ? 'Verifying…'
-                          : status === 'minting'
-                            ? 'Minting…'
-                            : status === 'minted'
-                              ? 'Complete ✓'
-                              : 'Rejected'
-                      : 'Salva · Online'
-                    : sellPhase === 'chat'
-                      ? 'Sell request active'
-                      : 'Salva · Online'}
+              <p className="text-salvaGold/60 text-[10px] m-0 truncate">
+                {!mode ? 'Choose an option' : mode === 'buy' ? buyPhase === 'chat' ? status === 'pending' ? 'Awaiting payment' : status === 'paid' ? 'Verifying…' : status === 'minting' ? 'Minting…' : status === 'minted' ? 'Complete ✓' : 'Rejected' : 'Salva · Online' : sellPhase === 'chat' ? 'Sell request active' : 'Salva · Online'}
               </p>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              style={{
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                cursor: 'pointer',
-                color: 'rgba(255,255,255,0.5)',
-                fontSize: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}
-            >
-              ×
-            </button>
+              className="w-7 h-7 rounded-full bg-white/[0.07] border border-white/10 cursor-pointer text-white/50 text-base flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+            >×</button>
           </div>
 
           {/* ── MODE SELECTOR ── */}
           {!mode && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '24px',
-                gap: '16px',
-              }}
-            >
-              <div style={{ fontSize: '40px' }}>₦</div>
-              <h3
-                style={{
-                  color: '#f5f0e8',
-                  fontSize: '18px',
-                  fontWeight: '900',
-                  margin: 0,
-                }}
-              >
-                NGNs Exchange
-              </h3>
-              <p
-                style={{
-                  color: 'rgba(255,255,255,0.4)',
-                  fontSize: '11px',
-                  margin: 0,
-                  textAlign: 'center',
-                }}
-              >
-                Buy NGNs with fiat or sell NGNs for fiat
-              </p>
-              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
+              {/* Gold accent line */}
+              <div className="w-px h-8 bg-gradient-to-b from-transparent via-salvaGold/40 to-transparent" />
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-black shadow-lg shadow-salvaGold/20" style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}>₦</div>
+              <div className="text-center">
+                <h3 className="text-[#f5f0e8] text-lg font-black m-0 mb-1">NGNs Exchange</h3>
+                <p className="text-white/40 text-[11px] m-0">Buy or sell Nigerian Naira stablecoin</p>
+              </div>
+              <div className="flex gap-3 w-full">
                 <button
-                  onClick={() => {
-                    setMintRequest(null);
-                    setMessages([]);
-                    setBuyPhase('amount');
-                    setMode('buy');
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '16px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                    border: 'none',
-                    color: '#000',
-                    fontSize: '14px',
-                    fontWeight: '900',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(212,175,55,0.3)',
-                  }}
+                  onClick={() => { setMintRequest(null); setMessages([]); setBuyPhase('amount'); setMode('buy'); }}
+                  className="flex-1 py-4 rounded-2xl text-sm font-black text-black cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                  style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)', boxShadow: '0 0 20px rgba(212,175,55,0.3)' }}
                 >
                   🛒 Buy NGNs
                 </button>
                 <button
-                  onClick={() => {
-                    setMintRequest(null);
-                    setMessages([]);
-                    setSellPhase('amount');
-                    setMode('sell');
-                    fetchBalance();
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '16px',
-                    borderRadius: '14px',
-                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '14px',
-                    fontWeight: '900',
-                    cursor: 'pointer',
-                    boxShadow: '0 0 20px rgba(239,68,68,0.3)',
-                  }}
+                  onClick={() => { setMintRequest(null); setMessages([]); setSellPhase('amount'); setMode('sell'); fetchBalance(); }}
+                  className="flex-1 py-4 rounded-2xl text-sm font-black text-white cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                  style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', boxShadow: '0 0 20px rgba(239,68,68,0.3)' }}
                 >
                   💸 Sell NGNs
                 </button>
               </div>
-              <div
-                style={{
-                  background: 'rgba(255,255,255,0.03)',
-                  borderRadius: '10px',
-                  padding: '12px',
-                  width: '100%',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <p
-                  style={{
-                    color: 'rgba(212,175,55,0.5)',
-                    fontSize: '9px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.15em',
-                    margin: '0 0 8px',
-                    fontWeight: '700',
-                  }}
-                >
-                  How it works
-                </p>
-                {[
-                  'Buy: Transfer fiat → receive NGNs in wallet',
-                  'Sell: Burn NGNs → receive fiat in bank account',
-                ].map((s, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: 'flex',
-                      gap: '8px',
-                      marginBottom: '5px',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        borderRadius: '50%',
-                        background: 'rgba(212,175,55,0.2)',
-                        color: '#D4AF37',
-                        fontSize: '9px',
-                        fontWeight: '900',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      {i + 1}
-                    </span>
-                    <span
-                      style={{
-                        color: 'rgba(255,255,255,0.4)',
-                        fontSize: '11px',
-                      }}
-                    >
-                      {s}
-                    </span>
+              <div className="w-full rounded-xl p-3 bg-white/[0.03] border border-white/[0.05]">
+                <p className="text-salvaGold/50 text-[9px] uppercase tracking-[0.15em] font-bold m-0 mb-2">How it works</p>
+                {['Buy: Transfer fiat → receive NGNs in wallet', 'Sell: Burn NGNs → receive fiat in bank account'].map((s, i) => (
+                  <div key={i} className="flex gap-2 items-center mb-1.5 last:mb-0">
+                    <span className="w-4 h-4 rounded-full bg-salvaGold/20 text-salvaGold text-[9px] font-black flex items-center justify-center flex-shrink-0">{i + 1}</span>
+                    <span className="text-white/40 text-[11px]">{s}</span>
                   </div>
                 ))}
               </div>
@@ -1280,301 +1018,74 @@ const SalvaNGNsChat = ({ user }) => {
 
           {/* ── BUY: AMOUNT ── */}
           {mode === 'buy' && buyPhase === 'amount' && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                padding: '24px 20px',
-                gap: '16px',
-                overflowY: 'auto',
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '36px', marginBottom: '8px' }}>🛒</div>
-                <h3
-                  style={{
-                    color: '#f5f0e8',
-                    fontSize: '17px',
-                    fontWeight: '900',
-                    margin: '0 0 4px',
-                  }}
-                >
-                  Buy NGNs
-                </h3>
-                <p
-                  style={{
-                    color: 'rgba(255,255,255,0.4)',
-                    fontSize: '11px',
-                    margin: 0,
-                  }}
-                >
-                  Enter the amount you want to purchase
-                </p>
+            <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div className="text-center">
+                <div className="text-4xl mb-2">🛒</div>
+                <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Buy NGNs</h3>
+                <p className="text-white/40 text-[11px] m-0">Enter the amount you want to purchase</p>
               </div>
               <div>
-                <SectionLabel>Amount (NGNs)</SectionLabel>
-                <div style={{ position: 'relative' }}>
+                <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">Amount (NGNs)</p>
+                <div className="relative">
                   <input
-                    type="text"
-                    inputMode="decimal"
+                    type="text" inputMode="decimal"
                     placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
                     value={amountDisplay}
-                    onChange={(e) => {
-                      const f = fmtInput(e.target.value);
-                      setAmountDisplay(f);
-                      setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
-                      setInitError('');
-                    }}
-                    style={{
-                      width: '100%',
-                      padding: '13px 52px 13px 14px',
-                      borderRadius: '12px',
-                      border: '1px solid rgba(212,175,55,0.25)',
-                      background: '#1a1a1b',
-                      color: '#f5f0e8',
-                      fontSize: '18px',
-                      fontWeight: '900',
-                      outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.7)')}
-                    onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.25)')}
+                    onChange={(e) => { const f = fmtInput(e.target.value); setAmountDisplay(f); setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0); setInitError(''); }}
+                    className="w-full py-3 pl-3.5 pr-14 rounded-xl border border-salvaGold/25 bg-[#1a1a1b] text-[#f5f0e8] text-lg font-black outline-none focus:border-salvaGold/70 transition-colors box-border"
                   />
-                  <span
-                    style={{
-                      position: 'absolute',
-                      right: '12px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      color: '#D4AF37',
-                      fontWeight: '900',
-                      fontSize: '12px',
-                    }}
-                  >
-                    NGNs
-                  </span>
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs">NGNs</span>
                 </div>
-                <p
-                  style={{
-                    color: 'rgba(255,255,255,0.3)',
-                    fontSize: '10px',
-                    margin: '5px 0 0',
-                  }}
-                >
-                  Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
-                  {otcConfig.maxNgn.toLocaleString()}
-                </p>
+                <p className="text-white/30 text-[10px] mt-1">Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦{otcConfig.maxNgn.toLocaleString()}</p>
               </div>
               {buyValid && (
-                <div
-                  style={{
-                    background: 'rgba(212,175,55,0.05)',
-                    border: '1px solid rgba(212,175,55,0.15)',
-                    borderRadius: '12px',
-                    padding: '12px 14px',
-                  }}
-                >
-                  {[
-                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`],
-                    ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free'],
-                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`],
-                  ].map(([l, v], i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        marginBottom: i < 2 ? '6px' : 0,
-                        paddingTop: i === 2 ? '8px' : 0,
-                        borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: 'rgba(255,255,255,0.45)',
-                          fontSize: '11px',
-                        }}
-                      >
-                        {l}
-                      </span>
-                      <span
-                        style={{
-                          color: i === 1 && fee > 0 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
-                          fontWeight: i === 2 ? '900' : '700',
-                          fontSize: i === 2 ? '14px' : '11px',
-                        }}
-                      >
-                        {v}
-                      </span>
+                <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
+                  {[['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'], ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'], ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37']].map(([l, v, c], i) => (
+                    <div key={i} className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}>
+                      <span className="text-white/45 text-[11px]">{l}</span>
+                      <span className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`} style={{ color: c }}>{v}</span>
                     </div>
                   ))}
                 </div>
               )}
               {initError && (
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '10px 14px',
-                    borderRadius: '12px',
-                    background: 'rgba(239,68,68,0.1)',
-                    border: '1px solid rgba(239,68,68,0.25)',
-                  }}
-                >
-                  <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
-                  <p
-                    style={{
-                      color: '#ef4444',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      margin: 0,
-                    }}
-                  >
-                    {initError}
-                  </p>
+                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
+                  <span className="text-sm flex-shrink-0">⚠️</span>
+                  <p className="text-red-400 text-[11px] font-bold m-0">{initError}</p>
                 </div>
               )}
               <button
                 onClick={() => buyValid && setBuyPhase('confirm')}
                 disabled={!buyValid}
-                style={{
-                  width: '100%',
-                  padding: '13px',
-                  background: buyValid
-                    ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
-                    : 'rgba(212,175,55,0.2)',
-                  border: 'none',
-                  borderRadius: '12px',
-                  color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
-                  fontSize: '13px',
-                  fontWeight: '900',
-                  cursor: buyValid ? 'pointer' : 'not-allowed',
-                  textTransform: 'uppercase',
-                }}
-              >
-                Continue →
-              </button>
+                className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'}`}
+                style={{ background: buyValid ? 'linear-gradient(135deg, #D4AF37, #b8941e)' : 'rgba(212,175,55,0.2)', color: buyValid ? '#000' : 'rgba(212,175,55,0.4)' }}
+              >Continue →</button>
             </div>
           )}
 
           {/* ── BUY: CONFIRM ── */}
           {mode === 'buy' && buyPhase === 'confirm' && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                padding: '24px 20px',
-                gap: '14px',
-                overflowY: 'auto',
-              }}
-            >
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '36px', marginBottom: '8px' }}>⚡</div>
-                <h3
-                  style={{
-                    color: '#f5f0e8',
-                    fontSize: '17px',
-                    fontWeight: '900',
-                    margin: '0 0 4px',
-                  }}
-                >
-                  Confirm Purchase
-                </h3>
+            <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div className="text-center">
+                <div className="text-4xl mb-2">⚡</div>
+                <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Confirm Purchase</h3>
+                <p className="text-white/40 text-[11px] m-0">Review before proceeding</p>
               </div>
-              <div
-                style={{
-                  background: 'rgba(212,175,55,0.06)',
-                  border: '1px solid rgba(212,175,55,0.2)',
-                  borderRadius: '14px',
-                  padding: '16px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '10px',
-                }}
-              >
-                {[
-                  ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
-                  ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
-                  ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
-                ].map(([l, v, c]) => (
-                  <div
-                    key={l}
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <span
-                      style={{
-                        color: 'rgba(255,255,255,0.5)',
-                        fontSize: '12px',
-                      }}
-                    >
-                      {l}
-                    </span>
-                    <span
-                      style={{
-                        color: c,
-                        fontWeight: '900',
-                        fontSize: l === 'You Receive' ? '16px' : '13px',
-                      }}
-                    >
-                      {v}
-                    </span>
+              <div className="rounded-2xl p-4 bg-salvaGold/[0.06] border border-salvaGold/20 space-y-2.5">
+                {[['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8', '13px'], ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e', '13px'], ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37', '16px']].map(([l, v, c, fs]) => (
+                  <div key={l} className="flex justify-between items-center">
+                    <span className="text-white/50 text-[12px]">{l}</span>
+                    <span className="font-black" style={{ color: c, fontSize: fs }}>{v}</span>
                   </div>
                 ))}
               </div>
-              {initError && (
-                <p
-                  style={{
-                    color: '#ef4444',
-                    fontSize: '11px',
-                    textAlign: 'center',
-                  }}
-                >
-                  {initError}
-                </p>
-              )}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              {initError && <p className="text-red-400 text-[11px] text-center m-0">{initError}</p>}
+              <div className="flex gap-2">
+                <button onClick={() => setBuyPhase('amount')} className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all">Back</button>
                 <button
-                  onClick={() => setBuyPhase('amount')}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'rgba(255,255,255,0.6)',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleBuyInitiate}
-                  disabled={initiating}
-                  style={{
-                    flex: 2,
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                    border: 'none',
-                    color: '#000',
-                    fontSize: '13px',
-                    fontWeight: '900',
-                    cursor: initiating ? 'wait' : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                  }}
+                  onClick={handleBuyInitiate} disabled={initiating}
+                  className="flex-[2] py-3 rounded-xl border-none text-black text-[13px] font-black cursor-pointer flex items-center justify-center gap-1.5 hover:brightness-110 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
                 >
                   {initiating && <Spinner />}
                   {initiating ? 'Starting…' : 'Confirm & Start'}
@@ -1585,398 +1096,92 @@ const SalvaNGNsChat = ({ user }) => {
 
           {/* ── SELL: AMOUNT ── */}
           {mode === 'sell' && sellPhase === 'amount' && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '20px 20px 12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '14px',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '36px', marginBottom: '8px' }}>💸</div>
-                  <h3
-                    style={{
-                      color: '#f5f0e8',
-                      fontSize: '17px',
-                      fontWeight: '900',
-                      margin: '0 0 4px',
-                    }}
-                  >
-                    Sell NGNs
-                  </h3>
-                  <p
-                    style={{
-                      color: 'rgba(255,255,255,0.4)',
-                      fontSize: '11px',
-                      margin: 0,
-                    }}
-                  >
-                    Balance: {ngnBalance.toLocaleString()} NGNs
-                  </p>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3 flex flex-col gap-3.5">
+                <div className="text-center">
+                  <div className="text-4xl mb-2">💸</div>
+                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Sell NGNs</h3>
+                  <p className="text-white/40 text-[11px] m-0">Balance: {ngnBalance.toLocaleString()} NGNs</p>
                 </div>
                 <div>
-                  <SectionLabel>Amount to Burn (NGNs)</SectionLabel>
-                  <div style={{ position: 'relative' }}>
+                  <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">Amount to Burn (NGNs)</p>
+                  <div className="relative">
                     <input
-                      type="text"
-                      inputMode="decimal"
+                      type="text" inputMode="decimal"
                       placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
                       value={sellAmountDisplay}
                       onChange={(e) => {
-                        const f = fmtInput(e.target.value);
-                        setSellAmountDisplay(f);
-                        const raw = parseFloat(f.replace(/,/g, '')) || 0;
-                        setSellAmountRaw(raw);
-                        setSellAmountError(
-                          raw > ngnBalance
-                            ? 'Insufficient NGNs balance'
-                            : raw > 0 && raw < otcConfig.minNgn
-                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
-                              : raw > otcConfig.maxNgn
-                                ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
-                                : ''
-                        );
+                        const f = fmtInput(e.target.value); setSellAmountDisplay(f);
+                        const raw = parseFloat(f.replace(/,/g, '')) || 0; setSellAmountRaw(raw);
+                        setSellAmountError(raw > ngnBalance ? 'Insufficient NGNs balance' : raw > 0 && raw < otcConfig.minNgn ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}` : raw > otcConfig.maxNgn ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}` : '');
                       }}
-                      style={{
-                        width: '100%',
-                        padding: '13px 52px 13px 14px',
-                        borderRadius: '12px',
-                        border: `2px solid ${sellAmountError ? '#ef4444' : 'rgba(212,175,55,0.25)'}`,
-                        background: '#1a1a1b',
-                        color: sellAmountError ? '#ef4444' : '#f5f0e8',
-                        fontSize: '18px',
-                        fontWeight: '900',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                      }}
-                      onFocus={(e) => {
-                        if (!sellAmountError) e.target.style.borderColor = 'rgba(212,175,55,0.7)';
-                      }}
-                      onBlur={(e) => {
-                        if (!sellAmountError) e.target.style.borderColor = 'rgba(212,175,55,0.25)';
-                      }}
+                      className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${sellAmountError ? 'border-2 border-red-500 text-red-400' : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'}`}
                     />
-                    <span
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        color: sellAmountError ? '#ef4444' : '#D4AF37',
-                        fontWeight: '900',
-                        fontSize: '12px',
-                      }}
-                    >
-                      NGNs
-                    </span>
+                    <span className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${sellAmountError ? 'text-red-400' : 'text-salvaGold'}`}>NGNs</span>
                   </div>
-                  {sellAmountError && (
-                    <p
-                      style={{
-                        color: '#ef4444',
-                        fontSize: '10px',
-                        margin: '4px 0 0',
-                        fontWeight: '700',
-                      }}
-                    >
-                      ⚠️ {sellAmountError}
-                    </p>
-                  )}
-                  <p
-                    style={{
-                      color: 'rgba(255,255,255,0.3)',
-                      fontSize: '10px',
-                      margin: '5px 0 0',
-                    }}
-                  >
-                    Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
-                    {otcConfig.maxNgn.toLocaleString()}
-                  </p>
+                  {sellAmountError && <p className="text-red-400 text-[10px] font-bold mt-1 m-0">⚠️ {sellAmountError}</p>}
+                  <p className="text-white/30 text-[10px] mt-1">Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦{otcConfig.maxNgn.toLocaleString()}</p>
                 </div>
-
                 {sellValid && (
-                  <div
-                    style={{
-                      background: 'rgba(212,175,55,0.05)',
-                      border: '1px solid rgba(212,175,55,0.15)',
-                      borderRadius: '12px',
-                      padding: '12px 14px',
-                    }}
-                  >
-                    {[
-                      ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`],
-                      ['Fee', `-${sellFee.toLocaleString()} NGNs`],
-                      ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`],
-                    ].map(([l, v], i) => (
-                      <div
-                        key={l}
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          marginBottom: i < 2 ? '6px' : 0,
-                          paddingTop: i === 2 ? '8px' : 0,
-                          borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'rgba(255,255,255,0.45)',
-                            fontSize: '11px',
-                          }}
-                        >
-                          {l}
-                        </span>
-                        <span
-                          style={{
-                            color: i === 1 ? '#ef4444' : i === 2 ? '#D4AF37' : '#f5f0e8',
-                            fontWeight: i === 2 ? '900' : '700',
-                            fontSize: i === 2 ? '14px' : '11px',
-                          }}
-                        >
-                          {v}
-                        </span>
+                  <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
+                    {[['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`, '#f5f0e8'], ['Fee', `-${sellFee.toLocaleString()} NGNs`, '#ef4444'], ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`, '#D4AF37']].map(([l, v, c], i) => (
+                      <div key={l} className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}>
+                        <span className="text-white/45 text-[11px]">{l}</span>
+                        <span className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`} style={{ color: c }}>{v}</span>
                       </div>
                     ))}
                   </div>
                 )}
-
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    background: 'rgba(239,68,68,0.06)',
-                    border: '1px solid rgba(239,68,68,0.15)',
-                  }}
-                >
-                  <p style={{ color: '#ef4444', fontSize: '10px', margin: 0 }}>
-                    ⚠️ NGNs are burned immediately on-chain. Cannot be undone.
-                  </p>
+                <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.06] border border-red-500/15">
+                  <p className="text-red-400 text-[10px] m-0">⚠️ NGNs are burned immediately on-chain. Cannot be undone.</p>
                 </div>
               </div>
-              <div
-                style={{
-                  flexShrink: 0,
-                  padding: '12px 20px',
-                  borderTop: '1px solid rgba(255,255,255,0.06)',
-                  background: '#0d0d0e',
-                }}
-              >
+              <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e]">
                 <button
-                  onClick={() => sellValid && setSellPhase('bank')}
-                  disabled={!sellValid}
-                  style={{
-                    width: '100%',
-                    padding: '13px',
-                    background: !sellValid
-                      ? 'rgba(239,68,68,0.2)'
-                      : 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                    border: 'none',
-                    borderRadius: '12px',
-                    color: !sellValid ? 'rgba(239,68,68,0.4)' : '#fff',
-                    fontSize: '13px',
-                    fontWeight: '900',
-                    cursor: !sellValid ? 'not-allowed' : 'pointer',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  Continue →
-                </button>
+                  onClick={() => sellValid && setSellPhase('bank')} disabled={!sellValid}
+                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${sellValid ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed'}`}
+                  style={{ background: sellValid ? 'linear-gradient(135deg, #ef4444, #b91c1c)' : 'rgba(239,68,68,0.2)', color: sellValid ? '#fff' : 'rgba(239,68,68,0.4)' }}
+                >Continue →</button>
               </div>
             </div>
           )}
 
           {/* ── SELL: BANK DETAILS ── */}
           {mode === 'sell' && sellPhase === 'bank' && (
-            <div
-              style={{
-                flex: 1,
-                display: 'flex',
-                flexDirection: 'column',
-                minHeight: 0,
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '16px 20px 12px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                }}
-              >
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '6px' }}>🏦</div>
-                  <h3
-                    style={{
-                      color: '#f5f0e8',
-                      fontSize: '16px',
-                      fontWeight: '900',
-                      margin: '0 0 3px',
-                    }}
-                  >
-                    Your Bank Details
-                  </h3>
-                  <p
-                    style={{
-                      color: 'rgba(255,255,255,0.4)',
-                      fontSize: '11px',
-                      margin: 0,
-                    }}
-                  >
-                    Seller will pay ₦{sellPayout.toLocaleString()} here
-                  </p>
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 flex flex-col gap-3">
+                <div className="text-center">
+                  <div className="text-4xl mb-1.5">🏦</div>
+                  <h3 className="text-[#f5f0e8] text-[16px] font-black m-0 mb-1">Your Bank Details</h3>
+                  <p className="text-white/40 text-[11px] m-0">Seller will pay ₦{sellPayout.toLocaleString()} here</p>
                 </div>
-                {[
-                  {
-                    label: 'Bank Name',
-                    value: bankName,
-                    setter: setBankName,
-                    placeholder: 'e.g. OPay, GTBank',
-                  },
-                  {
-                    label: 'Account Number',
-                    value: accountNumber,
-                    setter: setAccountNumber,
-                    placeholder: '10-digit account number',
-                  },
-                  {
-                    label: 'Account Name',
-                    value: accountName,
-                    setter: setAccountName,
-                    placeholder: 'Full account name',
-                  },
-                ].map(({ label, value, setter, placeholder }) => (
+                {[{ label: 'Bank Name', value: bankName, setter: setBankName, placeholder: 'e.g. OPay, GTBank' }, { label: 'Account Number', value: accountNumber, setter: setAccountNumber, placeholder: '10-digit account number' }, { label: 'Account Name', value: accountName, setter: setAccountName, placeholder: 'Full account name' }].map(({ label, value, setter, placeholder }) => (
                   <div key={label}>
-                    <SectionLabel>{label}</SectionLabel>
+                    <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">{label}</p>
                     <input
-                      type="text"
-                      placeholder={placeholder}
-                      value={value}
+                      type="text" placeholder={placeholder} value={value}
                       onChange={(e) => setter(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '11px 14px',
-                        borderRadius: '10px',
-                        border: '1px solid rgba(212,175,55,0.2)',
-                        background: '#1a1a1b',
-                        color: '#f5f0e8',
-                        fontSize: '13px',
-                        outline: 'none',
-                        boxSizing: 'border-box',
-                        transition: 'border-color 0.2s',
-                      }}
-                      onFocus={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.6)')}
-                      onBlur={(e) => (e.target.style.borderColor = 'rgba(212,175,55,0.2)')}
+                      className="w-full py-2.5 px-3.5 rounded-xl border border-salvaGold/20 bg-[#1a1a1b] text-[#f5f0e8] text-[13px] outline-none focus:border-salvaGold/60 transition-colors box-border"
                     />
                   </div>
                 ))}
-                <div
-                  style={{
-                    background: 'rgba(239,68,68,0.08)',
-                    border: '1px solid rgba(239,68,68,0.2)',
-                    borderRadius: '10px',
-                    padding: '10px 12px',
-                  }}
-                >
-                  <p style={{ color: '#ef4444', fontSize: '11px', margin: 0 }}>
-                    ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You receive
-                    ₦{sellPayout.toLocaleString()}. Double-check details.
-                  </p>
+                <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.08] border border-red-500/20">
+                  <p className="text-red-400 text-[11px] m-0">⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You receive ₦{sellPayout.toLocaleString()}. Double-check details.</p>
                 </div>
                 {sellError && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      padding: '10px 14px',
-                      borderRadius: '12px',
-                      background: 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.25)',
-                    }}
-                  >
-                    <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
-                    <p
-                      style={{
-                        color: '#ef4444',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        margin: 0,
-                      }}
-                    >
-                      {sellError}
-                    </p>
+                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
+                    <span className="text-sm flex-shrink-0">⚠️</span>
+                    <p className="text-red-400 text-[11px] font-bold m-0">{sellError}</p>
                   </div>
                 )}
               </div>
-              <div
-                style={{
-                  flexShrink: 0,
-                  padding: '12px 20px',
-                  borderTop: '1px solid rgba(255,255,255,0.06)',
-                  background: '#0d0d0e',
-                  display: 'flex',
-                  gap: '8px',
-                }}
-              >
-                <button
-                  onClick={() => setSellPhase('amount')}
-                  style={{
-                    flex: 1,
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(255,255,255,0.1)',
-                    color: 'rgba(255,255,255,0.6)',
-                    fontSize: '12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Back
-                </button>
+              <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e] flex gap-2">
+                <button onClick={() => setSellPhase('amount')} className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all">Back</button>
                 <button
                   onClick={handleSellInitiate}
-                  disabled={
-                    sellInitiating ||
-                    !bankName.trim() ||
-                    !accountNumber.trim() ||
-                    !accountName.trim()
-                  }
-                  style={{
-                    flex: 2,
-                    padding: '12px',
-                    borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                    border: 'none',
-                    color: '#fff',
-                    fontSize: '13px',
-                    fontWeight: '900',
-                    cursor:
-                      sellInitiating ||
-                      !bankName.trim() ||
-                      !accountNumber.trim() ||
-                      !accountName.trim()
-                        ? 'not-allowed'
-                        : 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    opacity:
-                      !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
-                  }}
+                  disabled={sellInitiating || !bankName.trim() || !accountNumber.trim() || !accountName.trim()}
+                  className="flex-[2] py-3 rounded-xl border-none text-white text-[13px] font-black flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                  style={{ background: 'linear-gradient(135deg, #ef4444, #b91c1c)', opacity: !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1, cursor: sellInitiating || !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 'not-allowed' : 'pointer' }}
                 >
                   {sellInitiating && <Spinner color="#fff" />}
                   {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
@@ -1991,31 +1196,12 @@ const SalvaNGNsChat = ({ user }) => {
             <>
               <div
                 ref={chatContainerRef}
-                onScroll={(e) => {
-                  const el = e.currentTarget;
-                  isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-                }}
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '14px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  background: '#0a0a0b',
-                }}
+                onScroll={(e) => { const el = e.currentTarget; isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}
+                className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2 bg-[#0a0a0b]"
               >
                 {messages.length === 0 && (
-                  <div
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: 0.4,
-                    }}
-                  >
-                    <p style={{ color: '#D4AF37', fontSize: '12px' }}>Loading messages…</p>
+                  <div className="flex-1 flex items-center justify-center opacity-40">
+                    <p className="text-salvaGold text-[12px] m-0">Loading messages…</p>
                   </div>
                 )}
 
@@ -2024,83 +1210,14 @@ const SalvaNGNsChat = ({ user }) => {
                 ))}
 
                 {mode === 'buy' && status === 'pending' && sellerInfo && (
-                  <div
-                    style={{
-                      padding: '12px 14px',
-                      background: 'rgba(212,175,55,0.06)',
-                      border: '1px solid rgba(212,175,55,0.2)',
-                      borderRadius: '12px',
-                      margin: '4px 0',
-                    }}
-                  >
-                    <p
-                      style={{
-                        color: 'rgba(212,175,55,0.7)',
-                        fontSize: '9px',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.12em',
-                        fontWeight: '700',
-                        margin: '0 0 10px',
-                      }}
-                    >
-                      📤 Send your payment to:
-                    </p>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '8px',
-                      }}
-                    >
-                      {[
-                        { label: 'Bank', value: sellerInfo.bankName },
-                        {
-                          label: 'Account Name',
-                          value: sellerInfo.accountName,
-                        },
-                        {
-                          label: 'Account Number',
-                          value: sellerInfo.accountNumber,
-                        },
-                      ].map(({ label, value }) => (
-                        <div
-                          key={label}
-                          style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '8px',
-                          }}
-                        >
-                          <span
-                            style={{
-                              color: 'rgba(255,255,255,0.35)',
-                              fontSize: '10px',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {label}
-                          </span>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              minWidth: 0,
-                            }}
-                          >
-                            <span
-                              style={{
-                                color: '#f5f0e8',
-                                fontSize: '12px',
-                                fontWeight: '700',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {value || '—'}
-                            </span>
+                  <div className="px-3.5 py-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 my-1">
+                    <p className="text-salvaGold/70 text-[9px] uppercase tracking-[0.12em] font-bold m-0 mb-2.5">📤 Send your payment to:</p>
+                    <div className="flex flex-col gap-2">
+                      {[{ label: 'Bank', value: sellerInfo.bankName }, { label: 'Account Name', value: sellerInfo.accountName }, { label: 'Account Number', value: sellerInfo.accountNumber }].map(({ label, value }) => (
+                        <div key={label} className="flex justify-between items-center gap-2">
+                          <span className="text-white/35 text-[10px] flex-shrink-0">{label}</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[#f5f0e8] text-[12px] font-bold truncate">{value || '—'}</span>
                             {value && <CopyBtn value={value} />}
                           </div>
                         </div>
@@ -2109,92 +1226,29 @@ const SalvaNGNsChat = ({ user }) => {
                   </div>
                 )}
 
-                {mode === 'buy' &&
-                  status === 'pending' &&
-                  messages.length > 0 &&
-                  !showReceiptUpload && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      style={{ display: 'flex', justifyContent: 'flex-end' }}
-                    >
-                      <button
-                        onClick={() => setShowReceiptUpload(true)}
-                        style={{
-                          padding: '10px 16px',
-                          borderRadius: '12px',
-                          background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                          border: 'none',
-                          color: '#000',
-                          fontSize: '12px',
-                          fontWeight: '900',
-                          cursor: 'pointer',
-                          boxShadow: '0 0 16px rgba(212,175,55,0.4)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                        }}
-                      >
-                        <span>✅</span> I Have Paid
-                      </button>
-                    </motion.div>
-                  )}
+                {mode === 'buy' && status === 'pending' && messages.length > 0 && !showReceiptUpload && (
+                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="flex justify-end">
+                    <button
+                      onClick={() => setShowReceiptUpload(true)}
+                      className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-none text-black text-[12px] font-black cursor-pointer hover:brightness-110 transition-all active:scale-[0.97]"
+                      style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)', boxShadow: '0 0 16px rgba(212,175,55,0.4)' }}
+                    >✅ I Have Paid</button>
+                  </motion.div>
+                )}
 
                 {status === 'minting' && (
-                  <div
-                    style={{
-                      padding: '12px',
-                      background: 'rgba(212,175,55,0.06)',
-                      border: '1px solid rgba(212,175,55,0.2)',
-                      borderRadius: '12px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '10px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid rgba(212,175,55,0.3)',
-                        borderTopColor: '#D4AF37',
-                        borderRadius: '50%',
-                        animation: 'spin 0.8s linear infinite',
-                        flexShrink: 0,
-                      }}
-                    />
-                    <p
-                      style={{
-                        color: '#D4AF37',
-                        fontSize: '12px',
-                        margin: 0,
-                        fontWeight: '700',
-                      }}
-                    >
-                      Minting on-chain… please wait.
-                    </p>
+                  <div className="p-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0" style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <p className="text-salvaGold text-[12px] font-bold m-0">Minting on-chain… please wait.</p>
                   </div>
                 )}
 
                 {(isMinted || isRejected || isBurned) && (
                   <button
                     onClick={resetAll}
-                    style={{
-                      padding: '11px',
-                      borderRadius: '12px',
-                      background: isMinted ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.1)',
-                      border: `1px solid ${isMinted ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-                      color: isMinted ? '#22c55e' : '#ef4444',
-                      fontSize: '12px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                    }}
+                    className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${isMinted ? 'bg-green-500/15 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
                   >
-                    {isMinted
-                      ? 'Buy More NGNs →'
-                      : isBurned
-                        ? 'New Transaction →'
-                        : 'Start New Request →'}
+                    {isMinted ? 'Buy More NGNs →' : isBurned ? 'New Transaction →' : 'Start New Request →'}
                   </button>
                 )}
 

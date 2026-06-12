@@ -11,6 +11,16 @@ function getTxDisplayNames(tx, user) {
   const isReceived = tx.displayType === 'receive';
   const isSentOrFailed = tx.displayType === 'sent' || tx.displayType === 'failed';
 
+  if (tx.txType === 'swap') {
+    const fromLabel = tx.poolName || tx.fromNameAlias || tx.fromAddress || 'Unknown Pool';
+    const toRaw = tx.toNameAlias || tx.toUsername || tx.toAddress || user.safeAddress;
+    const toLabel = toRaw && toRaw.startsWith('0x') && toRaw.length > 14
+      ? `${toRaw.slice(0, 6)}...${toRaw.slice(-4)}`
+      : toRaw || '—';
+    return { fromLabel, toLabel };
+  }
+  // ──────────────────────────────────────────────────────────────────────
+
   let fromLabel = '—';
   let toLabel = '—';
 
@@ -50,7 +60,10 @@ const formatNumber = (value, { minDecimals = 2, maxDecimals = 6 } = {}) => {
   });
 };
 
-const coinLabel = (tx) => (tx.coin === 'NGN' ? 'NGNs' : tx.coin || 'NGNs');
+const coinLabel = (tx) => {
+  if (tx.txType === 'swap') return tx.tokenOut || tx.coin || 'NGNs';
+  return tx.coin === 'NGN' ? 'NGNs' : tx.coin || 'NGNs';
+};
 
 const FILTERS = ['All', 'Pending', 'Sent', 'Received', 'Failed'];
 const PAGE_SIZE = 20;
@@ -160,7 +173,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
           <div className="text-right">
             <p className={`text-sm font-black tabular-nums ${amtColor}`}>
               {amtPrefix}
-              {formatNumber(tx.amount)}
+{formatNumber(tx.amount ?? tx.swapAmount ?? tx.amountIn ?? 0)}
             </p>
             <p className="text-[9px] text-white/25 font-bold">{coin}</p>
           </div>

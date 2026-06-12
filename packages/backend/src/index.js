@@ -695,8 +695,8 @@ async function getPoolOperationFee(chain) {
     const isProd = process.env.NODE_ENV === 'production';
     const isBNB = chain === 'bnb';
     // Fallback minimums — same conservative values as transfer
-    const feeNGN = isBNB ? 50 : 20;
-    const feeUSD = isBNB ? 0.04 : 0.015;
+    const feeNGN = isBNB ? 25 : 10;
+    const feeUSD = isBNB ? 0.02 : 0.0075;
     const ngnDecimals = 6;
     const usdDecimals = 6;
     return {
@@ -733,8 +733,8 @@ async function getFeeForTransfer(chain, coin) {
     const isNGN = coin === 'NGN' || coin === 'CNGN';
     const isBNB = chain === 'bnb';
     if (isNGN) {
-      // Base: ₦20 | BNB: ₦50
-      const fallbackNGN = isBNB ? '50' : '20';
+
+      const fallbackNGN = isBNB ? '25' : '10';
       let decimals = 6;
       if (isBNB) {
         try {
@@ -752,7 +752,7 @@ async function getFeeForTransfer(chain, coin) {
       return { feeNGN: parseFloat(fallbackNGN), feeUsd: 0, feeWei };
     } else {
       // Base: $0.015 | BNB: $0.04
-      const fallbackUsd = isBNB ? '0.04' : '0.015';
+      const fallbackUsd = isBNB ? '0.02' : '0.0075';
       let decimals = 6;
       if (isBNB) {
         try {
@@ -797,10 +797,10 @@ app.get('/api/estimate-pool-fee', async (req, res) => {
       console.error('❌ /api/estimate-pool-fee fallback:', err.message);
       const isBNB = chain === 'bnb';
       result = {
-        feeNGN: isBNB ? 50 : 20,
-        feeUSD: isBNB ? 0.04 : 0.015,
-        feeWeiNGN: (isBNB ? 50n : 20n) * BigInt(1e6),
-        feeWeiUSD: isBNB ? 40000n : 15000n,
+        feeNGN: isBNB ? 25 : 10,
+        feeUSD: isBNB ? 0.02 : 0.0075,
+        feeWeiNGN: (isBNB ? 25n : 10n) * BigInt(1e6),
+        feeWeiUSD: isBNB ? 20000n : 7500n,
         ngnDecimals: 6,
         usdDecimals: 6,
       };
@@ -2322,7 +2322,10 @@ app.get('/api/transactions/:address', async (req, res) => {
       const isSuccessful = tx.status === 'successful';
 
       let displayType;
-      if (isFromMe) {
+      const isSwap = tx.txType === 'swap';
+      if (isSwap && isToMe && isSuccessful) {
+        displayType = 'receive';
+      } else if (isFromMe) {
         displayType = isSuccessful ? 'sent' : 'failed';
       } else if (isToMe && isSuccessful) {
         displayType = 'receive';

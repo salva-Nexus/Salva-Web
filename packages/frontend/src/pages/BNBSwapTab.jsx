@@ -243,6 +243,84 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const tokenIn = section === 'buy' ? ngnToken : stableToken;
   const tokenOut = section === 'buy' ? stableToken : ngnLabel;
 
+  const defaultReceiver = user?.safeAddress || '';
+  const [receiverRaw, setReceiverRaw] = useState(defaultReceiver);
+  const [receiverInputType, setReceiverInputType] = useState('address');
+  const [receiverError, setReceiverError] = useState('');
+  const [receiverResolved, setReceiverResolved] = useState(defaultReceiver);
+  const [receiverResolving, setReceiverResolving] = useState(false);
+  const receiverResolveTimer = useRef(null);
+
+  const handleReceiverChange = (val) => {
+    setReceiverError('');
+    if (val.toLowerCase().startsWith('0x')) {
+      setReceiverRaw(val);
+      setReceiverInputType('address');
+      setReceiverResolved(val.trim());
+      return;
+    }
+    let cleaned = val.toLowerCase();
+    if (cleaned.includes('@')) {
+      cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+      const atIndex = cleaned.indexOf('@');
+      if (atIndex !== -1) {
+        cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
+      }
+      setReceiverRaw(cleaned);
+      setReceiverInputType('fullname');
+      const parts = cleaned.split('@');
+      if (parts[0] && parts[1]) {
+        clearTimeout(receiverResolveTimer.current);
+        receiverResolveTimer.current = setTimeout(async () => {
+          setReceiverResolving(true);
+          setReceiverError('');
+          try {
+            const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ fullName: cleaned }),
+            });
+            const data = await res.json();
+            if (res.ok && data.resolvedAddress) {
+              setReceiverResolved(data.resolvedAddress);
+            } else {
+              setReceiverResolved('');
+              setReceiverError(data.message || 'Name not found');
+            }
+          } catch {
+            setReceiverResolved('');
+            setReceiverError('Network error — could not resolve name');
+          } finally {
+            setReceiverResolving(false);
+          }
+        }, 600);
+      } else {
+        setReceiverResolved('');
+      }
+      return;
+    }
+    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
+    const firstDot = cleaned.indexOf('.');
+    if (firstDot !== -1) {
+      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+    }
+    const firstAt = cleaned.indexOf('@');
+    if (firstAt !== -1) {
+      cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
+    }
+    setReceiverRaw(cleaned);
+    if (!cleaned) {
+      setReceiverInputType('empty');
+      setReceiverResolved(defaultReceiver);
+      return;
+    }
+    setReceiverInputType('invalid');
+    setReceiverResolved('');
+    if (cleaned.length > 1) {
+      setReceiverError('Enter a full name (e.g. charles@salva) or a 0x address');
+    }
+  };
+
   // L1 user balance
   const [userBal, setUserBal] = useState({});
   const [userBalLoading, setUserBalLoading] = useState(true);
@@ -471,7 +549,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           trusted: isTrusted,
           tokenIn,
           doApproveMax,
-          receiverAddress: user.safeAddress,
+          receiverAddress: receiverResolved || user.safeAddress,
         }),
       });
       const swapData = await swapRes.json();
@@ -525,141 +603,135 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 animate={{ opacity: 1, y: 0 }}
                 className="space-y-3"
               >
-                <div className="mb-2">
-                  <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <p
-                      className="text-[9px] uppercase tracking-[0.45em] font-black"
-                      style={{ color: accentColor }}
+                {/* ── Pool Identity Header ── */}
+                <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+                  <div
+                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
+                    style={{ background: `${accentColor}1A`, color: accentColor }}
+                  >
+                    {section === 'buy' ? '↑$' : '$↑'}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-black text-sm text-white truncate">
+                        {pool.poolName || 'Anonymous Pool'}
+                      </p>
+                      {isTrusted && (
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black border border-green-500/30 bg-green-500/10 text-green-400 flex-shrink-0">
+                          ✓ Trusted
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-mono text-[9px] text-white/40 truncate mt-0.5">
+                      {pool.poolAddress.slice(0, 18)}…{pool.poolAddress.slice(-6)}
+                    </p>
+                  </div>
+                  <div
+                    className="flex-shrink-0 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest"
+                    style={{ borderColor: `${accentColor}40`, color: accentColor, background: `${accentColor}0D` }}
+                  >
+                    {section === 'buy' ? '₦→$' : '$→₦'}
+                  </div>
+                </div>
+
+                {/* ── Token Config Row ── */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1.5">
+                      USD Stablecoins
+                    </label>
+                    <TokenPills
+                      options={['USDT', 'USDC']}
+                      value={stableToken}
+                      onChange={setStableToken}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1.5">
+                      NGN Stablecoins
+                    </label>
+                    <TokenPills
+                      options={['NGNS', 'CNGN']}
+                      value={ngnToken}
+                      onChange={setNgnToken}
+                    />
+                  </div>
+                </div>
+
+                {/* ── Mode toggle ── */}
+                <div className="flex gap-2 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                  {[
+                    { id: 'exact_in', label: 'Exact Input' },
+                    { id: 'exact_out', label: 'Exact Output' },
+                  ].map(({ id, label }) => (
+                    <button
+                      key={id}
+                      onClick={() => {
+                        setSwapType(id);
+                        setAmountDisplay('');
+                        setAmountRaw(0);
+                        setQuote(null);
+                      }}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                        swapType === id
+                          ? 'bg-white/10 text-white shadow-sm'
+                          : 'text-white/30 hover:text-white/50'
+                      }`}
                     >
-                      {section === 'buy' ? 'Buy USD Stablecoin' : 'Sell USD Stablecoin'}
-                    </p>
-                    {isTrusted && (
-                      <span className="px-2 py-0.5 rounded-full text-[9px] font-black border border-green-500/30 bg-green-500/10 text-green-400">
-                        Trusted ✓
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-xl font-black text-white">
-                    {pool.poolName || 'Anonymous Pool'}
-                  </h3>
-                  <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
-                    {pool.poolAddress}
-                  </p>
+                      {label}
+                    </button>
+                  ))}
                 </div>
 
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                    Stablecoin
-                  </label>
-                  <TokenPills
-                    options={['USDT', 'USDC']}
-                    value={stableToken}
-                    onChange={setStableToken}
-                  />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                    Naira Token
-                  </label>
-                  <TokenPills options={['NGNS', 'CNGN']} value={ngnToken} onChange={setNgnToken} />
-                </div>
-                <div>
-                  <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
-                    Mode
-                  </label>
-                  <div className="flex gap-2">
-                    {[
-                      { id: 'exact_in', label: 'Exact Input' },
-                      { id: 'exact_out', label: 'Exact Output' },
-                    ].map(({ id, label }) => (
-                      <button
-                        key={id}
-                        onClick={() => {
-                          setSwapType(id);
-                          setAmountDisplay('');
-                          setAmountRaw(0);
-                          setQuote(null);
-                        }}
-                        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
-                          swapType === id
-                            ? 'bg-white/10 border-white/20 text-white'
-                            : 'border-white/[0.06] bg-white/5 text-white/60'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Send/Receive demarcation */}
-                <div className="relative flex items-center gap-3 py-1">
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                  <div className="flex items-center gap-3 px-3 py-1.5 rounded-full border border-white/[0.08] bg-white/[0.03]">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px]" style={{ color: accentColor }}>
-                        ↑
-                      </span>
-                      <span className="text-[9px] uppercase tracking-[0.25em] font-black text-white/40">
-                        Send
-                      </span>
-                      <span className="text-[9px] font-black" style={{ color: accentColor }}>
+                {/* ── Flow banner ── */}
+                <div
+                  className="flex items-center justify-between px-4 py-2.5 rounded-xl border"
+                  style={{ borderColor: `${accentColor}25`, background: `${accentColor}08` }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm" style={{ color: accentColor }}>↑</span>
+                    <div>
+                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">You Send</p>
+                      <p className="text-xs font-black" style={{ color: accentColor }}>
                         {section === 'buy' ? ngnLabel : stableToken}
-                      </span>
-                    </div>
-                    <span className="text-white/20 text-[9px]">·</span>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] text-green-400">↓</span>
-                      <span className="text-[9px] uppercase tracking-[0.25em] font-black text-white/40">
-                        Receive
-                      </span>
-                      <span className="text-[9px] font-black text-green-400">
-                        {section === 'buy' ? stableToken : ngnLabel}
-                      </span>
+                      </p>
                     </div>
                   </div>
-                  <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+                  <div className="text-white/20 text-lg font-black">→</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">You Get</p>
+                      <p className="text-xs font-black text-green-400">
+                        {section === 'buy' ? stableToken : ngnLabel}
+                      </p>
+                    </div>
+                    <span className="text-sm text-green-400">↓</span>
+                  </div>
                 </div>
 
-                {/* Balances */}
-                <div className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between px-3 py-2 rounded-xl border border-white/[0.06] bg-white/[0.02]">
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30">
-                      Your balance
-                    </p>
+                {/* ── Balance strip ── */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className={`px-3 py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
+                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">Your Balance</p>
                     {userBalLoading ? (
                       <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                     ) : (
-                      <p
-                        className={`text-xs font-black ${userCantAfford ? 'text-red-400' : 'text-white'}`}
-                      >
-                        {userSendBal !== null ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd') : '—'}{' '}
-                        <span className="font-normal opacity-60">
-                          {section === 'buy' ? ngnLabel : stableToken}
-                        </span>
+                      <p className={`text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}>
+                        {userSendBal !== null ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd') : '—'}
+                        <span className="text-white/40 font-normal text-[9px]"> {section === 'buy' ? ngnLabel : stableToken}</span>
                       </p>
                     )}
                   </div>
-                  <div
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl border ${poolEmpty ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
-                  >
-                    <p className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30">
-                      Pool available
-                    </p>
-                    <p
-                      className={`text-xs font-black ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
-                    >
-                      {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}{' '}
-                      <span className="font-normal opacity-60">
-                        {section === 'buy' ? stableToken : ngnLabel}
-                      </span>
+                  <div className={`px-3 py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
+                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">Pool Has</p>
+                    <p className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}>
+                      {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}
+                      <span className="text-white/40 font-normal text-[9px]"> {section === 'buy' ? stableToken : ngnLabel}</span>
                     </p>
                   </div>
                 </div>
                 {userCantAfford && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-1">
-                    ⚠ Insufficient balance to send
-                  </p>
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">⚠ Insufficient balance to send</p>
                 )}
                 {(poolEmpty || poolCantCover) && (
                   <p className="text-[10px] text-red-400 font-bold -mt-1">
@@ -743,6 +815,76 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     <span className="text-white/30 text-[10px]">—</span>
                   )}
                 </div>
+
+                {/* ── Receiver ── */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      Receiver
+                    </label>
+                    {receiverRaw !== defaultReceiver && (
+                      <button
+                        onClick={() => {
+                          setReceiverRaw(defaultReceiver);
+                          setReceiverInputType('address');
+                          setReceiverResolved(defaultReceiver);
+                          setReceiverError('');
+                        }}
+                        className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                      >
+                        Reset ↺
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={receiverRaw}
+                      onChange={(e) => handleReceiverChange(e.target.value)}
+                      placeholder="0x… or charles@salva"
+                      className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
+                        receiverError
+                          ? 'border-red-500/60'
+                          : receiverInputType === 'fullname' && receiverResolved
+                            ? 'border-green-500/40'
+                            : 'border-white/10 focus:border-blue-500'
+                      }`}
+                    />
+                    {receiverResolving && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
+                    )}
+                    {!receiverResolving && receiverInputType === 'fullname' && receiverResolved && (
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">✓</span>
+                    )}
+                  </div>
+                  {receiverRaw === defaultReceiver && (
+                    <p className="text-[10px] text-white/30 font-bold mt-1.5">Default: your BNB Safe wallet</p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && (
+                    <p className="text-[10px] mt-1.5 font-bold">
+                      {receiverInputType === 'address' && (
+                        <span className="text-blue-400">↗ Custom address</span>
+                      )}
+                      {receiverInputType === 'fullname' && receiverResolved && (
+                        <span className="text-green-400">✓ {receiverResolved.slice(0, 10)}…{receiverResolved.slice(-8)}</span>
+                      )}
+                      {receiverInputType === 'fullname' && !receiverResolved && !receiverResolving && (
+                        <span className="text-white/30">Complete the name — e.g. charles@salva</span>
+                      )}
+                    </p>
+                  )}
+                  {receiverError && (
+                    <p className="text-[10px] text-red-400 font-bold mt-1.5">⚠ {receiverError}</p>
+                  )}
+                  {receiverRaw !== defaultReceiver && !receiverError && receiverResolved && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                      <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
+                      <p className="text-[10px] text-yellow-400/80 font-bold">
+                        Funds go to a different address — double-check before continuing.
+                      </p>
+                    </div>
+                  )}
+                </div>
               </motion.div>
             )}
 
@@ -818,7 +960,11 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     userCantAfford ||
                     poolCantCover ||
                     poolEmpty ||
-                    userBalLoading
+                    userBalLoading ||
+                    !!receiverError ||
+                    receiverResolving ||
+                    (receiverInputType === 'fullname' && !receiverResolved) ||
+                    receiverInputType === 'invalid'
                   }
                   className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20"
                 >

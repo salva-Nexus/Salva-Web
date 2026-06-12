@@ -32,7 +32,7 @@ const UserBNBSchema = new mongoose.Schema({
     unique: true,
     index: true,
     lowercase: true,
-    set: (v) => v.toLowerCase(),
+    set: (v) => v.toLowerCase(), 
   },
   ownerPrivateKey: { type: String, required: true },
   transactionPin: { type: String, default: null },
