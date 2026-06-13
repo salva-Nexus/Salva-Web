@@ -136,11 +136,19 @@ const SubBadge = ({ pool }) => {
 };
 
 const StatCell = ({ label, value, color }) => (
-  <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
-    <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1 truncate">
-      {label}
-    </p>
-    <p className="font-black text-xs sm:text-sm truncate" style={{ color }} title={smartFmt(value)}>
+  <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-3 min-w-0">
+    <div className="flex items-center gap-2.5 min-w-0">
+      <div
+        className="w-2 h-2 rounded-full flex-shrink-0"
+        style={{ backgroundColor: color, opacity: 0.7 }}
+      />
+      <p className="text-xs uppercase tracking-widest text-white/50 font-black truncate">{label}</p>
+    </div>
+    <p
+      className="font-black text-base tabular-nums flex-shrink-0"
+      style={{ color }}
+      title={smartFmt(value)}
+    >
       {compactFmt(value)}
     </p>
   </div>
@@ -661,22 +669,22 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               ✕
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-[10px] uppercase tracking-widest text-blue-400/60 font-black">
                 NGN Total
-              </p>
-              <p className="font-black text-sm text-blue-400 truncate" title={smartFmt(totalNgn)}>
+              </span>
+              <span className="font-black text-lg text-blue-400 tabular-nums">
                 {compactFmt(totalNgn)}
-              </p>
+              </span>
             </div>
-            <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06] text-center min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.2em] text-white/60 font-black mb-1">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-[10px] uppercase tracking-widest text-green-400/60 font-black">
                 USD Total
-              </p>
-              <p className="font-black text-sm text-green-400 truncate" title={smartFmt(totalUsd)}>
+              </span>
+              <span className="font-black text-lg text-green-400 tabular-nums">
                 {compactFmt(totalUsd)}
-              </p>
+              </span>
             </div>
           </div>
         </div>
@@ -707,7 +715,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
                   Token
                 </label>
-                <div className="grid grid-cols-4 gap-1.5">
+                <div className="grid grid-cols-2 gap-2">
                   {assets.map((a) => {
                     const raw = rawBalanceForAsset(a);
                     return (
@@ -717,11 +725,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                           setLiqAsset(a);
                           setLiqAmount('');
                         }}
-                        className={`py-2.5 rounded-xl border transition-all flex flex-col items-center gap-0.5 min-w-0 ${liqAsset === a ? 'bg-blue-500/10 border-blue-500/40 text-blue-400' : 'border-white/[0.06] bg-white/5 text-white/60 hover:text-white/60'}`}
+                        className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all ${
+                          liqAsset === a
+                            ? 'bg-blue-500/10 border-blue-500/40'
+                            : 'border-white/[0.06] bg-white/5 hover:border-white/20'
+                        }`}
                       >
-                        <span className="text-xs font-black uppercase">{a}</span>
                         <span
-                          className="text-[9px] text-white/60 truncate w-full text-center px-1"
+                          className={`text-sm font-black uppercase ${liqAsset === a ? 'text-blue-400' : 'text-white/60'}`}
+                        >
+                          {a}
+                        </span>
+                        <span
+                          className="text-sm font-black text-white/80 tabular-nums"
                           title={smartFmt(raw)}
                         >
                           {compactFmt(raw)}
@@ -761,8 +777,16 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               </div>
 
               <div className="mb-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[10px]">
-                <span className="uppercase tracking-widest text-white/60 font-black">Network Fee</span>
-                {panelFee.loading ? <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" /> : panelFee.feeNGN !== null ? <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)}</span> : <span className="text-white/30">—</span>}
+                <span className="uppercase tracking-widest text-white/60 font-black">
+                  Network Fee
+                </span>
+                {panelFee.loading ? (
+                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                ) : panelFee.feeNGN !== null ? (
+                  <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)}</span>
+                ) : (
+                  <span className="text-white/30">—</span>
+                )}
               </div>
 
               <button
@@ -816,8 +840,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <div className="mb-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[10px]">
-                    <span className="uppercase tracking-widest text-white/60 font-black">Network Fee</span>
-                    {panelFee.loading ? <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" /> : panelFee.feeNGN !== null ? <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)} <span className="text-white/30 font-normal">or</span> ${panelFee.feeUSD?.toFixed(4)}</span> : <span className="text-white/30">—</span>}
+                    <span className="uppercase tracking-widest text-white/60 font-black">
+                      Network Fee
+                    </span>
+                    {panelFee.loading ? (
+                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                    ) : panelFee.feeNGN !== null ? (
+                      <span className="text-red-400 font-black">
+                        ₦{panelFee.feeNGN.toFixed(2)}{' '}
+                        <span className="text-white/30 font-normal">or</span> $
+                        {panelFee.feeUSD?.toFixed(4)}
+                      </span>
+                    ) : (
+                      <span className="text-white/30">—</span>
+                    )}
                   </div>
                   <button
                     onClick={() => triggerPin('buyRate')}
@@ -853,8 +889,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     </span>
                   </div>
                   <div className="mb-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[10px]">
-                    <span className="uppercase tracking-widest text-white/60 font-black">Network Fee</span>
-                    {panelFee.loading ? <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" /> : panelFee.feeNGN !== null ? <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)} <span className="text-white/30 font-normal">or</span> ${panelFee.feeUSD?.toFixed(4)}</span> : <span className="text-white/30">—</span>}
+                    <span className="uppercase tracking-widest text-white/60 font-black">
+                      Network Fee
+                    </span>
+                    {panelFee.loading ? (
+                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                    ) : panelFee.feeNGN !== null ? (
+                      <span className="text-red-400 font-black">
+                        ₦{panelFee.feeNGN.toFixed(2)}{' '}
+                        <span className="text-white/30 font-normal">or</span> $
+                        {panelFee.feeUSD?.toFixed(4)}
+                      </span>
+                    ) : (
+                      <span className="text-white/30">—</span>
+                    )}
                   </div>
                   <button
                     onClick={() => triggerPin('sellRate')}
@@ -1017,50 +1065,49 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-4 gap-1.5">
+        {/* ── Token balances: 2×2 spacious grid ── */}
+        <div className="grid grid-cols-2 gap-2">
           <StatCell label="NGNs" value={toNum(pool.ngnsLiquidity)} color="#3b82f6" />
           <StatCell label="cNGN" value={toNum(pool.cNgnLiquidity)} color="#60a5fa" />
           <StatCell label="USDT" value={toNum(pool.usdtLiquidity)} color="#22c55e" />
           <StatCell label="USDC" value={toNum(pool.usdcLiquidity)} color="#3b82f6" />
         </div>
 
-        <div className="grid grid-cols-2 gap-1.5">
-          <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-between gap-2 min-w-0">
-            <span className="text-[9px] uppercase tracking-widest text-blue-400/60 font-black flex-shrink-0">
+        {/* Totals + Rates unified strip */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[10px] uppercase tracking-widest text-blue-400/60 font-black">
               NGN Total
             </span>
-            <span className="text-xs font-black text-blue-400 truncate" title={smartFmt(totalNgn)}>
+            <span className="font-black text-base text-blue-400 tabular-nums">
               {compactFmt(totalNgn)}
             </span>
           </div>
-          <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.05] flex items-center justify-between gap-2 min-w-0">
-            <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[10px] uppercase tracking-widest text-green-400/60 font-black">
               USD Total
             </span>
-            <span className="text-xs font-black text-green-400 truncate" title={smartFmt(totalUsd)}>
+            <span className="font-black text-base text-green-400 tabular-nums">
               {compactFmt(totalUsd)}
             </span>
           </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-2">
-          <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            <p className="text-[9px] uppercase tracking-widest text-green-400/50 font-black mb-1">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[10px] uppercase tracking-widest text-white/40 font-black">
               Buy Rate
-            </p>
-            <p className="font-black text-sm text-green-400">
+            </span>
+            <span className="font-black text-base text-green-400 tabular-nums">
               ₦{toNum(pool.buyRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">/USD</span>
-            </p>
+              <span className="text-[10px] text-white/40 font-normal">/USD</span>
+            </span>
           </div>
-          <div className="p-3 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-            <p className="text-[9px] uppercase tracking-widest text-blue-400/50 font-black mb-1">
+          <div className="flex items-center justify-between px-4 py-3">
+            <span className="text-[10px] uppercase tracking-widest text-white/40 font-black">
               Sell Rate
-            </p>
-            <p className="font-black text-sm text-blue-400">
+            </span>
+            <span className="font-black text-base text-blue-400 tabular-nums">
               ₦{toNum(pool.sellRate).toLocaleString()}
-              <span className="text-[10px] text-white/60 font-normal">/USD</span>
-            </p>
+              <span className="text-[10px] text-white/40 font-normal">/USD</span>
+            </span>
           </div>
         </div>
 
