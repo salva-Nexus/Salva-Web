@@ -12,11 +12,14 @@ function getTxDisplayNames(tx, user) {
   const isSentOrFailed = tx.displayType === 'sent' || tx.displayType === 'failed';
 
   if (tx.txType === 'swap') {
+    // fromLabel = pool name or address (who sent the output)
     const fromLabel = tx.poolName || tx.fromNameAlias || tx.fromAddress || 'Unknown Pool';
+    // toLabel = receiver: prefer Salva name (name@namespace), then username, then short address
     const toRaw = tx.toNameAlias || tx.toUsername || tx.toAddress || user.safeAddress;
-    const toLabel = toRaw && toRaw.startsWith('0x') && toRaw.length > 14
-      ? `${toRaw.slice(0, 6)}...${toRaw.slice(-4)}`
-      : toRaw || '—';
+    const toLabel =
+      toRaw && toRaw.startsWith('0x') && toRaw.length > 14
+        ? `${toRaw.slice(0, 6)}...${toRaw.slice(-4)}`
+        : toRaw || '—';
     return { fromLabel, toLabel };
   }
   // ──────────────────────────────────────────────────────────────────────
@@ -365,7 +368,9 @@ const Transactions = () => {
   const showMsg = (msg, type = 'success') => setToast({ show: true, message: msg, type });
 
   const filtered = useMemo(() => {
-    let list = [...transactions];
+    let list = [...transactions].sort(
+      (a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)
+    );
     if (filter !== 'All') {
       const map = {
         Pending: 'pending',
@@ -762,7 +767,7 @@ const Transactions = () => {
               </div>
               <div className="flex-1">
                 <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
-                  Counterparty
+                  Reciepient
                 </p>
               </div>
               <div className="text-right flex-shrink-0 pr-6">

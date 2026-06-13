@@ -1140,11 +1140,25 @@ router.post('/swap', async (req, res) => {
     );
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: swFeeNGN, feeUSD: swFeeUSD, feeWeiNGN: swFeeWeiNGN, feeWeiUSD: swFeeWeiUSD } =
-      await _getPoolFee('base');
-    const swFeeToken = await _resolveFeeToken('base', cleanUser, swFeeNGN, swFeeUSD, swFeeWeiNGN, swFeeWeiUSD);
+    const {
+      feeNGN: swFeeNGN,
+      feeUSD: swFeeUSD,
+      feeWeiNGN: swFeeWeiNGN,
+      feeWeiUSD: swFeeWeiUSD,
+    } = await _getPoolFee('base');
+    const swFeeToken = await _resolveFeeToken(
+      'base',
+      cleanUser,
+      swFeeNGN,
+      swFeeUSD,
+      swFeeWeiNGN,
+      swFeeWeiUSD
+    );
     if (!swFeeToken) return res.status(400).json({ message: _feeErrorMsg(swFeeNGN, swFeeUSD) });
-    const swFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), swFeeToken.feeWei]);
+    const swFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+      ethers.getAddress(_treasury(false)),
+      swFeeToken.feeWei,
+    ]);
     // ─────────────────────────────────────────────────────────────────────────
 
     let result;
@@ -1152,22 +1166,36 @@ router.post('/swap', async (req, res) => {
     if (trusted) {
       // Trusted: swap + fee transfer via MultiSend
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanUser), userPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanUser),
+        userPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
           { to: ethers.getAddress(cleanPool), data: swapCalldata },
           { to: ethers.getAddress(swFeeToken.tokenAddress), data: swFeeCalldata },
-        ]), 1
+        ]),
+        1
       );
     } else {
       // Not trusted: approve + swap + fee transfer via MultiSend (3 calls)
-      const ERC20_APPROVE_IFACE = new ethers.Interface(['function approve(address spender, uint256 amount) returns (bool)']);
+      const ERC20_APPROVE_IFACE = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanUser), userPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanUser),
+        userPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanTokenIn), data: ERC20_APPROVE_IFACE.encodeFunctionData('approve', [ethers.getAddress(cleanPool), approveBn]) },
+          {
+            to: ethers.getAddress(cleanTokenIn),
+            data: ERC20_APPROVE_IFACE.encodeFunctionData('approve', [
+              ethers.getAddress(cleanPool),
+              approveBn,
+            ]),
+          },
           { to: ethers.getAddress(cleanPool), data: swapCalldata },
           { to: ethers.getAddress(swFeeToken.tokenAddress), data: swFeeCalldata },
-        ]), 1
+        ]),
+        1
       );
     }
 
@@ -1183,24 +1211,126 @@ router.post('/swap', async (req, res) => {
       await TrustedPool.findOneAndUpdate(
         { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanTokenIn },
         { trustedAt: new Date() },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       ).catch(() => {});
     }
 
     const Transaction = require('../models/Transaction');
     const User = require('../models/User');
     const receiverAddr = cleanAddr(req.body.receiverAddress) || cleanUser;
-    const poolDoc = await Pool.findOne({ poolAddress: cleanPool }).lean().catch(() => null);
-    const receiverUser = await User.findOne({ safeAddress: receiverAddr }).lean().catch(() => null);
-    const txTokenOut = (swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount') ? stableToken : (req.body.ngnToken === 'CNGN' ? 'cNGN' : 'NGNs');
+    const poolDoc = await Pool.findOne({ poolAddress: cleanPool })
+      .lean()
+      .catch(() => null);
+    // Lookup receiver in Base (L2) DB — check name alias
+    const receiverUser = await User.findOne({ safeAddress: receiverAddr })
+      .lean()
+      .catch(() => null);
+    // Resolve best display identifier for receiver:
+    // Priority: nameAlias (e.g. charles@salva) → username → address
+    const receiverDisplayName = receiverUser
+      ? receiverUser.nameAlias || receiverUser.username || receiverAddr
+      : receiverAddr;
+    const txTokenOut =
+      swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount'
+        ? stableToken
+        : req.body.ngnToken === 'CNGN'
+          ? 'cNGN'
+          : 'NGNs';
     const txTokenIn = tokenIn;
+    // ── Compute the correct OUTPUT amount for transaction history ─────────────
+    // amountWei is the INPUT amount. For exact_in, the output is the quote.
+    // We must read the output amount from the on-chain receipt event, or
+    // use the quote value sent from the frontend.
+    // Frontend sends approveAmountWei for exact_out (= the required input),
+    // and amountWei for exact_in (= the input). The output (received) amount
+    // is what the receiver actually gets — we must save THAT, not the input.
+    //
+    // Strategy: use req.body.quoteHuman if provided (frontend passes it),
+    // otherwise fallback to calling getExactUSDAmountOut/getExactNGNAmountOut
+    // from the pool contract using the current rate. This is the safest approach.
+    let outputAmountHuman = null;
+    try {
+      if (req.body.quoteHuman && parseFloat(req.body.quoteHuman) > 0) {
+        // Frontend passed the quote — use it directly (most accurate)
+        outputAmountHuman = String(parseFloat(req.body.quoteHuman));
+      } else {
+        // Fallback: re-query the pool for the output amount
+        // We can't know the exact output post-swap without reading events,
+        // so we use the quote method as the best approximation.
+        // For exact_out swaps, amountWei IS the output — use it directly.
+        const isExactOut = swapFn === 'swapForExactUSDAmount' || swapFn === 'swapForExactNGNAmount';
+        if (isExactOut) {
+          // amountWei IS the desired output — scale using actual L1 output token decimals
+          const isExactOutNgn = swapFn === 'swapForExactNGNAmount';
+          const exactOutTokenAddr = isExactOutNgn ? cleanNgn : cleanStable;
+          const exactOutDec = exactOutTokenAddr
+            ? await getL1TokenDecimals(ethers.getAddress(exactOutTokenAddr)).catch(() => 6)
+            : 6;
+          l1OutputAmountHuman = ethers.formatUnits(BigInt(amountWei), exactOutDec);
+        } else {
+          // exact_in: amountWei = input, output is unknown without events
+          // Use pool quote as approximation
+          const poolViewContract = new ethers.Contract(
+            ethers.getAddress(cleanPool),
+            POOL_VIEW_ABI,
+            provider
+          );
+          const [buyRate, sellRate] = await Promise.all([
+            poolViewContract._getBuyRate().catch(() => 0n),
+            poolViewContract._getSellRate().catch(() => 0n),
+          ]);
+          const stableAddr = ethers.getAddress(cleanStable);
+          const ngnAddr = ethers.getAddress(cleanNgn);
+          const amountBn2 = BigInt(amountWei);
+          let quoteWei2 = 0n;
+          try {
+            if (swapFn === 'swapExactNGNAmountForUSD' && buyRate > 0n) {
+              quoteWei2 = await poolViewContract.getExactUSDAmountOut(
+                stableAddr,
+                amountBn2,
+                buyRate
+              );
+            } else if (swapFn === 'swapExactUSDAmountForNGN' && sellRate > 0n) {
+              quoteWei2 = await poolViewContract.getExactNGNAmountOut(
+                stableAddr,
+                amountBn2,
+                sellRate
+              );
+            }
+          } catch {
+            quoteWei2 = 0n;
+          }
+          outputAmountHuman = ethers.formatUnits(quoteWei2, 6);
+        }
+      }
+    } catch (amtErr) {
+      console.warn('⚠️ Could not compute output amount for tx history:', amtErr.message);
+      // Never use amountWei (input) as fallback — it would show the wrong token amount.
+      // Use 0 so the history shows nothing rather than misleading data.
+      outputAmountHuman = '0';
+    }
+
+    // ── Receiver logic: determine who sees this in tx history ─────────────────
+    // 1. Receiver == executor → save one tx (executor sees it as sent/received)
+    // 2. Receiver != executor AND receiver is a Salva wallet (exists in DB on same chain) →
+    //    save tx for executor (sent) AND a separate receive tx for the receiver
+    // 3. Receiver != executor AND receiver is NOT a Salva wallet →
+    //    save one tx only (executor sees it)
+    const receiverIsSelf = cleanReceiver === cleanUser;
+
+    // Save the primary tx — always (executor always sees it as RECEIVE)
+    // fromAddress = pool (who sent the output tokens)
+    // toAddress   = receiver (who got the output tokens)
+    // amount      = OUTPUT amount (what receiver actually got), NOT the input
+    // coin        = OUTPUT token
     await new Transaction({
       fromAddress: cleanPool,
       fromNameAlias: poolDoc?.poolName || null,
-      toAddress: receiverAddr,
+      toAddress: cleanReceiver,
       toUsername: receiverUser?.username || null,
       toNameAlias: receiverUser?.nameAlias || null,
-      amount: String(parseFloat(amountWei) / 1e6),
+      swapExecutor: cleanUser,
+      amount: outputAmountHuman,
       coin: txTokenOut,
       status: 'successful',
       taskId: result.txHash,
@@ -1211,7 +1341,36 @@ router.post('/swap', async (req, res) => {
       tokenIn: txTokenIn,
       tokenOut: txTokenOut,
       date: new Date(),
-    }).save().catch(() => {});
+    })
+      .save()
+      .catch((e) => console.error('⚠️ Primary swap tx save failed:', e.message));
+
+    // If receiver is a different Salva wallet, save a receive tx for them too
+    if (!receiverIsSelf && receiverUser) {
+      await new Transaction({
+        fromAddress: cleanPool,
+        fromNameAlias: poolDoc?.poolName || null,
+        toAddress: cleanReceiver,
+        toUsername: receiverUser?.username || null,
+        toNameAlias: receiverUser?.nameAlias || null,
+        swapExecutor: cleanUser,
+        amount: outputAmountHuman,
+        coin: txTokenOut,
+        status: 'successful',
+        taskId: result.txHash + '_recv', // unique suffix to avoid dedup
+        type: 'transfer',
+        txType: 'swap',
+        poolAddress: cleanPool,
+        poolName: poolDoc?.poolName || null,
+        tokenIn: txTokenIn,
+        tokenOut: txTokenOut,
+        date: new Date(),
+        _isReceiverCopy: true,
+      })
+        .save()
+        .catch((e) => console.error('⚠️ Receiver swap tx save failed:', e.message));
+    }
+
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /pool/swap:', err.message);
@@ -1970,7 +2129,7 @@ router.post('/l1/trust', async (req, res) => {
     await TrustedPoolL1.findOneAndUpdate(
       { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanToken },
       { txHash: txHash || null, trustedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     console.log(`✅ L1 trust recorded: ${cleanUser} → pool ${cleanPool} (${tokenSymbol})`);
@@ -1995,7 +2154,7 @@ router.post('/trust-record', async (req, res) => {
     await TrustedPool.findOneAndUpdate(
       { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanToken },
       { trustedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     res.json({ success: true });
@@ -2010,12 +2169,25 @@ router.post('/trust-record', async (req, res) => {
 router.post('/l1/swap', async (req, res) => {
   try {
     const {
-      userSafeAddress, userPrivateKey, poolAddress,
-      stableToken, ngnToken, swapFn, amountWei,
-      approveAmountWei, trusted, tokenIn, receiverAddress,
+      userSafeAddress,
+      userPrivateKey,
+      poolAddress,
+      stableToken,
+      ngnToken,
+      swapFn,
+      amountWei,
+      approveAmountWei,
+      trusted,
+      tokenIn,
+      receiverAddress,
     } = req.body;
 
-    const { executeViaSafeBNB, sponsorBNBApproveAndSwap, sponsorBNBSwapOnly, sponsorBNBApproveMax } = require('../services/relayServiceBNB');
+    const {
+      executeViaSafeBNB,
+      sponsorBNBApproveAndSwap,
+      sponsorBNBSwapOnly,
+      sponsorBNBApproveMax,
+    } = require('../services/relayServiceBNB');
     const { TrustedPoolL1 } = getL1Models();
 
     const cleanUser = cleanAddr(userSafeAddress);
@@ -2026,11 +2198,25 @@ router.post('/l1/swap', async (req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
     function resolveL1Sym(sym) {
       switch ((sym || '').toUpperCase()) {
-        case 'NGNS': case 'NGN': return cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
-        case 'CNGN': return cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS);
-        case 'USDT': return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS);
-        case 'USDC': return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS);
-        default: return null;
+        case 'NGNS':
+        case 'NGN':
+          return cleanAddr(
+            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+          );
+        case 'CNGN':
+          return cleanAddr(
+            isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
+          );
+        case 'USDT':
+          return cleanAddr(
+            isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
+          );
+        case 'USDC':
+          return cleanAddr(
+            isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
+          );
+        default:
+          return null;
       }
     }
 
@@ -2050,7 +2236,12 @@ router.post('/l1/swap', async (req, res) => {
     ]);
 
     const amountBn = BigInt(amountWei);
-    const swapArgs = [ethers.getAddress(cleanReceiver), ethers.getAddress(cleanStable), ethers.getAddress(cleanNgn), amountBn];
+    const swapArgs = [
+      ethers.getAddress(cleanReceiver),
+      ethers.getAddress(cleanStable),
+      ethers.getAddress(cleanNgn),
+      amountBn,
+    ];
     const swapCalldata = POOL_IFACE.encodeFunctionData(swapFn, swapArgs);
 
     const approveBn = approveAmountWei
@@ -2058,11 +2249,25 @@ router.post('/l1/swap', async (req, res) => {
       : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: lswFeeNGN, feeUSD: lswFeeUSD, feeWeiNGN: lswFeeWeiNGN, feeWeiUSD: lswFeeWeiUSD } =
-      await _getPoolFee('bnb');
-    const lswFeeToken = await _resolveFeeToken('bnb', cleanUser, lswFeeNGN, lswFeeUSD, lswFeeWeiNGN, lswFeeWeiUSD);
+    const {
+      feeNGN: lswFeeNGN,
+      feeUSD: lswFeeUSD,
+      feeWeiNGN: lswFeeWeiNGN,
+      feeWeiUSD: lswFeeWeiUSD,
+    } = await _getPoolFee('bnb');
+    const lswFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanUser,
+      lswFeeNGN,
+      lswFeeUSD,
+      lswFeeWeiNGN,
+      lswFeeWeiUSD
+    );
     if (!lswFeeToken) return res.status(400).json({ message: _feeErrorMsg(lswFeeNGN, lswFeeUSD) });
-    const lswFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lswFeeToken.feeWei]);
+    const lswFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+      ethers.getAddress(_treasury(true)),
+      lswFeeToken.feeWei,
+    ]);
     // ─────────────────────────────────────────────────────────────────────────
 
     const { executeViaSafeBNB: _execBNB } = require('../services/relayServiceBNB');
@@ -2070,25 +2275,40 @@ router.post('/l1/swap', async (req, res) => {
     let result;
     if (trusted) {
       result = await _execBNB(
-        ethers.getAddress(cleanUser), userPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanUser),
+        userPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
           { to: ethers.getAddress(cleanPool), data: swapCalldata },
           { to: ethers.getAddress(lswFeeToken.tokenAddress), data: lswFeeCalldata },
-        ]), 1
+        ]),
+        1
       );
     } else {
-      const ERC20_APPROVE_IFACE2 = new ethers.Interface(['function approve(address spender, uint256 amount) returns (bool)']);
+      const ERC20_APPROVE_IFACE2 = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
       result = await _execBNB(
-        ethers.getAddress(cleanUser), userPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanUser),
+        userPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanTokenIn), data: ERC20_APPROVE_IFACE2.encodeFunctionData('approve', [ethers.getAddress(cleanPool), approveBn]) },
+          {
+            to: ethers.getAddress(cleanTokenIn),
+            data: ERC20_APPROVE_IFACE2.encodeFunctionData('approve', [
+              ethers.getAddress(cleanPool),
+              approveBn,
+            ]),
+          },
           { to: ethers.getAddress(cleanPool), data: swapCalldata },
           { to: ethers.getAddress(lswFeeToken.tokenAddress), data: lswFeeCalldata },
-        ]), 1
+        ]),
+        1
       );
     }
 
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Swap failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Swap failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
@@ -2102,24 +2322,114 @@ router.post('/l1/swap', async (req, res) => {
       await TrustedPoolL1.findOneAndUpdate(
         { userSafeAddress: cleanUser, poolAddress: cleanPool, tokenAddress: cleanTokenIn },
         { trustedAt: new Date() },
-        { upsert: true, new: true }
+        { upsert: true, returnDocument: 'after' }
       ).catch(() => {});
     }
 
     const Transaction = require('../models/Transaction');
-    const User = require('../models/User');
     const l1ReceiverAddr = cleanAddr(req.body.receiverAddress) || cleanUser;
     const { PoolL1 } = getL1Models();
-    const l1PoolDoc = await PoolL1.findOne({ poolAddress: cleanPool }).lean().catch(() => null);
-    const l1ReceiverUser = await User.findOne({ safeAddress: l1ReceiverAddr }).lean().catch(() => null);
-    const l1TokenOut = (swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount') ? stableToken : (ngnToken === 'CNGN' ? 'cNGN' : 'NGNs');
+    const l1PoolDoc = await PoolL1.findOne({ poolAddress: cleanPool })
+      .lean()
+      .catch(() => null);
+    const l1TokenOut =
+      swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount'
+        ? stableToken
+        : ngnToken === 'CNGN'
+          ? 'cNGN'
+          : 'NGNs';
+    // Lookup receiver in BNB (L1) DB — chain-specific, NOT User (L2)
+    const l1ReceiverIsSelf = l1ReceiverAddr === cleanUser;
+    let l1ReceiverUser = null;
+    try {
+      const l1DB2 = require('../services/l1db');
+      const UserBNBSchema = require('../models/UserBNB');
+      const UserBNB = l1DB2.models.UserBNB || l1DB2.model('UserBNB', UserBNBSchema);
+      l1ReceiverUser = await UserBNB.findOne({ safeAddress: l1ReceiverAddr })
+        .lean()
+        .catch(() => null);
+    } catch {
+      l1ReceiverUser = null;
+    }
+
+    // ── Compute correct OUTPUT amount (not input) ─────────────────────────────
+    let l1OutputAmountHuman = null;
+    try {
+      if (req.body.quoteHuman && parseFloat(req.body.quoteHuman) > 0) {
+        l1OutputAmountHuman = String(parseFloat(req.body.quoteHuman));
+      } else {
+        const isExactOut = swapFn === 'swapForExactUSDAmount' || swapFn === 'swapForExactNGNAmount';
+        if (isExactOut) {
+          // amountWei IS the desired output for exact_out — scale with output token decimals
+          const isExactOutNgn = swapFn === 'swapForExactNGNAmount';
+          const exactOutTokenAddr = isExactOutNgn ? cleanNgn : cleanStable;
+          const exactOutDec = exactOutTokenAddr
+            ? await getL1TokenDecimals(ethers.getAddress(exactOutTokenAddr)).catch(() => 6)
+            : 6;
+          l1OutputAmountHuman = ethers.formatUnits(BigInt(amountWei), exactOutDec);
+        } else {
+          // exact_in: re-query pool for output estimate
+          const isProdEnv2 = process.env.NODE_ENV === 'production';
+          const l1Rpc2 = isProdEnv2
+            ? process.env.BNB_MAINNET_RPC_URL
+            : process.env.BNB_TESTNET_RPC_URL;
+          const l1Provider2 = new ethers.JsonRpcProvider(l1Rpc2);
+          const poolViewL1 = new ethers.Contract(
+            ethers.getAddress(cleanPool),
+            POOL_VIEW_ABI,
+            l1Provider2
+          );
+          const [l1BuyRate, l1SellRate] = await Promise.all([
+            poolViewL1._getBuyRate().catch(() => 0n),
+            poolViewL1._getSellRate().catch(() => 0n),
+          ]);
+          const l1StableAddr = ethers.getAddress(cleanStable);
+          const l1AmountBn = BigInt(amountWei);
+          let l1QuoteWei = 0n;
+          try {
+            if (swapFn === 'swapExactNGNAmountForUSD' && l1BuyRate > 0n) {
+              l1QuoteWei = await poolViewL1.getExactUSDAmountOut(
+                l1StableAddr,
+                l1AmountBn,
+                l1BuyRate
+              );
+            } else if (swapFn === 'swapExactUSDAmountForNGN' && l1SellRate > 0n) {
+              l1QuoteWei = await poolViewL1.getExactNGNAmountOut(
+                l1StableAddr,
+                l1AmountBn,
+                l1SellRate
+              );
+            }
+          } catch {
+            l1QuoteWei = 0n;
+          }
+          // Format using actual L1 output token decimals — never hardcode 6
+          const outTokenAddr =
+            swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount'
+              ? cleanStable
+              : cleanNgn;
+          const outDec = outTokenAddr
+            ? await getL1TokenDecimals(ethers.getAddress(outTokenAddr)).catch(() => 6)
+            : 6;
+          l1OutputAmountHuman = ethers.formatUnits(l1QuoteWei, outDec);
+        }
+      }
+    } catch (l1AmtErr) {
+      console.warn('⚠️ L1: Could not compute output amount for tx history:', l1AmtErr.message);
+      // Never use amountWei (input) as output — shows wrong token amount in history.
+      l1OutputAmountHuman = '0';
+    }
+
+    // ── Save primary tx (executor always sees it as RECEIVE) ─────────────────
+    // fromAddress = pool, toAddress = receiver, amount = OUTPUT tokens received
     await new Transaction({
       fromAddress: cleanPool,
       fromNameAlias: l1PoolDoc?.poolName || null,
       toAddress: l1ReceiverAddr,
       toUsername: l1ReceiverUser?.username || null,
       toNameAlias: l1ReceiverUser?.nameAlias || null,
-      amount: String(parseFloat(amountWei) / 1e6),
+      swapExecutor: cleanUser,
+      amount: l1OutputAmountHuman,
       coin: l1TokenOut,
       status: 'successful',
       taskId: result.txHash,
@@ -2130,7 +2440,36 @@ router.post('/l1/swap', async (req, res) => {
       tokenIn: tokenIn,
       tokenOut: l1TokenOut,
       date: new Date(),
-    }).save().catch(() => {});
+    })
+      .save()
+      .catch((e) => console.error('⚠️ L1 primary swap tx save failed:', e.message));
+
+    // If receiver is a different BNB Salva wallet, save a receive copy for them
+    if (!l1ReceiverIsSelf && l1ReceiverUser) {
+      await new Transaction({
+        fromAddress: cleanPool,
+        fromNameAlias: l1PoolDoc?.poolName || null,
+        toAddress: l1ReceiverAddr,
+        toUsername: l1ReceiverUser?.username || null,
+        toNameAlias: l1ReceiverUser?.nameAlias || null,
+        swapExecutor: cleanUser,
+        amount: l1OutputAmountHuman,
+        coin: l1TokenOut,
+        status: 'successful',
+        taskId: result.txHash + '_recv',
+        type: 'transfer',
+        txType: 'swap',
+        poolAddress: cleanPool,
+        poolName: l1PoolDoc?.poolName || null,
+        tokenIn: tokenIn,
+        tokenOut: l1TokenOut,
+        date: new Date(),
+        _isReceiverCopy: true,
+      })
+        .save()
+        .catch((e) => console.error('⚠️ L1 receiver swap tx save failed:', e.message));
+    }
+
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /pool/l1/swap:', err.message);

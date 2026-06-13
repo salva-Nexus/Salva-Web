@@ -922,7 +922,7 @@ app.post('/api/auth/send-otp', authLimiter, async (req, res) => {
     await OtpStore.findOneAndUpdate(
       { email },
       { code: otp, expires: new Date(Date.now() + 600000), verified: false },
-      { upsert: true, new: true }
+      { upsert: true, returnDocument: 'after' }
     );
 
     const data = await resend.emails.send({
@@ -2289,8 +2289,10 @@ app.get('/api/transactions/:address', async (req, res) => {
     }
 
     // Pull completed transactions
+    // For swaps: fromAddress = pool address, swapExecutor = user who executed the swap.
+    // We must include swap txs where address is the executor, the receiver, OR both.
     const transactions = await Transaction.find({
-      $or: [{ fromAddress: address }, { toAddress: address }],
+      $or: [{ fromAddress: address }, { toAddress: address }, { swapExecutor: address }],
     })
       .sort({ date: -1 })
       .limit(50);
@@ -2320,12 +2322,32 @@ app.get('/api/transactions/:address', async (req, res) => {
     const formatted = transactions.map((tx) => {
       const isFromMe = tx.fromAddress?.toLowerCase() === address;
       const isToMe = tx.toAddress?.toLowerCase() === address;
+      const isExecutor = tx.swapExecutor?.toLowerCase() === address;
       const isSuccessful = tx.status === 'successful';
+      const isSwap = tx.txType === 'swap';
 
       let displayType;
-      const isSwap = tx.txType === 'swap';
-      if (isSwap && isToMe && isSuccessful) {
-        displayType = 'receive';
+
+      if (isSwap) {
+        if (isSuccessful) {
+          if (tx._isReceiverCopy) {
+            // This copy exists ONLY for the non-executor receiver — always 'receive'
+            displayType = isToMe ? 'receive' : 'hidden';
+          } else {
+            // Primary tx:
+            // - If receiver == executor (self-swap) → executor sees RECEIVE
+            // - If receiver != executor (sent to someone else) → executor sees SENT
+            // - If neither executor nor receiver → hidden
+            if (isExecutor || isToMe) {
+              const receiverIsSelf = tx.toAddress?.toLowerCase() === tx.swapExecutor?.toLowerCase();
+              displayType = receiverIsSelf ? 'receive' : 'sent';
+            } else {
+              displayType = 'hidden';
+            }
+          }
+        } else {
+          displayType = isExecutor ? 'failed' : 'hidden';
+        }
       } else if (isFromMe) {
         displayType = isSuccessful ? 'sent' : 'failed';
       } else if (isToMe && isSuccessful) {
@@ -2334,10 +2356,11 @@ app.get('/api/transactions/:address', async (req, res) => {
         displayType = 'hidden';
       }
 
-      // Display partner: prefer username, fall back to wallet address
-      const displayPartner = isFromMe
-        ? tx.toUsername || tx.toAddress
-        : tx.fromUsername || tx.fromAddress;
+      const displayPartner = isSwap
+        ? tx.poolName || tx.fromNameAlias || tx.fromAddress || 'Pool'
+        : isFromMe
+          ? tx.toUsername || tx.toAddress
+          : tx.fromUsername || tx.fromAddress;
 
       return {
         ...tx._doc,

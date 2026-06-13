@@ -257,6 +257,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   const [receiverResolved, setReceiverResolved] = useState(defaultReceiver);
   const [receiverResolving, setReceiverResolving] = useState(false);
   const receiverResolveTimer = useRef(null);
+  const [showReceiverConfirm, setShowReceiverConfirm] = useState(false);
+  const [receiverConfirmed, setReceiverConfirmed] = useState(false);
 
   // ── User wallet balances ──────────────────────────────────────────────────
   const [userBal, setUserBal] = useState({});
@@ -349,8 +351,9 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
 const handleReceiverChange = (val) => {
   setReceiverError('');
+  setReceiverConfirmed(false);
 
-  // 0x address — pass through directly, same as Dashboard
+  // 0x address — pass through directly
   if (val.toLowerCase().startsWith('0x')) {
     setReceiverRaw(val);
     setReceiverInputType('address');
@@ -358,10 +361,9 @@ const handleReceiverChange = (val) => {
     return;
   }
 
-  // Sanitize — same strict rules as Dashboard handleRecipientChange
   let cleaned = val.toLowerCase();
 
-  // Full name with @ — handle paste case first
+  // Full name with @ — resolve via SNS
   if (cleaned.includes('@')) {
     cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
     const atIndex = cleaned.indexOf('@');
@@ -370,6 +372,7 @@ const handleReceiverChange = (val) => {
     }
     setReceiverRaw(cleaned);
     setReceiverInputType('fullname');
+    setReceiverResolved('');
     const parts = cleaned.split('@');
     if (parts[0] && parts[1]) {
       clearTimeout(receiverResolveTimer.current);
@@ -383,11 +386,16 @@ const handleReceiverChange = (val) => {
             body: JSON.stringify({ fullName: cleaned }),
           });
           const data = await res.json();
-          if (res.ok && data.resolvedAddress) {
+          if (
+            res.ok &&
+            data.resolvedAddress &&
+            data.resolvedAddress !== '0x0000000000000000000000000000000000000000'
+          ) {
             setReceiverResolved(data.resolvedAddress);
+            setShowReceiverConfirm(true);
           } else {
             setReceiverResolved('');
-            setReceiverError(data.message || 'Name not found');
+            setReceiverError(data.message || 'Name not found on SNS');
           }
         } catch {
           setReceiverResolved('');
@@ -402,19 +410,12 @@ const handleReceiverChange = (val) => {
     return;
   }
 
-  // Plain chars — allow a-z, 2-9, dot, @ only (no 0, no 1)
+  // Plain name chars without @ — block, must use full SNS
   cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
-  // One dot max
   const firstDot = cleaned.indexOf('.');
   if (firstDot !== -1) {
     cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
   }
-  // One @ max
-  const firstAt = cleaned.indexOf('@');
-  if (firstAt !== -1) {
-    cleaned = cleaned.slice(0, firstAt + 1) + cleaned.slice(firstAt + 1).replace(/@/g, '');
-  }
-
   setReceiverRaw(cleaned);
 
   if (!cleaned) {
@@ -423,11 +424,10 @@ const handleReceiverChange = (val) => {
     return;
   }
 
-  // Not a 0x, not a fullname — no registry dropdown for swap, show error
   setReceiverInputType('invalid');
   setReceiverResolved('');
-  if (cleaned.length > 1) {
-    setReceiverError('Enter a full name (e.g. charles@salva) or a 0x address');
+  if (cleaned.length > 0) {
+    setReceiverError('Must use full SNS name (e.g. charles@salva) or a 0x address');
   }
 };
 
@@ -504,6 +504,13 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
         tokenIn,
         doApproveMax,
         receiverAddress: receiverResolved || user.safeAddress,
+        // Pass the quote so backend saves correct output amount in tx history
+        quoteHuman:
+          swapType === 'exact_in'
+            ? quote !== null
+              ? String(parseFloat(quote))
+              : null
+            : String(amountRaw), // exact_out: amountRaw IS the output
       }),
     });
 
@@ -596,7 +603,11 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </div>
                   <div
                     className="flex-shrink-0 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest"
-                    style={{ borderColor: `${accentColor}40`, color: accentColor, background: `${accentColor}0D` }}
+                    style={{
+                      borderColor: `${accentColor}40`,
+                      color: accentColor,
+                      background: `${accentColor}0D`,
+                    }}
                   >
                     {section === 'buy' ? '₦→$' : '$→₦'}
                   </div>
@@ -659,9 +670,13 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   style={{ borderColor: `${accentColor}25`, background: `${accentColor}08` }}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-sm" style={{ color: accentColor }}>↑</span>
+                    <span className="text-sm" style={{ color: accentColor }}>
+                      ↑
+                    </span>
                     <div>
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">You Send</p>
+                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">
+                        You Send
+                      </p>
                       <p className="text-xs font-black" style={{ color: accentColor }}>
                         {section === 'buy' ? ngnLabel : stableToken}
                       </p>
@@ -670,7 +685,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   <div className="text-white/20 text-lg font-black">→</div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">You Get</p>
+                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">
+                        You Get
+                      </p>
                       <p className="text-xs font-black text-green-400">
                         {section === 'buy' ? stableToken : ngnLabel}
                       </p>
@@ -681,27 +698,49 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
 
                 {/* ── Balance strip ── */}
                 <div className="grid grid-cols-2 gap-2">
-                  <div className={`px-3 py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
-                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">Your Balance</p>
+                  <div
+                    className={`px-3 py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                  >
+                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
+                      Your Balance
+                    </p>
                     {userBalLoading ? (
                       <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                     ) : (
-                      <p className={`text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}>
-                        {userSendBal !== null ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd') : '—'}
-                        <span className="text-white/40 font-normal text-[9px]"> {section === 'buy' ? ngnLabel : stableToken}</span>
+                      <p
+                        className={`text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                      >
+                        {userSendBal !== null
+                          ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd')
+                          : '—'}
+                        <span className="text-white/40 font-normal text-[9px]">
+                          {' '}
+                          {section === 'buy' ? ngnLabel : stableToken}
+                        </span>
                       </p>
                     )}
                   </div>
-                  <div className={`px-3 py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}>
-                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">Pool Has</p>
-                    <p className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}>
+                  <div
+                    className={`px-3 py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                  >
+                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
+                      Pool Has
+                    </p>
+                    <p
+                      className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
+                    >
                       {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}
-                      <span className="text-white/40 font-normal text-[9px]"> {section === 'buy' ? stableToken : ngnLabel}</span>
+                      <span className="text-white/40 font-normal text-[9px]">
+                        {' '}
+                        {section === 'buy' ? stableToken : ngnLabel}
+                      </span>
                     </p>
                   </div>
                 </div>
                 {userCantAfford && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-1">⚠ Insufficient balance to send</p>
+                  <p className="text-[10px] text-red-400 font-bold -mt-1">
+                    ⚠ Insufficient balance to send
+                  </p>
                 )}
                 {(poolEmpty || poolCantCover) && (
                   <p className="text-[10px] text-red-400 font-bold -mt-1">
@@ -758,7 +797,17 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
                     ) : (
                       <span className="font-black text-sm" style={{ color: accentColor }}>
-                        {fmt(quote, swapType === 'exact_in' ? (section === 'buy' ? 'usd' : 'ngn') : (section === 'buy' ? 'ngn' : 'usd'))} {quoteSuffix}
+                        {fmt(
+                          quote,
+                          swapType === 'exact_in'
+                            ? section === 'buy'
+                              ? 'usd'
+                              : 'ngn'
+                            : section === 'buy'
+                              ? 'ngn'
+                              : 'usd'
+                        )}{' '}
+                        {quoteSuffix}
                       </span>
                     )}
                   </div>
@@ -777,7 +826,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
 
                 {/* Network Fee */}
                 <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">Network Fee</span>
+                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                    Network Fee
+                  </span>
                   {swapFee.loading ? (
                     <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                   ) : swapFee.feeNGN !== null ? (
@@ -802,6 +853,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                           setReceiverInputType('address');
                           setReceiverResolved(defaultReceiver);
                           setReceiverError('');
+                          setReceiverConfirmed(false);
                         }}
                         className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
                       >
@@ -818,19 +870,36 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
                         receiverError
                           ? 'border-red-500/60'
-                          : receiverInputType === 'fullname' && receiverResolved
+                          : receiverInputType === 'fullname' &&
+                              receiverResolved &&
+                              receiverConfirmed
                             ? 'border-green-500/40'
-                            : 'border-white/10 focus:border-salvaGold'
+                            : receiverInputType === 'fullname' &&
+                                receiverResolved &&
+                                !receiverConfirmed
+                              ? 'border-yellow-500/40'
+                              : 'border-white/10 focus:border-salvaGold'
                       }`}
                     />
                     {receiverResolving && (
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
                     )}
-                    {!receiverResolving && receiverInputType === 'fullname' && receiverResolved && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">
-                        ✓
-                      </span>
-                    )}
+                    {!receiverResolving &&
+                      receiverInputType === 'fullname' &&
+                      receiverResolved &&
+                      receiverConfirmed && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 text-[10px]">
+                          ✓
+                        </span>
+                      )}
+                    {!receiverResolving &&
+                      receiverInputType === 'fullname' &&
+                      receiverResolved &&
+                      !receiverConfirmed && (
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-yellow-400 text-[10px]">
+                          !
+                        </span>
+                      )}
                   </div>
                   {receiverRaw === defaultReceiver && (
                     <p className="text-[10px] text-white/30 font-bold mt-1.5">
@@ -842,11 +911,24 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       {receiverInputType === 'address' && (
                         <span className="text-blue-400">↗ Custom address</span>
                       )}
-                      {receiverInputType === 'fullname' && receiverResolved && (
-                        <span className="text-green-400">
-                          ✓ {receiverResolved.slice(0, 10)}…{receiverResolved.slice(-8)}
-                        </span>
-                      )}
+                      {receiverInputType === 'fullname' &&
+                        receiverResolved &&
+                        receiverConfirmed && (
+                          <span className="text-green-400">
+                            ✓ Confirmed → {receiverResolved.slice(0, 10)}…
+                            {receiverResolved.slice(-8)}
+                          </span>
+                        )}
+                      {receiverInputType === 'fullname' &&
+                        receiverResolved &&
+                        !receiverConfirmed && (
+                          <button
+                            onClick={() => setShowReceiverConfirm(true)}
+                            className="text-yellow-400 underline underline-offset-2"
+                          >
+                            ⚠ Tap to confirm recipient
+                          </button>
+                        )}
                       {receiverInputType === 'fullname' &&
                         !receiverResolved &&
                         !receiverResolving && (
@@ -854,19 +936,27 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                             Complete the name — e.g. charles@salva
                           </span>
                         )}
+                      {receiverInputType === 'invalid' && (
+                        <span className="text-red-400">
+                          Must use full SNS (e.g. charles@salva) or 0x address
+                        </span>
+                      )}
                     </p>
                   )}
                   {receiverError && (
                     <p className="text-[10px] text-red-400 font-bold mt-1.5">⚠ {receiverError}</p>
                   )}
-                  {receiverRaw !== defaultReceiver && !receiverError && receiverResolved && (
-                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-                      <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
-                      <p className="text-[10px] text-yellow-400/80 font-bold">
-                        Funds go to a different address — double-check before continuing.
-                      </p>
-                    </div>
-                  )}
+                  {receiverRaw !== defaultReceiver &&
+                    !receiverError &&
+                    receiverResolved &&
+                    receiverConfirmed && (
+                      <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                        <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
+                        <p className="text-[10px] text-yellow-400/80 font-bold">
+                          Funds go to a different address — double-check before continuing.
+                        </p>
+                      </div>
+                    )}
                 </div>
               </motion.div>
             )}
@@ -905,7 +995,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                 {receivedAmount !== null && (
                   <p className="text-sm text-white/60 mb-4">
                     You received{' '}
-                    <span className="font-black text-white">{fmt(receivedAmount, section === 'buy' ? 'usd' : 'ngn')}</span>{' '}
+                    <span className="font-black text-white">
+                      {fmt(receivedAmount, section === 'buy' ? 'usd' : 'ngn')}
+                    </span>{' '}
                     <span className="font-black" style={{ color: accentColor }}>
                       {receivedToken}
                     </span>
@@ -931,7 +1023,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
               </div>
             )}
           </div>
-          
+
           {step === 'input' && (
             <div className="flex-shrink-0 px-4 pb-5 pt-3 sm:px-6 border-t border-white/[0.06] bg-zinc-950">
               <div className="flex gap-3">
@@ -954,6 +1046,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     !!receiverError ||
                     receiverResolving ||
                     (receiverInputType === 'fullname' && !receiverResolved) ||
+                    (receiverInputType === 'fullname' && receiverResolved && !receiverConfirmed) ||
                     receiverInputType === 'invalid'
                   }
                   className="flex-1 py-3.5 rounded-xl font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
@@ -970,6 +1063,75 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
           )}
         </motion.div>
       </div>
+
+      <AnimatePresence>
+        {showReceiverConfirm && receiverResolved && (
+          <div className="fixed inset-0 z-[95] flex items-center justify-center px-4">
+            <motion.div
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowReceiverConfirm(false)}
+            />
+            <motion.div
+              className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
+              initial={{ opacity: 0, scale: 0.92, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92 }}
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
+              <div className="p-7 text-center">
+                <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🔍</span>
+                </div>
+                <h3 className="text-lg font-black text-white mb-1">Confirm Recipient</h3>
+                <p className="text-[11px] text-white/50 mb-5 leading-relaxed">
+                  SNS resolved successfully. Verify this is the correct recipient before swapping.
+                </p>
+                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-2 text-left space-y-3">
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">SNS Name</p>
+                    <p className="font-black text-salvaGold text-sm">{receiverRaw}</p>
+                  </div>
+                  <div>
+                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">Resolved Address</p>
+                    <p className="font-mono text-[11px] text-white/70 break-all">{receiverResolved}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20 mb-5">
+                  <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
+                  <p className="text-[10px] text-yellow-400/80 font-bold text-left">Swap output will go to this address. This cannot be undone.</p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => {
+                      setShowReceiverConfirm(false);
+                      setReceiverRaw(defaultReceiver);
+                      setReceiverInputType('address');
+                      setReceiverResolved(defaultReceiver);
+                      setReceiverError('');
+                      setReceiverConfirmed(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      setReceiverConfirmed(true);
+                      setShowReceiverConfirm(false);
+                    }}
+                    className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                  >
+                    ✓ Confirm
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {showTrust && (
