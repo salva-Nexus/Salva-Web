@@ -1,13 +1,14 @@
-require('dotenv').config({
-  path: require('path').resolve(__dirname, '../../.env'),
-});
+// dotenv already loaded by index.js — skip re-loading
 const mongoose = require('mongoose');
 
-const l1DB = mongoose.createConnection(process.env.MONGO_URI_L1 || process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000,
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 45000,
-  bufferCommands: true, // ← KEY FIX: allow buffering until connected
+// Delay L1 connection slightly so main DB connects first
+const L1_URI = process.env.MONGO_URI_L1 || process.env.MONGO_URI;
+
+const l1DB = mongoose.createConnection(L1_URI, {
+  serverSelectionTimeoutMS: 30000,
+  connectTimeoutMS: 30000,
+  socketTimeoutMS: 60000,
+  bufferCommands: true,
   maxPoolSize: 3,
 });
 

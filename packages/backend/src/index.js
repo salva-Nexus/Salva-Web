@@ -3,7 +3,8 @@ require('dotenv').config({
   path: require('path').resolve(__dirname, '../.env'),
 });
 // Initialize L1 DB connection early so it's ready when pool routes are loaded
-require('./services/l1db');
+setTimeout(() => require('./services/l1db'), 3000);
+
 
 function cleanEnvAddr(raw) {
   if (!raw) return null;
