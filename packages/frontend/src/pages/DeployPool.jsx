@@ -317,16 +317,10 @@ const SubBadge = ({ pool }) => {
 
 // ─── Stat Cell — responsive, shows compact number with full value in title ────
 const StatCell = ({ label, value, color }) => (
-  <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-3 min-w-0">
-    <div className="flex items-center gap-2.5 min-w-0">
-      <div
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ backgroundColor: color, opacity: 0.7 }}
-      />
-      <p className="text-xs uppercase tracking-widest text-white/50 font-black truncate">{label}</p>
-    </div>
+  <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-2 min-w-0">
+    <p className="text-[10px] uppercase tracking-wide text-white/50 font-black flex-shrink-0">{label}</p>
     <p
-      className="font-black text-base tabular-nums flex-shrink-0"
+      className="font-black text-sm tabular-nums flex-shrink-0"
       style={{ color }}
       title={smartFmt(value)}
     >
@@ -1081,22 +1075,21 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-salvaGold/20 transition-all"
+      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-salvaGold/20 transition-all"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-5 space-y-4">
-        {/* Identity */}
-        <div className="flex items-start justify-between gap-3">
+      <div className="p-3.5 space-y-3">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="font-black text-salvaGold text-base truncate">
+            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+              <p className="font-black text-salvaGold text-sm truncate">
                 {pool.poolName || 'Unnamed Pool'}
               </p>
               <SubBadge pool={pool} />
             </div>
-            <p className="font-mono text-[10px] text-white/60 truncate">{pool.poolAddress}</p>
+            <p className="font-mono text-[9px] text-white/40 truncate">{pool.poolAddress}</p>
             {pool.subscriptionExpiresAt && new Date(pool.subscriptionExpiresAt) > new Date() && (
-              <p className="text-[9px] text-white/60 mt-0.5">
+              <p className="text-[8px] text-white/40 mt-0.5">
                 Expires{' '}
                 {new Date(pool.subscriptionExpiresAt).toLocaleDateString('en-US', {
                   day: 'numeric',
@@ -1119,10 +1112,10 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
         {/* Totals + Rates in one unified strip */}
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
           <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-[10px] uppercase tracking-widest text-salvaGold/60 font-black">
+            <span className="text-[9px] uppercase tracking-widest text-salvaGold/60 font-black">
               NGN Total
             </span>
-            <span className="font-black text-base text-salvaGold tabular-nums">
+            <span className="font-black text-sm text-salvaGold tabular-nums">
               {compactFmt(totalNgn)}
             </span>
           </div>
@@ -1155,28 +1148,28 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
         </div>
 
         {/* Action row */}
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <button
             onClick={onManage}
-            className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/[0.07] text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="flex-1 py-2 rounded-lg bg-white/5 border border-white/[0.07] text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
           >
             ⚙ Manage
           </button>
           <button
             onClick={onPublish}
-            className="flex-1 py-2.5 rounded-xl bg-salvaGold text-black font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-salvaGold/20"
+            className="flex-1 py-2 rounded-lg bg-salvaGold text-black font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-salvaGold/20"
           >
             {pool.isPublished ? 'Extend' : 'Publish'}
           </button>
           <button
             onClick={onRename}
-            className="py-2.5 px-3.5 rounded-xl border border-salvaGold/25 text-salvaGold font-black text-xs uppercase hover:bg-salvaGold/10 transition-all"
+            className="py-2 px-2.5 rounded-lg border border-salvaGold/25 text-salvaGold font-black text-[10px] uppercase hover:bg-salvaGold/10 transition-all"
           >
             {pool.poolName ? '✎' : 'Name'}
           </button>
           <button
             onClick={onDelete}
-            className="py-2.5 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all"
+            className="py-2 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
           >
             🗑
           </button>
@@ -1550,9 +1543,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
       {/* Header + Deploy Button */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black tracking-tight">My Pools</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
@@ -2142,7 +2135,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       <AnimatePresence>
         {showNetworkReminder && (
           <NetworkReminder
-          chain="base"
+            chain="base"
             storageKey="salva-network-reminder-base"
             onContinue={() => {
               setShowNetworkReminder(false);

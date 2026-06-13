@@ -136,16 +136,12 @@ const SubBadge = ({ pool }) => {
 };
 
 const StatCell = ({ label, value, color }) => (
-  <div className="p-4 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-3 min-w-0">
-    <div className="flex items-center gap-2.5 min-w-0">
-      <div
-        className="w-2 h-2 rounded-full flex-shrink-0"
-        style={{ backgroundColor: color, opacity: 0.7 }}
-      />
-      <p className="text-xs uppercase tracking-widest text-white/50 font-black truncate">{label}</p>
-    </div>
+  <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-2 min-w-0">
+    <p className="text-[10px] uppercase tracking-wide text-white/50 font-black flex-shrink-0">
+      {label}
+    </p>
     <p
-      className="font-black text-base tabular-nums flex-shrink-0"
+      className="font-black text-sm tabular-nums flex-shrink-0"
       style={{ color }}
       title={smartFmt(value)}
     >
@@ -1039,21 +1035,21 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.05 }}
-      className="rounded-3xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-blue-500/20 transition-all"
+      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-blue-500/20 transition-all"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-5 space-y-4">
-        <div className="flex items-start justify-between gap-3">
+      <div className="p-3.5 space-y-3">
+        <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <p className="font-black text-blue-400 text-base truncate">
+            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+              <p className="font-black text-blue-400 text-sm truncate">
                 {pool.poolName || 'Unnamed Pool'}
               </p>
               <SubBadge pool={pool} />
             </div>
-            <p className="font-mono text-[10px] text-white/60 truncate">{pool.poolAddress}</p>
+            <p className="font-mono text-[9px] text-white/40 truncate">{pool.poolAddress}</p>
             {pool.subscriptionExpiresAt && new Date(pool.subscriptionExpiresAt) > new Date() && (
-              <p className="text-[9px] text-white/60 mt-0.5">
+              <p className="text-[8px] text-white/40 mt-0.5">
                 Expires{' '}
                 {new Date(pool.subscriptionExpiresAt).toLocaleDateString('en-US', {
                   day: 'numeric',
@@ -1075,11 +1071,11 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 
         {/* Totals + Rates unified strip */}
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-[10px] uppercase tracking-widest text-blue-400/60 font-black">
+          <div className="flex items-center justify-between px-3 py-2">
+            <span className="text-[9px] uppercase tracking-widest text-blue-400/60 font-black">
               NGN Total
             </span>
-            <span className="font-black text-base text-blue-400 tabular-nums">
+            <span className="font-black text-sm text-blue-400 tabular-nums">
               {compactFmt(totalNgn)}
             </span>
           </div>
@@ -1111,28 +1107,28 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
           </div>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           <button
             onClick={onManage}
-            className="flex-1 py-2.5 rounded-xl bg-white/5 border border-white/[0.07] text-white font-black text-xs uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="flex-1 py-2 rounded-lg bg-white/5 border border-white/[0.07] text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
           >
             ⚙ Manage
           </button>
           <button
             onClick={onPublish}
-            className="flex-1 py-2.5 rounded-xl bg-blue-500 text-white font-black text-xs uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
+            className="flex-1 py-2 rounded-lg bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
           >
             {pool.isPublished ? 'Extend' : 'Publish'}
           </button>
           <button
             onClick={onRename}
-            className="py-2.5 px-3.5 rounded-xl border border-blue-500/25 text-blue-400 font-black text-xs uppercase hover:bg-blue-500/10 transition-all"
+            className="py-2 px-2.5 rounded-lg border border-blue-500/25 text-blue-400 font-black text-[10px] uppercase hover:bg-blue-500/10 transition-all"
           >
             {pool.poolName ? '✎' : 'Name'}
           </button>
           <button
             onClick={onDelete}
-            className="py-2.5 px-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-xs uppercase hover:bg-red-500 hover:text-white transition-all"
+            className="py-2 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
           >
             🗑
           </button>
@@ -1483,12 +1479,12 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-black tracking-tight">My Pools</h2>
-          <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">
-            BNB Chain
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <h2 className="text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
+          <span className="text-[9px] text-blue-400/60 font-black uppercase tracking-widest border border-blue-500/20 bg-blue-500/[0.07] px-2 py-0.5 rounded-full whitespace-nowrap">
+            BNB
+          </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a
@@ -1805,82 +1801,217 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       <AnimatePresence>
         {showRenameModal && renamingPool && (
           <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
-            <motion.div className="absolute inset-0 bg-black/95 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => { setShowRenameModal(false); resetRenameModal(); }} />
-            <motion.div className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col overflow-hidden" initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }} onClick={(e) => e.stopPropagation()}>
+            <motion.div
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setShowRenameModal(false);
+                resetRenameModal();
+              }}
+            />
+            <motion.div
+              className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col overflow-hidden"
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
               <div className="px-6 pt-5 pb-4 border-b border-white/[0.05] flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">Salva NS</p>
+                  <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
+                    Salva NS
+                  </p>
                   <h3 className="text-xl font-black text-white">Rename Pool</h3>
-                  <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">{renamingPool.poolAddress}</p>
+                  <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
+                    {renamingPool.poolAddress}
+                  </p>
                 </div>
-                <button onClick={() => { setShowRenameModal(false); resetRenameModal(); }} className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors">✕</button>
+                <button
+                  onClick={() => {
+                    setShowRenameModal(false);
+                    resetRenameModal();
+                  }}
+                  className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+                >
+                  ✕
+                </button>
               </div>
               <div className="flex-1 overflow-y-auto p-6 space-y-5">
                 {renamingPool.poolName && (
                   <div className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <span className="text-[10px] uppercase font-black text-white/60 tracking-widest flex-shrink-0">Current</span>
-                    <span className="text-blue-400 font-black text-sm truncate flex-1">{renamingPool.poolName}</span>
-                    <span className="text-[9px] text-white/60 font-bold flex-shrink-0">will unlink</span>
+                    <span className="text-[10px] uppercase font-black text-white/60 tracking-widest flex-shrink-0">
+                      Current
+                    </span>
+                    <span className="text-blue-400 font-black text-sm truncate flex-1">
+                      {renamingPool.poolName}
+                    </span>
+                    <span className="text-[9px] text-white/60 font-bold flex-shrink-0">
+                      will unlink
+                    </span>
                   </div>
                 )}
                 {renameStep === 'form' && (
-                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
                     <div>
-                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">New Name</label>
-                      <input type="text" placeholder="newpoolname" value={renameInput} onChange={(e) => { setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9.]/g, '')); setRenameError(''); }} maxLength={32} className={darkInput} />
-                      {renameInput && renameRegistry && <p className="text-[10px] text-blue-400/60 font-bold mt-1.5 ml-1">Preview: {renameInput}{renameRegistry.nspace}</p>}
+                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                        New Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="newpoolname"
+                        value={renameInput}
+                        onChange={(e) => {
+                          setRenameInput(e.target.value.toLowerCase().replace(/[^a-z2-9.]/g, ''));
+                          setRenameError('');
+                        }}
+                        maxLength={32}
+                        className={darkInput}
+                      />
+                      {renameInput && renameRegistry && (
+                        <p className="text-[10px] text-blue-400/60 font-bold mt-1.5 ml-1">
+                          Preview: {renameInput}
+                          {renameRegistry.nspace}
+                        </p>
+                      )}
                     </div>
                     <div>
-                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">Wallet Service</label>
-                      <RegistryDropdown registries={registries} value={renameRegistry} onChange={(r) => { setRenameRegistry(r); setRenameError(''); }} />
+                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                        Wallet Service
+                      </label>
+                      <RegistryDropdown
+                        registries={registries}
+                        value={renameRegistry}
+                        onChange={(r) => {
+                          setRenameRegistry(r);
+                          setRenameError('');
+                        }}
+                      />
                     </div>
-                    {renameError && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20"><span className="text-red-400 text-xs flex-shrink-0">⚠</span><p className="text-xs text-red-400 font-bold">{renameError}</p></div>}
-                    <button onClick={handleRenameCheck} disabled={renameChecking || !renameInput || !renameRegistry} className="w-full py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20">
-                      {renameChecking && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                    {renameError && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+                        <span className="text-red-400 text-xs flex-shrink-0">⚠</span>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleRenameCheck}
+                      disabled={renameChecking || !renameInput || !renameRegistry}
+                      className="w-full py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                    >
+                      {renameChecking && (
+                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      )}
                       {renameChecking ? 'Checking…' : 'Check Availability'}
                     </button>
                   </motion.div>
                 )}
                 {renameStep === 'confirm' && renameCheckResult && (
-                  <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="space-y-4"
+                  >
                     <div className="p-5 rounded-2xl bg-blue-500/8 border border-blue-500/20 text-center">
-                      <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-400/50 mb-2">Name Available</p>
-                      <p className="text-2xl font-black text-blue-400">{renameCheckResult.welded}</p>
+                      <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-400/50 mb-2">
+                        Name Available
+                      </p>
+                      <p className="text-2xl font-black text-blue-400">
+                        {renameCheckResult.welded}
+                      </p>
                     </div>
                     {renameFeeLoading ? (
-                      <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10"><div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0" /><p className="text-xs text-blue-400 font-bold">Fetching registration fee…</p></div>
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
+                        <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
+                        <p className="text-xs text-blue-400 font-bold">
+                          Fetching registration fee…
+                        </p>
+                      </div>
                     ) : renameFee !== null && renameFee > 0 ? (
-                      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10"><p className="text-[10px] uppercase font-black text-white/60 tracking-widest">Registration Fee</p><p className="font-black text-white text-sm">{renameFee?.toLocaleString()} <span className="text-blue-400 text-xs">NGNs</span></p></div>
+                      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
+                        <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
+                          Registration Fee
+                        </p>
+                        <p className="font-black text-white text-sm">
+                          {renameFee?.toLocaleString()}{' '}
+                          <span className="text-blue-400 text-xs">NGNs</span>
+                        </p>
+                      </div>
                     ) : renameFee === 0 ? (
-                      <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15"><span className="text-green-400 text-sm flex-shrink-0">✦</span><p className="text-xs font-black text-green-400">Free Registration</p></div>
+                      <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
+                        <span className="text-green-400 text-sm flex-shrink-0">✦</span>
+                        <p className="text-xs font-black text-green-400">Free Registration</p>
+                      </div>
                     ) : null}
                     {renamingPool.poolName && (
                       <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                        <p className="text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-2">What Happens</p>
-                        <p className="text-xs text-white/60 leading-relaxed">1. <span className="text-red-400 font-black">{renamingPool.poolName}</span> unlinked on-chain<br />2. <span className="text-blue-400 font-black">{renameCheckResult.welded}</span> linked to this pool</p>
+                        <p className="text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-2">
+                          What Happens
+                        </p>
+                        <p className="text-xs text-white/60 leading-relaxed">
+                          1.{' '}
+                          <span className="text-red-400 font-black">{renamingPool.poolName}</span>{' '}
+                          unlinked on-chain
+                          <br />
+                          2.{' '}
+                          <span className="text-blue-400 font-black">
+                            {renameCheckResult.welded}
+                          </span>{' '}
+                          linked to this pool
+                        </p>
                       </div>
                     )}
-                    {renameError && <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20"><span className="text-red-400 text-xs">⚠</span><p className="text-xs text-red-400 font-bold">{renameError}</p></div>}
+                    {renameError && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+                        <span className="text-red-400 text-xs">⚠</span>
+                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
+                      </div>
+                    )}
                     <div className="flex gap-3 pt-1">
-                      <button onClick={() => setRenameStep('form')} className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white hover:bg-white/5 transition-all">Back</button>
-                      <button onClick={handleRenamePrepare} disabled={renameLoading || renameFeeLoading} className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all">
-                        {renameLoading && <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                      <button
+                        onClick={() => setRenameStep('form')}
+                        className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white hover:bg-white/5 transition-all"
+                      >
+                        Back
+                      </button>
+                      <button
+                        onClick={handleRenamePrepare}
+                        disabled={renameLoading || renameFeeLoading}
+                        className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
+                      >
+                        {renameLoading && (
+                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        )}
                         {renameLoading ? 'Preparing…' : 'Confirm & Enter PIN'}
                       </button>
                     </div>
                   </motion.div>
                 )}
                 {renameStep === 'renaming' && (
-                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
+                  >
                     <div className="relative w-14 h-14 mx-auto">
                       <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
                       <div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
-                      <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center"><span className="text-blue-400 text-sm font-black">₦</span></div>
+                      <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
+                        <span className="text-blue-400 text-sm font-black">₦</span>
+                      </div>
                     </div>
                     <p className="font-black text-white">Renaming on-chain…</p>
-                    <p className="text-xs text-white/60">Unlinking old, linking new · 60–90 seconds</p>
+                    <p className="text-xs text-white/60">
+                      Unlinking old, linking new · 60–90 seconds
+                    </p>
                   </motion.div>
                 )}
               </div>
