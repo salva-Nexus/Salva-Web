@@ -336,7 +336,7 @@ const SectionTabs = ({ active, onChange }) => (
       <button
         key={s}
         onClick={() => onChange(s)}
-        className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
           active === s
             ? 'bg-salvaGold text-black shadow-lg shadow-salvaGold/20'
             : 'bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60'
@@ -631,16 +631,16 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
 
         {/* Header */}
-        <div className="px-6 pt-5 pb-4 border-b border-white/[0.05]">
-          <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="px-4 pt-3 pb-3 border-b border-white/[0.05]">
+          <div className="flex items-start justify-between gap-2 mb-3">
             <div className="min-w-0">
               <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-0.5">
                 Manage Pool
               </p>
-              <p className="font-black text-lg text-white truncate">
+              <p className="font-black text-sm text-white truncate">
                 {pool.poolName || 'Unnamed Pool'}
               </p>
-              <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
+              <p className="font-mono text-[9px] text-white/40 truncate mt-0.5">
                 {pool.poolAddress}
               </p>
             </div>
@@ -652,20 +652,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </button>
           </div>
           {/* Accumulated totals — single number each, not "A + B" string */}
-          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
-            <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-[10px] uppercase tracking-widest text-salvaGold/60 font-black">
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-[9px] uppercase tracking-widest text-salvaGold/60 font-black">
                 NGN Total
               </span>
-              <span className="font-black text-lg text-salvaGold tabular-nums">
+              <span className="font-black text-sm text-salvaGold tabular-nums">
                 {compactFmt(totalNgn)}
               </span>
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <span className="text-[10px] uppercase tracking-widest text-green-400/60 font-black">
+            <div className="flex items-center justify-between px-3 py-2">
+              <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black">
                 USD Total
               </span>
-              <span className="font-black text-lg text-green-400 tabular-nums">
+              <span className="font-black text-sm text-green-400 tabular-nums">
                 {compactFmt(totalUsd)}
               </span>
             </div>
@@ -673,11 +673,11 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         </div>
 
         {/* Section tabs */}
-        <div className="px-6 py-3 border-b border-white/[0.05]">
+        <div className="px-4 py-2 border-b border-white/[0.05]">
           <SectionTabs active={activeSection} onChange={setActiveSection} />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {/* ── LIQUIDITY ── */}
           {activeSection === 'liquidity' && (
             <motion.div
@@ -691,7 +691,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <button
                     key={m}
                     onClick={() => setLiqMode(m)}
-                    className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
+                    className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${
                       liqMode === m
                         ? m === 'provide'
                           ? 'bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20'
@@ -719,19 +719,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                           setLiqAsset(a);
                           setLiqAmount('');
                         }}
-                        className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all ${
+                        className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
                           liqAsset === a
                             ? 'bg-salvaGold/10 border-salvaGold/40'
                             : 'border-white/[0.06] bg-white/5 hover:border-white/20'
                         }`}
                       >
                         <span
-                          className={`text-sm font-black uppercase ${liqAsset === a ? 'text-salvaGold' : 'text-white/60'}`}
+                          className={`text-xs font-black uppercase ${liqAsset === a ? 'text-salvaGold' : 'text-white/60'}`}
                         >
                           {a}
                         </span>
                         <span
-                          className="text-sm font-black text-white/80 tabular-nums"
+                          className="text-xs font-black text-white/80 tabular-nums"
                           title={smartFmt(raw)}
                         >
                           {compactFmt(raw)}
@@ -764,7 +764,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     placeholder="0.00"
                     value={liqAmount}
                     onChange={(e) => setLiqAmount(e.target.value)}
-                    className={`${darkInput} text-xl pr-16`}
+                    className={`${darkInput} text-base pr-16`}
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                     {liqAsset}
@@ -793,7 +793,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               <button
                 onClick={() => triggerPin(liqMode)}
                 disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
-                className={`w-full py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
+                className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${
                   liqMode === 'provide'
                     ? 'bg-salvaGold text-black shadow-salvaGold/20'
                     : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'
@@ -828,7 +828,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               {/* Buy Rate */}
               <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
-                <div className="p-5 space-y-3">
+                <div className="p-3.5 space-y-2.5">
                   <div>
                     <p className="text-xs font-black text-green-400">Buy Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
@@ -841,7 +841,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       placeholder="e.g. 1490"
                       value={buyRate}
                       onChange={(e) => setBuyRate(e.target.value)}
-                      className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-green-400 outline-none text-xl font-black text-white transition-all pr-16"
+                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 focus:border-green-400 outline-none text-base font-black text-white transition-all pr-14"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 font-black text-sm">
                       NGN
@@ -881,7 +881,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               {/* Sell Rate */}
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-                <div className="p-5 space-y-3">
+                <div className="p-3.5 space-y-2.5">
                   <div>
                     <p className="text-xs font-black text-blue-400">Sell Rate</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
@@ -894,7 +894,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       placeholder="e.g. 1530"
                       value={sellRate}
                       onChange={(e) => setSellRate(e.target.value)}
-                      className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-xl font-black text-white transition-all pr-16"
+                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-base font-black text-white transition-all pr-14"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
                       NGN
@@ -951,14 +951,14 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <button
                   onClick={() => triggerPin('pause')}
                   disabled={txLoading}
-                  className="py-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-xs uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
+                  className="py-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-[10px] uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ⏸ Pause
                 </button>
                 <button
                   onClick={() => triggerPin('unpause')}
                   disabled={txLoading}
-                  className="py-3.5 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 font-black text-xs uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
+                  className="py-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 font-black text-[10px] uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ▶ Unpause
                 </button>
@@ -967,7 +967,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               {/* Min NGNs */}
               <div className="rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
-                <div className="p-5 space-y-3">
+                <div className="p-3.5 space-y-2.5">
                   <div>
                     <p className="text-xs font-black text-salvaGold">Min NGN Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
@@ -1000,7 +1000,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               {/* Min Token */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                <div className="p-5 space-y-3">
+                <div className="p-3.5 space-y-2.5">
                   <div>
                     <p className="text-xs font-black text-white/60">Min USD Per Swap</p>
                     <p className="text-[10px] text-white/60 mt-0.5">
