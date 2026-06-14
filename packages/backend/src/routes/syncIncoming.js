@@ -17,22 +17,30 @@ function getChainConfig(chain) {
   if (chain === 'bnb') {
     return {
       rpcUrl: isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL,
-      factoryAddress: isProd ? process.env.L1_POOL_FACTORY_ADDRESS : process.env.L1_BSC_POOL_FACTORY_ADDRESS,
+      factoryAddress: isProd
+        ? process.env.L1_POOL_FACTORY_ADDRESS
+        : process.env.L1_BSC_POOL_FACTORY_ADDRESS,
       tokens: [
         {
           address: isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS,
           symbol: 'NGN',
         },
         {
-          address: isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS,
+          address: isProd
+            ? process.env.L1_CNGN_CONTRACT_ADDRESS
+            : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS,
           symbol: 'CNGN',
         },
         {
-          address: isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS,
+          address: isProd
+            ? process.env.L1_USDT_CONTRACT_ADDRESS
+            : process.env.L1_BSC_USDT_CONTRACT_ADDRESS,
           symbol: 'USDT',
         },
         {
-          address: isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS,
+          address: isProd
+            ? process.env.L1_USDC_CONTRACT_ADDRESS
+            : process.env.L1_BSC_USDC_CONTRACT_ADDRESS,
           symbol: 'USDC',
         },
       ],
@@ -41,8 +49,8 @@ function getChainConfig(chain) {
   // Default: Base chain — decimals are known (all 6) so no factory call needed
   return {
     rpcUrl: isProd
-      ? (process.env.BASE_MAINNET_RPC_URL || 'https://base-rpc.publicnode.com')
-      : (process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com'),
+      ? process.env.BASE_MAINNET_RPC_URL || 'https://base-rpc.publicnode.com'
+      : process.env.BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com',
     factoryAddress: null,
     tokens: [
       { address: process.env.NGN_TOKEN_ADDRESS, symbol: 'NGN', decimals: 6 },
@@ -87,9 +95,10 @@ router.get('/:safeAddress', async (req, res) => {
 
   const safeAddress = raw.toLowerCase();
   const { rpcUrl, tokens: rawTokens, factoryAddress } = getChainConfig(chain);
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const tokens = await resolveDecimals(rawTokens, factoryAddress, provider);
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const tokens = await resolveDecimals(rawTokens, factoryAddress, provider);
 
+  console.log(`🔍 sync-incoming: address=${safeAddress} chain=${chain}`);
   try {
     // ── 1. Confirm this is a Salva user ──────────────────────────────────────
     // BNB users are stored in the L1 DB — check both
@@ -98,11 +107,12 @@ router.get('/:safeAddress', async (req, res) => {
       try {
         const l1db = require('../services/l1db');
         if (l1db.readyState === 1) {
-          const L1User = l1db.models.User || l1db.model('User', User.schema);
-          recipient = await L1User.findOne({ safeAddress }).catch(() => null);
+          const UserBNBSchema = require('../models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          recipient = await UserBNB.findOne({ safeAddress }).catch(() => null);
         }
-      } catch {
-        // l1db not available — skip
+      } catch (e) {
+        console.error('⚠️ sync-incoming: BNB user lookup failed:', e.message);
       }
     }
     if (!recipient) {
@@ -112,7 +122,7 @@ router.get('/:safeAddress', async (req, res) => {
     // ── 2. Block range ────────────────────────────────────────────────────────
     // BNB ~3s blocks → 500 blocks ≈ 25 min; Base ~2s → 500 blocks ≈ 17 min
     const latestBlock = await provider.getBlockNumber();
-    const blockRange = 300;
+    const blockRange = 500;
     const fromBlock = Math.max(0, latestBlock - blockRange);
 
     let synced = 0;
@@ -123,21 +133,25 @@ router.get('/:safeAddress', async (req, res) => {
 
       let logs = [];
       try {
-        logs = await provider.getLogs({
-          fromBlock,
-          toBlock: latestBlock,
-          address: ethers.getAddress(token.address),
-          topics: [
-            TRANSFER_TOPIC,
-            null,
-            toTopic(safeAddress),
-          ],
-        });
-      } catch (logsErr) {
-        // Silently skip on free-tier block range errors — not worth retrying
-        if (logsErr?.message?.includes('block range') || logsErr?.message?.includes('Free tier')) {
-          continue;
+        // Paginate in 500-block chunks to stay within free-tier RPC limits
+        const CHUNK = 500;
+        for (let start = fromBlock; start <= latestBlock; start += CHUNK) {
+          const end = Math.min(start + CHUNK - 1, latestBlock);
+          try {
+            const chunk = await provider.getLogs({
+              fromBlock: start,
+              toBlock: end,
+              address: ethers.getAddress(token.address),
+              topics: [TRANSFER_TOPIC, null, toTopic(safeAddress)],
+            });
+            logs.push(...chunk);
+          } catch (chunkErr) {
+            // Free-tier limit hit on this chunk — skip it, don't crash
+            console.warn(`⚠️ getLogs chunk ${start}-${end} skipped: ${chunkErr.message}`);
+            continue;
+          }
         }
+      } catch (logsErr) {
         console.error(`❌ getLogs error for ${token.symbol}:`, logsErr.message);
         continue;
       }
@@ -185,13 +199,21 @@ router.get('/:safeAddress', async (req, res) => {
         // ── 3e. Format amount ────────────────────────────────────────────────
         const amount = parseFloat(ethers.formatUnits(rawAmount, token.decimals)).toFixed(2);
 
-        // ── 3f. Look up sender's Salva identity (best-effort) ────────────────
+        // ── 3f. Look up sender's Salva identity (best-effort, both chains) ──
         let fromNameAlias = null;
         let fromUsername = null;
         try {
-          const sender = await User.findOne({
-            safeAddress: fromAddress.toLowerCase(),
-          }).lean();
+          let sender = await User.findOne({ safeAddress: fromAddress.toLowerCase() }).lean();
+          if (!sender && chain === 'bnb') {
+            const l1db = require('../services/l1db');
+            if (l1db.readyState === 1) {
+              const UserBNBSchema = require('../models/UserBNB');
+              const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+              sender = await UserBNB.findOne({ safeAddress: fromAddress.toLowerCase() })
+                .lean()
+                .catch(() => null);
+            }
+          }
           fromNameAlias = sender?.nameAlias || null;
           fromUsername = sender?.username || null;
         } catch {
