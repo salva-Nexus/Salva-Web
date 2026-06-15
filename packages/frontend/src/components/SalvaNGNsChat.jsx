@@ -1357,7 +1357,7 @@ const SalvaNGNsChat = ({ user }) => {
                     Your Bank Details
                   </h3>
                   <p className="text-white/40 text-[11px] m-0">
-                    Seller will pay ₦{sellPayout.toLocaleString()} here
+                    Salva will pay ₦{sellPayout.toLocaleString()} here
                   </p>
                 </div>
                 {[
@@ -1393,12 +1393,6 @@ const SalvaNGNsChat = ({ user }) => {
                     />
                   </div>
                 ))}
-                <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.08] border border-red-500/20">
-                  <p className="text-red-400 text-[11px] m-0">
-                    ⚠️ {sellAmountRaw.toLocaleString()} NGNs will be burned immediately. You receive
-                    ₦{sellPayout.toLocaleString()}. Double-check details.
-                  </p>
-                </div>
                 {sellError && (
                   <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
                     <span className="text-sm flex-shrink-0">⚠️</span>

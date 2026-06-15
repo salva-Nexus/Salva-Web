@@ -130,7 +130,14 @@ router.get('/:safeAddress', async (req, res) => {
   const safeAddress = raw.toLowerCase();
   const { rpcUrl, tokens: rawTokens, factoryAddress } = getChainConfig(chain);
   // Disable ethers v6 auto-batching — BSC testnet public nodes rate-limit batched eth_getLogs
-  const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { batchMaxCount: 1 });
+  // Alchemy BNB may block getLogs — fallback to public node for log scanning only
+  const logsRpcUrl =
+    chain === 'bnb'
+      ? process.env.NODE_ENV === 'production'
+        ? process.env.BNB_LOGS_RPC_URL || 'https://bsc-dataseed1.bnbchain.org'
+        : process.env.BNB_TESTNET_LOGS_RPC_URL || 'https://bsc-testnet-rpc.publicnode.com'
+      : rpcUrl;
+  const provider = new ethers.JsonRpcProvider(logsRpcUrl, undefined, { batchMaxCount: 1 });
   const tokens = await resolveDecimals(rawTokens, factoryAddress, provider);
 
   console.log(`🔍 sync-incoming: address=${safeAddress} chain=${chain}`);
@@ -321,6 +328,6 @@ router.get('/:safeAddress', async (req, res) => {
     console.error('❌ /sync-incoming error:', err.message);
     return res.json({ synced: 0, error: err.message });
   }
-});
+};);
 
 module.exports = router;

@@ -205,12 +205,11 @@ router.post('/verify-pin', async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
     const l1DB = getL1DB();
-    // Wait up to 8s for L1DB — never return 401 "Invalid PIN" for a DB connection issue
     if (l1DB.readyState !== 1) {
       try {
         await Promise.race([
           l1DB.readyPromise,
-          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 8000)),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 15000)),
         ]);
       } catch (dbErr) {
         console.error('❌ /bnb/verify-pin: L1DB not ready:', dbErr.message);
@@ -219,6 +218,13 @@ router.post('/verify-pin', async (req, res) => {
           retryable: true,
         });
       }
+    }
+    // Double-check after wait — readyState must be 1
+    if (l1DB.readyState !== 1) {
+      return res.status(503).json({
+        message: 'Database connection not ready. Please try again in a few seconds.',
+        retryable: true,
+      });
     }
     const UserBNB = getUserBNB();
 
