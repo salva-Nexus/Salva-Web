@@ -2906,7 +2906,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
             : process.env.BNB_TESTNET_RPC_URL;
           const bnbProvider = new ethers.JsonRpcProvider(bnbRpc);
           try {
-            const receipt = await bnbProvider.waitForTransaction(result.txHash, 1, 120_000);
+            const receipt = await bnbProvider.waitForTransaction(result.txHash, 1, 60_000);
             taskStatus =
               receipt && receipt.status === 1
                 ? { success: true, status: 'successful' }

@@ -1450,9 +1450,6 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <h2 className="text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
-          <span className="text-[9px] text-blue-400/60 font-black uppercase tracking-widest border border-blue-500/20 bg-blue-500/[0.07] px-2 py-0.5 rounded-full whitespace-nowrap">
-            BNB
-          </span>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0 mt-1">
           <a

@@ -68,6 +68,16 @@ async function getLogsWithRetry(provider, filter, maxRetries = 3) {
     try {
       return await provider.getLogs(filter);
     } catch (err) {
+      // 400 Bad Request = RPC doesn't support getLogs — no point retrying
+      const isFatal =
+        err?.message?.includes('400') ||
+        err?.message?.includes('Bad Request') ||
+        err?.message?.includes('not supported') ||
+        err?.message?.includes('not available');
+      if (isFatal) {
+        console.warn(`⚠️ getLogs not supported by RPC — skipping: ${err.message}`);
+        return []; // return empty, don't crash or retry
+      }
       const isRateLimit =
         err?.message?.includes('-32005') ||
         err?.message?.includes('rate limit') ||
@@ -160,13 +170,13 @@ router.get('/:safeAddress', async (req, res) => {
         continue;
       }
       // Stagger token scans on BNB — each token scan must fully clear before the next
-      if (chain === 'bnb' && tokenIndex > 0) await sleep(1200);
+      if (chain === 'bnb' && tokenIndex > 0) await sleep(300);
       tokenIndex++;
 
       let logs = [];
       try {
         // Paginate in small chunks — BSC public nodes enforce strict per-request rate limits
-        const CHUNK = chain === 'bnb' ? 100 : 500;
+        const CHUNK = chain === 'bnb' ? 2000 : 500;
         let chunkCount = 0;
         for (let start = fromBlock; start <= latestBlock; start += CHUNK) {
           const end = Math.min(start + CHUNK - 1, latestBlock);
@@ -181,7 +191,7 @@ router.get('/:safeAddress', async (req, res) => {
             chunkCount++;
             // Throttle between chunks on BNB — public node needs breathing room
             if (chain === 'bnb' && start + CHUNK <= latestBlock) {
-              await sleep(800);
+              await sleep(200);
             }
           } catch (chunkErr) {
             console.warn(
