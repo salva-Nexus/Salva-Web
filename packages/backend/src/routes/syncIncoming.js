@@ -322,7 +322,6 @@ router.get('/:safeAddress', async (req, res) => {
         }
       }
     }
-
     return res.json({ synced, scannedBlocks: latestBlock - fromBlock });
   } catch (err) {
     console.error('❌ /sync-incoming error:', err.message);
