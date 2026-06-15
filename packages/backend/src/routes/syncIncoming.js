@@ -328,6 +328,6 @@ router.get('/:safeAddress', async (req, res) => {
     console.error('❌ /sync-incoming error:', err.message);
     return res.json({ synced: 0, error: err.message });
   }
-};);
+});
 
 module.exports = router;
