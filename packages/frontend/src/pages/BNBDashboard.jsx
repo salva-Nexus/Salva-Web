@@ -152,7 +152,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
 
         <div className="text-center mb-5">
-          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-500/#3b82f6/50 font-black mb-1">
+          <p className="text-[9px] uppercase tracking-[0.45em] text-blue-500/50 font-black mb-1">
             Scan to Pay
           </p>
           <h3 className="text-xl font-black text-white">Scan Wallet QR</h3>
@@ -175,14 +175,14 @@ const QRScannerModal = ({ onScan, onClose }) => {
             }}
           />
           <div className="absolute inset-0 pointer-events-none z-10">
-            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-blue-500/#3b82f6 rounded-tl-lg" />
-            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-blue-500/#3b82f6 rounded-tr-lg" />
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-blue-500/#3b82f6 rounded-bl-lg" />
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-blue-500/#3b82f6 rounded-br-lg" />
+            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-blue-500 rounded-tl-lg" />
+            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-blue-500 rounded-tr-lg" />
+            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-blue-500 rounded-bl-lg" />
+            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-blue-500 rounded-br-lg" />
           </div>
           <motion.div
-            className="absolute left-4 right-4 h-0.5 bg-blue-500/#3b82f6/60 z-10 pointer-events-none"
-            style={{ boxShadow: '0 0 8px #D4AF37' }}
+            className="absolute left-4 right-4 h-0.5 bg-blue-500/60 z-10 pointer-events-none"
+            style={{ boxShadow: '0 0 8px #3b82f6' }}
             animate={{ top: ['20%', '80%', '20%'] }}
             transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
           />
@@ -206,7 +206,7 @@ const QRScannerModal = ({ onScan, onClose }) => {
 // ── Balance Spinner ────────────────────────────────────────────────────────
 const BalanceSpinner = () => (
   <span className="inline-flex items-center gap-1.5">
-    <span className="w-4 h-4 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin inline-block flex-shrink-0" />
+    <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin inline-block flex-shrink-0" />
     <span className="text-sm opacity-30 font-bold">—</span>
   </span>
 );
@@ -302,16 +302,16 @@ const RegistryDropdown = ({
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left
           ${
             open
-              ? 'border-blue-500/#3b82f6 bg-blue-500/#3b82f6/5 ring-1 ring-blue-500/#3b82f6/30'
+              ? 'border-blue-500/ bg-blue-500/5 ring-1 ring-blue-500/30'
               : value
-                ? 'border-blue-500/#3b82f6/40 bg-blue-500/#3b82f6/5'
-                : 'border-white/10 bg-white/5 hover:border-blue-500/#3b82f6/40'
+                ? 'border-blue-500/40 bg-blue-500/5'
+                : 'border-white/10 bg-white/5 hover:border-blue-500/40'
           }`}
       >
         {value ? (
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/#3b82f6/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-blue-500/#3b82f6 text-xs font-black">
+            <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-500/ text-xs font-black">
                 {value.name.charAt(0).toUpperCase()}
               </span>
             </div>
@@ -415,10 +415,10 @@ const RegistryDropdown = ({
                     key={reg.registryAddress}
                     type="button"
                     onClick={() => handleSelect(reg)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/#3b82f6/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/#3b82f6/10' : ''}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/10' : ''}`}
                   >
-                    <div className="w-9 h-9 rounded-xl bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-500/#3b82f6 text-sm font-black">
+                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-500/ text-sm font-black">
                         {reg.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
@@ -430,7 +430,7 @@ const RegistryDropdown = ({
                       )}
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-blue-500/#3b82f6 text-sm">✓</span>
+                      <span className="text-blue-500/ text-sm">✓</span>
                     )}
                   </button>
                 ))
@@ -605,7 +605,7 @@ const BalanceCard = ({
 
   return (
     <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-3 sm:mb-5">
-      <div className="h-px bg-gradient-to-r from-transparent via-blue-500/#3b82f6/40 to-transparent" />
+      <div className="h-px bg-gradient-to-r from-transparent via-blue-500//40 to-transparent" />
 
       {/* NGN — TOP */}
       <div className="px-4 sm:px-7 pt-3 sm:pt-7 pb-2.5 sm:pb-4 border-b border-white/[0.06]">
@@ -614,7 +614,7 @@ const BalanceCard = ({
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block"
+              className="w-1.5 h-1.5 rounded-full bg-blue-500/ block"
             />
             <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
           </div>
@@ -662,7 +662,7 @@ const BalanceCard = ({
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
-            className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block"
+            className="w-1.5 h-1.5 rounded-full bg-blue-500/ block"
           />
           <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
@@ -1023,7 +1023,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const feeActive = registryFee !== null && registryFee > 0;
   const darkInput =
-    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/#3b82f6 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/ outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
@@ -1035,7 +1035,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </p>
           <button
             onClick={fetchLinkedNames}
-            className="text-[10px] uppercase font-black text-blue-500/#3b82f6/60 hover:text-blue-500/#3b82f6 transition-colors"
+            className="text-[10px] uppercase font-black text-blue-500/60 hover:text-blue-500/ transition-colors"
           >
             Refresh
           </button>
@@ -1043,17 +1043,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
         {loadingNames ? (
           <div className="flex justify-center py-10">
-            <div className="w-7 h-7 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-blue-500/30 border-t-blue-500/ rounded-full animate-spin" />
           </div>
         ) : linkedNames.length === 0 ? (
           <div className="relative overflow-hidden p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
-            <div className="w-10 h-10 rounded-2xl bg-blue-500/#3b82f6/10 border border-blue-500/#3b82f6/20 flex items-center justify-center mx-auto mb-3">
+            <div className="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center mx-auto mb-3">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.75}
-                className="w-5 h-5 text-blue-500/#3b82f6/60"
+                className="w-5 h-5 text-blue-500/60"
               >
                 <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
                 <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
@@ -1070,17 +1070,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/#3b82f6/25 hover:bg-blue-500/#3b82f6/[0.03] transition-all"
+                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/25 hover:bg-blue-500/[0.03] transition-all"
               >
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/25 flex items-center justify-center flex-shrink-0">
-                    <span className="text-blue-500/#3b82f6 text-xs font-black">
+                  <div className="w-9 h-9 rounded-xl bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
+                    <span className="text-blue-500/ text-xs font-black">
                       {alias.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <p
-                      className="font-black text-blue-500/#3b82f6 text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
+                      className="font-black text-blue-500/ text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.name);
                         showMsg('Name copied!');
@@ -1161,16 +1161,16 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               />
               {nameInput && selectedRegistry && (
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                  <span className="text-blue-500/#3b82f6 text-[10px] font-black">
+                  <span className="text-blue-500/ text-[10px] font-black">
                     {selectedRegistry.nspace}
                   </span>
                 </div>
               )}
             </div>
             {nameInput && (
-              <div className="mt-2 px-3 py-2 rounded-xl bg-blue-500/#3b82f6/5 border border-blue-500/#3b82f6/15 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500/#3b82f6 block flex-shrink-0" />
-                <p className="text-[10px] text-blue-500/#3b82f6 font-black">
+              <div className="mt-2 px-3 py-2 rounded-xl bg-blue-500/5 border border-blue-500/15 flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500/ block flex-shrink-0" />
+                <p className="text-[10px] text-blue-500/ font-black">
                   {nameInput}
                   {selectedRegistry ? selectedRegistry.nspace : '@salva'}
                 </p>
@@ -1245,7 +1245,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <div>
               <p className="font-black text-white text-sm">Reserved Name</p>
               <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">
-                <span className="text-blue-500/#3b82f6 font-black">{nameInput}</span> is reserved.
+                <span className="text-blue-500/ font-black">{nameInput}</span> is reserved.
                 Share your email and we'll reach out about eligibility.
               </p>
             </div>
@@ -1283,17 +1283,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           className="space-y-3"
         >
           {/* Name badge */}
-          <div className="p-5 rounded-2xl bg-blue-500/#3b82f6/6 border border-blue-500/#3b82f6/20 text-center">
-            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-500/#3b82f6/50 mb-2">
+          <div className="p-5 rounded-2xl bg-blue-500/6 border border-blue-500/20 text-center">
+            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-500/50 mb-2">
               Name Available
             </p>
-            <p className="text-2xl font-black text-blue-500/#3b82f6">{nameCheckResult.welded}</p>
+            <p className="text-2xl font-black text-blue-500/">{nameCheckResult.welded}</p>
           </div>
 
           {/* Fee */}
           {feeLoading ? (
             <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="w-4 h-4 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin flex-shrink-0" />
+              <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500/ rounded-full animate-spin flex-shrink-0" />
               <p className="text-xs text-white/60 font-bold">Fetching fee…</p>
             </div>
           ) : feeActive ? (
@@ -1306,7 +1306,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
               </div>
               <p className="font-black text-white text-sm">
                 {registryFee?.toLocaleString()}{' '}
-                <span className="text-blue-500/#3b82f6 text-xs">NGNs</span>
+                <span className="text-blue-500/ text-xs">NGNs</span>
               </p>
             </div>
           ) : (
@@ -1346,7 +1346,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           animate={{ opacity: 1, y: 0 }}
           className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
         >
-          <div className="w-12 h-12 bg-blue-500/#3b82f6/10 border border-blue-500/#3b82f6/20 rounded-2xl flex items-center justify-center mx-auto">
+          <div className="w-12 h-12 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto">
             <span className="text-xl">🔐</span>
           </div>
           <div>
@@ -1394,10 +1394,10 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
         >
           <div className="relative w-14 h-14 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-blue-500/#3b82f6/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-blue-500/#3b82f6 animate-spin" />
-            <div className="absolute inset-2 rounded-full bg-blue-500/#3b82f6/10 flex items-center justify-center">
-              <span className="text-blue-500/#3b82f6 text-sm font-black">₦</span>
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
+            <div className="absolute inset-0 rounded-full border-2 border-t-blue-500/ animate-spin" />
+            <div className="absolute inset-2 rounded-full bg-blue-500//10 flex items-center justify-center">
+              <span className="text-blue-500/ text-sm font-black">₦</span>
             </div>
           </div>
           <p className="font-black text-white">Linking on-chain…</p>
@@ -1416,7 +1416,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 280, delay: 0.1 }}
-            className="w-16 h-16 bg-blue-500/#3b82f6/15 border border-blue-500/#3b82f6/30 rounded-2xl flex items-center justify-center mx-auto"
+            className="w-16 h-16 bg-blue-500/15 border border-blue-500/30 rounded-2xl flex items-center justify-center mx-auto"
           >
             <span className="text-3xl">✓</span>
           </motion.div>
@@ -1456,7 +1456,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                   <span className="text-xl">⚠️</span>
                 </div>
                 <p className="font-black text-white text-lg">Unlink Name?</p>
-                <p className="text-blue-500/#3b82f6 font-black">{unlinkTarget.name}</p>
+                <p className="text-blue-500/ font-black">{unlinkTarget.name}</p>
                 <p className="text-sm text-white/60">
                   This removes the on-chain link and cannot be undone.
                 </p>
@@ -1512,7 +1512,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <p className="font-black text-white text-lg">Enter PIN</p>
                 <p className="text-[11px] text-white/60 mt-1">
                   Confirm unlinking{' '}
-                  <span className="text-blue-500/#3b82f6 font-black">{unlinkTarget.name}</span>
+                  <span className="text-blue-500/ font-black">{unlinkTarget.name}</span>
                 </p>
               </div>
               <input
@@ -1523,7 +1523,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/#3b82f6 outline-none text-center text-3xl tracking-[1em] font-black text-white"
+                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500/ outline-none text-center text-3xl tracking-[1em] font-black text-white"
               />
               <div className="flex gap-3">
                 <button
@@ -1539,7 +1539,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 <button
                   onClick={handleExecuteUnlink}
                   disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-blue-500/#3b82f6 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3 rounded-xl bg-blue-500/ text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {unlinkLoading && (
                     <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -1704,7 +1704,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             {selected.status}
           </span>
         </div>
-        <div className="p-4 rounded-2xl bg-blue-500/#3b82f6/5 border border-blue-500/#3b82f6/20 flex justify-between">
+        <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/20 flex justify-between">
           <div>
             <p className="text-[10px] text-white/60">Requested</p>
             <p className="font-black text-white">
@@ -1717,7 +1717,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
           </div>
           <div>
             <p className="text-[10px] text-white/60">To Mint</p>
-            <p className="font-black text-blue-500/#3b82f6">
+            <p className="font-black text-blue-500/">
               {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
             </p>
           </div>
@@ -1740,7 +1740,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
                 className={`flex ${msg.sender === 'seller' ? 'justify-start' : 'justify-end'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-blue-500/#3b82f6 text-black'}`}
+                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-blue-500/ text-black'}`}
                 >
                   {msg.text}
                   {msg.imageUrl && (
@@ -1762,7 +1762,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               onClick={sendSellerMessage}
               disabled={sending || !replyText.trim()}
-              className="px-3 py-2 bg-blue-500/#3b82f6 text-black font-black rounded-xl text-xs disabled:opacity-50"
+              className="px-3 py-2 bg-blue-500/ text-black font-black rounded-xl text-xs disabled:opacity-50"
             >
               Send
             </button>
@@ -1780,7 +1780,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               onClick={handleMinted}
               disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-blue-500/#3b82f6 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-xl bg-blue-500/ text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {actioning && (
                 <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
@@ -1801,17 +1801,17 @@ const SellerMintPanel = ({ user, showMsg }) => {
         <button
           onClick={fetchRequests}
           disabled={loading}
-          className="text-[10px] uppercase font-black text-blue-500/#3b82f6 hover:opacity-70 flex items-center gap-1"
+          className="text-[10px] uppercase font-black text-blue-500/ hover:opacity-70 flex items-center gap-1"
         >
           {loading && (
-            <span className="w-3 h-3 border border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
+            <span className="w-3 h-3 border border-blue-500/30 border-t-blue-500/ rounded-full animate-spin" />
           )}
           Refresh
         </button>
       </div>
       {loading ? (
         <div className="flex justify-center py-8">
-          <div className="w-8 h-8 border-2 border-blue-500/#3b82f6/30 border-t-blue-500/#3b82f6 rounded-full animate-spin" />
+          <div className="w-8 h-8 border-2 border-blue-500//30 border-t-blue-500/ rounded-full animate-spin" />
         </div>
       ) : requests.length === 0 ? (
         <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center">
@@ -1823,7 +1823,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               key={r._id}
               onClick={() => setSelected(r)}
-              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-blue-500/#3b82f6/30 transition-all text-left"
+              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-blue-500/30 transition-all text-left"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
@@ -1831,7 +1831,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
                   <p className="text-xs text-white/60 font-mono truncate">{r.userEmail}</p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-black text-blue-500/#3b82f6 text-sm">
+                  <p className="font-black text-blue-500/ text-sm">
                     {(r.mintAmountNgn || 0).toLocaleString()} NGNs
                   </p>
                   <span
@@ -1946,17 +1946,39 @@ const Dashboard = () => {
       return;
     }
     // Always verify against DB — localStorage may be stale
+    const cachedBnbUser = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('bnb_user') || 'null');
+      } catch {
+        return null;
+      }
+    })();
+
     fetch(`${SALVA_API_URL}/api/bnb/status/${encodeURIComponent(baseUser.email)}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((d) => {
         if (!d.deployed) {
-          localStorage.removeItem('bnb_user');
-          setUser(null);
-          setDeployState('need_deploy');
+          // Only clear localStorage and show deploy if we have NO cached wallet either
+          // This prevents network blips from showing the deploy screen
+          if (!cachedBnbUser?.safeAddress) {
+            localStorage.removeItem('bnb_user');
+            setUser(null);
+            setDeployState('need_deploy');
+          } else {
+            // We have a cached wallet — trust it, show ready or need_pin
+            if (!d.hasPin && !cachedBnbUser) {
+              setDeployState('need_pin');
+            } else {
+              setUser(cachedBnbUser);
+              setDeployState('ready');
+            }
+          }
         } else if (!d.hasPin) {
           setDeployState('need_pin');
         } else {
-          // Ensure bnb_user in localStorage is fresh
           const saved = localStorage.getItem('bnb_user');
           if (!saved) {
             const bnbUser = {
@@ -1967,11 +1989,29 @@ const Dashboard = () => {
             };
             localStorage.setItem('bnb_user', JSON.stringify(bnbUser));
             setUser(bnbUser);
+          } else {
+            // Refresh nameAlias from server if it changed
+            const parsed = JSON.parse(saved);
+            if (d.nameAlias && parsed.nameAlias !== d.nameAlias) {
+              parsed.nameAlias = d.nameAlias;
+              localStorage.setItem('bnb_user', JSON.stringify(parsed));
+              setUser(parsed);
+            }
           }
           setDeployState('ready');
         }
       })
-      .catch(() => setDeployState('need_deploy'));
+      .catch(() => {
+        // Network error — fall back to cached localStorage data if available
+        if (cachedBnbUser?.safeAddress) {
+          console.warn('⚠️ BNB status check failed — using cached wallet data');
+          setUser(cachedBnbUser);
+          setDeployState('ready');
+        } else {
+          // No cache and no network — show a retry state, NOT deploy
+          setDeployState('network_error');
+        }
+      });
   }, [baseUser?.email]);
 
   const refreshUserStatus = useCallback(async (email, currentUser) => {
@@ -2371,6 +2411,11 @@ const Dashboard = () => {
         body: JSON.stringify({ email: user.email, pin: transactionPin }),
       });
       const data = await res.json();
+      if (res.status === 503) {
+        showMsg('Server is warming up. Please wait 5 seconds and try again.', 'warning');
+        setLoading(false);
+        return;
+      }
       if (res.ok) {
         const capturedData = { ...confirmationData };
         setTransactionPin('');
@@ -2402,6 +2447,37 @@ const Dashboard = () => {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
         <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (deployState === 'network_error') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B] px-4">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <span className="text-3xl">📡</span>
+          </div>
+          <h2 className="text-xl font-black text-white mb-2">Connection Failed</h2>
+          <p className="text-sm text-white/60 mb-6 leading-relaxed">
+            Could not reach Salva servers. Check your internet connection and try again.
+          </p>
+          <button
+            onClick={() => {
+              setDeployState('checking');
+              window.location.reload();
+            }}
+            className="w-full py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 transition-all"
+          >
+            Retry
+          </button>
+          <a
+            href="/dashboard"
+            className="block mt-4 text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white/60 transition-colors"
+          >
+            ← Back to Base
+          </a>
+        </div>
       </div>
     );
   }
@@ -2675,7 +2751,7 @@ const Dashboard = () => {
                       transition-all duration-200 active:scale-95
                       ${
                         isActive
-                          ? 'bg-[#1C1C1E] ring-2 ring-blue-500/#3b82f6  shadow-[0_0_18px_rgba(212,175,55,0.18)]'
+                          ? 'bg-[#1C1C1E] ring-2 ring-blue-500/ shadow-[0_0_18px_rgba(212,175,55,0.18)]'
                           : 'bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]'
                       }
                     `}
@@ -2683,7 +2759,7 @@ const Dashboard = () => {
                     <span
                       className={`w-[15px] h-[15px] transition-colors duration-200 ${
                         isActive
-                          ? 'text-blue-500/#3b82f6 '
+                          ? 'text-blue-500 '
                           : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
@@ -2691,7 +2767,7 @@ const Dashboard = () => {
                     </span>
                     {/* Active indicator dot beneath circle */}
                     {isActive && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500/#3b82f6 " />
+                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-blue-500/ " />
                     )}
                   </div>
                   {/* Short label */}
@@ -2699,7 +2775,7 @@ const Dashboard = () => {
                     className={`
                       text-[7px] font-black uppercase tracking-[0.06em] leading-tight
                     text-center max-w-[48px] break-words transition-colors duration-200
-                      ${isActive ? 'text-blue-500/#3b82f6 ' : 'text-white/60 group-hover:text-white/50'}
+                      ${isActive ? 'text-blue-500 ' : 'text-white/60 group-hover:text-white/50'}
                     `}
                   >
                     {TAB_SHORT_LABELS[tab.id] || tab.label}
@@ -2739,9 +2815,9 @@ const Dashboard = () => {
                     duration: 3,
                     ease: 'easeInOut',
                   }}
-                  className="w-16 h-16 bg-blue-500/#3b82f6 /10 border border-blue-500/#3b82f6 /20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                  className="w-16 h-16 bg-blue-500 /10 border border-blue-500 /20 rounded-2xl flex items-center justify-center mx-auto mb-5"
                 >
-                  <span className="text-2xl font-black text-blue-500/#3b82f6 ">₦</span>
+                  <span className="text-2xl font-black text-blue-500 ">₦</span>
                 </motion.div>
                 <h3 className="text-xl font-black mb-2">Buy / Sell NGNs</h3>
                 <p className="text-white/60 text-sm mb-5 max-w-xs leading-relaxed">
@@ -2815,17 +2891,17 @@ const Dashboard = () => {
               <div className="mb-6 flex items-start justify-between gap-4">
                 <div>
                   <h3 className="text-2xl sm:text-3xl font-black text-white">Send</h3>
-                  <p className="text-[10px] text-blue-500/#3b82f6 /60 uppercase tracking-[0.35em] font-black mt-0.5">
+                  <p className="text-[10px] text-blue-500 /60 uppercase tracking-[0.35em] font-black mt-0.5">
                     Salva Secure Transfer
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsScanOpen(true)}
-                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-blue-500/#3b82f6 hover:bg-blue-500/#3b82f6/[0.06] transition-all flex items-center justify-center group mt-1"
+                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-blue-500/ hover:bg-blue-500/[0.06] transition-all flex items-center justify-center group mt-1"
                 >
                   <svg
-                    className="w-5 h-5 text-white/60 group-hover:text-blue-500/#3b82f6 transition-colors"
+                    className="w-5 h-5 text-white/60 group-hover:text-blue-500 transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"

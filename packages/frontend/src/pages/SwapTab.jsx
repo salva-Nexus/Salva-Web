@@ -727,7 +727,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       Pool Has
                     </p>
                     <p
-                      className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-green-400'}`}
+                      className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-white'}`}
                     >
                       {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}
                       <span className="text-white/40 font-normal text-[9px]">
@@ -1069,7 +1069,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
           <div className="fixed inset-0 z-[95] flex items-center justify-center px-4">
             <motion.div
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => setShowReceiverConfirm(false)}
             />
             <motion.div
@@ -1091,31 +1093,34 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                 </p>
                 <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-2 text-left space-y-3">
                   <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">SNS Name</p>
+                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
+                      SNS Name
+                    </p>
                     <p className="font-black text-salvaGold text-sm">{receiverRaw}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">Resolved Address</p>
-                    <p className="font-mono text-[11px] text-white/70 break-all">{receiverResolved}</p>
+                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
+                      Resolved Address
+                    </p>
+                    <p className="font-mono text-[11px] text-white/70 break-all">
+                      {receiverResolved}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20 mb-5">
                   <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
-                  <p className="text-[10px] text-yellow-400/80 font-bold text-left">Swap output will go to this address. This cannot be undone.</p>
+                  <p className="text-[10px] text-yellow-400/80 font-bold text-left">
+                    Swap output will go to this address. This cannot be undone.
+                  </p>
                 </div>
                 <div className="flex gap-3">
                   <button
                     onClick={() => {
                       setShowReceiverConfirm(false);
-                      setReceiverRaw(defaultReceiver);
-                      setReceiverInputType('address');
-                      setReceiverResolved(defaultReceiver);
-                      setReceiverError('');
-                      setReceiverConfirmed(false);
                     }}
                     className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all"
                   >
-                    Cancel
+                    Go Back
                   </button>
                   <button
                     onClick={() => {
@@ -1215,9 +1220,9 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
                 Rate
               </p>
               <div className="text-right min-w-0">
-                <span className="font-black text-sm text-salvaGold">
+                <span className="font-black text-sm text-white">
                   ₦{fmt(rate, 'ngn')}
-                  <span className="text-[10px] text-white/60 font-normal">/USD</span>
+                  <span className="text-[10px] text-white/40 font-normal">/USD</span>
                 </span>
                 {parseFloat(pool.minNgnAmount || 0) > 0 && (
                   <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
@@ -1228,27 +1233,27 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-green-400/50 font-black">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   USDT
                 </p>
                 <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   ERC-20
                 </p>
               </div>
-              <span className="font-black text-sm text-green-400 truncate">
+              <span className="font-black text-sm text-white truncate">
                 {fmt(usdtAvail, 'usd')}
               </span>
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-blue-400/50 font-black">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   USDC
                 </p>
                 <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   ERC-20
                 </p>
               </div>
-              <span className="font-black text-sm text-blue-400 truncate">
+              <span className="font-black text-sm text-white truncate">
                 {fmt(usdcAvail, 'usd')}
               </span>
             </div>
@@ -1260,9 +1265,9 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
                 Rate
               </p>
               <div className="text-right min-w-0">
-                <span className="font-black text-sm text-green-400">
+                <span className="font-black text-sm text-white">
                   ₦{fmt(rate, 'ngn')}
-                  <span className="text-[10px] text-white/60 font-normal">/USD</span>
+                  <span className="text-[10px] text-white/40 font-normal">/USD</span>
                 </span>
                 {parseFloat(pool.minTokenAmount || 0) > 0 && (
                   <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
@@ -1273,14 +1278,14 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
             </div>
             <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-salvaGold/50 font-black">
+                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   NGNs
                 </p>
                 <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   ERC-20
                 </p>
               </div>
-              <span className="font-black text-sm text-salvaGold truncate">
+              <span className="font-black text-sm text-white truncate">
                 {fmt(ngnsAvail, 'ngn')}
               </span>
             </div>
@@ -1293,7 +1298,7 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
                   ERC-20
                 </p>
               </div>
-              <span className="font-black text-sm text-white/60 truncate">
+              <span className="font-black text-sm text-white truncate">
                 {fmt(cNgnAvail, 'ngn')}
               </span>
             </div>
@@ -1466,7 +1471,7 @@ const SwapTab = ({ user, showMsg }) => {
               <span
                 className="font-black text-sm"
                 style={{
-                  color: section === id ? color : 'rgba(255,255,255,0.5)',
+                  color: section === id ? color : 'rgba(255,255,255,0.85)',
                 }}
               >
                 {label}
@@ -1477,8 +1482,8 @@ const SwapTab = ({ user, showMsg }) => {
                   section === id
                     ? { background: `${color}20`, color }
                     : {
-                        background: 'rgba(255,255,255,0.05)',
-                        color: 'rgba(255,255,255,0.25)',
+                        background: 'rgba(255,255,255,0.07)',
+                        color: 'rgba(255,255,255,0.5)',
                       }
                 }
               >

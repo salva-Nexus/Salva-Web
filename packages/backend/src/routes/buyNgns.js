@@ -730,8 +730,15 @@ router.post('/reject', async (req, res) => {
 router.get('/my-request/:safeAddress', async (req, res) => {
   try {
     const addr = req.params.safeAddress.toLowerCase();
-    const request = await MintRequest.findOne({ userSafeAddress: addr }).sort({ createdAt: -1 });
-    return res.json({ request: request || null });
+    // Return latest non-terminal request first, fall back to any latest
+    const request = await MintRequest.findOne({
+      userSafeAddress: addr,
+      status: { $in: ['pending', 'paid', 'minting', 'burning', 'pending_burn'] },
+    }).sort({ createdAt: -1 });
+    if (request) return res.json({ request });
+    // Fallback to latest of any status (so history shows last completed)
+    const latest = await MintRequest.findOne({ userSafeAddress: addr }).sort({ createdAt: -1 });
+    return res.json({ request: latest || null });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -886,8 +893,18 @@ router.post('/initiate-sell', async (req, res) => {
 
     const existing = await MintRequest.findOne({
       userSafeAddress: safeAddress.toLowerCase(),
-      status: { $in: ['pending', 'paid', 'minting'] },
+      status: { $in: ['pending', 'paid', 'minting', 'burning', 'pending_burn'] },
     });
+    if (existing) {
+      const isPendingBurn = existing.status === 'pending_burn' || existing.status === 'burning';
+      return res.status(409).json({
+        message: isPendingBurn
+          ? 'A burn transaction is already in progress for your account. Check your sell request before trying again — your tokens may already be burned.'
+          : 'You already have an active request.',
+        requestId: existing._id,
+        isPendingBurn,
+      });
+    }
     if (existing) {
       return res
         .status(409)
@@ -896,11 +913,118 @@ router.post('/initiate-sell', async (req, res) => {
 
     const burnAmt = ethers.parseUnits(amount.toString(), decimals);
     console.log(`🔥 Calling burn(${burnTarget}, ${burnAmt}) on ${ngnTokenAddress}`);
-    const tx = await ngnToken.burn(burnTarget, burnAmt);
-    console.log(`⏳ Burn tx submitted: ${tx.hash}`);
+    // ── Create the MintRequest BEFORE burning ─────────────────────────────────
+    // This ensures that even if the burn tx succeeds but DB save fails,
+    // we have a record. We set status='burning' so the user knows it's in progress.
+    let mintRequest = await MintRequest.findOne({
+      userSafeAddress: safeAddress.toLowerCase(),
+    }).sort({ createdAt: -1 });
 
-    const receipt = await tx.wait();
-    if (receipt.status !== 1) throw new Error('Burn transaction reverted');
+    const preflightMsg = {
+      sender: 'seller',
+      text: `⏳ Processing your sell request for **${amount.toLocaleString()} NGNs**...\n\n🔥 Burning tokens on-chain. Do NOT close this page or submit again.`,
+      createdAt: new Date(),
+    };
+
+    if (
+      mintRequest &&
+      ['minted', 'rejected', 'burned', 'sell_completed'].includes(mintRequest.status)
+    ) {
+      mintRequest.type = 'sell';
+      mintRequest.isL1 = isL1;
+      mintRequest.chain = chain;
+      mintRequest.status = 'burning';
+      mintRequest.amountNgn = amount;
+      mintRequest.feeNgn = feeNgn;
+      mintRequest.mintAmountNgn = payoutAmount;
+      mintRequest.bankDetails = {
+        bankName: bankName.trim(),
+        accountNumber: accountNumber.trim(),
+        accountName: accountName.trim(),
+      };
+      mintRequest.receiptImageBase64 = null;
+      mintRequest.sellerRead = false;
+      mintRequest.txHash = null;
+      mintRequest.updatedAt = new Date();
+      mintRequest.messages = [preflightMsg];
+      await mintRequest.save();
+    } else {
+      mintRequest = await MintRequest.create({
+        userSafeAddress: safeAddress.toLowerCase(),
+        userEmail: userEmail || '',
+        username,
+        type: 'sell',
+        isL1,
+        chain,
+        amountNgn: amount,
+        feeNgn: feeNgn,
+        mintAmountNgn: payoutAmount,
+        bankDetails: {
+          bankName: bankName.trim(),
+          accountNumber: accountNumber.trim(),
+          accountName: accountName.trim(),
+        },
+        status: 'burning',
+        sellerRead: false,
+        txHash: null,
+        messages: [preflightMsg],
+      });
+    }
+
+    // ── NOW burn on-chain ─────────────────────────────────────────────────────
+    let tx;
+    try {
+      tx = await ngnToken.burn(burnTarget, burnAmt);
+      console.log(`⏳ Burn tx submitted: ${tx.hash}`);
+    } catch (burnErr) {
+      // Burn failed to even broadcast — revert DB record so user can retry
+      mintRequest.status = 'rejected';
+      mintRequest.messages.push({
+        sender: 'seller',
+        text: `❌ Burn transaction failed to broadcast: ${burnErr.message}. No tokens were burned. Please try again.`,
+        createdAt: new Date(),
+      });
+      await mintRequest.save().catch(() => {});
+      throw burnErr;
+    }
+
+    // Update record with tx hash immediately so it's traceable
+    mintRequest.txHash = tx.hash;
+    mintRequest.updatedAt = new Date();
+    await mintRequest.save().catch(() => {});
+
+    let receipt;
+    try {
+      receipt = await tx.wait();
+    } catch (waitErr) {
+      // tx submitted but wait failed (network timeout) — mark as pending_burn for admin review
+      mintRequest.status = 'pending_burn';
+      mintRequest.messages.push({
+        sender: 'seller',
+        text: `⚠️ Burn tx submitted (${tx.hash}) but confirmation timed out. Admin must verify on-chain and update manually.`,
+        createdAt: new Date(),
+      });
+      await mintRequest.save().catch(() => {});
+      return res.status(202).json({
+        success: true,
+        pending: true,
+        txHash: tx.hash,
+        message:
+          'Burn submitted but confirmation pending. Your request has been logged — do NOT submit again.',
+        requestId: mintRequest._id,
+      });
+    }
+
+    if (receipt.status !== 1) {
+      mintRequest.status = 'rejected';
+      mintRequest.messages.push({
+        sender: 'seller',
+        text: `❌ Burn transaction reverted on-chain. No tokens were burned. TX: ${tx.hash}`,
+        createdAt: new Date(),
+      });
+      await mintRequest.save().catch(() => {});
+      throw new Error('Burn transaction reverted');
+    }
     console.log(`✅ Burn confirmed: ${tx.hash}`);
 
     if (Transaction) {
@@ -934,60 +1058,19 @@ router.post('/initiate-sell', async (req, res) => {
     const sellMsg = {
       sender: 'user',
       isBurned: true,
-      text: `🔥 Sell request submitted!\n\n💸 Burned: **${amount.toLocaleString()} NGNs** (fee: ${feeNgn.toLocaleString()} NGNs)\n💵 Payout to user: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}\n📍 Burned from: \`${burnTarget.slice(0, 10)}…${burnTarget.slice(-6)}\``,
+      text: `🔥 Sell request submitted!\n\n💸 Burned: **${amount.toLocaleString()} NGNs** (fee: ${feeNgn.toLocaleString()} NGNs)\n💵 Payout: **₦${payoutAmount.toLocaleString()}**\n\n🏦 **${bankName.trim()}**\n👤 **${accountName.trim()}**\n🔢 **${accountNumber.trim()}**\n\n🔗 TX: \`${tx.hash.slice(0, 12)}...${tx.hash.slice(-8)}\`\n🌐 ${networkLabelSell}\n📍 Burned from: \`${burnTarget.slice(0, 10)}...${burnTarget.slice(-6)}\``,
       createdAt: new Date(),
     };
 
-    let mintRequest = await MintRequest.findOne({
-      userSafeAddress: safeAddress.toLowerCase(),
-    }).sort({ createdAt: -1 });
+    // mintRequest was already created BEFORE the burn — just update it now
+    mintRequest.status = 'paid';
+    mintRequest.txHash = tx.hash;
+    mintRequest.sellerRead = false;
+    mintRequest.messages.push(sellMsg);
+    mintRequest.updatedAt = new Date();
+    await mintRequest.save();
 
-    if (
-      mintRequest &&
-      ['minted', 'rejected', 'burned', 'sell_completed'].includes(mintRequest.status)
-    ) {
-      mintRequest.type = 'sell';
-      mintRequest.isL1 = isL1;
-      mintRequest.chain = chain;
-      mintRequest.status = 'paid';
-      mintRequest.amountNgn = amount;
-      mintRequest.feeNgn = feeNgn;
-      mintRequest.mintAmountNgn = payoutAmount;
-      mintRequest.bankDetails = {
-        bankName: bankName.trim(),
-        accountNumber: accountNumber.trim(),
-        accountName: accountName.trim(),
-      };
-      mintRequest.receiptImageBase64 = null;
-      mintRequest.sellerRead = false;
-      mintRequest.txHash = tx.hash;
-      mintRequest.updatedAt = new Date();
-      mintRequest.messages.push(sellMsg);
-      await mintRequest.save();
-    } else {
-      mintRequest = await MintRequest.create({
-        userSafeAddress: safeAddress.toLowerCase(),
-        userEmail: userEmail || '',
-        username,
-        type: 'sell',
-        isL1,
-        chain,
-        amountNgn: amount,
-        feeNgn: feeNgn,
-        mintAmountNgn: payoutAmount,
-        bankDetails: {
-          bankName: bankName.trim(),
-          accountNumber: accountNumber.trim(),
-          accountName: accountName.trim(),
-        },
-        status: 'paid',
-        sellerRead: false,
-        txHash: tx.hash,
-        messages: [sellMsg],
-      });
-    }
-
-    console.log(`✅ Sell request ${mintRequest._id} created`);
+    console.log(`✅ Sell request ${mintRequest._id} confirmed after burn`);
 
     // Emails — non-blocking, only if we have an address
     if (userEmail) {

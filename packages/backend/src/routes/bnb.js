@@ -119,7 +119,19 @@ router.get('/status/:email', async (req, res) => {
   try {
     const sanitizedEmail = sanitizeEmail(req.params.email);
     const l1DB = getL1DB();
-    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+    if (l1DB.readyState !== 1) {
+      try {
+        await Promise.race([
+          l1DB.readyPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 10000)),
+        ]);
+      } catch {
+        // L1DB unreachable — return a retryable error so frontend uses cache
+        return res
+          .status(503)
+          .json({ message: 'Service temporarily unavailable', retryable: true });
+      }
+    }
     const UserBNB = getUserBNB();
 
     const user = await UserBNB.findOne({ email: sanitizedEmail });
@@ -193,7 +205,21 @@ router.post('/verify-pin', async (req, res) => {
 
     const sanitizedEmail = sanitizeEmail(email);
     const l1DB = getL1DB();
-    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+    // Wait up to 8s for L1DB — never return 401 "Invalid PIN" for a DB connection issue
+    if (l1DB.readyState !== 1) {
+      try {
+        await Promise.race([
+          l1DB.readyPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 8000)),
+        ]);
+      } catch (dbErr) {
+        console.error('❌ /bnb/verify-pin: L1DB not ready:', dbErr.message);
+        return res.status(503).json({
+          message: 'Service temporarily unavailable. Please wait a moment and try again.',
+          retryable: true,
+        });
+      }
+    }
     const UserBNB = getUserBNB();
 
     const user = await UserBNB.findOne({ email: sanitizedEmail });

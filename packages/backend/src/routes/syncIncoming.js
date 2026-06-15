@@ -60,6 +60,30 @@ function getChainConfig(chain) {
     ],
   };
 }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function getLogsWithRetry(provider, filter, maxRetries = 3) {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await provider.getLogs(filter);
+    } catch (err) {
+      const isRateLimit =
+        err?.message?.includes('-32005') ||
+        err?.message?.includes('rate limit') ||
+        err?.code === 'BAD_DATA';
+      if (isRateLimit && i < maxRetries - 1) {
+        const delay = 1500 * Math.pow(2, i); // 1.5s → 3s → 6s
+        console.warn(
+          `⚠️ getLogs rate-limited, retrying in ${delay}ms (attempt ${i + 1}/${maxRetries})`
+        );
+        await sleep(delay);
+        continue;
+      }
+      throw err;
+    }
+  }
+}
 
 const FACTORY_ABI = ['function tokenDecimal(address token) external view returns (uint8)'];
 
@@ -95,7 +119,8 @@ router.get('/:safeAddress', async (req, res) => {
 
   const safeAddress = raw.toLowerCase();
   const { rpcUrl, tokens: rawTokens, factoryAddress } = getChainConfig(chain);
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  // Disable ethers v6 auto-batching — BSC testnet public nodes rate-limit batched eth_getLogs
+  const provider = new ethers.JsonRpcProvider(rpcUrl, undefined, { batchMaxCount: 1 });
   const tokens = await resolveDecimals(rawTokens, factoryAddress, provider);
 
   console.log(`🔍 sync-incoming: address=${safeAddress} chain=${chain}`);
@@ -128,26 +153,40 @@ router.get('/:safeAddress', async (req, res) => {
     let synced = 0;
 
     // ── 3. Scan each token ───────────────────────────────────────────────────
+    let tokenIndex = 0;
     for (const token of tokens) {
-      if (!token.address || !ethers.isAddress(token.address)) continue;
+      if (!token.address || !ethers.isAddress(token.address)) {
+        tokenIndex++;
+        continue;
+      }
+      // Stagger token scans on BNB — each token scan must fully clear before the next
+      if (chain === 'bnb' && tokenIndex > 0) await sleep(1200);
+      tokenIndex++;
 
       let logs = [];
       try {
-        // Paginate in 500-block chunks to stay within free-tier RPC limits
-        const CHUNK = 500;
+        // Paginate in small chunks — BSC public nodes enforce strict per-request rate limits
+        const CHUNK = chain === 'bnb' ? 100 : 500;
+        let chunkCount = 0;
         for (let start = fromBlock; start <= latestBlock; start += CHUNK) {
           const end = Math.min(start + CHUNK - 1, latestBlock);
           try {
-            const chunk = await provider.getLogs({
+            const chunk = await getLogsWithRetry(provider, {
               fromBlock: start,
               toBlock: end,
               address: ethers.getAddress(token.address),
               topics: [TRANSFER_TOPIC, null, toTopic(safeAddress)],
             });
             logs.push(...chunk);
+            chunkCount++;
+            // Throttle between chunks on BNB — public node needs breathing room
+            if (chain === 'bnb' && start + CHUNK <= latestBlock) {
+              await sleep(800);
+            }
           } catch (chunkErr) {
-            // Free-tier limit hit on this chunk — skip it, don't crash
-            console.warn(`⚠️ getLogs chunk ${start}-${end} skipped: ${chunkErr.message}`);
+            console.warn(
+              `⚠️ getLogs chunk ${start}-${end} skipped after retries: ${chunkErr.message}`
+            );
             continue;
           }
         }

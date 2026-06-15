@@ -429,6 +429,7 @@ const SalvaNGNsChat = ({ user }) => {
   const sellPayout = sellAmountRaw - sellFee;
   const status = mintRequest?.status;
   const canChat = status === 'pending' || status === 'paid';
+  const isBurning = status === 'burning' || status === 'pending_burn';
   const isMinted = status === 'minted';
   const isRejected = status === 'rejected';
   const isBurned = status === 'burned' || status === 'sell_completed';
@@ -450,7 +451,10 @@ const SalvaNGNsChat = ({ user }) => {
     try {
       const res = await fetch(`${SALVA_API_URL}/api/buy-ngns/my-request/${user.safeAddress}`);
       const data = await res.json();
-      if (data.request && ['pending', 'paid', 'minting'].includes(data.request.status)) {
+      if (
+        data.request &&
+        ['pending', 'paid', 'minting', 'burning', 'pending_burn'].includes(data.request.status)
+      ) {
         setMintRequest(data.request);
         setMessages(data.request.messages || []);
         setMode(data.request.type || 'buy');
@@ -574,13 +578,31 @@ const SalvaNGNsChat = ({ user }) => {
         }),
       });
       const data = await res.json();
+
+      // 202 = burn submitted but confirmation pending (slow network)
+      if (res.status === 202 && data.pending) {
+        // Force-load the request so UI shows the pending state
+        await loadRequest();
+        return;
+      }
+
       if (!res.ok) {
-        setSellError(data.message || 'Could not process your sell request. Please try again.');
+        // 409 with isPendingBurn = burn already in progress, show special message
+        if (res.status === 409 && data.isPendingBurn) {
+          setSellError(
+            'A burn is already in progress for your account. Refresh the page to check the status before submitting again.'
+          );
+        } else {
+          setSellError(data.message || 'Could not process your sell request. Please try again.');
+        }
         return;
       }
       await loadRequest();
-    } catch {
-      setSellError('Network error. Please try again.');
+    } catch (err) {
+      // Network totally down BEFORE the request was sent
+      setSellError(
+        'Connection failed. If you already tapped "Burn", refresh this page first before trying again — your tokens may already be burned.'
+      );
     } finally {
       setSellInitiating(false);
     }
@@ -1239,6 +1261,12 @@ const SalvaNGNsChat = ({ user }) => {
                   </motion.div>
                 )}
 
+                {isBurning && (
+                  <div className="p-3 rounded-xl bg-red-500/[0.06] border border-red-500/20 flex items-center gap-2.5">
+                    <div className="w-4 h-4 rounded-full border-2 border-red-500/30 border-t-red-500 flex-shrink-0" style={{ animation: 'spin 0.8s linear infinite' }} />
+                    <p className="text-red-400 text-[12px] font-bold m-0">⚠️ Burn in progress — do NOT submit another request. Refresh if this takes over 2 minutes.</p>
+                  </div>
+                )}
                 {status === 'minting' && (
                   <div className="p-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center gap-2.5">
                     <div className="w-4 h-4 rounded-full border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0" style={{ animation: 'spin 0.8s linear infinite' }} />

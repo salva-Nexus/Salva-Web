@@ -31,7 +31,17 @@ const MintRequestSchema = new mongoose.Schema({
 
   status: {
     type: String,
-    enum: ['pending', 'paid', 'minting', 'minted', 'rejected', 'burned', 'sell_completed'],
+    enum: [
+      'pending',
+      'paid',
+      'minting',
+      'minted',
+      'rejected',
+      'burned',
+      'sell_completed',
+      'burning',
+      'pending_burn',
+    ],
     default: 'pending',
   },
 
