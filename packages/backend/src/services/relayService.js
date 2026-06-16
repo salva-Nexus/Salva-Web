@@ -133,8 +133,8 @@ async function _executeViaSafe(safeAddress, ownerKey, to, data, operation = 0) {
 async function _executeViaSafeBase(safeAddress, ownerKey, target, data, operation = 0) {
   const rpcUrl =
     process.env.NODE_ENV === 'production'
-      ? process.env.BASE_MAINNET_RPC_URL
-      : process.env.BASE_SEPOLIA_RPC_URL;
+      ? process.env.BASE_MAINNET_RPC_URL_FALLBACK || process.env.BASE_MAINNET_RPC_URL
+      : process.env.BASE_SEPOLIA_RPC_URL_FALLBACK || process.env.BASE_SEPOLIA_RPC_URL;
 
   const cleanSafe = ethers.getAddress(cleanEnvAddr(safeAddress) || safeAddress);
   const cleanTarget = ethers.getAddress(cleanEnvAddr(target) || target);
