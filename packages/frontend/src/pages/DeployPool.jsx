@@ -375,6 +375,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
 
   const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
@@ -1180,9 +1181,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
   const [registries, setRegistries] = useState([]);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { isDismissed } = useNetworkReminder('salva-network-reminder-base');
+  const { isDismissed } = useNetworkReminder();
 
   const fetchMyPools = useCallback(
     async (silent = false) => {
@@ -1536,19 +1538,11 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
           <button
             onClick={() => {
-              console.log('🚀 Deploy button clicked!');
-
-              const dismissed = isDismissed();
-              console.log('Is reminder dismissed?', dismissed);
-
-              if (!dismissed) {
-                console.log('Showing network reminder');
-                setShowNetworkReminder(true);
-              } else {
-                console.log('Going straight to PIN');
+              setPendingAction(() => () => {
                 setPinAction('deploy');
                 setPinVisible(true);
-              }
+              });
+              setShowNetworkReminder(true);
             }}
             disabled={deploying}
             className="flex items-center gap-2 px-5 py-3 bg-salvaGold text-black font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-salvaGold/20"
@@ -1599,10 +1593,16 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               key={pool.poolAddress}
               pool={pool}
               index={i}
-              onManage={() => setManagingPool(pool)}
+              onManage={() => {
+                setShowNetworkReminder(true);
+                setPendingAction(() => () => setManagingPool(pool));
+              }}
               onPublish={() => {
-                setSelectedPool(pool);
-                setShowSubModal(true);
+                setShowNetworkReminder(true);
+                setPendingAction(() => () => {
+                  setSelectedPool(pool);
+                  setShowSubModal(true);
+                });
               }}
               onRename={() => {
                 if (pool.poolName) {
@@ -2102,13 +2102,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         {showNetworkReminder && (
           <NetworkReminder
             chain="base"
-            storageKey="salva-network-reminder-base"
             onContinue={() => {
               setShowNetworkReminder(false);
-              setPinAction('deploy');
-              setPinVisible(true);
+              if (pendingAction) {
+                pendingAction();
+                setPendingAction(null);
+              }
             }}
-            onClose={() => setShowNetworkReminder(false)}
+            onClose={() => {
+              setShowNetworkReminder(false);
+              setPendingAction(null);
+            }}
           />
         )}
       </AnimatePresence>

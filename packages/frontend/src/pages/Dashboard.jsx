@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
+import NetworkReminder from '../components/NetworkReminder';
 import AdminPanel from './AdminPanel';
 import SalvaNGNsChat from '../components/SalvaNGNsChat';
 import SalvaSellerChat from '../components/SalvaSellerChat';
@@ -2122,9 +2123,12 @@ const Dashboard = () => {
     else if (type === 'name' && registries.length === 1) setSelectedRegistry(registries[0]);
   };
 
+  const [showSendNetworkReminder, setShowSendNetworkReminder] = useState(false);
+  const [showReceiveNetworkReminder, setShowReceiveNetworkReminder] = useState(false);
+
   const handleTransferClick = () => {
     if (isAccountLocked) return showMsg(lockMessage, 'error');
-    setIsSendOpen(true);
+    setShowSendNetworkReminder(true);
   };
 
   const resetSendForm = () => {
@@ -2502,7 +2506,7 @@ const Dashboard = () => {
           balanceLoading={balanceLoading}
           onToggleVisibility={toggleShowBalance}
           onSend={handleTransferClick}
-          onReceive={() => setIsReceiveOpen(true)}
+          onReceive={() => setShowReceiveNetworkReminder(true)}
         />
 
         {/* ── Info Bar: Chain + Wallet + TX History ── */}
@@ -2538,31 +2542,52 @@ const Dashboard = () => {
             {/* Wallet address */}
             <div
               onClick={() => {
-                navigator.clipboard.writeText(user.safeAddress);
-                showMsg('Wallet address copied!');
+                setShowReceiveNetworkReminder(true);
               }}
               className="flex-1 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
             >
               <div className="w-6 h-6 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                <svg viewBox="0 0 111 111" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-4 h-4">
-                  <path d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z" fill="#0052FF"/>
-                  <path d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z" fill="white"/>
+                <svg
+                  viewBox="0 0 111 111"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="w-4 h-4"
+                >
+                  <path
+                    d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
+                    fill="#0052FF"
+                  />
+                  <path
+                    d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z"
+                    fill="white"
+                  />
                 </svg>
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">Address</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">
+                  Address
+                </p>
                 <p className="font-mono text-[10px] text-salvaGold/60 truncate group-hover:text-salvaGold/80 transition-colors">
                   {showBalance ? (
                     <>
-                      <span className="lg:hidden">{user.safeAddress.slice(0, 6)}…{user.safeAddress.slice(-10)}</span>
+                      <span className="lg:hidden">
+                        {user.safeAddress.slice(0, 6)}…{user.safeAddress.slice(-10)}
+                      </span>
                       <span className="hidden lg:inline">{user.safeAddress}</span>
                     </>
-                  ) : '0x••••••••••••••••••••••••••••••••••••••••'}
+                  ) : (
+                    '0x••••••••••••••••••••••••••••••••••••••••'
+                  )}
                 </p>
               </div>
-              <svg className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2"/>
+              <svg
+                className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
               </svg>
             </div>
 
@@ -2571,8 +2596,12 @@ const Dashboard = () => {
               to="/transactions"
               className="w-[50%] flex items-center justify-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-all group"
             >
-              <p className="text-[9px] font-black text-white/50 group-hover:text-salvaGold transition-colors uppercase tracking-wider whitespace-nowrap">Transaction History</p>
-              <span className="text-salvaGold/50 text-sm group-hover:text-salvaGold group-hover:translate-x-0.5 transition-all flex-shrink-0">→</span>
+              <p className="text-[9px] font-black text-white/50 group-hover:text-salvaGold transition-colors uppercase tracking-wider whitespace-nowrap">
+                Transaction History
+              </p>
+              <span className="text-salvaGold/50 text-sm group-hover:text-salvaGold group-hover:translate-x-0.5 transition-all flex-shrink-0">
+                →
+              </span>
             </Link>
           </div>
         </div>
@@ -3140,6 +3169,34 @@ const Dashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Send Network Reminder ── */}
+      <AnimatePresence>
+        {showSendNetworkReminder && (
+          <NetworkReminder
+            chain="base"
+            onContinue={() => {
+              setShowSendNetworkReminder(false);
+              setIsSendOpen(true);
+            }}
+            onClose={() => setShowSendNetworkReminder(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Receive/Copy Network Reminder ── */}
+      <AnimatePresence>
+        {showReceiveNetworkReminder && (
+          <NetworkReminder
+            chain="base"
+            onContinue={() => {
+              setShowReceiveNetworkReminder(false);
+              setIsReceiveOpen(true);
+            }}
+            onClose={() => setShowReceiveNetworkReminder(false)}
+          />
         )}
       </AnimatePresence>
 

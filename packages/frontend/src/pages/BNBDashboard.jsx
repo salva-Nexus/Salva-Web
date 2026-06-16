@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
+import NetworkReminder from '../components/NetworkReminder';
 import AdminPanel from './AdminPanel';
 import BNBDeployWallet from './BNBDeployWallet';
 import BNBSetPin from './BNBSetPin';
@@ -2228,9 +2229,12 @@ const Dashboard = () => {
     else if (type === 'name' && registries.length === 1) setSelectedRegistry(registries[0]);
   };
 
+  const [showSendNetworkReminder, setShowSendNetworkReminder] = useState(false);
+  const [showReceiveNetworkReminder, setShowReceiveNetworkReminder] = useState(false);
+
   const handleTransferClick = () => {
     if (isAccountLocked) return showMsg(lockMessage, 'error');
-    setIsSendOpen(true);
+    setShowSendNetworkReminder(true);
   };
 
   const resetSendForm = () => {
@@ -2635,7 +2639,7 @@ const Dashboard = () => {
           balanceLoading={balanceLoading}
           onToggleVisibility={toggleShowBalance}
           onSend={handleTransferClick}
-          onReceive={() => setIsReceiveOpen(true)}
+          onReceive={() => setShowReceiveNetworkReminder(true)}
         />
 
         {/* ── Info Bar: Chain + Wallet + TX History ── */}
@@ -2671,8 +2675,7 @@ const Dashboard = () => {
             {/* Wallet address */}
             <div
               onClick={() => {
-                navigator.clipboard.writeText(user.safeAddress);
-                showMsg('Wallet address copied!');
+                setShowReceiveNetworkReminder(true);
               }}
               className="flex-1 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
             >
@@ -2684,19 +2687,30 @@ const Dashboard = () => {
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">Address</p>
+                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">
+                  Address
+                </p>
                 <p className="font-mono text-[10px] text-blue-400/60 truncate group-hover:text-blue-400/80 transition-colors">
                   {showBalance ? (
                     <>
-                      <span className="lg:hidden">{user.safeAddress.slice(0, 6)}…{user.safeAddress.slice(-10)}</span>
+                      <span className="lg:hidden">
+                        {user.safeAddress.slice(0, 6)}…{user.safeAddress.slice(-10)}
+                      </span>
                       <span className="hidden lg:inline">{user.safeAddress}</span>
                     </>
-                  ) : '0x••••••••••••••••••••••••••••••••••••••••'}
+                  ) : (
+                    '0x••••••••••••••••••••••••••••••••••••••••'
+                  )}
                 </p>
               </div>
-              <svg className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2"/>
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2"/>
+              <svg
+                className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" strokeWidth="2" />
               </svg>
             </div>
 
@@ -2705,8 +2719,12 @@ const Dashboard = () => {
               href="/transactions?chain=bnb"
               className="w-[50%] flex items-center justify-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-all group"
             >
-              <p className="text-[9px] font-black text-white/50 group-hover:text-blue-400 transition-colors uppercase tracking-wider whitespace-nowrap">Transaction History</p>
-              <span className="text-blue-400/50 text-sm group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0">→</span>
+              <p className="text-[9px] font-black text-white/50 group-hover:text-blue-400 transition-colors uppercase tracking-wider whitespace-nowrap">
+                Transaction History
+              </p>
+              <span className="text-blue-400/50 text-sm group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0">
+                →
+              </span>
             </a>
           </div>
         </div>
@@ -2758,9 +2776,7 @@ const Dashboard = () => {
                   >
                     <span
                       className={`w-[15px] h-[15px] transition-colors duration-200 ${
-                        isActive
-                          ? 'text-blue-500 '
-                          : 'text-white/60 group-hover:text-white/65'
+                        isActive ? 'text-blue-500 ' : 'text-white/60 group-hover:text-white/65'
                       }`}
                     >
                       {TAB_ICONS[tab.id]}
@@ -3272,6 +3288,34 @@ const Dashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Send Network Reminder ── */}
+      <AnimatePresence>
+        {showSendNetworkReminder && (
+          <NetworkReminder
+            chain="bnb"
+            onContinue={() => {
+              setShowSendNetworkReminder(false);
+              setIsSendOpen(true);
+            }}
+            onClose={() => setShowSendNetworkReminder(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── Receive/Copy Network Reminder ── */}
+      <AnimatePresence>
+        {showReceiveNetworkReminder && (
+          <NetworkReminder
+            chain="bnb"
+            onContinue={() => {
+              setShowReceiveNetworkReminder(false);
+              setIsReceiveOpen(true);
+            }}
+            onClose={() => setShowReceiveNetworkReminder(false)}
+          />
         )}
       </AnimatePresence>
 

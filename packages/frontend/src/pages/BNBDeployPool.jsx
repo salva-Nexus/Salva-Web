@@ -11,6 +11,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
+import NetworkReminder, { useNetworkReminder } from '../components/NetworkReminder';
 
 const darkInput =
   'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
@@ -1142,6 +1143,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [renameFee, setRenameFee] = useState(null);
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
   const [registries, setRegistries] = useState([]);
+  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
+  const [pendingAction, setPendingAction] = useState(null);
+  const { isDismissed } = useNetworkReminder();
 
   const resetRenameModal = () => {
     setRenameInput('');
@@ -1477,8 +1481,11 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
           <button
             onClick={() => {
-              setPinAction('deploy');
-              setPinVisible(true);
+              setPendingAction(() => () => {
+                setPinAction('deploy');
+                setPinVisible(true);
+              });
+              setShowNetworkReminder(true);
             }}
             disabled={deploying}
             className="flex items-center gap-2 px-5 py-3 bg-blue-500 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
@@ -1527,10 +1534,16 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               key={pool.poolAddress}
               pool={pool}
               index={i}
-              onManage={() => setManagingPool(pool)}
+              onManage={() => {
+                setPendingAction(() => () => setManagingPool(pool));
+                setShowNetworkReminder(true);
+              }}
               onPublish={() => {
-                setSelectedPool(pool);
-                setShowSubModal(true);
+                setPendingAction(() => () => {
+                  setSelectedPool(pool);
+                  setShowSubModal(true);
+                });
+                setShowNetworkReminder(true);
               }}
               onRename={() => {
                 if (pool.poolName) {
@@ -1985,10 +1998,31 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         )}
       </AnimatePresence>
 
-      {/* PIN Modal */}
+      {/* Network Reminder */}
       <AnimatePresence>
+        {showNetworkReminder && (
+          <NetworkReminder
+            chain="bnb"
+            onContinue={() => {
+              setShowNetworkReminder(false);
+              if (pendingAction) {
+                pendingAction();
+                setPendingAction(null);
+              }
+            }}
+            onClose={() => {
+              setShowNetworkReminder(false);
+              setPendingAction(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* PIN Modal */}
+      <AnimatePresence mode="wait">
         {pinVisible && (
           <PinModal
+            key={`pin-${pinAction}`}
             title="Enter Transaction PIN"
             subtitle={
               pinAction === 'deploy'

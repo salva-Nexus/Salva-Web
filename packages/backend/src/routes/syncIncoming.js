@@ -183,7 +183,7 @@ router.get('/:safeAddress', async (req, res) => {
       let logs = [];
       try {
         // Paginate in small chunks — BSC public nodes enforce strict per-request rate limits
-        const CHUNK = chain === 'bnb' ? 2000 : 20;
+        const CHUNK = chain === 'bnb' ? 2000 : 10;
         let chunkCount = 0;
         for (let start = fromBlock; start <= latestBlock; start += CHUNK) {
           const end = Math.min(start + CHUNK - 1, latestBlock);
@@ -330,3 +330,21 @@ router.get('/:safeAddress', async (req, res) => {
 });
 
 module.exports = router;
+
+/**
+ * 
+{
+  "_id": {
+    "$oid": "6a259ee312531593b749533e"
+  },
+  "registryAddress": "0x0bfbfb11fd00796abc53812aeacbbdb4bc3828f6",
+  "__v": 0,
+  "active": true,
+  "createdAt": {
+    "$date": "2026-06-07T16:40:02.476Z"
+  },
+  "description": "",
+  "name": "Salva Wallet 5",
+  "nspace": "@salva5"
+}
+ */
