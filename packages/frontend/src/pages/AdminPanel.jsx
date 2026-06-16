@@ -1155,7 +1155,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
             <p className="text-[9px] uppercase tracking-[0.35em] text-green-400/70 font-black">
               Update · Immediate
             </p>
-            <h4 className="text-lg font-black">Protocol Link Fee</h4>
+            <h4 className="text-lg font-black">Name Link Fee</h4>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Field label="RegistryFactory Proxy">
