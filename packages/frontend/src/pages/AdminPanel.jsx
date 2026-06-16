@@ -18,15 +18,15 @@ class AdminErrorBoundary extends Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="p-8 rounded-3xl border border-red-500/20 bg-red-500/5 text-center space-y-4">
-          <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-            <span className="text-xl">⚠</span>
+        <div className="p-5 rounded-xl border border-red-500/20 bg-red-500/5 text-center space-y-2.5">
+          <div className="w-8 h-8 bg-red-500/10 border border-red-500/20 rounded-lg flex items-center justify-center mx-auto">
+            <span className="text-base">⚠</span>
           </div>
-          <p className="text-red-400 font-black text-lg">Panel Error</p>
-          <p className="text-xs text-white/30 font-mono">{this.state.error?.message}</p>
+          <p className="text-red-400 font-black text-sm">Panel Error</p>
+          <p className="text-[10px] text-white/30 font-mono">{this.state.error?.message}</p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-6 py-2.5 bg-salvaGold text-black font-black rounded-xl text-xs uppercase tracking-widest hover:brightness-110 transition-all"
+            className="px-4 py-1.5 bg-salvaGold text-black font-black rounded-md text-[10px] uppercase tracking-wider hover:brightness-110 transition-all"
           >
             Retry
           </button>
@@ -59,7 +59,7 @@ const TimelockCountdown = ({ timeLockTimestamp }) => {
   const isReady = remaining === 'READY';
   return (
     <span
-      className={`text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${isReady ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-salvaGold/10 border-salvaGold/20 text-salvaGold'}`}
+      className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${isReady ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-salvaGold/10 border-salvaGold/20 text-salvaGold'}`}
     >
       {isReady ? '✓ Ready' : `⏱ ${remaining}`}
     </span>
@@ -80,7 +80,7 @@ const StatusBadge = ({ label, color = 'gray' }) => {
   };
   return (
     <span
-      className={`inline-flex text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${colors[color] || colors.gray}`}
+      className={`inline-flex text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded border ${colors[color] || colors.gray}`}
     >
       {label}
     </span>
@@ -92,7 +92,7 @@ const ProposalCard = ({ children }) => (
   <motion.div
     initial={{ opacity: 0, y: 6 }}
     animate={{ opacity: 1, y: 0 }}
-    className="p-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/20 hover:bg-salvaGold/[0.02] transition-all space-y-4"
+    className="p-3 rounded-lg border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/20 hover:bg-salvaGold/[0.02] transition-all space-y-2.5"
   >
     {children}
   </motion.div>
@@ -100,7 +100,7 @@ const ProposalCard = ({ children }) => (
 
 // ── Dark Input ────────────────────────────────────────────────────────────────
 const darkInput =
-  'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/20 transition-all';
+  'w-full p-2.5 rounded-md bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-xs text-white placeholder:text-white/20 transition-all';
 
 const Input = ({
   placeholder,
@@ -117,18 +117,18 @@ const Input = ({
     onChange={onChange}
     placeholder={placeholder}
     disabled={disabled}
-    className={`${darkInput} ${mono ? 'font-mono text-xs' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
+    className={`${darkInput} ${mono ? 'font-mono text-[10px]' : ''} ${disabled ? 'opacity-40 cursor-not-allowed' : ''}`}
     {...props}
   />
 );
 
 const Field = ({ label, hint, children }) => (
   <div>
-    <label className="text-[10px] uppercase tracking-[0.25em] text-white/30 font-black block mb-2">
+    <label className="text-[9px] uppercase tracking-[0.15em] text-white/30 font-black block mb-1.5">
       {label}
     </label>
     {children}
-    {hint && <p className="text-[10px] text-white/20 mt-1.5 ml-1">{hint}</p>}
+    {hint && <p className="text-[9px] text-white/20 mt-1 ml-0.5">{hint}</p>}
   </div>
 );
 
@@ -142,7 +142,7 @@ const ActionBtn = ({
   fullWidth = false,
 }) => {
   const base =
-    'flex items-center justify-center gap-2 font-black text-[10px] uppercase tracking-widest px-5 py-3 rounded-xl transition-all active:scale-[0.97]';
+    'flex items-center justify-center gap-1.5 font-black text-[9px] uppercase tracking-wider px-3 py-2 rounded-md transition-all active:scale-[0.97]';
   const variants = {
     gold: 'bg-salvaGold text-black hover:brightness-110 shadow-lg shadow-salvaGold/20',
     danger:
@@ -157,10 +157,10 @@ const ActionBtn = ({
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${base} ${disabled ? variants.ghost : variants[variant]} disabled:opacity-40 disabled:cursor-not-allowed ${fullWidth ? 'w-full py-4 text-sm' : ''}`}
+      className={`${base} ${disabled ? variants.ghost : variants[variant]} disabled:opacity-40 disabled:cursor-not-allowed ${fullWidth ? 'w-full py-2.5 text-xs' : ''}`}
     >
       {spinning && (
-        <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
+        <span className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin flex-shrink-0" />
       )}
       {label}
     </button>
@@ -169,26 +169,26 @@ const ActionBtn = ({
 
 // ── Toggle ────────────────────────────────────────────────────────────────────
 const Toggle = ({ label, hint, checked, onChange }) => (
-  <button type="button" onClick={onChange} className="flex items-center gap-3 group w-fit">
+  <button type="button" onClick={onChange} className="flex items-center gap-2 group w-fit">
     <div
-      className={`w-10 h-6 rounded-full border-2 flex items-center transition-all px-0.5 ${checked ? 'bg-salvaGold border-salvaGold' : 'bg-white/5 border-white/20 group-hover:border-white/30'}`}
+      className={`w-7 h-4 rounded-full border flex items-center transition-all px-0.5 ${checked ? 'bg-salvaGold border-salvaGold' : 'bg-white/5 border-white/20 group-hover:border-white/30'}`}
     >
       <motion.div
-        animate={{ x: checked ? 16 : 0 }}
+        animate={{ x: checked ? 12 : 0 }}
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-        className={`w-4 h-4 rounded-full flex-shrink-0 ${checked ? 'bg-black' : 'bg-white/40'}`}
+        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${checked ? 'bg-black' : 'bg-white/40'}`}
       />
     </div>
     <div>
-      <p className="text-xs font-black text-white">{label}</p>
-      {hint && <p className="text-[10px] text-white/30">{hint}</p>}
+      <p className="text-[10px] font-black text-white">{label}</p>
+      {hint && <p className="text-[9px] text-white/30">{hint}</p>}
     </div>
   </button>
 );
 
 // ── Mark Selector ─────────────────────────────────────────────────────────────
 const MarkSelector = ({ value, onChange }) => (
-  <div className="flex gap-2">
+  <div className="flex gap-1.5">
     {[
       { v: 0, label: 'MultiSig' },
       { v: 1, label: 'External' },
@@ -197,7 +197,7 @@ const MarkSelector = ({ value, onChange }) => (
         key={opt.v}
         type="button"
         onClick={() => onChange(opt.v)}
-        className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${value === opt.v ? 'bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'}`}
+        className={`flex-1 py-2 rounded-md font-black text-[10px] uppercase tracking-wider transition-all border ${value === opt.v ? 'bg-salvaGold text-black border-salvaGold shadow-lg shadow-salvaGold/20' : 'border-white/10 text-white/40 hover:border-white/20 hover:text-white/60'}`}
       >
         {opt.label} ({opt.v})
       </button>
@@ -207,18 +207,18 @@ const MarkSelector = ({ value, onChange }) => (
 
 // ── Add / Remove Selector ─────────────────────────────────────────────────────
 const ActionSelector = ({ value, onChange }) => (
-  <div className="flex gap-2">
+  <div className="flex gap-1.5">
     <button
       type="button"
       onClick={() => onChange(true)}
-      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${value ? 'bg-green-500 text-white border-green-500' : 'border-white/10 text-white/40 hover:border-white/20'}`}
+      className={`flex-1 py-2 rounded-md font-black text-[10px] uppercase tracking-wider transition-all border ${value ? 'bg-green-500 text-white border-green-500' : 'border-white/10 text-white/40 hover:border-white/20'}`}
     >
       Add
     </button>
     <button
       type="button"
       onClick={() => onChange(false)}
-      className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${!value ? 'bg-red-500 text-white border-red-500' : 'border-white/10 text-white/40 hover:border-white/20'}`}
+      className={`flex-1 py-2 rounded-md font-black text-[10px] uppercase tracking-wider transition-all border ${!value ? 'bg-red-500 text-white border-red-500' : 'border-white/10 text-white/40 hover:border-white/20'}`}
     >
       Remove
     </button>
@@ -385,9 +385,9 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Overview ─────────────────────────────────────────────────────
   const renderOverview = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {[
           {
             label: 'Total Active',
@@ -425,10 +425,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.05 }}
-            className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/20 transition-all"
+            className="p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/20 transition-all"
           >
-            <p className={`text-2xl font-black ${s.accent}`}>{s.value}</p>
-            <p className="text-[9px] uppercase tracking-[0.25em] text-white/25 font-black mt-0.5">
+            <p className={`text-lg font-black ${s.accent}`}>{s.value}</p>
+            <p className="text-[8px] uppercase tracking-[0.15em] text-white/25 font-black mt-0.5">
               {s.label}
             </p>
           </motion.div>
@@ -437,14 +437,14 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
       {/* Nav grid */}
       <div>
-        <div className="relative flex items-center mb-5">
+        <div className="relative flex items-center mb-3">
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
-          <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/20">
+          <span className="mx-2 text-[8px] uppercase tracking-[0.18em] font-black text-white/20">
             Sections
           </span>
           <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
           {NAV_ITEMS.filter((n) => n.id !== 'overview').map((nav, i) => (
             <motion.button
               key={nav.id}
@@ -452,10 +452,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: i * 0.04 }}
               onClick={() => setActiveSection(nav.id)}
-              className="flex flex-col items-center gap-2 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group active:scale-95"
+              className="flex flex-col items-center gap-1.5 p-2.5 rounded-lg bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group active:scale-95"
             >
-              <span className="text-xl leading-none">{nav.icon}</span>
-              <span className="text-[9px] uppercase tracking-[0.2em] font-black text-white/30 group-hover:text-white/60 transition-colors">
+              <span className="text-base leading-none">{nav.icon}</span>
+              <span className="text-[8px] uppercase tracking-[0.12em] font-black text-white/30 group-hover:text-white/60 transition-colors">
                 {nav.label}
               </span>
             </motion.button>
@@ -467,22 +467,22 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Registry ─────────────────────────────────────────────────────
   const renderRegistry = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
       {/* Propose */}
-      <div className="rounded-3xl overflow-hidden border border-salvaGold/20 bg-salvaGold/[0.03]">
+      <div className="rounded-xl overflow-hidden border border-salvaGold/20 bg-salvaGold/[0.03]">
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/60 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-salvaGold/60 font-black">
               Propose
             </p>
-            <h4 className="text-lg font-black">New Registry</h4>
-            <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+            <h4 className="text-sm font-black">New Registry</h4>
+            <p className="text-[9px] text-white/30 mt-0.5 leading-relaxed">
               Deploys a BaseRegistry clone via RegistryFactory and opens an initialization proposal
               in the MultiSig.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="Registry Name">
               <Input
                 placeholder="e.g. Trust Wallet"
@@ -552,14 +552,14 @@ const AdminPanelInner = ({ user, showMsg }) => {
         <ActiveSection title="Active Registry Proposals">
           {proposals.registryProposals.map((p, i) => (
             <ProposalCard key={p._id || i}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-2 min-w-0">
                   <StatusBadge label="Registry Init" color="gold" />
                   <p className="font-black text-salvaGold">{p.nspace}</p>
-                  <p className="font-mono text-[10px] text-white/30 break-all">{p.registry}</p>
+                  <p className="font-mono text-[9px] text-white/30 break-all">{p.registry}</p>
                   {p.isWallet && <StatusBadge label="Crypto Wallet" color="blue" />}
                 </div>
-                <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
                   {p.remainingValidation !== null && (
                     <StatusBadge
                       label={
@@ -616,17 +616,17 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Validator ────────────────────────────────────────────────────
   const renderValidator = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <div className="rounded-3xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <div className="rounded-xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-green-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-green-400/70 font-black">
               Propose
             </p>
-            <h4 className="text-lg font-black">Validator Update</h4>
+            <h4 className="text-sm font-black">Validator Update</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="Target Wallet Address">
               <Input
                 placeholder="0x…"
@@ -683,15 +683,15 @@ const AdminPanelInner = ({ user, showMsg }) => {
         <ActiveSection title="Active Validator Proposals">
           {proposals.validatorProposals.map((p, i) => (
             <ProposalCard key={p._id || i}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-2">
                   <StatusBadge
                     label={p.action ? 'Add Validator' : 'Remove Validator'}
                     color={p.action ? 'green' : 'red'}
                   />
-                  <p className="font-mono text-[10px] text-white/30 break-all">{p.addr}</p>
+                  <p className="font-mono text-[9px] text-white/30 break-all">{p.addr}</p>
                 </div>
-                <div className="flex flex-col items-end gap-2">
+                <div className="flex flex-col items-end gap-1.5">
                   {p.remainingValidation !== null && (
                     <StatusBadge
                       label={
@@ -749,21 +749,21 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Upgrades ─────────────────────────────────────────────────────
   const renderUpgrades = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <div className="rounded-3xl overflow-hidden border border-blue-500/20 bg-blue-500/[0.02]">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <div className="rounded-xl overflow-hidden border border-blue-500/20 bg-blue-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-blue-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-blue-400/70 font-black">
               UUPS · Propose
             </p>
-            <h4 className="text-lg font-black">Protocol Upgrade</h4>
-            <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+            <h4 className="text-sm font-black">Protocol Upgrade</h4>
+            <p className="text-[9px] text-white/30 mt-0.5 leading-relaxed">
               Targets Singleton, Factory, or MultiSig itself. Enable Self-Upgrade and leave proxy
               empty for MultiSig.
             </p>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field
               label="Proxy to Upgrade"
               hint={
@@ -843,18 +843,16 @@ const AdminPanelInner = ({ user, showMsg }) => {
         <ActiveSection title="Active Upgrade Proposals">
           {proposals.upgradeProposals.map((p, i) => (
             <ProposalCard key={p._id || i}>
-              <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-2 min-w-0">
                   <StatusBadge
                     label={p.isMultisig ? 'MultiSig Self-Upgrade' : 'External Upgrade'}
                     color="blue"
                   />
-                  <p className="text-[10px] text-white/30 font-bold">New impl:</p>
-                  <p className="font-mono text-[10px] text-white/50 break-all">{p.newImpl}</p>
+                  <p className="text-[9px] text-white/30 font-bold">New impl:</p>
+                  <p className="font-mono text-[9px] text-white/50 break-all">{p.newImpl}</p>
                   {!p.isMultisig && (
-                    <p className="font-mono text-[10px] text-white/25 break-all">
-                      Proxy: {p.proxy}
-                    </p>
+                    <p className="font-mono text-[9px] text-white/25 break-all">Proxy: {p.proxy}</p>
                   )}
                 </div>
                 <div>
@@ -904,21 +902,21 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Signer ───────────────────────────────────────────────────────
   const renderSigner = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <p className="text-[11px] text-white/30 leading-relaxed">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <p className="text-[9px] text-white/30 leading-relaxed">
         Updates the ECDSA signer the RegistryFactory uses to verify name link requests. Affects all
         registries immediately after execution.
       </p>
-      <div className="rounded-3xl overflow-hidden border border-purple-500/20 bg-purple-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-purple-500/20 bg-purple-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-purple-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-purple-400/70 font-black">
               Propose
             </p>
-            <h4 className="text-lg font-black">Signer Update</h4>
+            <h4 className="text-sm font-black">Signer Update</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="RegistryFactory Proxy">
               <Input
                 placeholder="0x…"
@@ -979,8 +977,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
             <ProposalCard key={p._id || i}>
               <div className="space-y-1.5">
                 <StatusBadge label="Signer Update" color="purple" />
-                <p className="font-mono text-[10px] text-white/50 break-all">New: {p.newImpl}</p>
-                <p className="font-mono text-[10px] text-white/25 break-all">Factory: {p.proxy}</p>
+                <p className="font-mono text-[9px] text-white/50 break-all">New: {p.newImpl}</p>
+                <p className="font-mono text-[9px] text-white/25 break-all">Factory: {p.proxy}</p>
               </div>
               <ProposalActions
                 loading={loading}
@@ -1023,21 +1021,21 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Impl ─────────────────────────────────────────────────────────
   const renderImpl = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <p className="text-[11px] text-white/30 leading-relaxed">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <p className="text-[9px] text-white/30 leading-relaxed">
         Updates the logic implementation address used for future clone deployments. Existing clones
         are unaffected.
       </p>
-      <div className="rounded-3xl overflow-hidden border border-teal-500/20 bg-teal-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-teal-500/20 bg-teal-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-teal-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-teal-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-teal-400/70 font-black">
               Propose
             </p>
-            <h4 className="text-lg font-black">Implementation Update</h4>
+            <h4 className="text-sm font-black">Implementation Update</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="RegistryFactory Proxy">
               <Input
                 placeholder="0x…"
@@ -1098,8 +1096,8 @@ const AdminPanelInner = ({ user, showMsg }) => {
             <ProposalCard key={p._id || i}>
               <div className="space-y-1.5">
                 <StatusBadge label="Impl Update" color="teal" />
-                <p className="font-mono text-[10px] text-white/50 break-all">New: {p.newImpl}</p>
-                <p className="font-mono text-[10px] text-white/25 break-all">Factory: {p.proxy}</p>
+                <p className="font-mono text-[9px] text-white/50 break-all">New: {p.newImpl}</p>
+                <p className="font-mono text-[9px] text-white/25 break-all">Factory: {p.proxy}</p>
               </div>
               <ProposalActions
                 loading={loading}
@@ -1142,22 +1140,22 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Fee ──────────────────────────────────────────────────────────
   const renderFee = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
       <ImmediateBadge />
-      <p className="text-[11px] text-white/30 leading-relaxed">
+      <p className="text-[9px] text-white/30 leading-relaxed">
         Fee denominated in NGNs base units (6 decimals). Enter human-readable amount — e.g. 500 =
         500 NGNs.
       </p>
-      <div className="rounded-3xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-green-500/20 bg-green-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-green-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-green-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-green-400/70 font-black">
               Update · Immediate
             </p>
-            <h4 className="text-lg font-black">Name Link Fee</h4>
+            <h4 className="text-sm font-black">Name Link Fee</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="RegistryFactory Proxy">
               <Input
                 placeholder="0x…"
@@ -1199,30 +1197,30 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Pause ────────────────────────────────────────────────────────
   const renderPause = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-      <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/20">
-        <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
+      <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/5 border border-red-500/20">
+        <span className="text-red-400 text-sm flex-shrink-0">⚠</span>
         <div>
-          <p className="text-xs text-red-400 font-black">
+          <p className="text-[10px] text-red-400 font-black">
             Pause is immediate. Unpause requires proposal + timelock.
           </p>
-          <p className="text-[10px] text-white/30 mt-0.5">
+          <p className="text-[9px] text-white/30 mt-0.5">
             Mark 0 = MultiSig itself · Mark 1 = external contract
           </p>
         </div>
       </div>
 
       {/* Pause */}
-      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-red-400/70 font-black">
               Emergency · Immediate
             </p>
-            <h4 className="text-lg font-black">Pause Contract</h4>
+            <h4 className="text-sm font-black">Pause Contract</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="Target Contract">
               <Input
                 placeholder="0x…"
@@ -1259,16 +1257,16 @@ const AdminPanelInner = ({ user, showMsg }) => {
       </div>
 
       {/* Unpause */}
-      <div className="rounded-3xl overflow-hidden border border-orange-500/20 bg-orange-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-orange-500/20 bg-orange-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-orange-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-orange-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-orange-400/70 font-black">
               Propose · Timelock
             </p>
-            <h4 className="text-lg font-black">Unpause Contract</h4>
+            <h4 className="text-sm font-black">Unpause Contract</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="Target Contract">
               <Input
                 placeholder="0x…"
@@ -1330,7 +1328,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
                   label={p.mark === 0 ? 'MultiSig Unpause' : 'External Unpause'}
                   color="orange"
                 />
-                <p className="font-mono text-[10px] text-white/30 break-all">Target: {p.proxy}</p>
+                <p className="font-mono text-[9px] text-white/30 break-all">Target: {p.proxy}</p>
               </div>
               <ProposalActions
                 loading={loading}
@@ -1373,20 +1371,20 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Withdraw ─────────────────────────────────────────────────────
   const renderWithdraw = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
       <ImmediateBadge />
-      <p className="text-[11px] text-white/30 leading-relaxed">
+      <p className="text-[9px] text-white/30 leading-relaxed">
         Pulls token balance accumulated from name link fees out of the Singleton contract to a
         designated receiver address.
       </p>
-      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-red-400/70 font-black">
               Treasury · Immediate
             </p>
-            <h4 className="text-lg font-black">Withdraw From Singleton</h4>
+            <h4 className="text-sm font-black">Withdraw From Singleton</h4>
           </div>
           <Field label="Singleton Proxy Address">
             <Input
@@ -1439,29 +1437,29 @@ const AdminPanelInner = ({ user, showMsg }) => {
 
   // ── SECTION: Recovery ─────────────────────────────────────────────────────
   const renderRecovery = () => (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-3">
       <ImmediateBadge />
-      <div className="flex items-start gap-3 p-4 rounded-2xl bg-red-500/5 border border-red-500/20">
-        <span className="text-red-400 text-lg flex-shrink-0">⚠</span>
+      <div className="flex items-start gap-2 p-2.5 rounded-lg bg-red-500/5 border border-red-500/20">
+        <span className="text-red-400 text-sm flex-shrink-0">⚠</span>
         <div>
-          <p className="text-xs text-red-400 font-black">
+          <p className="text-[10px] text-red-400 font-black">
             Grant sparingly — recovery addresses bypass quorum and timelock.
           </p>
-          <p className="text-[10px] text-white/30 mt-0.5">
+          <p className="text-[9px] text-white/30 mt-0.5">
             Only existing recovery addresses can call this function.
           </p>
         </div>
       </div>
-      <div className="rounded-3xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
+      <div className="rounded-xl overflow-hidden border border-red-500/20 bg-red-500/[0.02]">
         <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-        <div className="p-6 space-y-5">
+        <div className="p-4 space-y-3">
           <div>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">
+            <p className="text-[8px] uppercase tracking-[0.21em] text-red-400/70 font-black">
               Emergency Access · Immediate
             </p>
-            <h4 className="text-lg font-black">Recovery Privileges</h4>
+            <h4 className="text-sm font-black">Recovery Privileges</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <Field label="Target Address">
               <Input
                 placeholder="0x…"
@@ -1515,22 +1513,22 @@ const AdminPanelInner = ({ user, showMsg }) => {
   const activeNav = NAV_ITEMS.find((n) => n.id === activeSection);
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
       {/* ── Header ── */}
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex items-start justify-between gap-2.5">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/60 font-black mb-1">
+          <p className="text-[8px] uppercase tracking-[0.28em] text-salvaGold/60 font-black mb-0.5">
             MultiSig Control · v2.1.0
           </p>
-          <h3 className="text-2xl font-black tracking-tight">
+          <h3 className="text-lg font-black tracking-tight">
             {activeSection === 'overview' ? 'Admin Panel' : activeNav?.label}
           </h3>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           {activeSection !== 'overview' && (
             <button
               onClick={() => setActiveSection('overview')}
-              className="px-4 py-2.5 rounded-xl border border-white/10 font-bold text-xs uppercase tracking-widest text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all"
+              className="px-2.5 py-1.5 rounded-md border border-white/10 font-bold text-[10px] uppercase tracking-wider text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all"
             >
               ← Back
             </button>
@@ -1538,7 +1536,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
           <button
             onClick={fetchProposals}
             disabled={fetching}
-            className="px-4 py-2.5 rounded-xl border border-white/10 font-bold text-xs uppercase tracking-widest text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all disabled:opacity-40 flex items-center gap-2"
+            className="px-2.5 py-1.5 rounded-md border border-white/10 font-bold text-[10px] uppercase tracking-wider text-white/50 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all disabled:opacity-40 flex items-center gap-1.5"
           >
             <span className={fetching ? 'animate-spin inline-block' : 'inline-block'}>⟳</span>
             {fetching ? '…' : 'Refresh'}
@@ -1553,10 +1551,10 @@ const AdminPanelInner = ({ user, showMsg }) => {
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
-            className="flex items-center gap-3 p-4 rounded-2xl bg-salvaGold/8 border border-salvaGold/20"
+            className="flex items-center gap-2 p-2.5 rounded-lg bg-salvaGold/8 border border-salvaGold/20"
           >
-            <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-            <p className="text-xs text-salvaGold font-bold">
+            <div className="w-2.5 h-2.5 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+            <p className="text-[10px] text-salvaGold font-bold">
               Submitting on-chain… this may take 30–60 seconds.
             </p>
           </motion.div>
@@ -1570,12 +1568,12 @@ const AdminPanelInner = ({ user, showMsg }) => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-red-500/5 border border-red-500/20"
+            className="flex items-center justify-between gap-2.5 p-2.5 rounded-lg bg-red-500/5 border border-red-500/20"
           >
-            <p className="text-xs text-red-400 font-bold">⚠ {fetchError}</p>
+            <p className="text-[10px] text-red-400 font-bold">⚠ {fetchError}</p>
             <button
               onClick={fetchProposals}
-              className="text-[10px] text-salvaGold font-black uppercase tracking-widest border border-salvaGold/30 px-3 py-1.5 rounded-lg hover:bg-salvaGold hover:text-black transition-all"
+              className="text-[9px] text-salvaGold font-black uppercase tracking-wider border border-salvaGold/30 px-2 py-1 rounded hover:bg-salvaGold hover:text-black transition-all"
             >
               Retry
             </button>
@@ -1599,7 +1597,7 @@ const AdminPanelInner = ({ user, showMsg }) => {
       {/* ── PIN Modal ── */}
       <AnimatePresence>
         {isPinOpen && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[200] flex items-center justify-center px-2.5">
             <motion.div
               onClick={() => {
                 setIsPinOpen(false);
@@ -1616,14 +1614,16 @@ const AdminPanelInner = ({ user, showMsg }) => {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.92, y: 16 }}
               transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5"
+              className="relative bg-zinc-950 border border-white/10 p-5 rounded-xl w-full max-w-xs shadow-2xl text-center space-y-3"
             >
-              <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
-                <span className="text-2xl">🔐</span>
+              <div className="w-9 h-9 bg-salvaGold/10 border border-salvaGold/20 rounded-lg flex items-center justify-center mx-auto">
+                <span className="text-lg">🔐</span>
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">Admin Verification</h3>
-                <p className="text-xs text-white/30 mt-1">Enter your transaction PIN to sign</p>
+                <h3 className="text-base font-black text-white">Admin Verification</h3>
+                <p className="text-[10px] text-white/30 mt-0.5">
+                  Enter your transaction PIN to sign
+                </p>
               </div>
               <input
                 type="password"
@@ -1636,22 +1636,22 @@ const AdminPanelInner = ({ user, showMsg }) => {
                 }
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
+                className="w-full p-2.5 rounded-md bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl tracking-[0.5em] font-black text-white"
               />
-              <div className="flex gap-3">
+              <div className="flex gap-2">
                 <button
                   onClick={() => {
                     setIsPinOpen(false);
                     setAdminPin('');
                   }}
-                  className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+                  className="flex-1 py-2 rounded-md border border-white/10 font-bold text-xs text-white/60 hover:text-white hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={executePinnedAction}
                   disabled={adminPin.length !== 4}
-                  className="flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-40 transition-all"
+                  className="flex-1 py-2 rounded-md bg-salvaGold text-black font-black text-xs hover:brightness-110 disabled:opacity-40 transition-all"
                 >
                   Sign
                 </button>
@@ -1667,13 +1667,13 @@ const AdminPanelInner = ({ user, showMsg }) => {
 // ── Shared sub-components ─────────────────────────────────────────────────────
 
 const ImmediateBadge = () => (
-  <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-salvaGold/8 border border-salvaGold/20 w-fit">
+  <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-salvaGold/8 border border-salvaGold/20 w-fit">
     <motion.span
       animate={{ opacity: [1, 0.3, 1] }}
       transition={{ repeat: Infinity, duration: 2 }}
-      className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0"
+      className="w-1 h-1 rounded-full bg-salvaGold block flex-shrink-0"
     />
-    <p className="text-[10px] font-black text-salvaGold uppercase tracking-widest">
+    <p className="text-[9px] font-black text-salvaGold uppercase tracking-wider">
       Immediate — No Proposal Required
     </p>
   </div>
@@ -1683,20 +1683,20 @@ const ActiveSection = ({ title, children }) => (
   <div>
     <div className="relative flex items-center mb-4">
       <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-      <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/20">
+      <span className="mx-2 text-[8px] uppercase tracking-[0.18em] font-black text-white/20">
         {title}
       </span>
       <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
     </div>
-    <div className="space-y-3">{children}</div>
+    <div className="space-y-2">{children}</div>
   </div>
 );
 
 const CancelBlock = ({ title, hint, label, value, onChange, loading, onCancel }) => (
-  <div className="p-5 rounded-2xl border border-red-500/15 bg-red-500/[0.02] space-y-4">
+  <div className="p-3 rounded-lg border border-red-500/15 bg-red-500/[0.02] space-y-2.5">
     <div>
-      <p className="text-[9px] uppercase tracking-[0.35em] text-red-400/70 font-black">{title}</p>
-      {hint && <p className="text-[10px] text-white/25 mt-1">{hint}</p>}
+      <p className="text-[8px] uppercase tracking-[0.21em] text-red-400/70 font-black">{title}</p>
+      {hint && <p className="text-[9px] text-white/25 mt-0.5">{hint}</p>}
     </div>
     <Field label={label}>
       <Input placeholder="0x…" value={value} onChange={(e) => onChange(e.target.value)} mono />
@@ -1721,7 +1721,7 @@ const ProposalActions = ({
 }) => {
   const timelockActive = timeLockTimestamp && Math.floor(Date.now() / 1000) < timeLockTimestamp;
   return (
-    <div className="flex flex-wrap gap-2 pt-1">
+    <div className="flex flex-wrap gap-1.5 pt-0.5">
       {onValidate && <ActionBtn label="Validate" disabled={loading} onClick={onValidate} />}
       <ActionBtn
         label="Execute"
