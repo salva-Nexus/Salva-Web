@@ -1022,13 +1022,17 @@ const SalvaSellerChat = ({ user }) => {
   // ── FAB ─────────────────────────────────────────────────────────────────────
   if (view === 'closed') {
     return (
-      <div className="fixed bottom-6 left-6 z-[9000]">
+      <div className="fixed bottom-2 left-2 sm:bottom-6 sm:left-6 z-[9000] scale-[0.6] sm:scale-100 origin-bottom-left">
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}
           onClick={() => setView('list')}
           className="relative w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
-          style={{ background: 'linear-gradient(135deg, #1a1500, #2d2500)', border: '1.5px solid rgba(212,175,55,0.5)', boxShadow: '0 0 28px rgba(212,175,55,0.25), 0 4px 20px rgba(0,0,0,0.6)' }}
+          style={{
+            background: 'linear-gradient(135deg, #1a1500, #2d2500)',
+            border: '1.5px solid rgba(212,175,55,0.5)',
+            boxShadow: '0 0 28px rgba(212,175,55,0.25), 0 4px 20px rgba(0,0,0,0.6)',
+          }}
         >
           <div className="relative">
             <span className="text-lg font-black text-salvaGold">₦</span>
@@ -1036,7 +1040,8 @@ const SalvaSellerChat = ({ user }) => {
           </div>
           {totalUnread > 0 && (
             <motion.span
-              initial={{ scale: 0 }} animate={{ scale: 1 }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
               className="absolute -top-1 -right-1 min-w-[20px] h-5 rounded-[10px] bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1"
               style={{ border: '2px solid #0a0a0b' }}
             >
@@ -1062,42 +1067,80 @@ const SalvaSellerChat = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <div className="fixed inset-0 z-[8999]" onClick={() => { setView('closed'); setSelected(null); setMessages([]); }} />
+      <div
+        className="fixed inset-0 z-[8999]"
+        onClick={() => {
+          setView('closed');
+          setSelected(null);
+          setMessages([]);
+        }}
+      />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-6 left-6 z-[9000] w-[320px] max-w-[calc(100vw-1.5rem)]"
+        className="fixed bottom-2 left-2 z-[9000] origin-bottom-left scale-[0.6] sm:scale-100 sm:bottom-6 sm:left-6"
+        style={{ width: '320px' }}
       >
-        <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col" style={{ boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)' }}>
+        <div
+          className="h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col"
+          style={{ boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)' }}
+        >
           {/* ── HEADER ── */}
-          <div className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/20 flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}>
+          <div
+            className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/20 flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+          >
             {view === 'chat' && (
               <button
-                onClick={() => { setView('list'); setSelected(null); setMessages([]); setMintError(''); }}
+                onClick={() => {
+                  setView('list');
+                  setSelected(null);
+                  setMessages([]);
+                  setMintError('');
+                }}
                 className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
-              >←</button>
+              >
+                ←
+              </button>
             )}
-            <div className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-sm font-black text-black" style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}>₦</div>
+            <div
+              className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-sm font-black text-black"
+              style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+            >
+              ₦
+            </div>
             <div className="flex-1 min-w-0">
               {view === 'list' ? (
                 <>
                   <p className="text-[#f5f0e8] text-[13px] font-black m-0">NGNs Requests</p>
-                  <p className="text-salvaGold/50 text-[10px] m-0">{requests.length} conversation{requests.length !== 1 ? 's' : ''}</p>
+                  <p className="text-salvaGold/50 text-[10px] m-0">
+                    {requests.length} conversation{requests.length !== 1 ? 's' : ''}
+                  </p>
                 </>
               ) : (
                 <>
-                  <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">{selected?.username}</p>
-                  <p className="text-salvaGold/50 text-[10px] m-0 truncate">{selected?.userEmail}</p>
+                  <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
+                    {selected?.username}
+                  </p>
+                  <p className="text-salvaGold/50 text-[10px] m-0 truncate">
+                    {selected?.userEmail}
+                  </p>
                 </>
               )}
             </div>
             {view === 'chat' && selected?.status && <StatusBadge status={selected.status} />}
             <button
-              onClick={() => { setView('closed'); setSelected(null); setMessages([]); }}
+              onClick={() => {
+                setView('closed');
+                setSelected(null);
+                setMessages([]);
+              }}
               className="w-6 h-6 rounded-full bg-white/[0.06] border border-white/10 cursor-pointer text-white/40 text-[15px] flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
-            >×</button>
+            >
+              ×
+            </button>
           </div>
 
           {/* ── LIST VIEW ── */}
@@ -1107,7 +1150,9 @@ const SalvaSellerChat = ({ user }) => {
                 <div className="h-full flex flex-col items-center justify-center gap-2.5 px-5 py-16">
                   <span className="text-4xl opacity-30">₦</span>
                   <p className="text-salvaGold/40 text-[12px] font-bold m-0">No requests yet</p>
-                  <p className="text-white/20 text-[10px] m-0">Buy/sell requests will appear here</p>
+                  <p className="text-white/20 text-[10px] m-0">
+                    Buy/sell requests will appear here
+                  </p>
                 </div>
               ) : (
                 requests.map((req) => {
@@ -1126,23 +1171,64 @@ const SalvaSellerChat = ({ user }) => {
                       key={req._id}
                       onClick={() => openRequest(req)}
                       className="w-full px-3.5 py-3 border-none border-b border-white/[0.04] text-left cursor-pointer transition-colors hover:bg-salvaGold/[0.07]"
-                      style={{ background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'transparent' }}
+                      style={{
+                        background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'transparent',
+                      }}
                     >
                       <div className="flex items-center gap-2.5">
                         <div
                           className="w-10 h-10 rounded-[11px] flex-shrink-0 flex items-center justify-center font-black text-[15px]"
-                          style={{ background: isSell ? 'rgba(239,68,68,0.15)' : isPaid ? 'rgba(212,175,55,0.2)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isSell ? 'rgba(239,68,68,0.35)' : isPaid ? 'rgba(212,175,55,0.4)' : 'rgba(255,255,255,0.08)'}`, color: isSell ? '#ef4444' : isPaid ? '#D4AF37' : 'rgba(255,255,255,0.4)' }}
-                        >{req.username?.charAt(0)?.toUpperCase() || '?'}</div>
+                          style={{
+                            background: isSell
+                              ? 'rgba(239,68,68,0.15)'
+                              : isPaid
+                                ? 'rgba(212,175,55,0.2)'
+                                : 'rgba(255,255,255,0.06)',
+                            border: `1px solid ${isSell ? 'rgba(239,68,68,0.35)' : isPaid ? 'rgba(212,175,55,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                            color: isSell
+                              ? '#ef4444'
+                              : isPaid
+                                ? '#D4AF37'
+                                : 'rgba(255,255,255,0.4)',
+                          }}
+                        >
+                          {req.username?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-baseline mb-0.5">
-                            <p className={`text-[13px] m-0 truncate flex-1 ${isUnread ? 'text-[#f5f0e8] font-bold' : 'text-white/70 font-medium'}`}>{req.username}</p>
-                            <p className="text-white/25 text-[9px] m-0 flex-shrink-0 ml-2">{new Date(req.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p
+                              className={`text-[13px] m-0 truncate flex-1 ${isUnread ? 'text-[#f5f0e8] font-bold' : 'text-white/70 font-medium'}`}
+                            >
+                              {req.username}
+                            </p>
+                            <p className="text-white/25 text-[9px] m-0 flex-shrink-0 ml-2">
+                              {new Date(req.updatedAt).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
                           </div>
                           <div className="flex items-center justify-between gap-1.5 mb-1">
-                            <p className="text-white/35 text-[11px] m-0 truncate flex-1">{lastMsg?.isReceipt ? '📎 Receipt uploaded' : lastMsg?.isBurned ? '🔥 Sell request' : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) || 'No messages'}</p>
+                            <p className="text-white/35 text-[11px] m-0 truncate flex-1">
+                              {lastMsg?.isReceipt
+                                ? '📎 Receipt uploaded'
+                                : lastMsg?.isBurned
+                                  ? '🔥 Sell request'
+                                  : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
+                                    'No messages'}
+                            </p>
                             <div className="flex items-center gap-1 flex-shrink-0">
-                              <span className={`text-[10px] font-bold ${isSell ? 'text-red-400' : 'text-salvaGold'}`}>₦{(req.amountNgn || 0).toLocaleString()}</span>
-                              {isUnread && <span className="w-2 h-2 rounded-full bg-salvaGold inline-block" style={{ boxShadow: '0 0 6px rgba(212,175,55,0.6)' }} />}
+                              <span
+                                className={`text-[10px] font-bold ${isSell ? 'text-red-400' : 'text-salvaGold'}`}
+                              >
+                                ₦{(req.amountNgn || 0).toLocaleString()}
+                              </span>
+                              {isUnread && (
+                                <span
+                                  className="w-2 h-2 rounded-full bg-salvaGold inline-block"
+                                  style={{ boxShadow: '0 0 6px rgba(212,175,55,0.6)' }}
+                                />
+                              )}
                             </div>
                           </div>
                           <div className="flex gap-1 items-center flex-wrap">

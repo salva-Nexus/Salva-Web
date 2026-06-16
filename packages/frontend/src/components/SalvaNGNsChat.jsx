@@ -762,13 +762,22 @@ const SalvaNGNsChat = ({ user }) => {
   if (!isOpen) {
     return (
       <>
-        <div className="fixed bottom-6 right-6 z-[9000]">
+        <div className="fixed bottom-2 right-2 sm:bottom-6 sm:right-6 z-[9000] scale-[0.6] sm:scale-100 origin-bottom-right">
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => { if (!isDismissed()) { setShowNetworkReminder(true); } else { setIsOpen(true); } }}
+            onClick={() => {
+              if (!isDismissed()) {
+                setShowNetworkReminder(true);
+              } else {
+                setIsOpen(true);
+              }
+            }}
             className="relative w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
-            style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)', boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)' }}
+            style={{
+              background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+              boxShadow: '0 0 28px rgba(212,175,55,0.45), 0 4px 20px rgba(0,0,0,0.5)',
+            }}
           >
             <span className="text-xl font-black text-black">₦</span>
             <motion.div
@@ -782,7 +791,10 @@ const SalvaNGNsChat = ({ user }) => {
           <NetworkReminder
             chain="base"
             storageKey="salva_reminder_buysell"
-            onContinue={() => { setShowNetworkReminder(false); setIsOpen(true); }}
+            onContinue={() => {
+              setShowNetworkReminder(false);
+              setIsOpen(true);
+            }}
             onClose={() => setShowNetworkReminder(false)}
           />
         )}
@@ -953,12 +965,17 @@ const SalvaNGNsChat = ({ user }) => {
         )}
       </AnimatePresence>
 
-      <div className="fixed inset-0 z-[8999]" onClick={() => setIsOpen(false)} />
+      <div
+        className="fixed inset-0 z-[8999]"
+        onClick={() => setIsOpen(false)}
+        style={{ touchAction: 'none' }}
+      />
       <motion.div
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-6 right-6 z-[9000] w-[320px] max-w-[calc(100vw-1.5rem)]"
+        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.6] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
+        style={{ width: '320px' }}
       >
         <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
           {/* ── HEADER ── */}
