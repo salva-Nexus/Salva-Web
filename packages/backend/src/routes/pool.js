@@ -1570,7 +1570,7 @@ router.post('/set-mins', async (req, res) => {
 
     const POOL_IFACE = new ethers.Interface([
       'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
-      'function setMinimumTokenAmount(uint256 amount) external returns (bool)',
+      'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
 
     const { feeNGN: smFN, feeUSD: smFU, feeWeiNGN: smFWN, feeWeiUSD: smFWU } = await _getPoolFee('base');
@@ -1585,7 +1585,7 @@ router.post('/set-mins', async (req, res) => {
         ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
         _buildMultiSend([
           { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ethers.parseUnits(String(minNgnAmount), 6)]) },
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumTokenAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
+          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
           smFeeTx,
         ]), 1
       );
@@ -1595,7 +1595,7 @@ router.post('/set-mins', async (req, res) => {
         _buildMultiSend([
           { to: ethers.getAddress(cleanPool), data: minNgnAmount
               ? POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ethers.parseUnits(String(minNgnAmount), 6)])
-              : POOL_IFACE.encodeFunctionData('setMinimumTokenAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
+              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
           smFeeTx,
         ]), 1
       );
@@ -2721,7 +2721,7 @@ router.post('/l1/set-mins', async (req, res) => {
 
     const POOL_IFACE = new ethers.Interface([
       'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
-      'function setMinimumTokenAmount(uint256 amount) external returns (bool)',
+      'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
     const MULTISEND = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
 
@@ -2740,12 +2740,21 @@ router.post('/l1/set-mins', async (req, res) => {
     let result;
     if (ngnWei && tokenWei) {
       result = await executeViaSafeBNB(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ngnWei]) },
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumTokenAmount', [tokenWei]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ngnWei]),
+          },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [tokenWei]),
+          },
           lsmFeeTx,
-        ]), 1
+        ]),
+        1
       );
     } else {
       result = await executeViaSafeBNB(
@@ -2753,7 +2762,7 @@ router.post('/l1/set-mins', async (req, res) => {
         _buildMultiSend([
           { to: ethers.getAddress(cleanPool), data: ngnWei
               ? POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ngnWei])
-              : POOL_IFACE.encodeFunctionData('setMinimumTokenAmount', [tokenWei]) },
+              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [tokenWei]) },
           lsmFeeTx,
         ]), 1
       );
