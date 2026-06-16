@@ -183,7 +183,7 @@ router.get('/:safeAddress', async (req, res) => {
       let logs = [];
       try {
         // Paginate in small chunks — BSC public nodes enforce strict per-request rate limits
-        const CHUNK = chain === 'bnb' ? 2000 : 500;
+        const CHUNK = chain === 'bnb' ? 2000 : 50;
         let chunkCount = 0;
         for (let start = fromBlock; start <= latestBlock; start += CHUNK) {
           const end = Math.min(start + CHUNK - 1, latestBlock);
