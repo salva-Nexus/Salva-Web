@@ -828,10 +828,11 @@ const SalvaSellerChat = ({ user }) => {
   }, [user?.safeAddress]);
 
   useEffect(() => {
+    clearInterval(listPollRef.current);
     if (view === 'list') {
       fetchList();
       listPollRef.current = setInterval(fetchList, 30000);
-    } else clearInterval(listPollRef.current);
+    }
     return () => clearInterval(listPollRef.current);
   }, [view, fetchList]);
 
@@ -859,22 +860,30 @@ const SalvaSellerChat = ({ user }) => {
   }, [user?.safeAddress]);
 
   useEffect(() => {
+    clearTimeout(pollRef.current);
     if (view === 'chat' && selected?._id) {
       let failCount = 0;
+      let cancelled = false;
       const poll = async () => {
+        if (cancelled) return;
         try {
           await fetchChat();
           failCount = 0;
         } catch {
           failCount++;
         }
-        const next = failCount >= 3 ? 20000 : 8000;
-        pollRef.current = setTimeout(poll, next);
+        if (!cancelled) {
+          const next = failCount >= 3 ? 20000 : 8000;
+          pollRef.current = setTimeout(poll, next);
+        }
       };
       fetchChat();
       pollRef.current = setTimeout(poll, 8000);
-    } else clearTimeout(pollRef.current);
-    return () => clearTimeout(pollRef.current);
+      return () => {
+        cancelled = true;
+        clearTimeout(pollRef.current);
+      };
+    }
   }, [view, selected?._id, fetchChat]);
 
   // ── Open request ───────────────────────────────────────────────────────────

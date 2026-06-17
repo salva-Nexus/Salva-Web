@@ -510,7 +510,10 @@ const SalvaNGNsChat = ({ user }) => {
   useEffect(() => {
     const activeChat =
       (mode === 'buy' && buyPhase === 'chat') || (mode === 'sell' && sellPhase === 'chat');
-    if (!activeChat || !mintRequest?._id || !isOpen) return;
+    if (!activeChat || !mintRequest?._id || !isOpen) {
+      clearTimeout(pollRef.current);
+      return;
+    }
 
     let failCount = 0;
     const poll = async () => {

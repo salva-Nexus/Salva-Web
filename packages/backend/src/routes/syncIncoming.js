@@ -149,8 +149,8 @@ router.get('/:safeAddress', async (req, res) => {
       try {
         const l1db = require('../services/l1db');
         if (l1db.readyState === 1) {
-          const UserBNBSchema = require('../models/UserBNB');
-          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+          const UserBNBModel = require('../models/UserBNB');
+          const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBModel);
           recipient = await UserBNB.findOne({ safeAddress }).catch(() => null);
         }
       } catch (e) {
@@ -263,8 +263,8 @@ router.get('/:safeAddress', async (req, res) => {
           if (!sender && chain === 'bnb') {
             const l1db = require('../services/l1db');
             if (l1db.readyState === 1) {
-              const UserBNBSchema = require('../models/UserBNB');
-              const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+              const UserBNBModel = require('../models/UserBNB');
+              const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBModel);
               sender = await UserBNB.findOne({ safeAddress: fromAddress.toLowerCase() })
                 .lean()
                 .catch(() => null);

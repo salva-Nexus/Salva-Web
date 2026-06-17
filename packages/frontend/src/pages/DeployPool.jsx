@@ -374,8 +374,6 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [pinAction, setPinAction] = useState(null);
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
-  const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
 
   const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
 
@@ -439,8 +437,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       setLiqAmount('');
       onRefresh();
     } catch (err) {
-      console.error('provide liq error:', err);
-      showMsg('Failed', 'error');
+      showMsg(err.message || 'Failed to add liquidity. Please try again.', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -473,7 +470,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     }
   };
 
-  const executeUpdateBuyRate = async (privateKey) => {
+  const executeUpdateSellRate = async (privateKey) => {
     if (buyRate === '' || buyRate === undefined) return;
     setTxLoading(true);
     try {
@@ -492,8 +489,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       if (!res.ok) throw new Error(data.message || 'Failed');
       showMsg('Buy rate updated!');
       onRefresh();
-    } catch {
-      showMsg('Failed', 'error');
+    } catch (err) {
+      showMsg(err.message || 'Failed to update buy rate.', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -518,14 +515,14 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       if (!res.ok) throw new Error(data.message || 'Failed');
       showMsg('Sell rate updated!');
       onRefresh();
-    } catch {
-      showMsg('Failed', 'error');
+    } catch (err) {
+      showMsg(err.message || 'Failed to set minimum NGN amount.', 'error');
     } finally {
       setTxLoading(false);
     }
   };
 
-  const executeTogglePause = async (privateKey, pause) => {
+  const executeSetMinToken = async (privateKey, pause) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/toggle-pause`, {
@@ -596,8 +593,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       showMsg('Min USD amount updated!');
       setMinToken('');
       onRefresh();
-    } catch {
-      showMsg('Failed', 'error');
+    } catch (err) {
+      showMsg(err.message || 'Failed to set minimum USD amount.', 'error');
     } finally {
       setTxLoading(false);
     }
@@ -1195,7 +1192,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         const res = await fetch(`${SALVA_API_URL}/api/pool/my/${user.safeAddress}`);
         const data = await res.json();
         setPools(data.pools || []);
-      } catch {
+      } catch (err) {
+        console.warn('fetchMyPools error:', err.message);
         setPools([]);
       } finally {
         setLoading(false);
@@ -1260,7 +1258,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       if (pinAction === 'delete') await executeDelete(data.privateKey);
       if (pinAction === 'rename') await executeRename(data.privateKey);
     } catch {
-      showMsg('Network error', 'error');
+      showMsg('Network error. Please check your connection and try again.', 'error');
+      setPinVisible(false);
     } finally {
       setPinLoading(false);
     }
@@ -1283,8 +1282,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       await fetchMyPools();
       setNewlyDeployedPool(data.poolAddress);
       setShowNamePrompt(true);
-    } catch {
-      showMsg('Deployment failed — please try again', 'error');
+    } catch (err) {
+      showMsg(err.message || 'Deployment failed — please try again.', 'error');
     } finally {
       setDeploying(false);
     }
@@ -1310,8 +1309,8 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
       );
       await fetchMyPools();
-    } catch {
-      showMsg('Subscription failed', 'error');
+    } catch (err) {
+      showMsg(err.message || 'Subscription failed. Please try again.', 'error');
     } finally {
       setSubscribing(false);
       setSelectedPool(null);

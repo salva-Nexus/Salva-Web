@@ -11,26 +11,26 @@
 //   5. Apply 20% buffer so we never undercharge
 //   6. Cache crypto prices 30s, NGN rate 5min
 // ─────────────────────────────────────────────────────────────────────────────
+'use strict';
+
+const { ethers } = require('ethers');
+
 async function safeFetch(url) {
   for (let i = 0; i < 3; i++) {
     try {
       const res = await fetch(url, {
         signal: AbortSignal.timeout(15000),
-        headers: { accept: 'application/json' }
+        headers: { accept: 'application/json' },
       });
-
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (e) {
-      console.warn(`⚠️ Fetch retry ${i + 1}: ${url}`);
+      console.warn(`⚠️ Fetch retry ${i + 1}/${3}: ${url} — ${e.message}`);
       if (i === 2) throw e;
+      await new Promise((r) => setTimeout(r, 500 * (i + 1)));
     }
   }
 }
-
-'use strict';
-
-const { ethers } = require('ethers');
 
 // ── Cache store ───────────────────────────────────────────────────────────────
 const _cache = {
@@ -58,8 +58,6 @@ async function _fetchCryptoUSD(symbol) {
 
   const coinId = isBNBSymbol ? 'binancecoin' : 'ethereum';
   const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`CoinGecko API error: ${res.status}`);
   const data = await safeFetch(url);
   const price = data[coinId]?.usd;
   if (!Number.isFinite(price) || price <= 0) throw new Error(`Bad price from CoinGecko for ${coinId}`);
@@ -77,8 +75,6 @@ async function _fetchUSDtoNGN() {
   if (!key) throw new Error('EXCHANGE_RATE_API_KEY not set in .env');
 
   const url = `https://v6.exchangerate-api.com/v6/${key}/pair/USD/NGN`;
-  const res = await fetch(url, { signal: AbortSignal.timeout(15_000) });
-  if (!res.ok) throw new Error(`ExchangeRate API error: ${res.status}`);
   const data = await safeFetch(url);
   const rate = data.conversion_rate;
   if (!Number.isFinite(rate) || rate <= 0) throw new Error('Bad NGN rate from ExchangeRate API');

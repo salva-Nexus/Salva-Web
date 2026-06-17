@@ -406,7 +406,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       else if (pinAction === 'minNgn') await executeSetMinNgn(data.privateKey);
       else if (pinAction === 'minToken') await executeSetMinToken(data.privateKey);
     } catch {
-      showMsg('Network error', 'error');
+      showMsg('Network error. Please try again.', 'error');
+      setPinVisible(false);
     } finally {
       setPinLoading(false);
     }
@@ -1270,7 +1271,8 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         const res = await fetch(`${SALVA_API_URL}/api/pool/l1/my/${user.safeAddress}`);
         const data = await res.json();
         setPools(data.pools || []);
-      } catch {
+      } catch (err) {
+        console.warn('fetchMyPools (BNB) error:', err.message);
         setPools([]);
       } finally {
         setLoading(false);
@@ -1320,10 +1322,17 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     setPinLoading(true);
     try {
       // delete (with name) and rename both need the Base Safe key — use Base PIN
-      const needsBaseKey = (pinAction === 'delete' && deletingPool?.poolName) || pinAction === 'rename';
-      const baseUser = (() => { try { return JSON.parse(localStorage.getItem('salva_user') || 'null'); } catch { return null; } })();
+      const needsBaseKey =
+        (pinAction === 'delete' && deletingPool?.poolName) || pinAction === 'rename';
+      const baseUser = (() => {
+        try {
+          return JSON.parse(localStorage.getItem('salva_user') || 'null');
+        } catch {
+          return null;
+        }
+      })();
       const pinEndpoint = needsBaseKey ? '/api/user/verify-pin' : '/api/bnb/verify-pin';
-      const pinEmail = needsBaseKey ? (baseUser?.email || user.email) : user.email;
+      const pinEmail = needsBaseKey ? baseUser?.email || user.email : user.email;
       const res = await fetch(`${SALVA_API_URL}${pinEndpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1340,7 +1349,8 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       if (pinAction === 'delete') await executeDelete(data.privateKey);
       if (pinAction === 'rename') await executeRename(data.privateKey);
     } catch {
-      showMsg('Network error', 'error');
+      showMsg('Network error. Please try again.', 'error');
+      setPinVisible(false);
     } finally {
       setPinLoading(false);
     }
