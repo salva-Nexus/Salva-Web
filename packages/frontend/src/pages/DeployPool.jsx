@@ -470,7 +470,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     }
   };
 
-  const executeUpdateSellRate = async (privateKey) => {
+  const executeUpdateBuyRate = async (privateKey) => {
     if (buyRate === '' || buyRate === undefined) return;
     setTxLoading(true);
     try {
@@ -522,7 +522,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     }
   };
 
-  const executeSetMinToken = async (privateKey, pause) => {
+  const executeTogglePause = async (privateKey, pause) => {
     setTxLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/pool/toggle-pause`, {
@@ -996,21 +996,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             </motion.div>
           )}
         </div>
-        {/* ── Network Reminder ── */}
-        <AnimatePresence>
-          {showNetworkReminder && (
-            <NetworkReminder
-              chain="base"
-              storageKey="salva-network-reminder-base"
-              onContinue={() => {
-                setShowNetworkReminder(false);
-                setPinAction('deploy');
-                setPinVisible(true);
-              }}
-              onClose={() => setShowNetworkReminder(false)}
-            />
-          )}
-        </AnimatePresence>
+    
         {/* ── PIN Modal ── */}
         <AnimatePresence>
           {pinVisible && (
@@ -1145,6 +1131,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 
 // ─── Main DeployPool ──────────────────────────────────────────────────────────
 const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
+    // eslint-disable-next-line no-unused-vars
   const [poolFee, setPoolFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
   const poolFeeCache = useRef({});
   const [refreshing, setRefreshing] = useState(false);
@@ -1181,7 +1168,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [pendingAction, setPendingAction] = useState(null);
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
-  const { isDismissed } = useNetworkReminder();
+  useNetworkReminder();
 
   const fetchMyPools = useCallback(
     async (silent = false) => {
