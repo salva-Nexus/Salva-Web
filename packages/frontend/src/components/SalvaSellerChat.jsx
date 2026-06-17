@@ -1031,7 +1031,7 @@ const SalvaSellerChat = ({ user }) => {
   // ── FAB ─────────────────────────────────────────────────────────────────────
   if (view === 'closed') {
     return (
-      <div className="fixed bottom-2 left-2 sm:bottom-6 sm:left-6 z-[9000] scale-[0.6] sm:scale-100 origin-bottom-left">
+      <div className="fixed bottom-2 left-2 sm:bottom-6 sm:left-6 z-[9000] scale-[1.2] sm:scale-100 origin-bottom-left">
         <motion.button
           whileHover={{ scale: 1.08 }}
           whileTap={{ scale: 0.95 }}

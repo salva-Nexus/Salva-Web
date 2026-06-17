@@ -765,7 +765,7 @@ const SalvaNGNsChat = ({ user }) => {
   if (!isOpen) {
     return (
       <>
-        <div className="fixed bottom-2 right-2 sm:bottom-6 sm:right-6 z-[9000] scale-[0.6] sm:scale-100 origin-bottom-right">
+        <div className="fixed bottom-2 right-2 sm:bottom-6 sm:right-6 z-[9000] scale-[1.2] sm:scale-100 origin-bottom-right">
           <motion.button
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
