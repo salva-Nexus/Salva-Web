@@ -1054,11 +1054,12 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
 
     console.log(`🔗 Using RPC: ${rpcUrl}`);
 
-    // Deploy Base first (fatal), attempt BNB simultaneously (non-fatal)
-    const { base, bnb, bnbFailed, pendingSeed } = await generateAndDeployBothChains(rpcUrl);
+    // Deploy Base (fatal if fails). BNB is handled separately via /api/bnb/register
+    // when user switches to BNB chain — no pending seed needed since addresses differ per chain.
+    const { base, bnb, bnbFailed } = await generateAndDeployBothChains(rpcUrl);
     console.log(`✅ Base Safe deployed`);
     if (!bnbFailed) console.log(`✅ BNB Safe deployed`);
-    else console.warn(`⚠️  BNB deployment failed — seed will be stored for retry`);
+    else console.warn(`⚠️  BNB deployment failed — user will deploy from BNB dashboard`);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
@@ -1071,34 +1072,6 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
 
     await newUser.save();
     console.log(`✅ User saved: ${email}`);
-
-    // ── Store pending BNB seed if BNB failed during registration ────────────
-    // Encrypted with the same encryptPrivateKey utility so it's safe at rest.
-    // This will be read and cleared by /api/bnb/register when the user retries.
-    if (bnbFailed && pendingSeed) {
-      try {
-        // Encode seed as JSON, encrypt the whole string using the same encryptPrivateKey
-        // function used for ownerPrivateKey — it accepts any string, not just keys.
-        // We use a fixed internal passphrase derived from the email so it's reproducible.
-        // Actually: store it as raw JSON encrypted with encryptPrivateKey using a
-        // server-only secret so it can't be decrypted without the server env.
-        const seedJson = JSON.stringify(pendingSeed);
-        // encryptPrivateKey expects (plaintext, pin) — we use a deterministic server secret
-        // as the "pin" so no user input is needed to decrypt it on retry.
-        const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10); // 8-char hex slice
-        const encryptedSeed = encryptPrivateKey(seedJson, serverSecret);
-        await User.findOneAndUpdate(
-          { email: newUser.email },
-          { pendingBNBDeploy: encryptedSeed }
-        );
-        console.log(`📦 Pending BNB seed stored for: ${email}`);
-      } catch (seedErr) {
-        // Truly non-fatal — user can still register. On BNB deploy retry,
-        // a fresh keypair will be generated (different from Base, less ideal
-        // but still functional). Log clearly for monitoring.
-        console.warn(`⚠️  Could not store pending BNB seed (non-fatal): ${seedErr.message}`);
-      }
-    }
 
     // ── Create UserBNB record immediately if BNB deployed successfully ───────
     if (bnb && !bnbFailed) {
@@ -1117,8 +1090,7 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
         }
 
         const UserBNBSchema = require('./models/UserBNB');
-        const UserBNB =
-          l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+        const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
 
         const existingBNB = await UserBNB.findOne({ email: newUser.email });
         if (!existingBNB) {
@@ -1142,22 +1114,6 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
         console.warn(
           `⚠️  UserBNB record creation failed after successful on-chain deploy: ${bnbSaveErr.message}`
         );
-        // Store the seed as pending so the matching keypair is preserved on retry
-        try {
-          const seedJson = JSON.stringify({
-            ownerAddress: bnb.ownerAddress,
-            ownerPrivateKey: bnb.ownerPrivateKey,
-          });
-          const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10);
-          const encryptedSeed = encryptPrivateKey(seedJson, serverSecret);
-          await User.findOneAndUpdate(
-            { email: newUser.email },
-            { pendingBNBDeploy: encryptedSeed }
-          );
-          console.log(`📦 Pending BNB seed stored (DB save fallback) for: ${email}`);
-        } catch (fallbackErr) {
-          console.warn(`⚠️  Could not store BNB seed in fallback path: ${fallbackErr.message}`);
-        }
       }
     }
 

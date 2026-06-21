@@ -43,12 +43,6 @@ const UserSchema = new mongoose.Schema({
   isSeller: { type: Boolean, default: false },
   nameAliases: { type: [LinkedNameSchema], default: [] },
   nameAlias: { type: String, default: null, sparse: true },
-
-  // Stored temporarily when BNB deployment fails during registration.
-  // Contains { ownerAddress, ownerPrivateKey } encrypted the same way as ownerPrivateKey.
-  // Deleted permanently once BNB wallet is successfully deployed.
-  pendingBNBDeploy: { type: String, default: null },
-
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

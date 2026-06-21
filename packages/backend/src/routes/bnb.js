@@ -79,7 +79,11 @@ function resolveL1Token(sym) {
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
-    const { email } = req.body;
+    const { email, pin } = req.body;
+    // pin is required — it's the user's Base transaction PIN, used to encrypt the BNB key
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ message: 'Transaction PIN is required to deploy BNB wallet' });
+    }
     const sanitizedEmail = sanitizeEmail(email);
 
     const l1DB = getL1DB();
@@ -118,93 +122,6 @@ router.post('/register', async (req, res) => {
     let ownerAddress, ownerPrivateKey, safeAddress, deploymentTx;
     let usedPendingSeed = false;
 
-    if (baseUser.pendingBNBDeploy) {
-      // ── PATH A: Use stored matching seed ──────────────────────────────────
-      console.log(`🔁 [/bnb/register] Using stored pending seed for: ${sanitizedEmail}`);
-
-      let seed;
-      try {
-        const { decryptPrivateKey } = require('../utils/encryption');
-        const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10);
-        const decrypted = decryptPrivateKey(baseUser.pendingBNBDeploy, serverSecret);
-        seed = JSON.parse(decrypted);
-      } catch (decErr) {
-        console.error('❌ Failed to decrypt pending BNB seed:', decErr.message);
-        // Fall through to PATH B — at least user gets a deployed BNB wallet,
-        // even if keypairs won't match. Log clearly for monitoring.
-        console.warn('⚠️  Falling back to fresh keypair generation due to decryption failure');
-        seed = null;
-      }
-
-      if (seed && seed.ownerAddress && seed.ownerPrivateKey) {
-        ownerAddress = seed.ownerAddress;
-        ownerPrivateKey = seed.ownerPrivateKey;
-        usedPendingSeed = true;
-
-        // Deploy using the stored owner address
-        const predictedSafe = {
-          safeAccountConfig: { owners: [ownerAddress], threshold: 1 },
-          safeDeploymentConfig: { safeVersion: '1.3.0' },
-        };
-
-        const protocolKit = await Safe.init({
-          provider: bnbRpcUrl,
-          signer: bnbSignerWallet.privateKey,
-          predictedSafe,
-        });
-
-        safeAddress = await protocolKit.getAddress();
-        console.log(`📍 [BNB/PATH-A] Predicted Safe: ${safeAddress}`);
-
-        const deploymentTransaction = await protocolKit.createSafeDeploymentTransaction();
-
-        let txResponse;
-        try {
-          txResponse = await bnbSignerWallet.sendTransaction({
-            to: deploymentTransaction.to,
-            data: deploymentTransaction.data,
-            value: deploymentTransaction.value || '0',
-            gasLimit: 300_000,
-          });
-        } catch (err) {
-          if (
-            err.code === 'INSUFFICIENT_FUNDS' ||
-            (err.message && err.message.includes('insufficient funds'))
-          ) {
-            return res.status(503).json({
-              message: 'Network deployment temporarily unavailable. Please try again shortly.',
-            });
-          }
-          return res.status(500).json({
-            message: 'BNB deployment failed. Please try again.',
-          });
-        }
-
-        console.log(`⏳ [BNB/PATH-A] Waiting for tx: ${txResponse.hash}`);
-        await txResponse.wait();
-        deploymentTx = txResponse.hash;
-
-        // Verify contract code exists at the address
-        await new Promise((r) => setTimeout(r, 3000));
-        let code = await bnbProvider.getCode(safeAddress);
-        if (code === '0x') {
-          console.log(`🔄 [BNB/PATH-A] Node not synced — retrying verification...`);
-          await new Promise((r) => setTimeout(r, 4000));
-          code = await bnbProvider.getCode(safeAddress);
-        }
-        if (code === '0x') {
-          return res.status(500).json({
-            message: 'BNB Safe deployment failed — no code at address. Please try again.',
-          });
-        }
-        console.log(`✅ [BNB/PATH-A] Safe verified: ${safeAddress}`);
-
-      } else {
-        // Seed was present but decryption failed — fall through to PATH B
-        usedPendingSeed = false;
-      }
-    }
-
     if (!usedPendingSeed) {
       // ── PATH B: Legacy fresh deployment ───────────────────────────────────
       console.log(`🆕 [/bnb/register] Fresh keypair deployment for: ${sanitizedEmail}`);
@@ -229,14 +146,21 @@ router.post('/register', async (req, res) => {
       }
     }
 
-    // ── Save UserBNB record ───────────────────────────────────────────────────
-    const newUserBNB = new UserBNB({
-      email: sanitizedEmail,
-      username: baseUser.username,
-      safeAddress,
-      ownerPrivateKey, // raw — BNBSetPin will encrypt it
-    });
-    await newUserBNB.save();
+    // Encrypt the BNB private key with the user's Base PIN immediately —
+      // same pattern as /api/user/set-pin on Base. No separate BNBSetPin screen needed.
+      const { encryptPrivateKey, hashPin } = require('../utils/encryption');
+      const hashedPin = hashPin(pin);
+      const encryptedKey = encryptPrivateKey(identity.ownerPrivateKey, pin);
+
+      const newUserBNB = new UserBNB({
+        email: baseUser.email,
+        username: baseUser.username,
+        safeAddress: identity.safeAddress,
+        ownerPrivateKey: encryptedKey,
+        transactionPin: hashedPin,
+        pinSetupCompleted: true,
+      });
+      await newUserBNB.save();
 
     // ── Clear pending seed now both chains have confirmed DB records ──────────
     if (usedPendingSeed) {
