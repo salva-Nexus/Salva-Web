@@ -90,9 +90,7 @@ router.post('/register', async (req, res) => {
     if (l1DB.readyState !== 1) {
       await Promise.race([
         l1DB.readyPromise,
-        new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('L1DB timeout')), 12000)
-        ),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 12000)),
       ]).catch(() => {});
     }
     const UserBNB = getUserBNB();
@@ -108,12 +106,12 @@ router.post('/register', async (req, res) => {
       return res.status(404).json({ message: 'No Salva account found for this email' });
 
     const isProd = process.env.NODE_ENV === 'production';
-    const bnbRpcUrl = isProd
-      ? process.env.BNB_MAINNET_RPC_URL
-      : process.env.BNB_TESTNET_RPC_URL;
+    const bnbRpcUrl = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
 
     if (!bnbRpcUrl) {
-      return res.status(500).json({ message: 'BNB network not configured. Please contact support.' });
+      return res
+        .status(500)
+        .json({ message: 'BNB network not configured. Please contact support.' });
     }
 
     const bnbProvider = new ethers.JsonRpcProvider(bnbRpcUrl);
@@ -147,20 +145,19 @@ router.post('/register', async (req, res) => {
     }
 
     // Encrypt the BNB private key with the user's Base PIN immediately —
-      // same pattern as /api/user/set-pin on Base. No separate BNBSetPin screen needed.
-      const { encryptPrivateKey, hashPin } = require('../utils/encryption');
-      const hashedPin = hashPin(pin);
-      const encryptedKey = encryptPrivateKey(identity.ownerPrivateKey, pin);
+    // same pattern as /api/user/set-pin on Base. No separate BNBSetPin screen needed.
+    const hashedPin = hashPin(pin);
+    const encryptedKey = encryptPrivateKey(ownerPrivateKey, pin);
 
-      const newUserBNB = new UserBNB({
-        email: baseUser.email,
-        username: baseUser.username,
-        safeAddress: identity.safeAddress,
-        ownerPrivateKey: encryptedKey,
-        transactionPin: hashedPin,
-        pinSetupCompleted: true,
-      });
-      await newUserBNB.save();
+    const newUserBNB = new UserBNB({
+      email: baseUser.email,
+      username: baseUser.username,
+      safeAddress,
+      ownerPrivateKey: encryptedKey,
+      transactionPin: hashedPin,
+      pinSetupCompleted: true,
+    });
+    await newUserBNB.save();
 
     // ── Clear pending seed now both chains have confirmed DB records ──────────
     if (usedPendingSeed) {

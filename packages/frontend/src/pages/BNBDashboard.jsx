@@ -1963,21 +1963,11 @@ const Dashboard = () => {
       })
       .then((d) => {
         if (!d.deployed) {
-          // Only clear localStorage and show deploy if we have NO cached wallet either
-          // This prevents network blips from showing the deploy screen
-          if (!cachedBnbUser?.safeAddress) {
-            localStorage.removeItem('bnb_user');
-            setUser(null);
-            setDeployState('need_deploy');
-          } else {
-            // We have a cached wallet — trust it, show ready or need_pin
-            if (!d.hasPin && !cachedBnbUser) {
-              setDeployState('need_pin');
-            } else {
-              setUser(cachedBnbUser);
-              setDeployState('ready');
-            }
-          }
+          // DB says not deployed — cache is irrelevant. Always clear it and show deploy.
+          // Never trust localStorage when the server explicitly says the wallet doesn't exist.
+          localStorage.removeItem('bnb_user');
+          setUser(null);
+          setDeployState('need_deploy');
         } else if (!d.hasPin) {
           // Check Base PIN status to decide whether to show BNB PIN screen or redirect.
           // Cannot use await inside .then() — chain another fetch instead.
@@ -2012,15 +2002,11 @@ const Dashboard = () => {
         }
       })
       .catch(() => {
-        // Network error — fall back to cached localStorage data if available
-        if (cachedBnbUser?.safeAddress) {
-          console.warn('⚠️ BNB status check failed — using cached wallet data');
-          setUser(cachedBnbUser);
-          setDeployState('ready');
-        } else {
-          // No cache and no network — show a retry state, NOT deploy
-          setDeployState('network_error');
-        }
+        // Network error only — NOT a 404/not-deployed response.
+        // Only trust cache on genuine network failures, not missing DB records.
+        // We can't tell here if it's a network error vs server error, so be conservative:
+        // if we got a response (even an error one), don't trust cache.
+        setDeployState('network_error');
       });
   }, [baseUser?.email]);
 
@@ -2515,8 +2501,10 @@ const Dashboard = () => {
       <BNBDeployWallet
         user={baseUser}
         onDeployed={(bnbUser) => {
+          // BNBDeployWallet now sets PIN during deploy using Base PIN.
+          // No separate PIN screen needed — go straight to ready.
           setUser(bnbUser);
-          setDeployState('need_pin');
+          setDeployState('ready');
         }}
       />
     );

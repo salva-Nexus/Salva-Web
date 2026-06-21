@@ -1047,15 +1047,34 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
     const existingUsername = await User.findOne({ username });
     if (existingUsername) return res.status(400).json({ message: 'Username already taken' });
 
-    const rpcUrl =
-      process.env.NODE_ENV === 'production'
-        ? process.env.BASE_MAINNET_RPC_URL
-        : process.env.BASE_SEPOLIA_RPC_URL;
+    const isProdEnv = process.env.NODE_ENV === 'production';
 
-    console.log(`🔗 Using RPC: ${rpcUrl}`);
+    // Primary RPC — Alchemy. Fallback to publicnode if Alchemy times out on testnet.
+    const primaryRpc = isProdEnv
+      ? process.env.BASE_MAINNET_RPC_URL
+      : process.env.BASE_SEPOLIA_RPC_URL;
 
-    // Deploy Base (fatal if fails). BNB is handled separately via /api/bnb/register
-    // when user switches to BNB chain — no pending seed needed since addresses differ per chain.
+    const fallbackRpc = isProdEnv
+      ? 'https://base-rpc.publicnode.com'
+      : 'https://base-sepolia-rpc.publicnode.com';
+
+    // Try primary first, fall back if it times out or fails chain detection
+    let rpcUrl = primaryRpc;
+    try {
+      const { ethers } = require('ethers');
+      const testProvider = new ethers.JsonRpcProvider(primaryRpc, undefined, { batchMaxCount: 1 });
+      await Promise.race([
+        testProvider.getBlockNumber(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('RPC probe timeout')), 5000)),
+      ]);
+      console.log(`🔗 Using primary RPC: ${rpcUrl}`);
+    } catch (probeErr) {
+      console.warn(`⚠️ Primary RPC unresponsive (${probeErr.message}) — switching to fallback`);
+      rpcUrl = fallbackRpc;
+      console.log(`🔗 Using fallback RPC: ${rpcUrl}`);
+    }
+
+    // Deploy Base first (fatal), attempt BNB simultaneously (non-fatal)
     const { base, bnb, bnbFailed } = await generateAndDeployBothChains(rpcUrl);
     console.log(`✅ Base Safe deployed`);
     if (!bnbFailed) console.log(`✅ BNB Safe deployed`);
