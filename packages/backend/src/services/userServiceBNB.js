@@ -16,7 +16,7 @@ async function generateAndDeploySalvaIdentityBNB() {
   const { wallet, provider, rpcUrl } = getBNBWallet();
 
   const owner = ethers.Wallet.createRandom();
-  console.log(`✅ BNB Owner Address: ${owner.address}`);
+  console.log('✅ Owner wallet generated');
 
   const predictedSafe = {
     safeAccountConfig: { owners: [owner.address], threshold: 1 },

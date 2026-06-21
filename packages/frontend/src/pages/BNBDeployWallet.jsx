@@ -67,11 +67,12 @@ const BNBDeployWallet = ({ user, onDeployed }) => {
           </p>
         </div>
 
-        <div className="mb-6 p-4 rounded-2xl bg-yellow-500/5 border border-yellow-500/15">
-          <p className="text-xs text-yellow-400 font-black mb-1">💡 PIN Recommendation</p>
+        <div className="mb-6 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/15">
+          <p className="text-xs text-blue-400 font-black mb-1">🔗 Matched Security Key</p>
           <p className="text-[11px] text-white/60 leading-relaxed">
-            After deployment, you'll set a PIN for your BNB wallet. We strongly recommend using the{' '}
-            <strong className="text-white">same PIN as your Base wallet</strong> to avoid confusion.
+            Your BNB wallet shares the <strong className="text-white">same private key</strong> as
+            your Base wallet and uses the <strong className="text-white">same PIN</strong>. The
+            wallet address will differ per chain — this is standard across all multi-chain wallets.
           </p>
         </div>
 

@@ -18,7 +18,10 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const { ethers } = require('ethers');
 const { wallet, provider } = require('./services/walletSigner');
-const { generateAndDeploySalvaIdentity } = require('./services/userService');
+const {
+  generateAndDeploySalvaIdentity,
+  generateAndDeployBothChains,
+} = require('./services/userService');
 const { sponsorSafeTransfer } = require('./services/relayService');
 const Transaction = require('./models/Transaction');
 const mongoose = require('mongoose');
@@ -1028,7 +1031,9 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
 });
 
 // ===============================================
-// REGISTER — Deploy Safe only.
+// REGISTER — Deploy Base Safe + attempt BNB Safe atomically.
+// Base failure = registration aborted entirely.
+// BNB failure = user enters Base dashboard; seed stored for retry.
 // ===============================================
 app.post('/api/register', authLimiter, validateRegistration, async (req, res) => {
   try {
@@ -1048,20 +1053,113 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
         : process.env.BASE_SEPOLIA_RPC_URL;
 
     console.log(`🔗 Using RPC: ${rpcUrl}`);
-    const identityData = await generateAndDeploySalvaIdentity(rpcUrl);
-    console.log(`✅ Safe deployed: ${identityData.safeAddress}`);
+
+    // Deploy Base first (fatal), attempt BNB simultaneously (non-fatal)
+    const { base, bnb, bnbFailed, pendingSeed } = await generateAndDeployBothChains(rpcUrl);
+    console.log(`✅ Base Safe deployed`);
+    if (!bnbFailed) console.log(`✅ BNB Safe deployed`);
+    else console.warn(`⚠️  BNB deployment failed — seed will be stored for retry`);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new User({
       username,
       email,
       password: hashedPassword,
-      safeAddress: identityData.safeAddress,
-      ownerPrivateKey: identityData.ownerPrivateKey,
+      safeAddress: base.safeAddress,
+      ownerPrivateKey: base.ownerPrivateKey,
     });
 
     await newUser.save();
     console.log(`✅ User saved: ${email}`);
+
+    // ── Store pending BNB seed if BNB failed during registration ────────────
+    // Encrypted with the same encryptPrivateKey utility so it's safe at rest.
+    // This will be read and cleared by /api/bnb/register when the user retries.
+    if (bnbFailed && pendingSeed) {
+      try {
+        // Encode seed as JSON, encrypt the whole string using the same encryptPrivateKey
+        // function used for ownerPrivateKey — it accepts any string, not just keys.
+        // We use a fixed internal passphrase derived from the email so it's reproducible.
+        // Actually: store it as raw JSON encrypted with encryptPrivateKey using a
+        // server-only secret so it can't be decrypted without the server env.
+        const seedJson = JSON.stringify(pendingSeed);
+        // encryptPrivateKey expects (plaintext, pin) — we use a deterministic server secret
+        // as the "pin" so no user input is needed to decrypt it on retry.
+        const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10); // 8-char hex slice
+        const encryptedSeed = encryptPrivateKey(seedJson, serverSecret);
+        await User.findOneAndUpdate(
+          { email: newUser.email },
+          { pendingBNBDeploy: encryptedSeed }
+        );
+        console.log(`📦 Pending BNB seed stored for: ${email}`);
+      } catch (seedErr) {
+        // Truly non-fatal — user can still register. On BNB deploy retry,
+        // a fresh keypair will be generated (different from Base, less ideal
+        // but still functional). Log clearly for monitoring.
+        console.warn(`⚠️  Could not store pending BNB seed (non-fatal): ${seedErr.message}`);
+      }
+    }
+
+    // ── Create UserBNB record immediately if BNB deployed successfully ───────
+    if (bnb && !bnbFailed) {
+      try {
+        const l1db = require('./services/l1db');
+        // l1db may not be ready yet on first boot — use readyPromise with timeout
+        if (l1db.readyState !== 1) {
+          await Promise.race([
+            l1db.readyPromise,
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('L1DB not ready in time')), 8000)
+            ),
+          ]).catch((e) => {
+            throw new Error(`L1DB unavailable: ${e.message}`);
+          });
+        }
+
+        const UserBNBSchema = require('./models/UserBNB');
+        const UserBNB =
+          l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+
+        const existingBNB = await UserBNB.findOne({ email: newUser.email });
+        if (!existingBNB) {
+          const newUserBNB = new UserBNB({
+            email: newUser.email,
+            username: newUser.username,
+            safeAddress: bnb.safeAddress,
+            // Store raw private key — BNB PIN setup (BNBSetPin) will encrypt it
+            // exactly like BNBDeployWallet does today, maintaining the same flow.
+            ownerPrivateKey: bnb.ownerPrivateKey,
+          });
+          await newUserBNB.save();
+          console.log(`✅ UserBNB record created during registration: ${bnb.safeAddress}`);
+        }
+      } catch (bnbSaveErr) {
+        // Non-fatal — BNB wallet is deployed on-chain but DB record failed.
+        // The on-chain Safe is already live with the matching keypair.
+        // On next BNB dashboard visit, pendingBNBDeploy is gone (since bnb succeeded)
+        // so /api/bnb/register will do a fresh deploy — this is the only acceptable
+        // degraded path. Log clearly.
+        console.warn(
+          `⚠️  UserBNB record creation failed after successful on-chain deploy: ${bnbSaveErr.message}`
+        );
+        // Store the seed as pending so the matching keypair is preserved on retry
+        try {
+          const seedJson = JSON.stringify({
+            ownerAddress: bnb.ownerAddress,
+            ownerPrivateKey: bnb.ownerPrivateKey,
+          });
+          const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10);
+          const encryptedSeed = encryptPrivateKey(seedJson, serverSecret);
+          await User.findOneAndUpdate(
+            { email: newUser.email },
+            { pendingBNBDeploy: encryptedSeed }
+          );
+          console.log(`📦 Pending BNB seed stored (DB save fallback) for: ${email}`);
+        } catch (fallbackErr) {
+          console.warn(`⚠️  Could not store BNB seed in fallback path: ${fallbackErr.message}`);
+        }
+      }
+    }
 
     try {
       await sendWelcomeEmail(email, username);
@@ -1081,7 +1179,11 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
     });
   } catch (error) {
     console.error('❌ Registration failed:', error.message);
-    return handleError(error, res, 'Registration failed');
+    // Clean up any partial User record if it was saved before the crash
+    try {
+      await User.deleteOne({ email: req.body.email });
+    } catch (_) {}
+    return handleError(error, res, 'Registration failed. Please try again.');
   }
 });
 
@@ -2435,6 +2537,29 @@ app.post('/api/user/set-pin', authLimiter, async (req, res) => {
     await user.save();
 
     console.log(`✅ PIN set for user: ${user.email || user.username}`);
+
+    // ── If UserBNB exists with no PIN yet, encrypt its key with the same PIN ──
+    // This happens when BNB was deployed during registration alongside Base.
+    // The user only sees one PIN setup screen — it covers both chains silently.
+    try {
+      const l1db = require('./services/l1db');
+      if (l1db.readyState === 1) {
+        const UserBNBSchema = require('./models/UserBNB');
+        const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+        const bnbUser = await UserBNB.findOne({ email: sanitizedEmail });
+        if (bnbUser && !bnbUser.transactionPin) {
+          bnbUser.transactionPin = hashedPin;
+          bnbUser.ownerPrivateKey = encryptPrivateKey(bnbUser.ownerPrivateKey, pin);
+          bnbUser.pinSetupCompleted = true;
+          await bnbUser.save();
+          console.log(`✅ BNB PIN auto-set (same as Base) for: ${sanitizedEmail}`);
+        }
+      }
+    } catch (bnbPinErr) {
+      // Non-fatal — user will be prompted to set BNB PIN separately on first BNB visit
+      console.warn(`⚠️ Could not auto-set BNB PIN: ${bnbPinErr.message}`);
+    }
+
     res.json({ success: true, message: 'Transaction PIN set successfully!' });
   } catch (error) {
     console.error('❌ Set PIN error:', error);

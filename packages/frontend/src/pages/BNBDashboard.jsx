@@ -2,10 +2,9 @@
 import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 import NetworkReminder from '../components/NetworkReminder';
-import AdminPanel from './AdminPanel';
 import BNBDeployWallet from './BNBDeployWallet';
 import BNBSetPin from './BNBSetPin';
 import SalvaNGNsChatBNB from '../components/SalvaNGNsChatBNB';
@@ -1908,6 +1907,7 @@ const Dashboard = () => {
 
   const [activeTab, setActiveTab] = useState('buy');
   const [registries, setRegistries] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
   const [amountError, setAmountError] = useState(false);
@@ -1941,6 +1941,7 @@ const Dashboard = () => {
     }
   })();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!baseUser?.email) {
       navigate('/login', { replace: true });
@@ -1978,27 +1979,35 @@ const Dashboard = () => {
             }
           }
         } else if (!d.hasPin) {
-          setDeployState('need_pin');
+          // Check Base PIN status to decide whether to show BNB PIN screen or redirect.
+          // Cannot use await inside .then() — chain another fetch instead.
+          fetch(`${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(baseUser.email)}`)
+            .then((r) => r.json())
+            .then((pinData) => {
+              if (pinData.hasPin) {
+                // Base PIN is set but BNB PIN isn't — auto-set failed, show BNB PIN screen.
+                setDeployState('need_pin');
+              } else {
+                // Neither PIN set — mid-registration, redirect to Base PIN setup.
+                navigate('/set-transaction-pin', { replace: true });
+              }
+            })
+            .catch(() => {
+              // Can't determine — show BNB PIN screen as safe fallback.
+              setDeployState('need_pin');
+            });
         } else {
-          const saved = localStorage.getItem('bnb_user');
-          if (!saved) {
-            const bnbUser = {
-              email: baseUser.email,
-              username: baseUser.username,
-              safeAddress: d.safeAddress,
-              nameAlias: d.nameAlias || null,
-            };
-            localStorage.setItem('bnb_user', JSON.stringify(bnbUser));
-            setUser(bnbUser);
-          } else {
-            // Refresh nameAlias from server if it changed
-            const parsed = JSON.parse(saved);
-            if (d.nameAlias && parsed.nameAlias !== d.nameAlias) {
-              parsed.nameAlias = d.nameAlias;
-              localStorage.setItem('bnb_user', JSON.stringify(parsed));
-              setUser(parsed);
-            }
-          }
+          // Always rebuild bnb_user from server response — never trust stale cache.
+          // username MUST come from baseUser (Base wallet) not from any cached BNB data.
+          const bnbUser = {
+            email: baseUser.email,
+            username: baseUser.username, // always from Base user — single source of truth
+            safeAddress: d.safeAddress,
+            nameAlias: d.nameAlias || null,
+            isSeller: d.isSeller || false,
+          };
+          localStorage.setItem('bnb_user', JSON.stringify(bnbUser));
+          setUser(bnbUser);
           setDeployState('ready');
         }
       })
@@ -2083,6 +2092,7 @@ const Dashboard = () => {
     if (!user?.safeAddress) return;
     fetchBalance(user.safeAddress, true);
     refreshUserStatus(user.email, user);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.safeAddress, refreshUserStatus, fetchBalance]);
 
   useEffect(() => {
@@ -2100,12 +2110,16 @@ const Dashboard = () => {
         syncIncoming(user.safeAddress);
       }
     };
-    const iv = setInterval(tick, 45000);
+    // Testnet: public dataseed nodes rate-limit — sync every 3 minutes.
+    // Mainnet: Alchemy BNB is stable — 45s is fine.
+    const isProd = process.env.NODE_ENV === 'production';
+    const iv = setInterval(tick, isProd ? 45000 : 180000);
     document.addEventListener('visibilitychange', tick);
     return () => {
       clearInterval(iv);
       document.removeEventListener('visibilitychange', tick);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.safeAddress, fetchBalance]);
 
   useEffect(() => {
@@ -2122,13 +2136,20 @@ const Dashboard = () => {
       // Fee exceeds amount check — only block if balance can't cover fee AND fee >= amount
       const fee =
         selectedCoin === 'NGN' || selectedCoin === 'CNGN' ? feePreview.feeNGN : feePreview.feeUsd;
-      const currentBalance = parseFloat(
-        selectedCoin === 'NGN' ? (ngnsBalance ?? '0') :
-        selectedCoin === 'CNGN' ? (cNgnBalance ?? '0') :
-        selectedCoin === 'USDT' ? (usdtBalance ?? '0') : (usdcBalance ?? '0')
-      ) || 0;
+      const currentBalance =
+        parseFloat(
+          selectedCoin === 'NGN'
+            ? (ngnsBalance ?? '0')
+            : selectedCoin === 'CNGN'
+              ? (cNgnBalance ?? '0')
+              : selectedCoin === 'USDT'
+                ? (usdtBalance ?? '0')
+                : (usdcBalance ?? '0')
+        ) || 0;
       const canCoverFeeFromBalance = currentBalance >= amt + fee;
-      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && !canCoverFeeFromBalance && fee >= amt);
+      setFeeExceedsAmount(
+        !isNaN(amt) && amt > 0 && fee > 0 && !canCoverFeeFromBalance && fee >= amt
+      );
     } else {
       setAmountError(false);
       setFeeExceedsAmount(false);
@@ -2343,57 +2364,60 @@ const Dashboard = () => {
       });
       const data = await res.json();
       if (res.ok && data.queued) {
-  showMsg('⏳ Transaction queued — processing…', 'info');
-  let attempts = 0;
-  const maxAttempts = 30;
-  const queuedAt = Date.now();
-  const pollInterval = setInterval(async () => {
-    attempts++;
-    try {
-      // Trigger processor
-      await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
-        method: 'POST',
-      }).catch(() => {});
-      // Fetch transaction history
-      const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
-      const txData = await txRes.json();
-      if (!Array.isArray(txData)) return;
+        showMsg('⏳ Transaction queued — processing…', 'info');
+        let attempts = 0;
+        const maxAttempts = 30;
+        const queuedAt = Date.now();
+        const pollInterval = setInterval(async () => {
+          attempts++;
+          try {
+            // Trigger processor
+            await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
+              method: 'POST',
+            }).catch(() => {});
+            // Fetch transaction history
+            const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
+            const txData = await txRes.json();
+            if (!Array.isArray(txData)) return;
 
-      // Recent window — transactions created after we queued this one
-      const recentCutoff = new Date(queuedAt - 10_000); // 10s grace for clock skew
+            // Recent window — transactions created after we queued this one
+            const recentCutoff = new Date(queuedAt - 10_000); // 10s grace for clock skew
 
-      const hasPending = txData.some((tx) => tx.displayType === 'pending');
+            const hasPending = txData.some((tx) => tx.displayType === 'pending');
 
-      const hasNewSuccess = txData.some(
-        (tx) => tx.displayType === 'sent' && new Date(tx.date) > recentCutoff
-      );
+            const hasNewSuccess = txData.some(
+              (tx) => tx.displayType === 'sent' && new Date(tx.date) > recentCutoff
+            );
 
-      // FAILED_ONCHAIN entries come back as displayType === 'failed'
-      const hasNewFailure = txData.some(
-        (tx) => tx.displayType === 'failed' && new Date(tx.date) > recentCutoff
-      );
+            // FAILED_ONCHAIN entries come back as displayType === 'failed'
+            const hasNewFailure = txData.some(
+              (tx) => tx.displayType === 'failed' && new Date(tx.date) > recentCutoff
+            );
 
-      if (hasNewSuccess) {
-        clearInterval(pollInterval);
-        showMsg('✅ Transfer Successful!');
-        fetchBalance(user.safeAddress);
-      } else if (hasNewFailure) {
-        clearInterval(pollInterval);
-        showMsg('Transaction failed — insufficient gas or on-chain error. Please check your BNB balance and try again.', 'error');
-        fetchBalance(user.safeAddress);
-      } else if (!hasPending && attempts >= 5) {
-        // No pending, no success, no explicit failure after 30s — something went wrong silently
-        clearInterval(pollInterval);
-        showMsg('Transaction status unclear — check your transaction history.', 'warning');
-        fetchBalance(user.safeAddress);
-      } else if (attempts >= maxAttempts) {
-        clearInterval(pollInterval);
-        fetchBalance(user.safeAddress);
-      }
-    } catch {
-      // ignore transient poll errors
-    }
-  }, 6000);
+            if (hasNewSuccess) {
+              clearInterval(pollInterval);
+              showMsg('✅ Transfer Successful!');
+              fetchBalance(user.safeAddress);
+            } else if (hasNewFailure) {
+              clearInterval(pollInterval);
+              showMsg(
+                'Transaction failed — insufficient gas or on-chain error. Please check your BNB balance and try again.',
+                'error'
+              );
+              fetchBalance(user.safeAddress);
+            } else if (!hasPending && attempts >= 5) {
+              // No pending, no success, no explicit failure after 30s — something went wrong silently
+              clearInterval(pollInterval);
+              showMsg('Transaction status unclear — check your transaction history.', 'warning');
+              fetchBalance(user.safeAddress);
+            } else if (attempts >= maxAttempts) {
+              clearInterval(pollInterval);
+              fetchBalance(user.safeAddress);
+            }
+          } catch {
+            // ignore transient poll errors
+          }
+        }, 6000);
       } else if (res.ok) {
         showMsg('✅ Transfer Successful!');
         fetchBalance(user.safeAddress);

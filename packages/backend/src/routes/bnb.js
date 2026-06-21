@@ -4,6 +4,7 @@ const router = express.Router();
 const { ethers } = require('ethers');
 const { encryptPrivateKey, decryptPrivateKey, hashPin, verifyPin } = require('../utils/encryption');
 const { generateAndDeploySalvaIdentityBNB } = require('../services/userServiceBNB');
+const Safe = require('@safe-global/protocol-kit').default;
 const { sponsorBNBTransfer } = require('../services/relayServiceBNB');
 const { getL1TokenDecimals } = require('../utils/l1Decimals');
 const UserBNBSchema = require('../models/UserBNB');
@@ -65,52 +66,201 @@ function resolveL1Token(sym) {
 }
 
 // ── POST /api/bnb/register ────────────────────────────────────────────────────
-// Deploys a new Gnosis Safe on BNB Chain for an existing Salva user
+// Deploys a BNB Chain Safe for an existing Salva user.
+//
+// PATH A (new users, registration BNB failed):
+//   User.pendingBNBDeploy is set — decrypt the stored seed, deploy using the
+//   same owner keypair as Base, so addresses and private keys match exactly.
+//   Clear pendingBNBDeploy from DB after successful deploy + DB save.
+//
+// PATH B (legacy — existing users who never had dual-deploy):
+//   No pendingBNBDeploy — generate a fresh keypair and deploy normally.
+//   This preserves backward compatibility for all existing users.
+// ─────────────────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
     const { email } = req.body;
     const sanitizedEmail = sanitizeEmail(email);
 
     const l1DB = getL1DB();
-    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
+    if (l1DB.readyState !== 1) {
+      await Promise.race([
+        l1DB.readyPromise,
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('L1DB timeout')), 12000)
+        ),
+      ]).catch(() => {});
+    }
     const UserBNB = getUserBNB();
 
+    // Guard: already deployed
     const existing = await UserBNB.findOne({ email: sanitizedEmail });
     if (existing)
       return res.status(400).json({ message: 'BNB wallet already deployed for this account' });
 
     const User = require('../models/User');
-    const user = await User.findOne({ email: sanitizedEmail });
-    if (!user) return res.status(404).json({ message: 'No Salva account found for this email' });
+    const baseUser = await User.findOne({ email: sanitizedEmail });
+    if (!baseUser)
+      return res.status(404).json({ message: 'No Salva account found for this email' });
 
-    const identity = await generateAndDeploySalvaIdentityBNB();
+    const isProd = process.env.NODE_ENV === 'production';
+    const bnbRpcUrl = isProd
+      ? process.env.BNB_MAINNET_RPC_URL
+      : process.env.BNB_TESTNET_RPC_URL;
 
+    if (!bnbRpcUrl) {
+      return res.status(500).json({ message: 'BNB network not configured. Please contact support.' });
+    }
+
+    const bnbProvider = new ethers.JsonRpcProvider(bnbRpcUrl);
+    const bnbSignerWallet = new ethers.Wallet(process.env.MANAGER_PRIVATE_KEY, bnbProvider);
+
+    let ownerAddress, ownerPrivateKey, safeAddress, deploymentTx;
+    let usedPendingSeed = false;
+
+    if (baseUser.pendingBNBDeploy) {
+      // ── PATH A: Use stored matching seed ──────────────────────────────────
+      console.log(`🔁 [/bnb/register] Using stored pending seed for: ${sanitizedEmail}`);
+
+      let seed;
+      try {
+        const { decryptPrivateKey } = require('../utils/encryption');
+        const serverSecret = process.env.MANAGER_PRIVATE_KEY.slice(2, 10);
+        const decrypted = decryptPrivateKey(baseUser.pendingBNBDeploy, serverSecret);
+        seed = JSON.parse(decrypted);
+      } catch (decErr) {
+        console.error('❌ Failed to decrypt pending BNB seed:', decErr.message);
+        // Fall through to PATH B — at least user gets a deployed BNB wallet,
+        // even if keypairs won't match. Log clearly for monitoring.
+        console.warn('⚠️  Falling back to fresh keypair generation due to decryption failure');
+        seed = null;
+      }
+
+      if (seed && seed.ownerAddress && seed.ownerPrivateKey) {
+        ownerAddress = seed.ownerAddress;
+        ownerPrivateKey = seed.ownerPrivateKey;
+        usedPendingSeed = true;
+
+        // Deploy using the stored owner address
+        const predictedSafe = {
+          safeAccountConfig: { owners: [ownerAddress], threshold: 1 },
+          safeDeploymentConfig: { safeVersion: '1.3.0' },
+        };
+
+        const protocolKit = await Safe.init({
+          provider: bnbRpcUrl,
+          signer: bnbSignerWallet.privateKey,
+          predictedSafe,
+        });
+
+        safeAddress = await protocolKit.getAddress();
+        console.log(`📍 [BNB/PATH-A] Predicted Safe: ${safeAddress}`);
+
+        const deploymentTransaction = await protocolKit.createSafeDeploymentTransaction();
+
+        let txResponse;
+        try {
+          txResponse = await bnbSignerWallet.sendTransaction({
+            to: deploymentTransaction.to,
+            data: deploymentTransaction.data,
+            value: deploymentTransaction.value || '0',
+            gasLimit: 300_000,
+          });
+        } catch (err) {
+          if (
+            err.code === 'INSUFFICIENT_FUNDS' ||
+            (err.message && err.message.includes('insufficient funds'))
+          ) {
+            return res.status(503).json({
+              message: 'Network deployment temporarily unavailable. Please try again shortly.',
+            });
+          }
+          return res.status(500).json({
+            message: 'BNB deployment failed. Please try again.',
+          });
+        }
+
+        console.log(`⏳ [BNB/PATH-A] Waiting for tx: ${txResponse.hash}`);
+        await txResponse.wait();
+        deploymentTx = txResponse.hash;
+
+        // Verify contract code exists at the address
+        await new Promise((r) => setTimeout(r, 3000));
+        let code = await bnbProvider.getCode(safeAddress);
+        if (code === '0x') {
+          console.log(`🔄 [BNB/PATH-A] Node not synced — retrying verification...`);
+          await new Promise((r) => setTimeout(r, 4000));
+          code = await bnbProvider.getCode(safeAddress);
+        }
+        if (code === '0x') {
+          return res.status(500).json({
+            message: 'BNB Safe deployment failed — no code at address. Please try again.',
+          });
+        }
+        console.log(`✅ [BNB/PATH-A] Safe verified: ${safeAddress}`);
+
+      } else {
+        // Seed was present but decryption failed — fall through to PATH B
+        usedPendingSeed = false;
+      }
+    }
+
+    if (!usedPendingSeed) {
+      // ── PATH B: Legacy fresh deployment ───────────────────────────────────
+      console.log(`🆕 [/bnb/register] Fresh keypair deployment for: ${sanitizedEmail}`);
+      try {
+        const identity = await generateAndDeploySalvaIdentityBNB();
+        ownerAddress = identity.ownerAddress;
+        ownerPrivateKey = identity.ownerPrivateKey;
+        safeAddress = identity.safeAddress;
+        deploymentTx = identity.deploymentTx;
+      } catch (err) {
+        console.error('❌ /bnb/register PATH B failed:', err.message);
+        const msg = err.message || '';
+        if (msg.includes('insufficient funds') || msg.includes('INSUFFICIENT_FUNDS')) {
+          return res.status(503).json({
+            message: 'Network temporarily unavailable. Please try again shortly.',
+          });
+        }
+        if (msg.includes('no code at address')) {
+          return res.status(500).json({ message: 'Deployment timed out. Please try again.' });
+        }
+        return res.status(500).json({ message: 'BNB wallet deployment failed. Please try again.' });
+      }
+    }
+
+    // ── Save UserBNB record ───────────────────────────────────────────────────
     const newUserBNB = new UserBNB({
       email: sanitizedEmail,
-      username: user.username,
-      safeAddress: identity.safeAddress,
-      ownerPrivateKey: identity.ownerPrivateKey,
+      username: baseUser.username,
+      safeAddress,
+      ownerPrivateKey, // raw — BNBSetPin will encrypt it
     });
     await newUserBNB.save();
 
-    console.log(`✅ BNB wallet deployed for ${sanitizedEmail}: ${identity.safeAddress}`);
+    // ── Clear pending seed now both chains have confirmed DB records ──────────
+    if (usedPendingSeed) {
+      try {
+        await User.findOneAndUpdate(
+          { email: sanitizedEmail },
+          { $unset: { pendingBNBDeploy: '' } }
+        );
+        console.log(`🧹 Pending BNB seed cleared for: ${sanitizedEmail}`);
+      } catch (cleanupErr) {
+        // Non-fatal — seed is harmless at rest and retry path is idempotent
+        console.warn(`⚠️  Could not clear pending BNB seed: ${cleanupErr.message}`);
+      }
+    }
+
+    console.log(`✅ BNB wallet deployed for ${sanitizedEmail}: ${safeAddress}`);
     res.json({
-      username: user.username,
+      username: baseUser.username,
       email: sanitizedEmail,
-      safeAddress: identity.safeAddress,
+      safeAddress,
     });
   } catch (err) {
     console.error('❌ /bnb/register:', err.message);
-    const msg = err.message || '';
-    let userMessage = 'BNB wallet deployment failed. Please try again.';
-    if (msg.includes('insufficient funds') || msg.includes('INSUFFICIENT_FUNDS')) {
-      userMessage = 'Network temporarily unavailable. Please try again shortly.';
-    } else if (msg.includes('already deployed')) {
-      userMessage = 'BNB wallet already deployed for this account.';
-    } else if (msg.includes('no code at address')) {
-      userMessage = 'Deployment timed out. Please try again.';
-    }
-    res.status(500).json({ message: userMessage });
+    res.status(500).json({ message: 'BNB wallet deployment failed. Please try again.' });
   }
 });
 
