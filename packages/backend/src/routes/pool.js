@@ -975,7 +975,7 @@ router.get('/published', async (req, res) => {
           (parseFloat(p.ngnsLiquidity || 0) > 0 || parseFloat(p.cNgnLiquidity || 0) > 0) &&
           parseFloat(p.sellRate || 0) > 0
       )
-      .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
+      .sort((a, b) => parseFloat(b.sellRate) - parseFloat(a.sellRate));
 
     // BUY USDT/USDC: user spends NGNs → gets stable
     // Requirements: USDT or USDC liquidity > 0 AND buyRate > 0 AND not paused
@@ -2003,7 +2003,7 @@ router.get('/l1/published', async (req, res) => {
           (parseFloat(p.ngnsLiquidity || 0) > 0 || parseFloat(p.cNgnLiquidity || 0) > 0) &&
           parseFloat(p.sellRate || 0) > 0
       )
-      .sort((a, b) => parseFloat(a.sellRate) - parseFloat(b.sellRate));
+      .sort((a, b) => parseFloat(b.sellRate) - parseFloat(a.sellRate));
 
     res.json({ buyPools, sellPools });
   } catch (err) {
