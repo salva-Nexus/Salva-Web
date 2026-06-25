@@ -43,6 +43,9 @@ const UserSchema = new mongoose.Schema({
   isSeller: { type: Boolean, default: false },
   nameAliases: { type: [LinkedNameSchema], default: [] },
   nameAlias: { type: String, default: null, sparse: true },
+  deploymentLoanNGN: { type: Number, default: 0 },
+  deploymentLoanUSD: { type: Number, default: 0 },
+  hasPaidDeploymentLoan: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

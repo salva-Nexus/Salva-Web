@@ -68,8 +68,8 @@ async function generateAndDeploySalvaIdentityBNB() {
       ];
 
   let verified = false;
-  for (let attempt = 1; attempt <= 3 && !verified; attempt++) {
-    await new Promise((r) => setTimeout(r, attempt === 1 ? 4000 : 5000));
+  for (let attempt = 1; attempt <= 5 && !verified; attempt++) {
+    await new Promise((r) => setTimeout(r, attempt === 1 ? 6000 : 8000));
     for (const rpc of verifyRpcs.filter(Boolean)) {
       try {
         const vProvider = new ethers.JsonRpcProvider(rpc);
@@ -94,10 +94,9 @@ async function generateAndDeploySalvaIdentityBNB() {
   }
 
   if (!verified) {
-    // Tx was confirmed on-chain — Safe IS deployed. Node just hasn't indexed it yet.
-    // Do NOT throw — treat as success to avoid user-facing errors on testnet.
-    console.warn(
-      `⚠️ BNB Safe getCode returned 0x across all RPCs — tx confirmed, treating as deployed`
+    throw new Error(
+      `BNB Safe contract not found at ${safeAddress} after tx confirmation. ` +
+        `Deployment likely failed — Safe factory may not exist on this network.`
     );
   }
 

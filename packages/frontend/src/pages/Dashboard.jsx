@@ -222,9 +222,7 @@ const SplitBalance = ({ value, isusd = false, inline = false }) => {
 
   // Sub-threshold: greater than zero but rounds to 0.00
   if (num > 0 && num < 0.01) {
-    const tag = (
-      <span style={{ opacity: inline ? 0.8 : 1 }}>&lt;0.01</span>
-    );
+    const tag = <span style={{ opacity: inline ? 0.8 : 1 }}>&lt;0.01</span>;
     return tag;
   }
 
@@ -2017,14 +2015,21 @@ const Dashboard = () => {
       // Fee exceeds amount check — only block if balance can't cover fee AND fee >= amount
       const fee =
         selectedCoin === 'NGN' || selectedCoin === 'CNGN' ? feePreview.feeNGN : feePreview.feeUsd;
-      const currentBalance = parseFloat(
-        selectedCoin === 'NGN' ? (ngnsBalance ?? '0') :
-        selectedCoin === 'CNGN' ? (cNgnBalance ?? '0') :
-        selectedCoin === 'USDT' ? (usdtBalance ?? '0') : (usdcBalance ?? '0')
-      ) || 0;
+      const currentBalance =
+        parseFloat(
+          selectedCoin === 'NGN'
+            ? (ngnsBalance ?? '0')
+            : selectedCoin === 'CNGN'
+              ? (cNgnBalance ?? '0')
+              : selectedCoin === 'USDT'
+                ? (usdtBalance ?? '0')
+                : (usdcBalance ?? '0')
+        ) || 0;
       // Only block when: balance can't cover amount+fee AND fee >= amount (nothing useful to send)
       const canCoverFeeFromBalance = currentBalance >= amt + fee;
-      setFeeExceedsAmount(!isNaN(amt) && amt > 0 && fee > 0 && !canCoverFeeFromBalance && fee >= amt);
+      setFeeExceedsAmount(
+        !isNaN(amt) && amt > 0 && fee > 0 && !canCoverFeeFromBalance && fee >= amt
+      );
     } else {
       setAmountError(false);
       setFeeExceedsAmount(false);
@@ -3076,7 +3081,8 @@ const Dashboard = () => {
                   <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
                     <p className="font-black text-base text-red-400">
-                      {confirmationData.feeNGN > 0
+                      {(confirmationData.coin === 'NGN' || confirmationData.coin === 'CNGN') &&
+                      confirmationData.feeNGN > 0
                         ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
                         : `-${confirmationData.feeUsd} ${confirmationData.coin}`}
                     </p>

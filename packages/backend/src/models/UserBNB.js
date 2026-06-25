@@ -32,7 +32,7 @@ const UserBNBSchema = new mongoose.Schema({
     unique: true,
     index: true,
     lowercase: true,
-    set: (v) => v.toLowerCase(), 
+    set: (v) => v.toLowerCase(),
   },
   ownerPrivateKey: { type: String, required: true },
   transactionPin: { type: String, default: null },
@@ -40,6 +40,9 @@ const UserBNBSchema = new mongoose.Schema({
   pinSetupCompleted: { type: Boolean, default: false },
   nameAliases: { type: [LinkedNameSchema], default: [] },
   nameAlias: { type: String, default: null, sparse: true },
+  deploymentLoanNGN: { type: Number, default: 0 },
+  deploymentLoanUSD: { type: Number, default: 0 },
+  hasPaidDeploymentLoan: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

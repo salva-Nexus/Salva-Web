@@ -118,36 +118,42 @@ router.post('/register', async (req, res) => {
     const bnbSignerWallet = new ethers.Wallet(process.env.MANAGER_PRIVATE_KEY, bnbProvider);
 
     let ownerAddress, ownerPrivateKey, safeAddress, deploymentTx;
-    let usedPendingSeed = false;
 
-    if (!usedPendingSeed) {
-      // ── PATH B: Legacy fresh deployment ───────────────────────────────────
-      console.log(`🆕 [/bnb/register] Fresh keypair deployment for: ${sanitizedEmail}`);
-      try {
-        const identity = await generateAndDeploySalvaIdentityBNB();
-        ownerAddress = identity.ownerAddress;
-        ownerPrivateKey = identity.ownerPrivateKey;
-        safeAddress = identity.safeAddress;
-        deploymentTx = identity.deploymentTx;
-      } catch (err) {
-        console.error('❌ /bnb/register PATH B failed:', err.message);
-        const msg = err.message || '';
-        if (msg.includes('insufficient funds') || msg.includes('INSUFFICIENT_FUNDS')) {
-          return res.status(503).json({
-            message: 'Network temporarily unavailable. Please try again shortly.',
-          });
-        }
-        if (msg.includes('no code at address')) {
-          return res.status(500).json({ message: 'Deployment timed out. Please try again.' });
-        }
-        return res.status(500).json({ message: 'BNB wallet deployment failed. Please try again.' });
+    try {
+      const identity = await generateAndDeploySalvaIdentityBNB();
+      ownerAddress = identity.ownerAddress;
+      ownerPrivateKey = identity.ownerPrivateKey;
+      safeAddress = identity.safeAddress;
+      deploymentTx = identity.deploymentTx;
+    } catch (err) {
+      console.error('❌ /bnb/register failed:', err.message);
+      const msg = err.message || '';
+      if (msg.includes('insufficient funds') || msg.includes('INSUFFICIENT_FUNDS')) {
+        return res.status(503).json({
+          message: 'Network temporarily unavailable. Please try again shortly.',
+        });
       }
+      return res.status(500).json({ message: 'BNB wallet deployment failed. Please try again.' });
     }
 
     // Encrypt the BNB private key with the user's Base PIN immediately —
     // same pattern as /api/user/set-pin on Base. No separate BNBSetPin screen needed.
     const hashedPin = hashPin(pin);
     const encryptedKey = encryptPrivateKey(ownerPrivateKey, pin);
+
+    // Record BNB deployment loan
+    let bnbLoanNGN = 25;
+    let bnbLoanUSD = 0.02;
+    try {
+      const { estimateTransferFee } = require('../services/gasOracle');
+      const bnbLoan = await estimateTransferFee('bnb', 'NGN').catch(() => null);
+      if (bnbLoan) {
+        bnbLoanNGN = bnbLoan.feeNGN || 25;
+        bnbLoanUSD = bnbLoan.feeUSD || 0.02;
+      }
+    } catch {
+      /* non-fatal — fallback used */
+    }
 
     const newUserBNB = new UserBNB({
       email: baseUser.email,
@@ -156,22 +162,11 @@ router.post('/register', async (req, res) => {
       ownerPrivateKey: encryptedKey,
       transactionPin: hashedPin,
       pinSetupCompleted: true,
+      deploymentLoanNGN: bnbLoanNGN,
+      deploymentLoanUSD: bnbLoanUSD,
+      hasPaidDeploymentLoan: false,
     });
     await newUserBNB.save();
-
-    // ── Clear pending seed now both chains have confirmed DB records ──────────
-    if (usedPendingSeed) {
-      try {
-        await User.findOneAndUpdate(
-          { email: sanitizedEmail },
-          { $unset: { pendingBNBDeploy: '' } }
-        );
-        console.log(`🧹 Pending BNB seed cleared for: ${sanitizedEmail}`);
-      } catch (cleanupErr) {
-        // Non-fatal — seed is harmless at rest and retry path is idempotent
-        console.warn(`⚠️  Could not clear pending BNB seed: ${cleanupErr.message}`);
-      }
-    }
 
     console.log(`✅ BNB wallet deployed for ${sanitizedEmail}: ${safeAddress}`);
     res.json({
@@ -213,55 +208,6 @@ router.get('/status/:email', async (req, res) => {
       safeAddress: user.safeAddress,
       hasPin: !!user.transactionPin,
       nameAlias: user.nameAlias || null,
-    });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── POST /api/bnb/set-pin ─────────────────────────────────────────────────────
-router.post('/set-pin', async (req, res) => {
-  try {
-    const { email, pin } = req.body;
-    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin))
-      return res.status(400).json({ message: 'PIN must be exactly 4 digits' });
-
-    const sanitizedEmail = sanitizeEmail(email);
-    const l1DB = getL1DB();
-    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
-    const UserBNB = getUserBNB();
-
-    const user = await UserBNB.findOne({ email: sanitizedEmail });
-    if (!user) return res.status(404).json({ message: 'BNB user not found' });
-    if (user.transactionPin) return res.status(400).json({ message: 'PIN already set' });
-
-    user.transactionPin = hashPin(pin);
-    user.ownerPrivateKey = encryptPrivateKey(user.ownerPrivateKey, pin);
-    user.pinSetupCompleted = true;
-    await user.save();
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('❌ /bnb/set-pin:', err.message);
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// ── GET /api/bnb/pin-status/:email ───────────────────────────────────────────
-router.get('/pin-status/:email', async (req, res) => {
-  try {
-    const sanitizedEmail = sanitizeEmail(req.params.email);
-    const l1DB = getL1DB();
-    if (l1DB.readyState !== 1) await l1DB.readyPromise.catch(() => {});
-    const UserBNB = getUserBNB();
-
-    const user = await UserBNB.findOne({ email: sanitizedEmail });
-    if (!user) return res.json({ hasPin: false });
-
-    res.json({
-      hasPin: !!user.transactionPin,
-      isLocked: user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date(),
-      lockedUntil: user.accountLockedUntil,
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -421,16 +367,15 @@ router.post('/transfer', async (req, res) => {
         process.env.REGISTRY_CONTRACT_ADDRESS
       );
     } else {
-      return res
-        .status(400)
-        .json({
-          message:
-            'Only 0x addresses and full name aliases (e.g. name@salva) are supported on BNB transfers',
-        });
+      return res.status(400).json({
+        message:
+          'Only 0x addresses and full name aliases (e.g. name@salva) are supported on BNB transfers',
+      });
     }
 
     // Fetch decimals from BNB PoolFactory
-    const tokenDecimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress)).catch(() => 18);
+    const isNgnCoin = coin === 'NGNS' || coin === 'NGN' || coin === 'CNGN';
+    const tokenDecimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress)).catch(() => isNgnCoin ? 6 : 18);
     const amountNum = parseFloat(amount);
 
     // Simple fee: same tier structure as L2 for NGN tokens, flat $0.015 for USD
@@ -459,15 +404,92 @@ router.post('/transfer', async (req, res) => {
       ? process.env.L1_TREASURY_CONTRACT_ADDRESS
       : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS;
 
-    const result = await sponsorBNBTransfer(
-      ethers.getAddress(safeAddress),
-      userPrivateKey,
-      ethers.getAddress(recipientAddress),
-      actualAmountWei,
-      feeWei,
-      ethers.getAddress(tokenAddress),
-      treasuryAddress ? ethers.getAddress(treasuryAddress) : ethers.ZeroAddress
-    );
+    // ── Silently attempt deployment loan repayment ──────────────────────────
+    let bnbLoanMarkPaid = async () => {};
+    let bnbLoanLeg = null;
+    try {
+      const { checkAndBuildLoanRepayment } = require('../utils/loanRepayment');
+      const l1DB2 = getL1DB();
+      const UserBNB2 = getUserBNB();
+      const bnbUserDoc =
+        (await UserBNB2.findOne({ email: sanitizeEmail(req.body.email || '') }).catch(
+          () => null
+        )) ||
+        (await UserBNB2.findOne({ safeAddress: safeAddress.toLowerCase() }).catch(() => null));
+      if (bnbUserDoc && !bnbUserDoc.hasPaidDeploymentLoan) {
+        const bnbProv = getBNBProvider();
+        const loan = await checkAndBuildLoanRepayment('bnb', safeAddress, bnbUserDoc, bnbProv);
+        if (loan.repayCalldata) {
+          bnbLoanLeg = loan.repayCalldata;
+          bnbLoanMarkPaid = loan.markPaid;
+        }
+      }
+    } catch (loanErr) {
+      console.warn('⚠️ [loanRepayment] Non-fatal BNB loan check error:', loanErr.message);
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
+    let result;
+    if (bnbLoanLeg) {
+      // Bundle: transfer + optional treasury fee + loan repayment
+      const { executeViaSafeBNB } = require('../services/relayServiceBNB');
+      const MULTISEND_BNB = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
+      const ERC20_BNB_IFACE = new ethers.Interface([
+        'function transfer(address to, uint256 amount) returns (bool)',
+      ]);
+      const MS_BNB_IFACE = new ethers.Interface([
+        'function multiSend(bytes memory transactions) public payable',
+      ]);
+      function _encBNBTx(to, data) {
+        const db = ethers.getBytes(data);
+        const buf = new Uint8Array(1 + 20 + 32 + 32 + db.length);
+        let o = 0;
+        buf[o++] = 0;
+        ethers.getBytes(ethers.getAddress(to)).forEach((b) => (buf[o++] = b));
+        ethers.getBytes(ethers.zeroPadValue(ethers.toBeHex(0n), 32)).forEach((b) => (buf[o++] = b));
+        ethers
+          .getBytes(ethers.zeroPadValue(ethers.toBeHex(db.length), 32))
+          .forEach((b) => (buf[o++] = b));
+        db.forEach((b) => (buf[o++] = b));
+        return buf;
+      }
+      const calls = [
+        _encBNBTx(
+          tokenAddress,
+          ERC20_BNB_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(recipientAddress),
+            actualAmountWei,
+          ])
+        ),
+        ...(feeWei > 0n && treasuryAddress
+          ? [
+              _encBNBTx(
+                tokenAddress,
+                ERC20_BNB_IFACE.encodeFunctionData('transfer', [treasuryAddress, feeWei])
+              ),
+            ]
+          : []),
+        _encBNBTx(bnbLoanLeg.to, bnbLoanLeg.data),
+      ];
+      const msData = MS_BNB_IFACE.encodeFunctionData('multiSend', [ethers.concat(calls)]);
+      result = await executeViaSafeBNB(
+        ethers.getAddress(safeAddress),
+        userPrivateKey,
+        MULTISEND_BNB,
+        msData,
+        1
+      );
+    } else {
+      result = await sponsorBNBTransfer(
+        ethers.getAddress(safeAddress),
+        userPrivateKey,
+        ethers.getAddress(recipientAddress),
+        actualAmountWei,
+        feeWei,
+        ethers.getAddress(tokenAddress),
+        treasuryAddress ? ethers.getAddress(treasuryAddress) : ethers.ZeroAddress
+      );
+    }
 
     if (!result || !result.txHash) return res.status(500).json({ message: 'Transfer failed' });
 
@@ -490,6 +512,7 @@ router.post('/transfer', async (req, res) => {
     }).catch(() => {});
 
     if (!success) return res.status(400).json({ message: 'Transfer reverted on-chain' });
+    if (success) await bnbLoanMarkPaid();
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /bnb/transfer:', err.message);

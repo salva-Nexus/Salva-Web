@@ -2025,23 +2025,6 @@ const Dashboard = () => {
     }
   }, []);
 
-  const checkAccountLockStatus = useCallback(async () => {
-    if (!user?.email) return;
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.isLocked) {
-        setIsAccountLocked(true);
-        const h = Math.ceil((new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60));
-        setLockMessage(`Account locked for ${h} more hour${h !== 1 ? 's' : ''}`);
-      }
-    } catch {
-      /* ignore */
-    }
-  }, [user?.email]);
 
   const fetchBalance = useCallback(async (address, showSpinner = false) => {
     if (!address) return;
@@ -2082,9 +2065,8 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (!user?.email) return;
-    checkAccountLockStatus();
     fetchMeta();
-  }, [user?.email, checkAccountLockStatus]);
+  }, [user?.email]);
 
   useEffect(() => {
     if (!user?.safeAddress) return;
@@ -3208,7 +3190,8 @@ const Dashboard = () => {
                   <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
                     <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
                     <p className="font-black text-base text-red-400">
-                      {confirmationData.feeNGN > 0
+                      {(confirmationData.coin === 'NGN' || confirmationData.coin === 'CNGN') &&
+                      confirmationData.feeNGN > 0
                         ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
                         : `-${confirmationData.feeUsd} ${confirmationData.coin}`}
                     </p>

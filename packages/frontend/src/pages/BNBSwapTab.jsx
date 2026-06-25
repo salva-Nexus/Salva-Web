@@ -476,6 +476,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     }
   };
 
+  console.log('🔑 Swap safeAddress:', user.safeAddress, 'email:', user.email);
   const executeSwap = async (privateKey, doApproveMax = false) => {
     try {
       // Resolve token addresses from backend config

@@ -191,15 +191,12 @@ async function _deployOnChain({ providerUrl, signerWallet, ownerAddress, chainLa
       await new Promise((r) => setTimeout(r, verifyGapMs));
     }
   }
-
-  if (!verified) {
-    // Tx confirmed on-chain — Safe IS deployed. Public nodes are just lagging.
-    // Do not throw — treat as success to avoid destroying registration.
-    console.warn(
-      `⚠️ [${chainLabel}] getCode returned 0x across all RPCs after ${maxVerifyAttempts} attempts ` +
-        `— tx confirmed so treating as deployed. Node sync lag on testnet.`
-    );
-  }
+if (!verified) {
+  throw new Error(
+    `[${chainLabel}] Safe contract not found at ${safeAddress} after tx confirmation. ` +
+      `Deployment likely failed — Safe factory may not exist on this network.`
+  );
+}
 
   console.log(`✅ [${chainLabel}] Safe verified on-chain: ${safeAddress}`);
 
@@ -267,26 +264,14 @@ async function generateAndDeployBothChains(baseProviderUrl) {
   let bnbFailed = false;
 
   try {
-    if (!process.env.MANAGER_PRIVATE_KEY) {
-      throw new Error('MANAGER_PRIVATE_KEY not set');
-    }
-    const bnbProvider = new ethers.JsonRpcProvider(bnbRpcUrl);
-    const bnbSignerWallet = new ethers.Wallet(process.env.MANAGER_PRIVATE_KEY, bnbProvider);
-
-    const bnbResult = await _deployOnChain({
-      providerUrl: bnbRpcUrl,
-      signerWallet: bnbSignerWallet,
-      ownerAddress: owner.address,
-      chainLabel: 'BNB',
-    });
-
+    const { generateAndDeploySalvaIdentityBNB } = require('./userServiceBNB');
+    const bnbIdentity = await generateAndDeploySalvaIdentityBNB();
     bnb = {
-      safeAddress: bnbResult.safeAddress,
-      deploymentTx: bnbResult.deploymentTx,
-      ownerAddress: owner.address,
-      ownerPrivateKey: owner.privateKey,
+      safeAddress: bnbIdentity.safeAddress,
+      deploymentTx: bnbIdentity.deploymentTx,
+      ownerAddress: bnbIdentity.ownerAddress,
+      ownerPrivateKey: bnbIdentity.ownerPrivateKey,
     };
-
     console.log(`✅ BNB Safe deployed during registration: ${bnb.safeAddress}`);
   } catch (err) {
     console.warn(`⚠️  BNB deployment failed during registration (non-fatal): ${err.message}`);
@@ -297,10 +282,7 @@ async function generateAndDeployBothChains(baseProviderUrl) {
     base,
     bnb,
     bnbFailed,
-    // Only populated when BNB failed — caller stores this encrypted for retry
-    pendingSeed: bnbFailed
-      ? { ownerAddress: owner.address, ownerPrivateKey: owner.privateKey }
-      : null,
+    pendingSeed: null,
   };
 }
 

@@ -157,46 +157,42 @@ async function estimateTransferFee(chain, coin) {
   const isNGN = coin === 'NGN' || coin === 'CNGN';
   const isBNB = chain === 'bnb';
 
-  // Native token price symbol
   const priceSymbol = isBNB ? 'BNBUSDT' : 'ETHUSDT';
 
-  // Fetch crypto price and gas price in parallel
-  const [nativeUSD, gasPrice] = await Promise.all([
+  // Always fetch all three — we always return BOTH feeNGN and feeUSD now
+  const [nativeUSD, gasPrice, usdNGN] = await Promise.all([
     _fetchCryptoUSD(priceSymbol),
     _fetchGasPrice(isBNB),
+    _fetchUSDtoNGN(),
   ]);
 
-  const usdNGN = isNGN ? await _fetchUSDtoNGN() : null;
-
-  // Gas cost in native token (wei)
-  // We always use multisend gas units because every charged transfer
-  // has a treasury leg (fee > 0 means multisend). This is the safe upper bound.
   const gasUnits = GAS_UNITS.multisend;
-  const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice); // in native token wei (BNB or ETH)
-
-  // Gas cost in USD
-  // gasPrice is in wei (1e-18 of native token)
+  const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);
   const gasCostNativeToken = parseFloat(ethers.formatEther(gasCostWei));
   const gasCostUSD = gasCostNativeToken * nativeUSD;
 
-// Apply chain-aware buffer
+  // Chain-aware buffer ONLY — this is the real USD fee, no rate premium baked in
   const feeUSD = gasCostUSD * (isBNB ? BUFFER_BNB : BUFFER_BASE);
+
+  // 8% premium belongs on the USD/NGN RATE, not on the USD fee itself
+  const adjustedUsdNgnRate = usdNGN * 1.08;
+  const feeNGN = feeUSD * adjustedUsdNgnRate;
+  console.log('ADJUSTED RATE: ', adjustedUsdNgnRate);
 
   console.log(
     `⛽ [GasOracle] chain=${chain} coin=${coin} | ` +
       `gasUnits=${gasUnits} gasPrice=${ethers.formatUnits(gasPrice, 'gwei')}gwei | ` +
       `nativeUSD=$${nativeUSD.toFixed(4)} gasCostUSD=$${gasCostUSD.toFixed(6)} feeUSD=$${feeUSD.toFixed(6)}`
   );
+  console.log(
+    `💱 [GasOracle] USD/NGN=${usdNGN.toFixed(2)} (+8%=${adjustedUsdNgnRate.toFixed(2)}) | feeNGN=₦${feeNGN.toFixed(2)}`
+  );
 
-  // Token decimals:
-  //   Base — ALL tokens (NGNs, cNGN, USDT, USDC) are deployed with 6 decimals. Hardcoded.
-  //   BNB  — fetch live from PoolFactory.tokenDecimal() so we never assume.
-  let decimals = 6; // Base default and safe fallback
+  let decimals = 6;
   if (isBNB) {
     try {
       const { getL1TokenDecimals } = require('../utils/l1Decimals');
       const isProd = process.env.NODE_ENV === 'production';
-      // Pick the correct token address for this coin to query factory
       const coinEnvKey = {
         NGN: isProd ? 'L1_NGN_TOKEN_ADDRESS' : 'L1_BSC_NGN_TOKEN_ADDRESS',
         CNGN: isProd ? 'L1_CNGN_CONTRACT_ADDRESS' : 'L1_BSC_CNGN_CONTRACT_ADDRESS',
@@ -217,40 +213,19 @@ async function estimateTransferFee(chain, coin) {
     }
   }
 
-  if (isNGN) {
-    // Convert USD fee → NGN
-    const feeNGN = feeUSD * usdNGN;
-    // Round up to 2 decimal places — never short-change
-    const feeNGNRounded = Math.ceil(feeNGN * 1e2) / 1e2;
-    const feeWei = ethers.parseUnits(feeNGNRounded.toFixed(decimals), decimals);
+  const feeNGNRounded = Math.ceil(feeNGN * 1e2) / 1e2;
+  const feeUSDRounded = Math.ceil(feeUSD * 1e6) / 1e6;
 
-    console.log(
-      `💱 [GasOracle] USD/NGN=${usdNGN.toFixed(2)} | ` +
-        `feeNGN=₦${feeNGNRounded.toFixed(2)} feeWei=${feeWei} decimals=${decimals}`
-    );
+  const feeWei = isNGN
+    ? ethers.parseUnits(feeNGNRounded.toFixed(decimals), decimals)
+    : ethers.parseUnits(feeUSDRounded.toFixed(decimals), decimals);
 
-    return {
-      feeUSD: 0,
-      feeNGN: feeNGNRounded,
-      feeWei,
-      decimals,
-    };
-  } else {
-    // USD token — keep fee in USD, round up to token precision
-    const feeUSDRounded = Math.ceil(feeUSD * 1e6) / 1e6;
-    const feeWei = ethers.parseUnits(feeUSDRounded.toFixed(decimals), decimals);
-
-    console.log(
-      `💵 [GasOracle] feeUSD=$${feeUSDRounded.toFixed(6)} feeWei=${feeWei} decimals=${decimals}`
-    );
-
-    return {
-      feeUSD: feeUSDRounded,
-      feeNGN: 0,
-      feeWei,
-      decimals,
-    };
-  }
+  return {
+    feeUSD: feeUSDRounded,
+    feeNGN: feeNGNRounded,
+    feeWei,
+    decimals,
+  };
 }
 
 // ── Warm the cache on startup (non-fatal) ─────────────────────────────────────
@@ -294,8 +269,12 @@ async function estimatePoolFee(chain) {
   const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);
   const gasCostNativeToken = parseFloat(ethers.formatEther(gasCostWei));
   const gasCostUSD = gasCostNativeToken * nativeUSD;
+  // Chain-aware buffer ONLY — real USD fee, no rate premium baked in
   const rawFeeUSD = gasCostUSD * (isBNB ? BUFFER_BNB : BUFFER_BASE);
-  const rawFeeNGN = rawFeeUSD * usdNGN;
+  // 8% premium belongs on the USD/NGN RATE, not on the USD fee itself
+  const adjustedUsdNgnRate = usdNGN * 1.08;
+  const rawFeeNGN = rawFeeUSD * adjustedUsdNgnRate;
+  console.log('ADJUSTED RATE: ', adjustedUsdNgnRate);
 
   console.log(
     `⛽ [GasOracle/pool] chain=${chain} | gasPrice=${ethers.formatUnits(gasPrice, 'gwei')}gwei | ` +

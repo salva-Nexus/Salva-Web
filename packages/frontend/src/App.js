@@ -10,7 +10,6 @@ import Transactions from './pages/Transactions';
 import SetTransactionPin from './pages/SetTransactionPin';
 import AccountSettings from './pages/AccountSettings';
 import BNBDashboard from './pages/BNBDashboard';
-import BNBSetPin from './pages/BNBSetPin';
 import BNBDeployWallet from './pages/BNBDeployWallet';
 
 const LoadingSpinner = () => (
@@ -52,7 +51,6 @@ function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/bnb" element={<BNBDashboard />} />
-            <Route path="/bnb/set-pin" element={<BNBSetPin />} />
             <Route path="/bnb/deploy-wallet" element={<BNBDeployWallet />} />
             <Route
               path="/dashboard"

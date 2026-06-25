@@ -125,7 +125,7 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 function sanitizeObject(obj) {
   if (typeof obj !== 'object' || obj === null) return obj;
 
-  const sanitized = Array.isArray(obj) ? [] : Object.create(null);
+  const sanitized = Array.isArray(obj) ? [] : {};
 
   for (const key of Object.keys(obj)) {
     if (
@@ -652,11 +652,12 @@ async function resolvePoolFeeToken(chain, safeAddress, feeNGN, feeUSD, feeWeiNGN
     try {
       let decimals = 6; // Base hardcoded; BNB fetched
       if (isBNB) {
+        const isNgnToken = candidate.isNGN === true;
         try {
           const { getL1TokenDecimals } = require('./utils/l1Decimals');
           decimals = await getL1TokenDecimals(candidate.address);
         } catch {
-          decimals = 6;
+          decimals = isNgnToken ? 6 : 18;
         }
       }
 
@@ -698,11 +699,27 @@ async function getPoolOperationFee(chain) {
     console.error('❌ [getPoolOperationFee] Gas oracle failed, using fallback:', err.message);
     const isProd = process.env.NODE_ENV === 'production';
     const isBNB = chain === 'bnb';
-    // Fallback minimums — same conservative values as transfer
     const feeNGN = isBNB ? 25 : 10;
     const feeUSD = isBNB ? 0.02 : 0.0075;
-    const ngnDecimals = 6;
-    const usdDecimals = 6;
+    let ngnDecimals = 6;
+    let usdDecimals = 6;
+    if (isBNB) {
+      try {
+        const { getL1TokenDecimals } = require('./utils/l1Decimals');
+        const isProd = process.env.NODE_ENV === 'production';
+        const ngnAddr = isProd
+          ? process.env.L1_NGN_TOKEN_ADDRESS
+          : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+        const usdAddr = isProd
+          ? process.env.L1_USDT_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
+        if (ngnAddr) ngnDecimals = await getL1TokenDecimals(ngnAddr);
+        if (usdAddr) usdDecimals = await getL1TokenDecimals(usdAddr);
+      } catch {
+        ngnDecimals = 6; // NGNs/cNGN on BNB are 6 decimals
+        usdDecimals = 18; // USDT/USDC on BNB are 18 decimals
+      }
+    }
     return {
       feeNGN,
       feeUSD,
@@ -749,6 +766,7 @@ async function getFeeForTransfer(chain, coin) {
             : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
           if (tokenAddr) decimals = await getL1TokenDecimals(tokenAddr);
         } catch (e) {
+          decimals = 6; // NGNs/cNGN on BNB are 6 decimals
           console.warn('⚠️ Fallback decimals fetch failed, using 6:', e.message);
         }
       }
@@ -773,7 +791,8 @@ async function getFeeForTransfer(chain, coin) {
           const tokenAddr = process.env[usdEnvKey];
           if (tokenAddr) decimals = await getL1TokenDecimals(tokenAddr);
         } catch (e) {
-          console.warn('⚠️ Fallback decimals fetch failed, using 6:', e.message);
+          decimals = 18; // USDT/USDC on BNB are 18 decimals
+          console.warn('⚠️ Fallback decimals fetch failed, using 18:', e.message);
         }
       }
       const feeWei = ethers.parseUnits(fallbackUsd, decimals);
@@ -1089,6 +1108,24 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
       ownerPrivateKey: base.ownerPrivateKey,
     });
 
+    // Record deployment loan — gas cost user owes for their Safe deployment
+    // Calculated silently; repaid automatically on next transaction
+    try {
+      const { estimateTransferFee } = require('./services/gasOracle');
+      const baseLoan = await estimateTransferFee('base', 'NGN').catch(() => ({
+        feeNGN: 10,
+        feeUSD: 0.0075,
+      }));
+      newUser.deploymentLoanNGN = baseLoan.feeNGN ?? 10;
+      newUser.deploymentLoanUSD = baseLoan.feeUSD ?? 0.0075;
+      newUser.hasPaidDeploymentLoan = false;
+    } catch (loanErr) {
+      // Non-fatal — default to conservative fallback
+      newUser.deploymentLoanNGN = 10;
+      newUser.deploymentLoanUSD = 0.0075;
+      newUser.hasPaidDeploymentLoan = false;
+      console.warn('⚠️ Could not estimate deployment loan fee:', loanErr.message);
+    }
     await newUser.save();
     console.log(`✅ User saved: ${email}`);
 
@@ -1113,13 +1150,27 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
 
         const existingBNB = await UserBNB.findOne({ email: newUser.email });
         if (!existingBNB) {
+          let bnbRegLoanNGN = 25;
+          let bnbRegLoanUSD = 0.02;
+          try {
+            const { estimateTransferFee } = require('./services/gasOracle');
+            const bl = await estimateTransferFee('bnb', 'NGN').catch(() => null);
+            if (bl) {
+              bnbRegLoanNGN = bl.feeNGN ?? 25;
+              bnbRegLoanUSD = bl.feeUSD ?? 0.02;
+            }
+          } catch {
+            /* non-fatal */
+          }
+
           const newUserBNB = new UserBNB({
             email: newUser.email,
             username: newUser.username,
             safeAddress: bnb.safeAddress,
-            // Store raw private key — BNB PIN setup (BNBSetPin) will encrypt it
-            // exactly like BNBDeployWallet does today, maintaining the same flow.
             ownerPrivateKey: bnb.ownerPrivateKey,
+            deploymentLoanNGN: bnbRegLoanNGN,
+            deploymentLoanUSD: bnbRegLoanUSD,
+            hasPaidDeploymentLoan: false,
           });
           await newUserBNB.save();
           console.log(`✅ UserBNB record created during registration: ${bnb.safeAddress}`);
@@ -1938,10 +1989,10 @@ app.get('/api/l1-balance/:address', async (req, res) => {
     };
 
     const [ngnsBalance, cNgnBalance, usdtBalance, usdcBalance] = await Promise.all([
-      fetchTokenBalance(NGN_ADDRESS, 18),
-      fetchTokenBalance(CNGN_ADDRESS, 18),
-      fetchTokenBalance(USDT_ADDRESS, 6),
-      fetchTokenBalance(USDC_ADDRESS, 6),
+      fetchTokenBalance(NGN_ADDRESS, 6), // NGNs on BNB: 6 decimals
+      fetchTokenBalance(CNGN_ADDRESS, 6), // cNGN on BNB: 6 decimals
+      fetchTokenBalance(USDT_ADDRESS, 18), // USDT on BNB: 18 decimals
+      fetchTokenBalance(USDC_ADDRESS, 18), // USDC on BNB: 18 decimals
     ]);
 
     return res.json({ ngnsBalance, cNgnBalance, usdtBalance, usdcBalance });
@@ -2252,8 +2303,12 @@ app.post('/api/transfer', async (req, res) => {
         const { getL1TokenDecimals } = require('./utils/l1Decimals');
         decimals = await getL1TokenDecimals(tokenAddress);
       } catch (e) {
-        console.warn('⚠️ Could not fetch BNB token decimals, using fallback 6:', e.message);
-        decimals = 6;
+        const isNgnCoin = coin === 'NGN' || coin === 'CNGN';
+        decimals = isNgnCoin ? 6 : 18;
+        console.warn(
+          `⚠️ Could not fetch BNB token decimals, using fallback ${decimals}:`,
+          e.message
+        );
       }
     }
 
@@ -2895,6 +2950,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
 
         let result;
         let broadcastChain = 'base';
+        let loanMarkPaid = async () => {};
         try {
           // Fallback: if chain not tagged (pre-fix entries), detect from DB
           let chain = claimed.payload.chain;
@@ -2917,6 +2973,40 @@ app.post('/api/queue/process/:address', async (req, res) => {
           }
           broadcastChain = chain;
           console.log(`🔗 Processing queue entry for chain: ${chain} | safe: ${safeAddress}`);
+          // ── Silently attempt deployment loan repayment ──────────────────────
+          if (chain !== 'bnb') {
+            try {
+              const { checkAndBuildLoanRepayment } = require('./utils/loanRepayment');
+              const baseRpc =
+                process.env.NODE_ENV === 'production'
+                  ? process.env.BASE_MAINNET_RPC_URL
+                  : process.env.BASE_SEPOLIA_RPC_URL;
+              const baseProv = new ethers.JsonRpcProvider(baseRpc);
+              const baseUserDoc = await User.findOne({
+                safeAddress: claimed.payload.safeAddress?.toLowerCase(),
+              });
+              if (baseUserDoc && !baseUserDoc.hasPaidDeploymentLoan) {
+                const loan = await checkAndBuildLoanRepayment(
+                  'base',
+                  claimed.payload.safeAddress,
+                  baseUserDoc,
+                  baseProv
+                );
+                if (loan.repayCalldata) {
+                  // Inject into the existing MultiSend by encoding alongside the transfer
+                  claimed.payload._loanRepayCalldata = loan.repayCalldata;
+                  loanMarkPaid = loan.markPaid;
+                }
+              }
+            } catch (loanErr) {
+              console.warn(
+                '⚠️ [loanRepayment] Non-fatal error during Base loan check:',
+                loanErr.message
+              );
+            }
+          }
+          // ────────────────────────────────────────────────────────────────────
+
           if (chain === 'bnb') {
             const { sponsorBNBTransfer } = require('./services/relayServiceBNB');
             const isProd = process.env.NODE_ENV === 'production';
@@ -2933,14 +3023,75 @@ app.post('/api/queue/process/:address', async (req, res) => {
               treasury
             );
           } else {
-            result = await sponsorSafeTransfer(
-              safeAddress,
-              userPrivateKey,
-              recipientAddress,
-              BigInt(actualAmountWei),
-              BigInt(actualFeeWei),
-              tokenAddress
-            );
+            // If a loan repayment leg was prepared, use a custom MultiSend
+            // that bundles: transfer + treasury fee + loan repayment
+            const loanLeg = claimed.payload._loanRepayCalldata;
+            if (loanLeg) {
+              const { _executeViaSafeBase } = require('./services/relayService');
+              const MULTISEND_ADDR_QUEUE = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
+              const ERC20_IFACE_Q = new ethers.Interface([
+                'function transfer(address to, uint256 amount) returns (bool)',
+              ]);
+              const MULTISEND_IFACE_Q = new ethers.Interface([
+                'function multiSend(bytes memory transactions) public payable',
+              ]);
+              function _encMSTx(to, data) {
+                const db = ethers.getBytes(data);
+                const buf = new Uint8Array(1 + 20 + 32 + 32 + db.length);
+                let o = 0;
+                buf[o++] = 0;
+                ethers.getBytes(ethers.getAddress(to)).forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(0n), 32))
+                  .forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(db.length), 32))
+                  .forEach((b) => (buf[o++] = b));
+                db.forEach((b) => (buf[o++] = b));
+                return buf;
+              }
+              const TREASURY_Q = process.env.TREASURY_CONTRACT_ADDRESS;
+              const calls = [
+                _encMSTx(
+                  tokenAddress,
+                  ERC20_IFACE_Q.encodeFunctionData('transfer', [
+                    recipientAddress,
+                    BigInt(actualAmountWei),
+                  ])
+                ),
+                ...(BigInt(actualFeeWei) > 0n && TREASURY_Q
+                  ? [
+                      _encMSTx(
+                        tokenAddress,
+                        ERC20_IFACE_Q.encodeFunctionData('transfer', [
+                          TREASURY_Q,
+                          BigInt(actualFeeWei),
+                        ])
+                      ),
+                    ]
+                  : []),
+                _encMSTx(loanLeg.to, loanLeg.data),
+              ];
+              const msData = MULTISEND_IFACE_Q.encodeFunctionData('multiSend', [
+                ethers.concat(calls),
+              ]);
+              result = await _executeViaSafeBase(
+                safeAddress,
+                userPrivateKey,
+                MULTISEND_ADDR_QUEUE,
+                msData,
+                1
+              );
+            } else {
+              result = await sponsorSafeTransfer(
+                safeAddress,
+                userPrivateKey,
+                recipientAddress,
+                BigInt(actualAmountWei),
+                BigInt(actualFeeWei),
+                tokenAddress
+              );
+            }
           }
         } catch (broadcastErr) {
           console.error(`❌ Broadcast failed for ${safeAddress}: ${broadcastErr.message}`);
@@ -3045,6 +3196,7 @@ app.post('/api/queue/process/:address', async (req, res) => {
         }).save();
 
         if (taskStatus.success) {
+          await loanMarkPaid().catch((e) => console.error('⚠️ loanMarkPaid failed (non-fatal):', e.message));
           await TransactionQueue.deleteOne({ _id: claimed._id });
           await applyCooldown(safeAddress, 20);
           console.log(`✅ Processed and removed: ${result.txHash}`);

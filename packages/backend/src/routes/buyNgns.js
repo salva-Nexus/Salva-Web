@@ -577,7 +577,9 @@ router.post('/confirm-mint', async (req, res) => {
 
     const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
-    const decimals = isL1 ? await getL1TokenDecimals(ngnTokenAddress) : await ngnToken.decimals();
+    const decimals = isL1
+      ? await getL1TokenDecimals(ngnTokenAddress).catch(() => 6)
+      : await ngnToken.decimals();
     const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
 
     const networkLabel = isL1 ? (isProd ? 'BNB Mainnet' : 'BNB Testnet') : 'Base Mainnet';
@@ -880,7 +882,9 @@ router.post('/initiate-sell', async (req, res) => {
 
     const signer = getBackendSigner(isL1);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_BURN_ABI, signer);
-    const decimals = isL1 ? await getL1TokenDecimals(ngnTokenAddress) : await ngnToken.decimals();
+    const decimals = isL1
+      ? await getL1TokenDecimals(ngnTokenAddress).catch(() => 6)
+      : await ngnToken.decimals();
     const balanceWei = await ngnToken.balanceOf(burnTarget);
     const balanceHuman = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
@@ -1234,7 +1238,7 @@ router.post('/mark-minted', async (req, res) => {
     const signer = getBackendSigner(isL1Req);
     const ngnToken = new ethers.Contract(ngnTokenAddress, ERC20_MINT_ABI, signer);
     const decimals = isL1Req
-      ? await getL1TokenDecimals(ngnTokenAddress)
+      ? await getL1TokenDecimals(ngnTokenAddress).catch(() => 6)
       : await ngnToken.decimals();
     const mintAmt = ethers.parseUnits(mintRequest.mintAmountNgn.toString(), decimals);
 

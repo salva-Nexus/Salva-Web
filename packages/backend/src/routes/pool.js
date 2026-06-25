@@ -72,15 +72,29 @@ async function _getPoolFee(chain) {
   } catch (err) {
     console.error(`❌ [pool fee] estimatePoolFee failed, using fallback:`, err.message);
     const isBNB = chain === 'bnb';
-    const feeNGN = isBNB ? 50 : 20;
-    const feeUSD = isBNB ? 0.04 : 0.015;
+    const feeNGN = isBNB ? 25 : 10;
+    const feeUSD = isBNB ? 0.02 : 0.0075;
+    let ngnDecimals = 6;
+    let usdDecimals = 6;
+    if (isBNB) {
+      try {
+        const isProd = process.env.NODE_ENV === 'production';
+        const ngnAddr = isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+        const usdAddr = isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
+        if (ngnAddr) ngnDecimals = await getL1TokenDecimals(ethers.getAddress(ngnAddr));
+        if (usdAddr) usdDecimals = await getL1TokenDecimals(ethers.getAddress(usdAddr));
+      } catch {
+        ngnDecimals = 6;
+        usdDecimals = 18;
+      }
+    }
     return {
       feeNGN,
       feeUSD,
-      feeWeiNGN: ethers.parseUnits(feeNGN.toFixed(6), 6),
-      feeWeiUSD: ethers.parseUnits(feeUSD.toFixed(6), 6),
-      ngnDecimals: 6,
-      usdDecimals: 6,
+      feeWeiNGN: ethers.parseUnits(feeNGN.toFixed(ngnDecimals), ngnDecimals),
+      feeWeiUSD: ethers.parseUnits(feeUSD.toFixed(usdDecimals), usdDecimals),
+      ngnDecimals,
+      usdDecimals,
     };
   }
 }
@@ -118,9 +132,12 @@ async function _resolveFeeToken(chain, safeAddress, feeNGN, feeUSD, feeWeiNGN, f
     if (!c.address) continue;
     try {
       // Decimals: Base hardcoded 6, BNB fetched from factory (cached)
-      let decimals = 6;
+      let decimals = 6; // Base: hardcoded 6
       if (isBNB) {
-        decimals = await getL1TokenDecimals(ethers.getAddress(c.address)).catch(() => 6);
+        const isNgnToken = c.symbol === 'NGNs' || c.symbol === 'cNGN';
+        decimals = await getL1TokenDecimals(ethers.getAddress(c.address)).catch(() =>
+          isNgnToken ? 6 : 18
+        );
       }
       const contract = new ethers.Contract(ethers.getAddress(c.address), ERC20_BAL_ABI, checkProvider);
       const bal = await contract.balanceOf(ethers.getAddress(safeAddress));
@@ -232,10 +249,10 @@ async function fetchPoolOnChain(poolAddress, isL1 = false) {
     // L1: tokens were sent via raw transfer — read balanceOf on each token contract
     // Fetch decimals from PoolFactory (BSC testnet or mainnet depending on NODE_ENV)
     const [ngnsDecimals, cNgnDecimals, usdtDecimals, usdcDecimals] = await Promise.all([
-      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 18) : Promise.resolve(18),
-      cNgnAddr ? getL1TokenDecimals(cNgnAddr).catch(() => 18) : Promise.resolve(18),
-      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18),
-      usdcAddr ? getL1TokenDecimals(usdcAddr).catch(() => 18) : Promise.resolve(18),
+      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 6) : Promise.resolve(6), // NGNs: 6
+      cNgnAddr ? getL1TokenDecimals(cNgnAddr).catch(() => 6) : Promise.resolve(6), // cNGN: 6
+      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18), // USDT: 18
+      usdcAddr ? getL1TokenDecimals(usdcAddr).catch(() => 18) : Promise.resolve(18), // USDC: 18
     ]);
 
     const settled = await Promise.allSettled([
@@ -1263,9 +1280,14 @@ router.post('/swap', async (req, res) => {
           // amountWei IS the desired output — scale using actual L1 output token decimals
           const isExactOutNgn = swapFn === 'swapForExactNGNAmount';
           const exactOutTokenAddr = isExactOutNgn ? cleanNgn : cleanStable;
+          const isExactOutNgnToken = isExactOutNgn; // NGNs/cNGN=6, USDT/USDC=18
           const exactOutDec = exactOutTokenAddr
-            ? await getL1TokenDecimals(ethers.getAddress(exactOutTokenAddr)).catch(() => 6)
-            : 6;
+            ? await getL1TokenDecimals(ethers.getAddress(exactOutTokenAddr)).catch(() =>
+                isExactOutNgnToken ? 6 : 18
+              )
+            : isExactOutNgnToken
+              ? 6
+              : 18;
           l1OutputAmountHuman = ethers.formatUnits(BigInt(amountWei), exactOutDec);
         } else {
           // exact_in: amountWei = input, output is unknown without events
@@ -1820,8 +1842,8 @@ router.post('/delete-direct', async (req, res) => {
 
     // Fetch actual token decimals from PoolFactory for threshold comparison
     const [ngnsDecForGate, usdtDecForGate] = await Promise.all([
-      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 18) : Promise.resolve(18),
-      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18),
+      ngnsAddr ? getL1TokenDecimals(ngnsAddr).catch(() => 6) : Promise.resolve(6), // NGNs: 6
+      usdtAddr ? getL1TokenDecimals(usdtAddr).catch(() => 18) : Promise.resolve(18), // USDT: 18
     ]);
 
     const MAX_NGN = ethers.parseUnits('1000', ngnsDecForGate);
@@ -2408,9 +2430,15 @@ router.post('/l1/swap', async (req, res) => {
             swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount'
               ? cleanStable
               : cleanNgn;
+          const isOutNgn =
+            swapFn === 'swapExactUSDAmountForNGN' || swapFn === 'swapForExactNGNAmount';
           const outDec = outTokenAddr
-            ? await getL1TokenDecimals(ethers.getAddress(outTokenAddr)).catch(() => 6)
-            : 6;
+            ? await getL1TokenDecimals(ethers.getAddress(outTokenAddr)).catch(() =>
+                isOutNgn ? 6 : 18
+              )
+            : isOutNgn
+              ? 6
+              : 18;
           l1OutputAmountHuman = ethers.formatUnits(l1QuoteWei, outDec);
         }
       }
@@ -2795,21 +2823,32 @@ router.post('/l1/subscribe', async (req, res) => {
 
     const validMonths = [1, 2, 6, 12];
     const m = Number(months);
-    if (!validMonths.includes(m)) return res.status(400).json({ message: 'months must be 1, 2, 6, or 12' });
+    if (!validMonths.includes(m))
+      return res.status(400).json({ message: 'months must be 1, 2, 6, or 12' });
 
     const { PoolL1 } = getL1Models();
-    const pool = await PoolL1.findOne({ poolAddress: cleanPool, ownerSafeAddress: cleanOwner, deleted: false });
+    const pool = await PoolL1.findOne({
+      poolAddress: cleanPool,
+      ownerSafeAddress: cleanOwner,
+      deleted: false,
+    });
     if (!pool) return res.status(404).json({ message: 'L1 Pool not found' });
 
     const TIER_PRICES = { 1: 3000, 2: 6000, 6: 18000, 12: 36000 };
     const totalFee = TIER_PRICES[m];
     const isProd = process.env.NODE_ENV === 'production';
-    const ngnAddr = cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
-    const treasury = cleanAddr(isProd ? process.env.L1_TREASURY_CONTRACT_ADDRESS : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS);
+    const ngnAddr = cleanAddr(
+      isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+    );
+    const treasury = cleanAddr(
+      isProd
+        ? process.env.L1_TREASURY_CONTRACT_ADDRESS
+        : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS
+    );
     if (!ngnAddr) return res.status(500).json({ message: 'L1 NGNs token address not configured' });
     if (!treasury) return res.status(500).json({ message: 'L1 treasury address not configured' });
 
-    const decimals = await getL1TokenDecimals(ethers.getAddress(ngnAddr)).catch(() => 18);
+    const decimals = await getL1TokenDecimals(ethers.getAddress(ngnAddr)).catch(() => 6); // NGNs on BNB: 6
     const feeWei = ethers.parseUnits(String(totalFee), decimals);
 
     const ERC20_IFACE = new ethers.Interface([
@@ -2826,26 +2865,49 @@ router.post('/l1/subscribe', async (req, res) => {
       transferCalldata,
       0
     );
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Subscription payment failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Subscription payment failed to broadcast' });
 
     const l1Rpc = isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Subscription payment reverted' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Subscription payment reverted' });
 
     const now = new Date();
-    const base = pool.subscriptionExpiresAt && pool.subscriptionExpiresAt > now ? pool.subscriptionExpiresAt : now;
-    function addMonths(date, n) { const d = new Date(date); d.setMonth(d.getMonth() + n); return d; }
+    const base =
+      pool.subscriptionExpiresAt && pool.subscriptionExpiresAt > now
+        ? pool.subscriptionExpiresAt
+        : now;
+    function addMonths(date, n) {
+      const d = new Date(date);
+      d.setMonth(d.getMonth() + n);
+      return d;
+    }
     const newExpiry = addMonths(base, m);
 
     const { PoolSubL1 } = getL1Models();
-    await PoolSubL1.create({ poolAddress: cleanPool, ownerSafeAddress: cleanOwner, months: m, amountPaid: totalFee, txHash: result.txHash, startedAt: base, expiresAt: newExpiry });
+    await PoolSubL1.create({
+      poolAddress: cleanPool,
+      ownerSafeAddress: cleanOwner,
+      months: m,
+      amountPaid: totalFee,
+      txHash: result.txHash,
+      startedAt: base,
+      expiresAt: newExpiry,
+    });
     pool.subscriptionExpiresAt = newExpiry;
     pool.isPublished = true;
     pool.totalSubscribedMonths = (pool.totalSubscribedMonths || 0) + m;
     await pool.save();
 
-    res.json({ success: true, txHash: result.txHash, subscriptionExpiresAt: newExpiry, totalFee, months: m });
+    res.json({
+      success: true,
+      txHash: result.txHash,
+      subscriptionExpiresAt: newExpiry,
+      totalFee,
+      months: m,
+    });
   } catch (err) {
     console.error('❌ /pool/l1/subscribe:', err.message);
     res.status(500).json({ message: err.message });
@@ -2933,3 +2995,5 @@ router.post('/l1/deploy', async (req, res) => {
 });
 
 module.exports = router;
+
+// This is the new one

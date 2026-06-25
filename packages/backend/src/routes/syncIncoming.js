@@ -34,6 +34,7 @@ const router = express.Router();
 
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const { sendTransactionEmailToReceiver } = require('../services/emailService');
 
 // ── ERC20 Transfer(address indexed from, address indexed to, uint256 value) ──
@@ -372,6 +373,7 @@ async function runSync(safeAddress, chain) {
     `🔍 sync-incoming: address=${safeAddress} chain=${chain} rpc=${logsRpcUrl.replace(/\/\/.*@/, '//***@')}`
   );
 
+  if (mongoose.connection.readyState !== 1) return { synced: 0, reason: 'db not ready' };
   let recipient = await User.findOne({ safeAddress }).catch(() => null);
   if (!recipient && chain === 'bnb') {
     try {
