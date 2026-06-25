@@ -1125,13 +1125,11 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
           console.log(`✅ UserBNB record created during registration: ${bnb.safeAddress}`);
         }
       } catch (bnbSaveErr) {
-        // Non-fatal — BNB wallet is deployed on-chain but DB record failed.
-        // The on-chain Safe is already live with the matching keypair.
-        // On next BNB dashboard visit, pendingBNBDeploy is gone (since bnb succeeded)
-        // so /api/bnb/register will do a fresh deploy — this is the only acceptable
-        // degraded path. Log clearly.
+        // UserBNB DB save failed — nothing was stored, so nothing to clean up.
+        // User will redeploy BNB wallet from the BNB dashboard.
+        // The on-chain Safe is deployed but without a DB record it is unreachable — acceptable.
         console.warn(
-          `⚠️  UserBNB record creation failed after successful on-chain deploy: ${bnbSaveErr.message}`
+          `⚠️ UserBNB record creation failed (user will redeploy from BNB dashboard): ${bnbSaveErr.message}`
         );
       }
     }
@@ -2531,8 +2529,19 @@ app.post('/api/user/set-pin', authLimiter, async (req, res) => {
         }
       }
     } catch (bnbPinErr) {
-      // Non-fatal — user will be prompted to set BNB PIN separately on first BNB visit
-      console.warn(`⚠️ Could not auto-set BNB PIN: ${bnbPinErr.message}`);
+      // L1DB unavailable — UserBNB was saved with a raw key during registration.
+      // Delete it now so no plaintext key sits in the DB.
+      // User will redeploy their BNB wallet from the BNB dashboard.
+      console.error(`❌ BNB auto-encrypt failed: ${bnbPinErr.message}`);
+      try {
+        const l1db = require('./services/l1db');
+        const UserBNBSchema = require('./models/UserBNB');
+        const UserBNB = l1db.models.UserBNB || l1db.model('UserBNB', UserBNBSchema);
+        await UserBNB.deleteOne({ email: sanitizedEmail });
+        console.warn(`🧹 UserBNB deleted (raw key cleanup) for: ${sanitizedEmail}`);
+      } catch (cleanupErr) {
+        console.error(`❌ CRITICAL: Could not delete UserBNB with raw key for: ${sanitizedEmail} — ${cleanupErr.message}`);
+      }
     }
 
     res.json({ success: true, message: 'Transaction PIN set successfully!' });

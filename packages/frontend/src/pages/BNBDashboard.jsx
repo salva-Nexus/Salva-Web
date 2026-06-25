@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 import NetworkReminder from '../components/NetworkReminder';
 import BNBDeployWallet from './BNBDeployWallet';
-import BNBSetPin from './BNBSetPin';
 import SalvaNGNsChatBNB from '../components/SalvaNGNsChatBNB';
 import SalvaSellerChat from '../components/SalvaSellerChat';
 import BNBDeployPool from './BNBDeployPool';
@@ -2511,11 +2510,13 @@ const Dashboard = () => {
   }
 
   if (deployState === 'need_pin') {
+    // Should never happen — UserBNB is either fully encrypted or doesn't exist.
+    // Treat as need_deploy so user redeploys cleanly.
     return (
-      <BNBSetPin
-        onPinSet={() => {
-          const saved = JSON.parse(localStorage.getItem('bnb_user') || '{}');
-          setUser(saved);
+      <BNBDeployWallet
+        user={baseUser}
+        onDeployed={(bnbUser) => {
+          setUser(bnbUser);
           setDeployState('ready');
         }}
       />
