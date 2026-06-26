@@ -28,6 +28,18 @@ async function generateAndDeploySalvaIdentity(providerUrl) {
     predictedSafe,
   });
 
+  console.log(protocolKit);
+
+  console.log(await protocolKit.getAddress());
+
+  const deployTx = await protocolKit.createSafeDeploymentTransaction();
+
+  console.log(deployTx);
+
+  const receipt = await tx.wait();
+
+  console.log(receipt.logs);
+
   const safeAddress = await protocolKit.getAddress();
   console.log('📍 Safe Address (pre-deployment):', safeAddress);
 
@@ -128,20 +140,12 @@ async function _deployOnChain({ providerUrl, signerWallet, ownerAddress, chainLa
   let verifyRpcUrls;
 
   if (chainLabel === 'BNB') {
-    const alchemy = isProdEnv
-      ? process.env.BNB_MAINNET_RPC_URL
-      : process.env.BNB_TESTNET_RPC_URL; // This IS Alchemy on testnet? No — it's public seed node.
+    const alchemy = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL; // This IS Alchemy on testnet? No — it's public seed node.
     // Always try Alchemy mainnet-style URL first if available, then public fallback
     verifyRpcUrls = [
-      isProdEnv
-        ? process.env.BNB_MAINNET_RPC_URL
-        : 'https://bsc-testnet-rpc.publicnode.com', // publicnode is faster than data-seed
-      isProdEnv
-        ? 'https://bsc-dataseed1.bnbchain.org'
-        : 'https://bsc-testnet.bnbchain.org',
-      isProdEnv
-        ? 'https://bsc-dataseed2.bnbchain.org'
-        : process.env.BNB_TESTNET_RPC_URL, // data-seed as last resort
+      isProdEnv ? process.env.BNB_MAINNET_RPC_URL : 'https://bsc-testnet-rpc.publicnode.com', // publicnode is faster than data-seed
+      isProdEnv ? 'https://bsc-dataseed1.bnbchain.org' : 'https://bsc-testnet.bnbchain.org',
+      isProdEnv ? 'https://bsc-dataseed2.bnbchain.org' : process.env.BNB_TESTNET_RPC_URL, // data-seed as last resort
     ].filter(Boolean);
   } else {
     verifyRpcUrls = [
@@ -166,9 +170,7 @@ async function _deployOnChain({ providerUrl, signerWallet, ownerAddress, chainLa
         const vProvider = new ethers.JsonRpcProvider(rpcUrl);
         code = await Promise.race([
           vProvider.getCode(safeAddress),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('getCode timeout')), 5000)
-          ),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('getCode timeout')), 5000)),
         ]);
         if (code !== '0x') {
           verified = true;
@@ -191,12 +193,12 @@ async function _deployOnChain({ providerUrl, signerWallet, ownerAddress, chainLa
       await new Promise((r) => setTimeout(r, verifyGapMs));
     }
   }
-if (!verified) {
-  throw new Error(
-    `[${chainLabel}] Safe contract not found at ${safeAddress} after tx confirmation. ` +
-      `Deployment likely failed — Safe factory may not exist on this network.`
-  );
-}
+  if (!verified) {
+    throw new Error(
+      `[${chainLabel}] Safe contract not found at ${safeAddress} after tx confirmation. ` +
+        `Deployment likely failed — Safe factory may not exist on this network.`
+    );
+  }
 
   console.log(`✅ [${chainLabel}] Safe verified on-chain: ${safeAddress}`);
 
@@ -222,7 +224,7 @@ if (!verified) {
 async function generateAndDeployBothChains(baseProviderUrl) {
   // ── 1. Generate ONE keypair shared across both chains ─────────────────────
   const owner = ethers.Wallet.createRandom();
-  console.log(`✅ Shared keypair generated.`);
+  console.log('✅ Salva Identity owner generated.');
 
   // ── 2. Deploy BASE — failure here is fatal, kills registration ───────────
   let baseResult;

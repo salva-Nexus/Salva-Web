@@ -220,26 +220,26 @@ async function getLogsChunk(provider, filter, chain, chunkStart, chunkEnd, maxRe
       if (isTransient && attempt < maxRetries - 1) {
         // Exponential backoff: 2s → 4s → 8s → 16s
         const delay = 2000 * Math.pow(2, attempt);
-        console.warn(
-          `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} attempt ${attempt + 1}/${maxRetries} ` +
-            `failed (${err.message?.slice(0, 60)}) — retrying in ${delay}ms`
-        );
+        // console.warn(
+        //   `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} attempt ${attempt + 1}/${maxRetries} ` +
+        //     `failed (${err.message?.slice(0, 60)}) — retrying in ${delay}ms`
+        // );
         await sleep(delay);
         continue;
       }
 
       // Non-transient or exhausted retries — log and skip this chunk
-      console.warn(
-        `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} skipped after ${attempt + 1} attempts: ` +
-          `${err.message?.slice(0, 80)}`
-      );
+      // console.warn(
+      //   `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} skipped after ${attempt + 1} attempts: ` +
+      //     `${err.message?.slice(0, 80)}`
+      // );
       return []; // skip chunk, don't abort entire scan
     }
   }
-  console.warn(
-    `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} exhausted all retries: ` +
-      `${lastErr?.message?.slice(0, 80)}`
-  );
+  // console.warn(
+  //   `⚠️ getLogs chunk ${chunkStart}-${chunkEnd} exhausted all retries: ` +
+  //     `${lastErr?.message?.slice(0, 80)}`
+  // );
   return [];
 }
 
