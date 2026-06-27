@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
-import NetworkReminder, { useNetworkReminder } from '../components/NetworkReminder';
+import NetworkReminder from '../components/NetworkReminder';
 
 const POLL_MS = 60_000;
 
@@ -1332,8 +1332,7 @@ const SwapTab = ({ user, showMsg }) => {
   const [lastTime, setLastTime] = useState(null);
   const [selected, setSelected] = useState(null);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const [pendingPool, setPendingPool] = useState(null);
-  const { isDismissed } = useNetworkReminder('salva_reminder_swap');
+  const pendingPool = useRef(null);
   const pollRef = useRef(null);
 
   const fetchPools = useCallback(
@@ -1528,13 +1527,9 @@ const SwapTab = ({ user, showMsg }) => {
               key={pool.poolAddress}
               pool={pool}
               section={section}
-              onSwap={(pool) => {
-                if (!isDismissed()) {
-                  setPendingPool(pool);
-                  setShowNetworkReminder(true);
-                } else {
-                  setSelected(pool);
-                }
+              onSwap={(p) => {
+                pendingPool.current = p;
+                setShowNetworkReminder(true);
               }}
               index={i}
             />
@@ -1546,15 +1541,16 @@ const SwapTab = ({ user, showMsg }) => {
         {showNetworkReminder && (
           <NetworkReminder
             chain="base"
-            storageKey="salva_reminder_swap"
+            action="pool_swap"
             onContinue={() => {
+              const pool = pendingPool.current;
+              pendingPool.current = null;
               setShowNetworkReminder(false);
-              setSelected(pendingPool);
-              setPendingPool(null);
+              if (pool) setSelected(pool);
             }}
             onClose={() => {
+              pendingPool.current = null;
               setShowNetworkReminder(false);
-              setPendingPool(null);
             }}
           />
         )}

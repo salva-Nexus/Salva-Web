@@ -1876,7 +1876,13 @@ const Dashboard = () => {
     });
   }, []);
 
-  const [activeTab, setActiveTab] = useState('buy');
+  const [activeTab, setActiveTab] = useState(() => {
+    const urlAction = new URLSearchParams(window.location.search).get('action');
+    if (urlAction === 'swap' || urlAction === 'pool_swap') return 'swap';
+    if (urlAction === 'deploy') return 'deploy';
+    if (urlAction === 'buy') return 'buy';
+    return 'buy';
+  });
   const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
@@ -1905,6 +1911,21 @@ const Dashboard = () => {
   useEffect(() => {
     if (!user) navigate('/login', { replace: true });
   }, [user, navigate]);
+
+  // ── Auto-trigger modal from cross-chain URL param ─────────────────────────
+  const _initialUrlAction = useRef(new URLSearchParams(window.location.search).get('action'));
+  useEffect(() => {
+    if (!user) return;
+    const urlAction = _initialUrlAction.current;
+    if (!urlAction) return;
+    _initialUrlAction.current = null;
+    window.history.replaceState({}, '', '/dashboard');
+    if (urlAction === 'transfer') {
+      setIsSendOpen(true);
+    } else if (urlAction === 'receive') {
+      setIsReceiveOpen(true);
+    }
+  }, [user]);
 
   const refreshUserStatus = useCallback(async (email, currentUser) => {
     try {
@@ -3183,6 +3204,7 @@ const Dashboard = () => {
         {showSendNetworkReminder && (
           <NetworkReminder
             chain="base"
+            action="transfer"
             onContinue={() => {
               setShowSendNetworkReminder(false);
               setIsSendOpen(true);
@@ -3197,6 +3219,7 @@ const Dashboard = () => {
         {showReceiveNetworkReminder && (
           <NetworkReminder
             chain="base"
+            action="receive"
             onContinue={() => {
               setShowReceiveNetworkReminder(false);
               setIsReceiveOpen(true);
@@ -3359,6 +3382,6 @@ const Dashboard = () => {
       {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}
     </div>
   );
-};
+};;;;;;;
 
 export default Dashboard;

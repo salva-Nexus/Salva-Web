@@ -11,6 +11,7 @@ import SetTransactionPin from './pages/SetTransactionPin';
 import AccountSettings from './pages/AccountSettings';
 import BNBDashboard from './pages/BNBDashboard';
 import BNBDeployWallet from './pages/BNBDeployWallet';
+import CrossChainAction from './pages/CrossChainAction';
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -52,6 +53,7 @@ function App() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/bnb" element={<BNBDashboard />} />
             <Route path="/bnb/deploy-wallet" element={<BNBDeployWallet />} />
+            <Route path="/chain-action" element={<CrossChainAction />} />
             <Route
               path="/dashboard"
               element={

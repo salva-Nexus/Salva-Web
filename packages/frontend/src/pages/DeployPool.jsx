@@ -1165,7 +1165,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [renameFeeLoading, setRenameFeeLoading] = useState(false);
   const [registries, setRegistries] = useState([]);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const [pendingAction, setPendingAction] = useState(null);
+  const pendingAction = useRef(null);
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
   useNetworkReminder();
@@ -1524,10 +1524,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
           <button
             onClick={() => {
-              setPendingAction(() => () => {
+              pendingAction.current = () => {
                 setPinAction('deploy');
                 setPinVisible(true);
-              });
+              };
               setShowNetworkReminder(true);
             }}
             disabled={deploying}
@@ -1580,15 +1580,15 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               pool={pool}
               index={i}
               onManage={() => {
+                pendingAction.current = () => setManagingPool(pool);
                 setShowNetworkReminder(true);
-                setPendingAction(() => () => setManagingPool(pool));
               }}
               onPublish={() => {
-                setShowNetworkReminder(true);
-                setPendingAction(() => () => {
+                pendingAction.current = () => {
                   setSelectedPool(pool);
                   setShowSubModal(true);
-                });
+                };
+                setShowNetworkReminder(true);
               }}
               onRename={() => {
                 if (pool.poolName) {
@@ -2088,16 +2088,16 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         {showNetworkReminder && (
           <NetworkReminder
             chain="base"
+            action="deploy"
             onContinue={() => {
               setShowNetworkReminder(false);
-              if (pendingAction) {
-                pendingAction();
-                setPendingAction(null);
-              }
+              const fn = pendingAction.current;
+              pendingAction.current = null;
+              if (fn) fn();
             }}
             onClose={() => {
               setShowNetworkReminder(false);
-              setPendingAction(null);
+              pendingAction.current = null;
             }}
           />
         )}

@@ -378,7 +378,6 @@ const SalvaNGNsChat = ({ user }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState(null);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
-  const { isDismissed } = useNetworkReminder('salva_reminder_buysell');
 
   // ── OTC Config ────────────────────────────────────────────────────────────
   const [otcConfig, setOtcConfig] = useState({
@@ -770,11 +769,7 @@ const SalvaNGNsChat = ({ user }) => {
             whileHover={{ scale: 1.08 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => {
-              if (!isDismissed()) {
-                setShowNetworkReminder(true);
-              } else {
-                setIsOpen(true);
-              }
+              setShowNetworkReminder(true);
             }}
             className="relative w-12 h-12 rounded-full flex items-center justify-center cursor-pointer"
             style={{
@@ -793,7 +788,7 @@ const SalvaNGNsChat = ({ user }) => {
         {showNetworkReminder && (
           <NetworkReminder
             chain="base"
-            storageKey="salva_reminder_buysell"
+            action="buy"
             onContinue={() => {
               setShowNetworkReminder(false);
               setIsOpen(true);

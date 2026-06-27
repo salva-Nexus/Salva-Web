@@ -1904,7 +1904,13 @@ const Dashboard = () => {
     });
   }, []);
 
-  const [activeTab, setActiveTab] = useState('buy');
+  const [activeTab, setActiveTab] = useState(() => {
+    const urlAction = new URLSearchParams(window.location.search).get('action');
+    if (urlAction === 'swap' || urlAction === 'pool_swap') return 'swap';
+    if (urlAction === 'deploy') return 'deploy';
+    if (urlAction === 'buy') return 'buy';
+    return 'buy';
+  });
   const [registries, setRegistries] = useState([]);
   // eslint-disable-next-line no-unused-vars
   const [feeConfig, setFeeConfig] = useState(null);
@@ -2024,7 +2030,6 @@ const Dashboard = () => {
       /* silently ignore */
     }
   }, []);
-
 
   const fetchBalance = useCallback(async (address, showSpinner = false) => {
     if (!address) return;
@@ -2437,6 +2442,22 @@ const Dashboard = () => {
       setLoading(false);
     }
   };
+
+  // ── Auto-trigger modal from cross-chain URL param ─────────────────────────
+  const _initialUrlAction = useRef(new URLSearchParams(window.location.search).get('action'));
+  useEffect(() => {
+    if (deployState !== 'ready' || !user) return;
+    const urlAction = _initialUrlAction.current;
+    if (!urlAction) return;
+    _initialUrlAction.current = null; // consume once
+    window.history.replaceState({}, '', '/bnb');
+    if (urlAction === 'transfer') {
+      setIsSendOpen(true);
+    } else if (urlAction === 'receive') {
+      setIsReceiveOpen(true);
+    }
+    // swap/deploy/buy handled by useState initializer above
+  }, [deployState, user]);
 
   if (deployState === 'checking') {
     return (
@@ -3292,6 +3313,7 @@ const Dashboard = () => {
         {showSendNetworkReminder && (
           <NetworkReminder
             chain="bnb"
+            action="transfer"
             onContinue={() => {
               setShowSendNetworkReminder(false);
               setIsSendOpen(true);
@@ -3306,6 +3328,7 @@ const Dashboard = () => {
         {showReceiveNetworkReminder && (
           <NetworkReminder
             chain="bnb"
+            action="receive"
             onContinue={() => {
               setShowReceiveNetworkReminder(false);
               setIsReceiveOpen(true);
@@ -3468,6 +3491,6 @@ const Dashboard = () => {
       {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}
     </div>
   );
-};
+};;;;;;;;
 
 export default Dashboard;
