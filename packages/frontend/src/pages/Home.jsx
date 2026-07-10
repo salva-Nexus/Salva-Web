@@ -1000,14 +1000,9 @@ const Home = () => {
           tag="NGNs Stablecoin"
           title="Nigerian Naira. On-Chain."
           headline="1 NGNs = ₦1. Always."
-          body="NGNs is a digital Naira stablecoin pegged 1:1 and tradeable on Salva's DEX against USD stablecoins. Buy it from the OTC desk, earn it through referrals, swap it, and send it to anyone in seconds."
+          body="NGNs is a digital Naira stablecoin pegged 1:1 and tradeable on Salva's DEX against USD stablecoins. Buy it from the OTC desk, and send it to anyone in seconds."
           extContent={
             <div className="space-y-4">
-              <p>
-                <strong className="text-black dark:text-white">Now DEX-tradeable.</strong> V3 lets
-                anyone swap Naira stablecoins for USD stablecoins at market rates set by liquidity
-                providers — no intermediary, no FX desk.
-              </p>
               <p>
                 <strong className="text-black dark:text-white">Instant settlement.</strong>{' '}
                 Transactions confirm in seconds. Every transfer is on-chain and permanently
