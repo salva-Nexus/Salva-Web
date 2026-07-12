@@ -1166,10 +1166,6 @@ const Home = () => {
               q: 'What is NGNs?',
               a: "A Nigerian Naira stablecoin pegged 1:1. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
             },
-            {
-              q: 'What is the difference between Base and BSC pools?',
-              a: "Base pools are managed via Salva's gasless relay using your Safe smart wallet — no MetaMask needed for pool operations. BSC pools are managed directly from MetaMask or any external wallet, with the LP signing transactions on-chain. Both pool types appear together on the Salva swap marketplace.",
-            },
           ].map((faq, i) => (
             <FAQItem key={i} question={faq.q} answer={faq.a} />
           ))}
