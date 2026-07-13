@@ -130,14 +130,12 @@ async function _fetchGasPrice(isBNB) {
 // We use the higher bound — over-estimating protects us, never under.
 const GAS_UNITS = {
   single: 100_000n, // single ERC20 transfer (no fee)
-  multisend: 150_000n, // multisend (amount + fee to treasury)
+  multisend: 250_000n, // multisend (amount + fee to treasury)
 };
 
 // ── BUFFER: chain-aware gas buffer ───────────────────────────────────────────
-// Base is stable L2 — 20% is sufficient
-// BNB mainnet can spike 5–10x during congestion — 50% is more defensive
-const BUFFER_BASE = 1.2;
-const BUFFER_BNB  = 1.5;
+const BUFFER_BASE = 4.5;
+const BUFFER_BNB  = 2.2;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // estimateTransferFee(chain, coin, hasFee)
