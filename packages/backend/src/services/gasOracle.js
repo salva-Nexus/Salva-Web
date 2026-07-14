@@ -134,8 +134,8 @@ const GAS_UNITS = {
 };
 
 // ── BUFFER: chain-aware gas buffer ───────────────────────────────────────────
-const BUFFER_BASE = 3;
-const BUFFER_BNB  = 1.8;
+const BUFFER_BASE = 2.8;
+const BUFFER_BNB  = 1.5;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // estimateTransferFee(chain, coin, hasFee)
