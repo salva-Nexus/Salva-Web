@@ -504,8 +504,11 @@ const SantTab = ({ user, registries, showMsg }) => {
               <span className="w-5 h-5 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
             </div>
           ) : (
-            <p className="font-black text-white tracking-tight text-3xl sm:text-4xl">
-              {fmtSant(santBalance)} <span className="text-salvaGold text-xl">SANT</span>
+            <p
+              className="font-black text-white tracking-tight break-all leading-none"
+              style={{ fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)' }}
+            >
+              {fmtSant(santBalance)} <span className="text-salvaGold">SANT</span>
             </p>
           )}
 
@@ -542,18 +545,18 @@ const SantTab = ({ user, registries, showMsg }) => {
         </div>
       ) : claim.visible ? (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
+          <div className="flex items-center justify-between mb-4 gap-2">
+            <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
               SANT Points
             </p>
-            <p className="font-black text-2xl text-salvaGold">
+            <p className="font-black text-lg sm:text-2xl text-salvaGold">
               {claim.totalPoints.toLocaleString('en-US')}
             </p>
           </div>
           <button
             onClick={handleClaimClick}
             disabled={!claim.active}
-            className={`w-full py-3.5 rounded-xl font-black text-xs sm:text-sm uppercase tracking-widest transition-all leading-tight ${
+            className={`w-full py-3 sm:py-3.5 rounded-xl font-black text-[11px] sm:text-sm uppercase tracking-widest transition-all leading-tight ${
               claim.active
                 ? 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                 : 'bg-white/5 border border-white/10 text-white/25 cursor-not-allowed opacity-50'
