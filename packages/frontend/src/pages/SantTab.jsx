@@ -17,17 +17,35 @@ function detectInputType(val) {
   return 'name';
 }
 
-// SANT is not a stablecoin — no fixed 2-decimal display makes sense.
-// Rules:
-//   0            → "0.00"
-//   0 < x < 1e-6  → "<0.000001" (MetaMask-style dust display)
-//   otherwise     → up to 6 decimals, trailing zeros trimmed (min 2 shown)
+// SANT is not a stablecoin — no fixed 2-decimal display makes sense for
+// small amounts, but once the balance crosses 1 SANT, precision below the
+// 3rd decimal stops being meaningful to look at. Rules:
+//   0                → "0.00"
+//   0 < x < 1e-6      → "<0.000001" (MetaMask-style dust display)
+//   1e-6 <= x < 1      → up to 6 decimals, trailing zeros trimmed (min 2 shown)
+//   x >= 1             → TRUNCATED (never rounded) to exactly 2 decimals
 const fmtSant = (n) => {
   const num = parseFloat(n || 0);
   if (!Number.isFinite(num) || num === 0) return '0.00';
   if (num > 0 && num < 0.000001) return '<0.000001';
 
-  const fixed = num.toFixed(6);
+  if (num >= 1) {
+    // Truncate, don't round — e.g. 500001029.999999 → "500,001,029.99"
+    // never "500,001,030.00".
+    const truncated = Math.floor(num * 100) / 100;
+    return truncated.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  // Sub-1 balances: TRUNCATE to 6 decimals, never round — toFixed(6) rounds
+  // (e.g. 0.0000027 → "0.000003"), which can display/fill an amount LARGER
+  // than the real on-chain balance and cause false "Insufficient balance"
+  // errors. Math.floor at the 6th decimal guarantees the displayed number
+  // is never more than what the wallet actually holds.
+  const truncated6 = Math.floor(num * 1_000_000) / 1_000_000;
+  const fixed = truncated6.toFixed(6);
   const [intPart, decPart] = fixed.split('.');
   let trimmed = decPart;
   while (trimmed.length > 2 && trimmed.endsWith('0')) trimmed = trimmed.slice(0, -1);
@@ -491,8 +509,12 @@ const SantTab = ({ user, registries, showMsg }) => {
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/50 to-transparent" />
         <div className="px-5 sm:px-7 pt-6 sm:pt-8 pb-6 sm:pb-8">
           <div className="flex items-center gap-1.5 mb-3">
-            <span className="w-6 h-6 rounded-full bg-salvaGold/15 border border-salvaGold/30 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-[11px] font-black">S</span>
+            <span className="w-9 h-9 rounded-full bg-black border border-salvaGold/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <img
+                src="/salva-logo.png"
+                alt="Salva"
+                className="w-full h-full object-contain scale-150"
+              />
             </span>
             <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/70 font-black">
               SANT · Base Chain
@@ -508,7 +530,8 @@ const SantTab = ({ user, registries, showMsg }) => {
               className="font-black text-white tracking-tight break-all leading-none"
               style={{ fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)' }}
             >
-              {fmtSant(santBalance)} <span className="text-salvaGold">SANT</span>
+              {fmtSant(santBalance)}{' '}
+              <span className="text-salvaGold text-[0.55em] align-middle">SNT</span>
             </p>
           )}
 
@@ -644,14 +667,15 @@ const SantTab = ({ user, registries, showMsg }) => {
                     <button
                       type="button"
                       onClick={() => {
-                        const raw = parseFloat(santBalance) || 0;
-                        // toFixed(6) avoids JS's scientific-notation string
-                        // conversion for tiny values (e.g. String(0.0000007)
-                        // → "7e-7"), then strip trailing zeros for a clean
-                        // decimal amount the input/amountWei parsing expects.
-                        const fixed = raw.toFixed(6).replace(/\.?0+$/, '');
-                        setTransferAmountDisplay(fixed);
-                        setTransferAmount(fixed);
+                        // No math, no parseFloat, no toFixed — those all
+                        // introduce float-precision drift or rounding on a
+                        // value like "0.0000027" (JS floats can't represent
+                        // that exactly). santBalance IS the exact decimal
+                        // string the blockchain returned via
+                        // ethers.formatUnits — just paste it through as-is.
+                        const exact = santBalance || '0';
+                        setTransferAmountDisplay(exact);
+                        setTransferAmount(exact);
                       }}
                       className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
                     >
