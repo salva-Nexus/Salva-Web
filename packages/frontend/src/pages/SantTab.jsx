@@ -540,9 +540,7 @@ const SantTab = ({ user, registries, showMsg }) => {
             <span className="opacity-40">·</span>
             <span>$0.00</span>
           </div>
-          <p className="text-[9px] text-white/30 mt-1">
-            No market price yet. Earn by using Salva.
-          </p>
+          <p className="text-[9px] text-white/30 mt-1">No market price yet. Earn by using Salva.</p>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
             <button
