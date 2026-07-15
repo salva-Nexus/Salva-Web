@@ -24,10 +24,23 @@ const RANGES = [
 ];
 
 const fmtCompact = (n) => {
-  const num = Number(n || 0);
+  const num = Number(n);
+  if (!Number.isFinite(num)) return '0'; // guards NaN from bad/legacy values
   if (num >= 1_000_000) return (num / 1_000_000).toFixed(2) + 'M';
   if (num >= 1_000) return (num / 1_000).toFixed(1) + 'K';
   return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+};
+
+// Extracts a flat number from a snapshot field, whether it's already a
+// plain number (new schema) or the OLD nested { base, bnb, combined }
+// shape left behind by documents recorded before the schema simplified.
+// Prevents legacy documents from ever rendering as NaN.
+const extractMetric = (value) => {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (value && typeof value === 'object' && typeof value.combined === 'number') {
+    return value.combined;
+  }
+  return 0;
 };
 
 const fmtTime = (iso) =>
@@ -188,36 +201,33 @@ const AdminStatsPage = () => {
 
   const latest = snapshots[snapshots.length - 1] || null;
 
-  // Flatten nested snapshot shape into chart-friendly rows
-  const ngnData = snapshots.map((s) => ({
-    recordedAt: s.recordedAt,
-    Base: s.ngnCirculating?.base || 0,
-    BNB: s.ngnCirculating?.bnb || 0,
-    Combined: s.ngnCirculating?.combined || 0,
-  }));
-
-  const ngnFeeData = snapshots.map((s) => ({
-    recordedAt: s.recordedAt,
-    Base: s.treasuryFees?.ngn?.base || 0,
-    BNB: s.treasuryFees?.ngn?.bnb || 0,
-    Combined: s.treasuryFees?.ngn?.combined || 0,
-  }));
-
-  const usdFeeData = snapshots.map((s) => ({
-    recordedAt: s.recordedAt,
-    Base: s.treasuryFees?.usd?.base || 0,
-    BNB: s.treasuryFees?.usd?.bnb || 0,
-    Combined: s.treasuryFees?.usd?.combined || 0,
-  }));
-
+  // Flat snapshot shape — one number per metric, no chain split, per spec.
+  // extractMetric() guards against legacy documents recorded under the OLD
+  // nested { base, bnb, combined } schema, which are still sitting in the
+  // DB from before this page was simplified.
   const userData = snapshots.map((s) => ({
     recordedAt: s.recordedAt,
-    Users: s.userCount || 0,
+    Users: extractMetric(s.userCount),
+  }));
+
+  const ngnData = snapshots.map((s) => ({
+    recordedAt: s.recordedAt,
+    NGN: extractMetric(s.ngnCirculating),
+  }));
+
+  const treasuryNgnData = snapshots.map((s) => ({
+    recordedAt: s.recordedAt,
+    Treasury: extractMetric(s.treasuryNGN),
+  }));
+
+  const treasuryUsdData = snapshots.map((s) => ({
+    recordedAt: s.recordedAt,
+    Treasury: extractMetric(s.treasuryUSD),
   }));
 
   const txData = snapshots.map((s) => ({
     recordedAt: s.recordedAt,
-    Transactions: s.transactionVolume?.combined || 0,
+    Transactions: extractMetric(s.transactionVolume),
   }));
 
   if (!user.isValidator) {
@@ -302,20 +312,24 @@ const AdminStatsPage = () => {
             {/* ── Top summary pills ── */}
             {latest && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <StatPill label="Total Users" value={latest.userCount} color="#D4AF37" />
+                <StatPill
+                  label="Total Users"
+                  value={extractMetric(latest.userCount)}
+                  color="#D4AF37"
+                />
                 <StatPill
                   label="NGN Circulating"
-                  value={latest.ngnCirculating?.combined}
+                  value={extractMetric(latest.ngnCirculating)}
                   color="#3b82f6"
                 />
                 <StatPill
                   label="Treasury NGN"
-                  value={latest.treasuryFees?.ngn?.combined}
+                  value={extractMetric(latest.treasuryNGN)}
                   color="#22c55e"
                 />
                 <StatPill
                   label="Treasury USD"
-                  value={latest.treasuryFees?.usd?.combined}
+                  value={extractMetric(latest.treasuryUSD)}
                   color="#f59e0b"
                 />
               </div>
@@ -330,42 +344,30 @@ const AdminStatsPage = () => {
               accent="#D4AF37"
             />
 
-            {/* ── NGN circulating (Base + BNB combined) ── */}
+            {/* ── NGN circulating — single combined number/graph ── */}
             <MetricChart
-              title="Total NGN Circulating"
-              subtitle="Base + BNB combined in one line, individual chains shown alongside"
+              title="NGN Circulating"
+              subtitle="NGN token totalSupply(), Base + BNB combined"
               data={ngnData}
-              lines={[
-                { key: 'Combined', name: 'Combined', color: '#D4AF37' },
-                { key: 'Base', name: 'Base', color: '#3b82f6' },
-                { key: 'BNB', name: 'BNB', color: '#f59e0b' },
-              ]}
+              lines={[{ key: 'NGN', name: 'NGN', color: '#3b82f6' }]}
               accent="#3b82f6"
             />
 
-            {/* ── Treasury fund — NGN token graph ── */}
+            {/* ── Treasury — NGN side, single combined number/graph ── */}
             <MetricChart
-              title="Treasury Fund — NGN Tokens"
-              subtitle="NGNs + cNGN accumulated fees, Base + BNB combined"
-              data={ngnFeeData}
-              lines={[
-                { key: 'Combined', name: 'Combined', color: '#22c55e' },
-                { key: 'Base', name: 'Base', color: '#3b82f6' },
-                { key: 'BNB', name: 'BNB', color: '#f59e0b' },
-              ]}
+              title="Treasury Fund — NGN"
+              subtitle="NGNs + cNGN treasury balance, Base + BNB combined"
+              data={treasuryNgnData}
+              lines={[{ key: 'Treasury', name: 'Treasury NGN', color: '#22c55e' }]}
               accent="#22c55e"
             />
 
-            {/* ── Treasury fund — USD token graph ── */}
+            {/* ── Treasury — USD side, single combined number/graph ── */}
             <MetricChart
-              title="Treasury Fund — USD Tokens"
-              subtitle="USDT + USDC accumulated fees, Base + BNB combined"
-              data={usdFeeData}
-              lines={[
-                { key: 'Combined', name: 'Combined', color: '#f59e0b' },
-                { key: 'Base', name: 'Base', color: '#3b82f6' },
-                { key: 'BNB', name: 'BNB', color: '#f59e0b' },
-              ]}
+              title="Treasury Fund — USD"
+              subtitle="USDT + USDC treasury balance, Base + BNB combined"
+              data={treasuryUsdData}
+              lines={[{ key: 'Treasury', name: 'Treasury USD', color: '#f59e0b' }]}
               accent="#f59e0b"
             />
 

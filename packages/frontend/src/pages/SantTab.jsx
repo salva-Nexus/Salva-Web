@@ -495,7 +495,7 @@ const SantTab = ({ user, registries, showMsg }) => {
               <span className="text-salvaGold text-[11px] font-black">S</span>
             </span>
             <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/70 font-black">
-              $SANT · Base Chain
+              SANT · Base Chain
             </p>
           </div>
 
