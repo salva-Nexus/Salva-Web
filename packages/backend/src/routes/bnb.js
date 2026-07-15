@@ -375,7 +375,9 @@ router.post('/transfer', async (req, res) => {
 
     // Fetch decimals from BNB PoolFactory
     const isNgnCoin = coin === 'NGNS' || coin === 'NGN' || coin === 'CNGN';
-    const tokenDecimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress)).catch(() => isNgnCoin ? 6 : 18);
+    const tokenDecimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress)).catch(() =>
+      isNgnCoin ? 6 : 18
+    );
     const amountNum = parseFloat(amount);
 
     // Simple fee: same tier structure as L2 for NGN tokens, flat $0.015 for USD
@@ -512,7 +514,22 @@ router.post('/transfer', async (req, res) => {
     }).catch(() => {});
 
     if (!success) return res.status(400).json({ message: 'Transfer reverted on-chain' });
-    if (success) await bnbLoanMarkPaid();
+    if (success) {
+      await bnbLoanMarkPaid();
+
+      // ── SANT points: BNB transfer confirmed successful ───────────────────
+      try {
+        const {
+          awardActivityPoints,
+          isRegisteredSalvaWallet,
+        } = require('../services/pointsService');
+        const receiverIsSalva = await isRegisteredSalvaWallet('bnb', recipientAddress);
+        await awardActivityPoints('bnb', safeAddress, receiverIsSalva ? recipientAddress : null);
+      } catch (pointsErr) {
+        console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+      }
+      // ───────────────────────────────────────────────────────────────────────
+    }
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
     console.error('❌ /bnb/transfer:', err.message);

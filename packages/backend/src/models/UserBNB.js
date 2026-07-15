@@ -43,6 +43,12 @@ const UserBNBSchema = new mongoose.Schema({
   deploymentLoanNGN: { type: Number, default: 0 },
   deploymentLoanUSD: { type: Number, default: 0 },
   hasPaidDeploymentLoan: { type: Boolean, default: false },
+
+  // --- SANT community mining (BNB chain activity only) ---
+  // No referral fields here — referrals live only on the Base User model.
+  santPoints: { type: Number, default: 0, min: 0 },
+  santClaimInProgress: { type: Boolean, default: false },
+
   createdAt: { type: Date, default: Date.now, index: true },
 });
 

@@ -12,6 +12,7 @@ import AccountSettings from './pages/AccountSettings';
 import BNBDashboard from './pages/BNBDashboard';
 import BNBDeployWallet from './pages/BNBDeployWallet';
 import CrossChainAction from './pages/CrossChainAction';
+import AdminStatsPage from './pages/AdminStatsPage';
 
 const LoadingSpinner = () => (
   <div className="flex items-center justify-center min-h-screen bg-black">
@@ -72,6 +73,14 @@ function App() {
             />
             <Route path="/set-transaction-pin" element={<SetTransactionPin />} />
             <Route path="/account-settings" element={<AccountSettings />} />
+            <Route
+              path="/stats"
+              element={
+                <ProtectedRoute isLoading={isLoading}>
+                  <AdminStatsPage />
+                </ProtectedRoute>
+              }
+            />
           </Routes>
         </main>
       </div>

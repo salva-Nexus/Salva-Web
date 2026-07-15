@@ -10,6 +10,7 @@ import SalvaNGNsChat from '../components/SalvaNGNsChat';
 import SalvaSellerChat from '../components/SalvaSellerChat';
 import DeployPool from './DeployPool';
 import SwapTab from './SwapTab';
+import SantTab from './SantTab';
 import { QRCodeSVG } from 'qrcode.react';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -1821,6 +1822,72 @@ const SellerMintPanel = ({ user, showMsg }) => {
   );
 };
 
+// ── Rewards Bar: SANT points summary + referral link ────────────────────────
+const RewardsBar = ({ user, showMsg }) => {
+  const [claim, setClaim] = useState(null);
+
+  useEffect(() => {
+    if (!user?.email) return;
+    fetch(`${SALVA_API_URL}/api/sant/claim-status/${encodeURIComponent(user.email)}`)
+      .then((r) => r.json())
+      .then((d) => setClaim(d))
+      .catch(() => {});
+  }, [user?.email]);
+
+  const referralLink = user.referralCode
+    ? `https://salva-nexus.org/register?ref=${user.referralCode}`
+    : null;
+
+  // Hide the points row entirely once the global mining cap is reached AND
+  // this user has 0 claimable points — same rule getClaimVisibility enforces
+  // for the SANT tab's claim card, applied here too so the summary strip
+  // doesn't keep showing a dead "0" forever.
+  const showPointsRow = claim && claim.visible;
+
+  if (!showPointsRow && !referralLink) return null;
+
+  return (
+    <div className="mb-4 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden divide-y divide-white/[0.05]">
+      {showPointsRow && (
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-full bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-salvaGold text-[10px] font-black">S</span>
+            </span>
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-wider">
+              SANT Points
+            </p>
+          </div>
+          <p className="font-black text-sm text-salvaGold">
+            {claim.totalPoints.toLocaleString('en-US')}
+          </p>
+        </div>
+      )}
+      {referralLink && (
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(referralLink);
+            showMsg('Referral link copied!');
+          }}
+          className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/[0.02] transition-all group"
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-6 h-6 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-400 text-[10px] font-black">↗</span>
+            </span>
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-wider">
+              Referral Link
+            </p>
+          </div>
+          <span className="font-mono text-[10px] text-blue-400/70 truncate ml-2 group-hover:text-blue-400 transition-colors">
+            {user.referralCode}
+          </span>
+        </button>
+      )}
+    </div>
+  );
+};;
+
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Main Component
 // ══════════════════════════════════════════════════════════════════════════════
@@ -1937,6 +2004,7 @@ const Dashboard = () => {
         isValidator: data.isValidator,
         nameAlias: data.nameAlias,
         isSeller: data.isSeller,
+        referralCode: data.referralCode,
       };
       localStorage.setItem('salva_user', JSON.stringify(updated));
       setUser(updated);
@@ -2378,6 +2446,7 @@ const Dashboard = () => {
 
   const tabs = [
     { id: 'buy', label: 'Buy / Sell NGNs' },
+    { id: 'sant', label: '$SANT' },
     { id: 'swap', label: 'Swap' },
     { id: 'deploy', label: 'Deploy Pool' },
     { id: 'names', label: 'Link a Name' },
@@ -2480,10 +2549,24 @@ const Dashboard = () => {
         <circle cx="15" cy="10" r="0.5" fill="currentColor" />
       </svg>
     ),
+    sant: (
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9 9.5c0-1.1 1.3-2 3-2s3 .9 3 2-1.3 1.5-3 2-3 .9-3 2 1.3 2 3 2 3-.9 3-2" />
+      </svg>
+    ),
   };
 
   const TAB_SHORT_LABELS = {
     buy: 'Buy / Sell',
+    sant: '$SANT',
     swap: 'Swap',
     deploy: 'Deploy Pool',
     names: 'Link Name',
@@ -2520,7 +2603,21 @@ const Dashboard = () => {
               {user.username}
             </h1>
           </div>
+          {user.isValidator && (
+            <a
+              href="/stats"
+              className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
+            >
+              <span className="text-[9px] font-black uppercase tracking-widest text-salvaGold">
+                View Stats
+              </span>
+              <span className="text-salvaGold text-[10px]">↗</span>
+            </a>
+          )}
         </header>
+
+        {/* ── Rewards: SANT points + referral link ── */}
+        <RewardsBar user={user} showMsg={showMsg} />
 
         {/* ── Balance Card ── */}
         <BalanceCard
@@ -2758,6 +2855,10 @@ const Dashboard = () => {
                   <span className="text-blue-400 text-[11px]">↗</span>
                 </a>
               </div>
+            )}
+
+            {activeTab === 'sant' && (
+              <SantTab user={user} registries={registries} showMsg={showMsg} />
             )}
 
             {activeTab === 'names' && (
@@ -3082,7 +3183,7 @@ const Dashboard = () => {
                   </p>
                   {confirmationData.walletName && (
                     <p className="text-[10px] text-white/60 mt-1 font-bold">
-                      via {confirmationData.walletName}
+                      to {confirmationData.walletName}
                     </p>
                   )}
                 </div>

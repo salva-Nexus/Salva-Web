@@ -1056,7 +1056,7 @@ app.post('/api/auth/reset-password', authLimiter, async (req, res) => {
 // ===============================================
 app.post('/api/register', authLimiter, validateRegistration, async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, referralCode } = req.body;
 
     console.log(`📝 Registration attempt: username="${username}" email="${email}"`);
 
@@ -1126,8 +1126,44 @@ app.post('/api/register', authLimiter, validateRegistration, async (req, res) =>
       newUser.hasPaidDeploymentLoan = false;
       console.warn('⚠️ Could not estimate deployment loan fee:', loanErr.message);
     }
+    // Generate this user's own referral code before saving so it's set
+    // on the very first write — avoids a second DB round trip.
+    try {
+      newUser.referralCode = await User.generateReferralCode();
+    } catch (refCodeErr) {
+      // Non-fatal — user still registers, just without a referral code.
+      // Extremely unlikely (5 collision retries), but never blocks registration.
+      console.error('⚠️ Could not generate referral code:', refCodeErr.message);
+    }
+
+    // Validate + attach the referral code they signed up with, if any.
+    // Silently ignored if invalid — never blocks registration.
+    let cleanReferralCode = null;
+    if (referralCode && typeof referralCode === 'string' && referralCode.trim()) {
+      cleanReferralCode = referralCode.trim().toUpperCase();
+      const referrerExists = await User.exists({ referralCode: cleanReferralCode });
+      if (!referrerExists) {
+        console.warn(`⚠️ Referral code "${cleanReferralCode}" not found — ignoring`);
+        cleanReferralCode = null;
+      } else {
+        newUser.referredBy = cleanReferralCode;
+      }
+    }
+
     await newUser.save();
     console.log(`✅ User saved: ${email}`);
+
+    // ── SANT registration bonus — Base points only, non-fatal on failure ────
+    try {
+      const { awardRegistrationPoints } = require('./services/pointsService');
+      const bonusResult = await awardRegistrationPoints(newUser._id, cleanReferralCode);
+      console.log(
+        `🎁 SANT registration bonus: +5 to ${email}` +
+          (bonusResult.referrerAwarded ? ` | +5 to referrer (${cleanReferralCode})` : '')
+      );
+    } catch (bonusErr) {
+      console.error('⚠️ SANT registration bonus failed (non-fatal):', bonusErr.message);
+    }
 
     // ── Create UserBNB record immediately if BNB deployed successfully ───────
     if (bnb && !bnbFailed) {
@@ -1255,11 +1291,25 @@ app.get('/api/user/status/:email', async (req, res) => {
     const email = sanitizeEmail(req.params.email);
     const user = await User.findOne({ email });
     if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // ── Backfill referral code for accounts created before the referral
+    // system existed. Lazy, one-time, non-fatal if it fails.
+    if (!user.referralCode) {
+      try {
+        user.referralCode = await User.generateReferralCode();
+        await user.save();
+        console.log(`🔗 Backfilled referral code for ${email}: ${user.referralCode}`);
+      } catch (backfillErr) {
+        console.error('⚠️ Referral code backfill failed (non-fatal):', backfillErr.message);
+      }
+    }
+
     res.json({
       isValidator: user.isValidator || false,
       nameAlias: user.nameAlias || null,
       numberAlias: user.numberAlias || null,
       isSeller: user.isSeller || false,
+      referralCode: user.referralCode || null,
     });
   } catch (error) {
     return handleError(error, res, 'Failed to get user status');
@@ -1700,6 +1750,12 @@ app.use('/api/pool', poolRoutes);
 
 const bnbRoutes = require('./routes/bnb');
 app.use('/api/bnb', bnbRoutes);
+
+const santRoutes = require('./routes/sant');
+app.use('/api/sant', santRoutes);
+
+const adminStatsRoutes = require('./routes/adminStats');
+app.use('/api/admin-stats', adminStatsRoutes);
 
 app.use('/api/sync-incoming', require('./routes/syncIncoming'));
 
@@ -3196,10 +3252,32 @@ app.post('/api/queue/process/:address', async (req, res) => {
         }).save();
 
         if (taskStatus.success) {
-          await loanMarkPaid().catch((e) => console.error('⚠️ loanMarkPaid failed (non-fatal):', e.message));
+          await loanMarkPaid().catch((e) =>
+            console.error('⚠️ loanMarkPaid failed (non-fatal):', e.message)
+          );
           await TransactionQueue.deleteOne({ _id: claimed._id });
           await applyCooldown(safeAddress, 20);
           console.log(`✅ Processed and removed: ${result.txHash}`);
+
+          // ── SANT points: Transfer confirmed successful ─────────────────────
+          // Sender always earns. Receiver only earns if they're a registered
+          // Salva wallet on this same chain — otherwise partyB is null.
+          try {
+            const {
+              awardActivityPoints,
+              isRegisteredSalvaWallet,
+            } = require('./services/pointsService');
+            const receiverIsSalva = await isRegisteredSalvaWallet(txChain, recipientAddress);
+            await awardActivityPoints(
+              txChain,
+              safeAddress,
+              receiverIsSalva ? recipientAddress : null
+            );
+          } catch (pointsErr) {
+            console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+          }
+          // ─────────────────────────────────────────────────────────────────────
+
           if (senderUser?.email) {
             try {
               await sendTransactionEmailToSender(
@@ -3332,6 +3410,19 @@ app.listen(PORT, '0.0.0.0', () => {
 
   setInterval(cleanupStaleQueueEntries, 5 * 60 * 1000);
   console.log(`   ✅ Transaction queue cleanup (every 5 minutes)`);
+
+  // Record the first stats snapshot shortly after boot, then every 15 minutes.
+  setTimeout(() => {
+    const { recordSnapshot } = require('./services/statsRecorder');
+    recordSnapshot().catch((e) => console.error('⚠️ Initial stats snapshot failed:', e.message));
+    setInterval(
+      () => {
+        recordSnapshot().catch((e) => console.error('⚠️ Stats snapshot failed:', e.message));
+      },
+      15 * 60 * 1000
+    );
+  }, 10_000);
+  console.log(`   ✅ Stats snapshot recorder (every 15 minutes)`);
 });
 
 // ===============================================

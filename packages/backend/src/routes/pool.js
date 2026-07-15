@@ -415,6 +415,16 @@ router.post('/deploy', async (req, res) => {
       await Pool.create({ poolAddress: poolAddress.toLowerCase(), ownerSafeAddress: cleanOwner });
     }
 
+    // ── SANT points: Pool deployed successfully ────────────────────────────
+    // Deployer only — no second party.
+    try {
+      const { awardActivityPoints } = require('../services/pointsService');
+      await awardActivityPoints('base', cleanOwner, null);
+    } catch (pointsErr) {
+      console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+    }
+    // ───────────────────────────────────────────────────────────────────────
+
     console.log(`✅ Pool deployed: ${poolAddress} by ${cleanOwner} (tx: ${result.txHash})`);
     res.json({ success: true, txHash: result.txHash, poolAddress });
   } catch (err) {
@@ -1238,6 +1248,18 @@ router.post('/swap', async (req, res) => {
     const poolDoc = await Pool.findOne({ poolAddress: cleanPool })
       .lean()
       .catch(() => null);
+
+    // ── SANT points: Swap confirmed successful ────────────────────────────
+    // Swapper (cleanUser) and pool owner/deployer both earn. Pool owner is
+    // always a registered Salva wallet — they deployed it through Salva —
+    // so no registration check is needed here.
+    try {
+      const { awardActivityPoints } = require('../services/pointsService');
+      await awardActivityPoints('base', cleanUser, poolDoc?.ownerSafeAddress || null);
+    } catch (pointsErr) {
+      console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+    }
+    // ───────────────────────────────────────────────────────────────────────
     // Lookup receiver in Base (L2) DB — check name alias
     const receiverUser = await User.findOne({ safeAddress: receiverAddr })
       .lean()
@@ -2354,6 +2376,17 @@ router.post('/l1/swap', async (req, res) => {
     const l1PoolDoc = await PoolL1.findOne({ poolAddress: cleanPool })
       .lean()
       .catch(() => null);
+
+    // ── SANT points: BNB swap confirmed successful ─────────────────────────
+    // Swapper (cleanUser) and pool owner/deployer both earn, on the BNB
+    // points record. Pool owner is always a registered Salva wallet.
+    try {
+      const { awardActivityPoints } = require('../services/pointsService');
+      await awardActivityPoints('bnb', cleanUser, l1PoolDoc?.ownerSafeAddress || null);
+    } catch (pointsErr) {
+      console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+    }
+    // ───────────────────────────────────────────────────────────────────────
     const l1TokenOut =
       swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount'
         ? stableToken
@@ -2985,6 +3018,16 @@ router.post('/l1/deploy', async (req, res) => {
     if (!existing) {
       await PoolL1.create({ poolAddress: poolAddress.toLowerCase(), ownerSafeAddress: cleanOwner });
     }
+
+    // ── SANT points: BNB pool deployed successfully ────────────────────────
+    // Deployer only, on the BNB points record — no second party.
+    try {
+      const { awardActivityPoints } = require('../services/pointsService');
+      await awardActivityPoints('bnb', cleanOwner, null);
+    } catch (pointsErr) {
+      console.error('⚠️ SANT points award failed (non-fatal):', pointsErr.message);
+    }
+    // ───────────────────────────────────────────────────────────────────────
 
     console.log(`✅ L1 Pool deployed: ${poolAddress} by ${cleanOwner} (tx: ${result.txHash})`);
     res.json({ success: true, txHash: result.txHash, poolAddress });

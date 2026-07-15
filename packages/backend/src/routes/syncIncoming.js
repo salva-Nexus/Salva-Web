@@ -153,6 +153,12 @@ function getChainConfig(chain) {
       { address: process.env.CNGN_CONTRACT_ADDRESS, symbol: 'CNGN', decimals: 6 },
       { address: process.env.USDT_CONTRACT_ADDRESS, symbol: 'USDT', decimals: 6 },
       { address: process.env.USDC_CONTRACT_ADDRESS, symbol: 'USDC', decimals: 6 },
+      // SANT is Base-only, hardcoded 18 decimals — matches santMint.js/sant.js
+      {
+        address: isProd ? process.env.SANT_BASE_MAINNET : process.env.SANT_BASE_SEPOLIA,
+        symbol: 'SANT',
+        decimals: 18,
+      },
     ],
   };
 }
