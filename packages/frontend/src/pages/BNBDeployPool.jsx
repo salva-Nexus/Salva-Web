@@ -14,7 +14,7 @@ import { SALVA_API_URL } from '../config';
 import NetworkReminder, { useNetworkReminder } from '../components/NetworkReminder';
 
 const darkInput =
-  'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+  'w-full p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-xs sm:text-sm text-white placeholder:text-white/60 transition-all';
 
 const toNum = (v) => parseFloat(v || 0) || 0;
 
@@ -46,7 +46,7 @@ const compactFmt = (n) => {
 const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
   const [pin, setPin] = useState('');
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center px-3 sm:px-4">
       <motion.div
         className="absolute inset-0 bg-black/95 backdrop-blur-md"
         initial={{ opacity: 0 }}
@@ -62,12 +62,12 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-        <div className="p-8 text-center">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔐</span>
+        <div className="p-5 sm:p-8 text-center">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-base sm:text-2xl">🔐</span>
           </div>
-          <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-xs text-white/60 mb-6 leading-relaxed">{subtitle}</p>
+          <h3 className="text-sm sm:text-xl font-black mb-1 text-white">{title}</h3>
+          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">{subtitle}</p>
           <input
             type="password"
             inputMode="numeric"
@@ -76,23 +76,23 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
+            className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
           />
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={onCancel}
               disabled={loading}
-              className="flex-1 py-3.5 rounded-2xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+              className="flex-1 py-2.5 sm:py-3.5 rounded-2xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
             >
               Cancel
             </button>
             <button
               onClick={() => onConfirm(pin)}
               disabled={loading || pin.length !== 4}
-              className="flex-1 py-3.5 rounded-2xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
+              className="flex-1 py-2.5 sm:py-3.5 rounded-2xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20 transition-all"
             >
               {loading && (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
               {loading ? 'Verifying…' : 'Confirm'}
             </button>
@@ -117,32 +117,32 @@ const SubBadge = ({ pool }) => {
   // Paused always shows regardless of subscription state
   if (pool.isPaused)
     return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
+      <span className="px-1.5 py-0.5 sm:px-2 rounded-full text-[7px] sm:text-[9px] font-black uppercase border border-yellow-500/40 bg-yellow-500/10 text-yellow-400">
         {active ? `Paused · ${timeLabel} left` : 'Paused'}
       </span>
     );
 
   if (!active)
     return (
-      <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
+      <span className="px-1.5 py-0.5 sm:px-2 rounded-full text-[7px] sm:text-[9px] font-black uppercase border border-white/10 bg-white/5 text-white/60">
         Unpublished
       </span>
     );
 
   return (
-    <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase border border-green-500/30 bg-green-500/10 text-green-400">
+    <span className="px-1.5 py-0.5 sm:px-2 rounded-full text-[7px] sm:text-[9px] font-black uppercase border border-green-500/30 bg-green-500/10 text-green-400">
       Live · {timeLabel} left
     </span>
   );
 };
 
 const StatCell = ({ label, value, color }) => (
-  <div className="px-3 py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-2 min-w-0">
-    <p className="text-[10px] uppercase tracking-wide text-white/50 font-black flex-shrink-0">
+  <div className="px-2 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-between gap-1.5 sm:gap-2 min-w-0">
+    <p className="text-[7px] sm:text-[10px] uppercase tracking-wide text-white/50 font-black flex-shrink-0">
       {label}
     </p>
     <p
-      className="font-black text-sm tabular-nums flex-shrink-0"
+      className="font-black text-[10px] sm:text-sm tabular-nums flex-shrink-0"
       style={{ color }}
       title={smartFmt(value)}
     >
@@ -152,12 +152,12 @@ const StatCell = ({ label, value, color }) => (
 );
 
 const SectionTabs = ({ active, onChange }) => (
-  <div className="flex gap-1.5">
+  <div className="flex gap-1 sm:gap-1.5">
     {['liquidity', 'rates', 'controls'].map((s) => (
       <button
         key={s}
         onClick={() => onChange(s)}
-        className={`flex-1 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${active === s ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60'}`}
+        className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[7px] sm:text-[9px] font-black uppercase tracking-widest transition-all ${active === s ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-white/5 border border-white/[0.06] text-white/60 hover:text-white/60'}`}
       >
         {s}
       </button>
@@ -205,7 +205,7 @@ const RegistryDropdown = ({
             setTimeout(() => inputRef.current?.focus(), 50);
           }
         }}
-        className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${
+        className={`w-full flex items-center justify-between gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3.5 rounded-xl border transition-all text-left ${
           open
             ? 'border-blue-500 bg-blue-500/5 ring-1 ring-blue-500/30'
             : value
@@ -214,21 +214,21 @@ const RegistryDropdown = ({
         }`}
       >
         {value ? (
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-blue-500/20 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-blue-400 text-xs font-black">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-blue-500/20 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-400 text-[9px] sm:text-xs font-black">
                 {value.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">{value.name}</p>
-              <p className="text-[10px] text-white/60 font-mono truncate">{value.nspace}</p>
+              <p className="font-black text-[10px] sm:text-sm truncate text-white">{value.name}</p>
+              <p className="text-[7px] sm:text-[10px] text-white/60 font-mono truncate">{value.nspace}</p>
             </div>
           </div>
         ) : (
-          <span className="text-sm text-white/60 font-bold">{placeholder}</span>
+          <span className="text-[10px] sm:text-sm text-white/60 font-bold">{placeholder}</span>
         )}
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {value && (
             <button
               type="button"
@@ -237,9 +237,9 @@ const RegistryDropdown = ({
                 onChange(null);
                 setQuery('');
               }}
-              className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
+              className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
-              <span className="text-[10px] text-red-400 font-black">✕</span>
+              <span className="text-[7px] sm:text-[10px] text-red-400 font-black">✕</span>
             </button>
           )}
           <button
@@ -249,10 +249,10 @@ const RegistryDropdown = ({
               setQuery('');
               setTimeout(() => inputRef.current?.focus(), 50);
             }}
-            className="w-5 h-5 flex items-center justify-center"
+            className="w-3.5 h-3.5 sm:w-5 sm:h-5 flex items-center justify-center"
           >
             <svg
-              className={`w-3 h-3 text-white/60 transition-transform ${open ? 'rotate-180' : ''}`}
+              className={`w-2 h-2 sm:w-3 sm:h-3 text-white/60 transition-transform ${open ? 'rotate-180' : ''}`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -277,10 +277,10 @@ const RegistryDropdown = ({
             transition={{ duration: 0.15 }}
             className="absolute z-[200] bottom-full mb-2 w-full bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
           >
-            <div className="p-3 border-b border-white/[0.05]">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
+            <div className="p-2 sm:p-3 border-b border-white/[0.05]">
+              <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-white/5">
                 <svg
-                  className="w-3.5 h-3.5 text-white/60 flex-shrink-0"
+                  className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white/60 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -294,13 +294,13 @@ const RegistryDropdown = ({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Type to search…"
-                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:text-white/60 text-white"
+                  className="flex-1 bg-transparent outline-none text-[9px] sm:text-xs font-bold placeholder:text-white/60 text-white"
                 />
                 {query && (
                   <button
                     type="button"
                     onClick={() => setQuery('')}
-                    className="text-white/60 hover:text-white/80 text-[10px]"
+                    className="text-white/60 hover:text-white/80 text-[7px] sm:text-[10px]"
                   >
                     ✕
                   </button>
@@ -309,7 +309,7 @@ const RegistryDropdown = ({
             </div>
             <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
               {filtered.length === 0 ? (
-                <div className="px-4 py-5 text-center text-xs text-white/60 font-bold">
+                <div className="px-3 py-3.5 sm:px-4 sm:py-5 text-center text-[9px] sm:text-xs text-white/60 font-bold">
                   No services found
                 </div>
               ) : (
@@ -322,19 +322,19 @@ const RegistryDropdown = ({
                       setOpen(false);
                       setQuery('');
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-blue-500/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/10' : ''}`}
+                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 hover:bg-blue-500/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-blue-500/10' : ''}`}
                   >
-                    <div className="w-8 h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-blue-400 text-xs font-black">
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-blue-500/15 border border-blue-500/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-blue-400 text-[9px] sm:text-xs font-black">
                         {reg.name.charAt(0).toUpperCase()}
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">{reg.name}</p>
-                      <p className="text-[10px] font-mono text-white/60">{reg.nspace}</p>
+                      <p className="font-black text-[10px] sm:text-sm text-white">{reg.name}</p>
+                      <p className="text-[7px] sm:text-[10px] font-mono text-white/60">{reg.nspace}</p>
                     </div>
                     {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-blue-400 text-sm">✓</span>
+                      <span className="text-blue-400 text-[10px] sm:text-sm">✓</span>
                     )}
                   </button>
                 ))
@@ -647,73 +647,73 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
         <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
 
-        <div className="px-4 pt-3 pb-3 border-b border-white/[0.05]">
-          <div className="flex items-start justify-between gap-2 mb-3">
+        <div className="px-3 pt-2.5 pb-2.5 sm:px-4 sm:pt-3 sm:pb-3 border-b border-white/[0.05]">
+          <div className="flex items-start justify-between gap-2 mb-2.5 sm:mb-3">
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-[0.35em] text-blue-400/60 font-black mb-0.5">
+              <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-blue-400/60 font-black mb-0.5">
                 Manage Pool · BNB Chain
               </p>
-              <p className="font-black text-sm text-white truncate">
+              <p className="font-black text-[10px] sm:text-sm text-white truncate">
                 {pool.poolName || 'Unnamed Pool'}
               </p>
-              <p className="font-mono text-[9px] text-white/40 truncate mt-0.5">
+              <p className="font-mono text-[7px] sm:text-[9px] text-white/40 truncate mt-0.5">
                 {pool.poolAddress}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors flex-shrink-0 mt-1"
+              className="w-6 h-6 sm:w-8 sm:h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors flex-shrink-0 mt-1 text-[10px] sm:text-base"
             >
               ✕
             </button>
           </div>
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-[9px] uppercase tracking-widest text-blue-400/60 font-black">
+            <div className="flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2">
+              <span className="text-[7px] sm:text-[9px] uppercase tracking-widest text-blue-400/60 font-black">
                 NGN Total
               </span>
-              <span className="font-black text-sm text-blue-400 tabular-nums">
+              <span className="font-black text-[10px] sm:text-sm text-blue-400 tabular-nums">
                 {compactFmt(totalNgn)}
               </span>
             </div>
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-[9px] uppercase tracking-widest text-green-400/60 font-black">
+            <div className="flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2">
+              <span className="text-[7px] sm:text-[9px] uppercase tracking-widest text-green-400/60 font-black">
                 USD Total
               </span>
-              <span className="font-black text-sm text-green-400 tabular-nums">
+              <span className="font-black text-[10px] sm:text-sm text-green-400 tabular-nums">
                 {compactFmt(totalUsd)}
               </span>
             </div>
           </div>
         </div>
 
-        <div className="px-4 py-2 border-b border-white/[0.05]">
+        <div className="px-3 py-1.5 sm:px-4 sm:py-2 border-b border-white/[0.05]">
           <SectionTabs active={activeSection} onChange={setActiveSection} />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2.5 sm:space-y-3">
           {activeSection === 'liquidity' && (
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
+              className="space-y-2.5 sm:space-y-4"
             >
-              <div className="flex gap-2">
+              <div className="flex gap-1.5 sm:gap-2">
                 {['provide', 'remove'].map((m) => (
                   <button
                     key={m}
                     onClick={() => setLiqMode(m)}
-                    className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest border transition-all ${liqMode === m ? (m === 'provide' ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-red-500/10 border-red-500/30 text-red-400') : 'border-white/10 bg-white/5 text-white/60 hover:text-white/50'}`}
+                    className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[7px] sm:text-[10px] font-black uppercase tracking-widest border transition-all ${liqMode === m ? (m === 'provide' ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20' : 'bg-red-500/10 border-red-500/30 text-red-400') : 'border-white/10 bg-white/5 text-white/60 hover:text-white/50'}`}
                   >
                     {m === 'provide' ? '↑ Add Liquidity' : '↓ Remove Liquidity'}
                   </button>
                 ))}
               </div>
               <div>
-                <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
                   Token
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   {assets.map((a) => {
                     const raw = rawBalanceForAsset(a);
                     return (
@@ -723,19 +723,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                           setLiqAsset(a);
                           setLiqAmount('');
                         }}
-                        className={`flex items-center justify-between px-3 py-2.5 rounded-lg border transition-all ${
+                        className={`flex items-center justify-between px-2 py-2 sm:px-3 sm:py-2.5 rounded-lg border transition-all ${
                           liqAsset === a
                             ? 'bg-blue-500/10 border-blue-500/40'
                             : 'border-white/[0.06] bg-white/5 hover:border-white/20'
                         }`}
                       >
                         <span
-                          className={`text-xs font-black uppercase ${liqAsset === a ? 'text-blue-400' : 'text-white/60'}`}
+                          className={`text-[9px] sm:text-xs font-black uppercase ${liqAsset === a ? 'text-blue-400' : 'text-white/60'}`}
                         >
                           {a}
                         </span>
                         <span
-                          className="text-xs font-black text-white/80 tabular-nums"
+                          className="text-[9px] sm:text-xs font-black text-white/80 tabular-nums"
                           title={smartFmt(raw)}
                         >
                           {compactFmt(raw)}
@@ -746,15 +746,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 </div>
               </div>
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                  <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Amount
                   </label>
                   {liqMode === 'remove' && (
                     <button
                       type="button"
                       onClick={() => setLiqAmount(String(rawBalanceForAsset(liqAsset)))}
-                      className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
+                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-1.5 py-0.5 sm:px-2 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
                     </button>
@@ -766,20 +766,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     placeholder="0.00"
                     value={liqAmount}
                     onChange={(e) => setLiqAmount(e.target.value)}
-                    className={`${darkInput} text-base pr-16`}
+                    className={`${darkInput} text-sm sm:text-base pr-12 sm:pr-16`}
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
+                  <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-[10px] sm:text-sm">
                     {liqAsset}
                   </span>
                 </div>
               </div>
 
-              <div className="mb-2 px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[10px]">
+              <div className="mb-1.5 sm:mb-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[7px] sm:text-[10px]">
                 <span className="uppercase tracking-widest text-white/60 font-black">
                   Network Fee
                 </span>
                 {panelFee.loading ? (
-                  <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                  <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                 ) : panelFee.feeNGN !== null ? (
                   <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)}</span>
                 ) : (
@@ -790,10 +790,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               <button
                 onClick={() => triggerPin(liqMode)}
                 disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
-                className={`w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 active:scale-[0.98] shadow-lg ${liqMode === 'provide' ? 'bg-blue-500 text-white shadow-blue-500/20' : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'}`}
+                className={`w-full py-2 sm:py-3 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98] shadow-lg ${liqMode === 'provide' ? 'bg-blue-500 text-white shadow-blue-500/20' : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'}`}
               >
                 {txLoading && (
-                  <span className="w-4 h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
+                  <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                 )}
                 {txLoading
                   ? 'Processing…'
@@ -808,20 +808,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
+              className="space-y-2.5 sm:space-y-4"
             >
-              <div className="px-4 py-3 rounded-xl bg-white/5 border border-white/10">
-                <p className="text-[11px] text-white/60 leading-relaxed">
+              <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-white/5 border border-white/10">
+                <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
                   Rates in <span className="font-black text-blue-400">NGN per USD</span>. Each rate
                   saves as a separate on-chain transaction.
                 </p>
               </div>
               <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-green-500/30 to-transparent" />
-                <div className="p-3.5 space-y-2.5">
+                <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-xs font-black text-green-400">Buy Rate</p>
-                    <p className="text-[10px] text-white/60 mt-0.5">
+                    <p className="text-[9px] sm:text-xs font-black text-green-400">Buy Rate</p>
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current: ₦{toNum(pool.buyRate).toLocaleString()}
                     </p>
                   </div>
@@ -831,19 +831,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       placeholder="e.g. 1490"
                       value={buyRate}
                       onChange={(e) => setBuyRate(e.target.value)}
-                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 focus:border-green-400 outline-none text-base font-black text-white transition-all pr-14"
+                      className="w-full p-2 sm:p-3 rounded-xl bg-white/5 border border-white/10 focus:border-green-400 outline-none text-sm sm:text-base font-black text-white transition-all pr-11 sm:pr-14"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-400 font-black text-sm">
+                    <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-green-400 font-black text-[10px] sm:text-sm">
                       NGN
                     </span>
                   </div>
                   <button
                     onClick={() => triggerPin('buyRate')}
                     disabled={txLoading || buyRate === ''}
-                    className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-green-500/10 border border-green-500/25 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-500"
+                    className="w-full py-2 sm:py-3 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 bg-green-500/10 border border-green-500/25 text-green-400 hover:bg-green-500 hover:text-black hover:border-green-500"
                   >
                     {txLoading && pinAction === 'buyRate' && (
-                      <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Buy Rate On-Chain
                   </button>
@@ -851,10 +851,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               </div>
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-                <div className="p-3.5 space-y-2.5">
+                <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-xs font-black text-blue-400">Sell Rate</p>
-                    <p className="text-[10px] text-white/60 mt-0.5">
+                    <p className="text-[9px] sm:text-xs font-black text-blue-400">Sell Rate</p>
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current: ₦{toNum(pool.sellRate).toLocaleString()}
                     </p>
                   </div>
@@ -864,19 +864,19 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                       placeholder="e.g. 1530"
                       value={sellRate}
                       onChange={(e) => setSellRate(e.target.value)}
-                      className="w-full p-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-base font-black text-white transition-all pr-14"
+                      className="w-full p-2 sm:p-3 rounded-xl bg-white/5 border border-white/10 focus:border-blue-400 outline-none text-sm sm:text-base font-black text-white transition-all pr-11 sm:pr-14"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
+                    <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-[10px] sm:text-sm">
                       NGN
                     </span>
                   </div>
                   <button
                     onClick={() => triggerPin('sellRate')}
                     disabled={txLoading || sellRate === ''}
-                    className="w-full py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-2 bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500 hover:text-white hover:border-blue-500"
+                    className="w-full py-2 sm:py-3 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 bg-blue-500/10 border border-blue-500/25 text-blue-400 hover:bg-blue-500 hover:text-white hover:border-blue-500"
                   >
                     {txLoading && pinAction === 'sellRate' && (
-                      <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Sell Rate On-Chain
                   </button>
@@ -889,36 +889,36 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-4"
+              className="space-y-2.5 sm:space-y-4"
             >
-              <div className="px-4 py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                <p className="text-xs font-black text-yellow-400 mb-0.5">Emergency Controls</p>
-                <p className="text-[11px] text-white/60 leading-relaxed">
+              <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
+                <p className="text-[9px] sm:text-xs font-black text-yellow-400 mb-0.5">Emergency Controls</p>
+                <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
                   Pausing stops all swaps. Liquidity is safe — only you can unpause.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <button
                   onClick={() => triggerPin('pause')}
                   disabled={txLoading}
-                  className="py-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-[10px] uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
+                  className="py-1.5 sm:py-2.5 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 font-black text-[7px] sm:text-[10px] uppercase tracking-widest hover:bg-yellow-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ⏸ Pause
                 </button>
                 <button
                   onClick={() => triggerPin('unpause')}
                   disabled={txLoading}
-                  className="py-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 font-black text-[10px] uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
+                  className="py-1.5 sm:py-2.5 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 font-black text-[7px] sm:text-[10px] uppercase tracking-widest hover:bg-green-500 hover:text-black transition-all disabled:opacity-40"
                 >
                   ▶ Unpause
                 </button>
               </div>
               <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
-                <div className="p-3.5 space-y-2.5">
+                <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-xs font-black text-blue-400">Min NGN Per Swap</p>
-                    <p className="text-[10px] text-white/60 mt-0.5">
+                    <p className="text-[9px] sm:text-xs font-black text-blue-400">Min NGN Per Swap</p>
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minNgnAmount) > 0
                         ? `${toNum(pool.minNgnAmount).toLocaleString('en-US', { maximumFractionDigits: 2 })} NGN`
@@ -935,10 +935,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <button
                     onClick={() => triggerPin('minNgn')}
                     disabled={txLoading || !minNgn}
-                    className="w-full py-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 font-black text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="w-full py-2 sm:py-3 rounded-xl bg-blue-500/10 border border-blue-500/25 text-blue-400 font-black text-[9px] sm:text-xs uppercase tracking-widest hover:bg-blue-500 hover:text-white hover:border-blue-500 transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2"
                   >
                     {txLoading && pinAction === 'minNgn' && (
-                      <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min NGN
                   </button>
@@ -946,10 +946,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               </div>
               <div className="rounded-2xl border border-white/10 bg-white/[0.02] overflow-hidden">
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-                <div className="p-3.5 space-y-2.5">
+                <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-xs font-black text-white/60">Min USD Per Swap</p>
-                    <p className="text-[10px] text-white/60 mt-0.5">
+                    <p className="text-[9px] sm:text-xs font-black text-white/60">Min USD Per Swap</p>
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minTokenAmount) > 0
                         ? `${toNum(pool.minTokenAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
@@ -966,10 +966,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   <button
                     onClick={() => triggerPin('minToken')}
                     disabled={txLoading || !minToken}
-                    className="w-full py-3 rounded-xl bg-white/5 border border-white/15 text-white/60 font-black text-xs uppercase tracking-widest hover:bg-white/15 hover:text-white transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    className="w-full py-2 sm:py-3 rounded-xl bg-white/5 border border-white/15 text-white/60 font-black text-[9px] sm:text-xs uppercase tracking-widest hover:bg-white/15 hover:text-white transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2"
                   >
                     {txLoading && pinAction === 'minToken' && (
-                      <span className="w-3 h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-current/40 border-t-current rounded-full animate-spin" />
                     )}
                     Set Min USD
                   </button>
@@ -1008,18 +1008,18 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
       className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-blue-500/20 transition-all"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-3.5 space-y-3">
+      <div className="p-2.5 sm:p-3.5 space-y-2 sm:space-y-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
-              <p className="font-black text-blue-400 text-sm truncate">
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap mb-0.5">
+              <p className="font-black text-blue-400 text-[10px] sm:text-sm truncate">
                 {pool.poolName || 'Unnamed Pool'}
               </p>
               <SubBadge pool={pool} />
             </div>
-            <p className="font-mono text-[9px] text-white/40 truncate">{pool.poolAddress}</p>
+            <p className="font-mono text-[7px] sm:text-[9px] text-white/40 truncate">{pool.poolAddress}</p>
             {pool.subscriptionExpiresAt && new Date(pool.subscriptionExpiresAt) > new Date() && (
-              <p className="text-[8px] text-white/40 mt-0.5">
+              <p className="text-[6px] sm:text-[8px] text-white/40 mt-0.5">
                 Expires{' '}
                 {new Date(pool.subscriptionExpiresAt).toLocaleDateString('en-US', {
                   day: 'numeric',
@@ -1032,7 +1032,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
         </div>
 
         {/* ── Token balances: 2×2 spacious grid ── */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
           <StatCell label="NGNs" value={toNum(pool.ngnsLiquidity)} color="#ffffff" />
           <StatCell label="cNGN" value={toNum(pool.cNgnLiquidity)} color="#ffffff" />
           <StatCell label="USDT" value={toNum(pool.usdtLiquidity)} color="#ffffff" />
@@ -1041,64 +1041,64 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 
         {/* Totals + Rates unified strip */}
         <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.05]">
-          <div className="flex items-center justify-between px-3 py-2">
-            <span className="text-[9px] uppercase tracking-widest text-white/50 font-black">
+          <div className="flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2">
+            <span className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/50 font-black">
               NGN Total
             </span>
-            <span className="font-black text-sm text-blue-400 tabular-nums">
+            <span className="font-black text-[10px] sm:text-sm text-blue-400 tabular-nums">
               {compactFmt(totalNgn)}
             </span>
           </div>
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-[10px] uppercase tracking-widest text-white/50 font-black">
+          <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+            <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/50 font-black">
               USD Total
             </span>
-            <span className="font-black text-base text-white tabular-nums">
+            <span className="font-black text-[10px] sm:text-base text-white tabular-nums">
               {compactFmt(totalUsd)}
             </span>
           </div>
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-[10px] uppercase tracking-widest text-white/50 font-black">
+          <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+            <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/50 font-black">
               Buy Rate
             </span>
-            <span className="font-black text-base text-white tabular-nums">
+            <span className="font-black text-[10px] sm:text-base text-white tabular-nums">
               ₦{toNum(pool.buyRate).toLocaleString()}
-              <span className="text-[10px] text-white/40 font-normal">/USD</span>
+              <span className="text-[7px] sm:text-[10px] text-white/40 font-normal">/USD</span>
             </span>
           </div>
-          <div className="flex items-center justify-between px-4 py-3">
-            <span className="text-[10px] uppercase tracking-widest text-white/50 font-black">
+          <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
+            <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/50 font-black">
               Sell Rate
             </span>
-            <span className="font-black text-base text-white tabular-nums">
+            <span className="font-black text-[10px] sm:text-base text-white tabular-nums">
               ₦{toNum(pool.sellRate).toLocaleString()}
-              <span className="text-[10px] text-white/40 font-normal">/USD</span>
+              <span className="text-[7px] sm:text-[10px] text-white/40 font-normal">/USD</span>
             </span>
           </div>
         </div>
 
-        <div className="flex gap-1.5">
+        <div className="flex gap-1 sm:gap-1.5">
           <button
             onClick={onManage}
-            className="flex-1 py-2 rounded-lg bg-white/5 border border-white/[0.07] text-white font-black text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
+            className="flex-1 py-1.5 sm:py-2 rounded-lg bg-white/5 border border-white/[0.07] text-white font-black text-[7px] sm:text-[10px] uppercase tracking-widest hover:bg-white/10 transition-all"
           >
             ⚙ Manage
           </button>
           <button
             onClick={onPublish}
-            className="flex-1 py-2 rounded-lg bg-blue-500 text-white font-black text-[10px] uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
+            className="flex-1 py-1.5 sm:py-2 rounded-lg bg-blue-500 text-white font-black text-[7px] sm:text-[10px] uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-blue-500/20"
           >
             {pool.isPublished ? 'Extend' : 'Publish'}
           </button>
           <button
             onClick={onRename}
-            className="py-2 px-2.5 rounded-lg border border-blue-500/25 text-blue-400 font-black text-[10px] uppercase hover:bg-blue-500/10 transition-all"
+            className="py-1.5 px-1.5 sm:py-2 sm:px-2.5 rounded-lg border border-blue-500/25 text-blue-400 font-black text-[7px] sm:text-[10px] uppercase hover:bg-blue-500/10 transition-all"
           >
             {pool.poolName ? '✎' : 'Name'}
           </button>
           <button
             onClick={onDelete}
-            className="py-2 px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
+            className="py-1.5 px-1.5 sm:py-2 sm:px-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[7px] sm:text-[10px] uppercase hover:bg-red-500 hover:text-white transition-all"
           >
             🗑
           </button>
@@ -1460,33 +1460,33 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 min-w-0">
-          <h2 className="text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3.5 sm:space-y-5 relative">
+      <div className="flex items-center justify-between gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+          <h2 className="text-sm sm:text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
           <a
             href="/dashboard"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
+            className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
           >
-            <div className="w-3 h-3 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[6px] font-black">B</span>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[4px] sm:text-[6px] font-black">B</span>
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest text-salvaGold">
+            <span className="text-[6px] sm:text-[8px] font-black uppercase tracking-widest text-salvaGold">
               Base
             </span>
-            <span className="text-salvaGold text-[9px]">↗</span>
+            <span className="text-salvaGold text-[6px] sm:text-[9px]">↗</span>
           </a>
           <button
             onClick={() => fetchMyPools(true)}
             disabled={loading || refreshing}
-            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-500/30 transition-all"
+            className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-500/30 transition-all"
           >
             {loading || refreshing ? (
-              <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             ) : (
-              <span className="text-blue-400 text-lg leading-none">↻</span>
+              <span className="text-blue-400 text-xs sm:text-lg leading-none">↻</span>
             )}
           </button>
           <button
@@ -1498,19 +1498,19 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               setShowNetworkReminder(true);
             }}
             disabled={deploying}
-            className="flex items-center gap-2 px-5 py-3 bg-blue-500 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
+            className="flex items-center gap-1.5 sm:gap-2 px-3.5 py-2 sm:px-5 sm:py-3 bg-blue-500 text-white font-black text-[9px] sm:text-xs uppercase tracking-widest rounded-xl hover:brightness-110 transition-all disabled:opacity-50 shadow-lg shadow-blue-500/20"
           >
             {deploying && (
-              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             )}
             {deploying ? 'Deploying…' : '+ Deploy'}
           </button>
         </div>
       </div>
 
-      <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-xs font-black text-blue-400 mb-1">How it works</p>
-        <p className="text-[11px] text-white/60 leading-relaxed">
+      <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+        <p className="text-[9px] sm:text-xs font-black text-blue-400 mb-0.5 sm:mb-1">How it works</p>
+        <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
           Deploy your pool, add liquidity, set rates, then publish it. A subscription of{' '}
           <span className="font-black text-blue-400">
             {subFees?.monthly?.toLocaleString() || '3,000'} NGN/month
@@ -1520,25 +1520,25 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+        <div className="flex justify-center py-14 sm:py-20">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : pools.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
+          className="py-14 sm:py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
         >
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🏊</span>
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
+            <span className="text-base sm:text-2xl">🏊</span>
           </div>
-          <p className="font-black text-white/60 text-sm mb-1">No pools yet</p>
-          <p className="text-[11px] text-white/60">
+          <p className="font-black text-white/60 text-[10px] sm:text-sm mb-0.5 sm:mb-1">No pools yet</p>
+          <p className="text-[8px] sm:text-[11px] text-white/60">
             Deploy your first pool to start earning as an LP
           </p>
         </motion.div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {pools.map((pool, i) => (
             <PoolCard
               key={pool.poolAddress}
@@ -1603,7 +1603,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       {/* Subscribe Modal */}
       <AnimatePresence>
         {showSubModal && selectedPool && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
               initial={{ opacity: 0 }}
@@ -1620,35 +1620,35 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-              <div className="p-8">
-                <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
+              <div className="p-5 sm:p-8">
+                <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-1">
                   Marketplace
                 </p>
-                <h3 className="text-xl font-black mb-1 text-white">Publish Pool</h3>
-                <p className="text-xs text-white/60 mb-5 leading-relaxed">
+                <h3 className="text-sm sm:text-xl font-black mb-1 text-white">Publish Pool</h3>
+                <p className="text-[9px] sm:text-xs text-white/60 mb-3.5 sm:mb-5 leading-relaxed">
                   Subscribe to list your pool on the SWAP marketplace.
                   {selectedPool.isPublished && ' Remaining time is preserved.'}
                 </p>
-                <div className="space-y-2 mb-5">
+                <div className="space-y-1.5 sm:space-y-2 mb-3.5 sm:mb-5">
                   {subFees?.tiers?.map((tier) => (
                     <button
                       key={tier.months}
                       onClick={() => setSubTier(tier.months)}
-                      className={`w-full flex items-center justify-between p-4 rounded-xl border transition-all ${subTier === tier.months ? 'border-blue-500 bg-blue-500/10' : 'border-white/10 bg-white/5 hover:border-blue-500/30'}`}
+                      className={`w-full flex items-center justify-between p-2.5 sm:p-4 rounded-xl border transition-all ${subTier === tier.months ? 'border-blue-500 bg-blue-500/10' : 'border-white/10 bg-white/5 hover:border-blue-500/30'}`}
                     >
-                      <span className="font-black text-sm text-white">{tier.label}</span>
+                      <span className="font-black text-[10px] sm:text-sm text-white">{tier.label}</span>
                       <span
-                        className={`font-black text-sm ${subTier === tier.months ? 'text-blue-400' : 'text-white/60'}`}
+                        className={`font-black text-[10px] sm:text-sm ${subTier === tier.months ? 'text-blue-400' : 'text-white/60'}`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
                     </button>
                   ))}
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     onClick={() => setShowSubModal(false)}
-                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
                   >
                     Cancel
                   </button>
@@ -1659,7 +1659,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       setPinVisible(true);
                     }}
                     disabled={subscribing}
-                    className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 shadow-lg shadow-blue-500/20 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-50 shadow-lg shadow-blue-500/20 transition-all"
                   >
                     Subscribe
                   </button>
@@ -1673,7 +1673,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       {/* Name Prompt */}
       <AnimatePresence>
         {showNamePrompt && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
               initial={{ opacity: 0 }}
@@ -1690,22 +1690,22 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-              <div className="p-8">
-                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🏷️</span>
+              <div className="p-5 sm:p-8">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <span className="text-base sm:text-2xl">🏷️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">Name Your Pool?</h3>
-                <p className="text-xs text-white/60 mb-2 leading-relaxed">
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Name Your Pool?</h3>
+                <p className="text-[9px] sm:text-xs text-white/60 mb-1.5 sm:mb-2 leading-relaxed">
                   Give it a human-readable identity like{' '}
                   <span className="text-blue-400 font-black">mypool@salva</span>
                 </p>
-                <p className="font-mono text-[10px] text-white/60 mb-6 break-all">
+                <p className="font-mono text-[7px] sm:text-[10px] text-white/60 mb-4 sm:mb-6 break-all">
                   {newlyDeployedPool}
                 </p>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     onClick={() => setShowNamePrompt(false)}
-                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
                   >
                     Skip
                   </button>
@@ -1715,7 +1715,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       if (onSwitchToLinkName && newlyDeployedPool)
                         onSwitchToLinkName(newlyDeployedPool);
                     }}
-                    className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                   >
                     Proceed
                   </button>
@@ -1729,7 +1729,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       {/* Delete Confirm */}
       <AnimatePresence>
         {showDeleteConfirm && deletingPool && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
               initial={{ opacity: 0 }}
@@ -1746,21 +1746,21 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-red-500/40 to-transparent" />
-              <div className="p-8">
-                <div className="w-14 h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">⚠️</span>
+              <div className="p-5 sm:p-8">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <span className="text-base sm:text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-2 text-white">Delete Pool?</h3>
-                <p className="text-xs text-white/60 mb-1 leading-relaxed">
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Delete Pool?</h3>
+                <p className="text-[9px] sm:text-xs text-white/60 mb-1 leading-relaxed">
                   Removes from registry. Contract stays on-chain.
                 </p>
-                <p className="text-xs text-red-400 font-bold mb-4">
+                <p className="text-[9px] sm:text-xs text-red-400 font-bold mb-3 sm:mb-4">
                   Must have &lt;1,000 NGNs and &lt;$1 in stablecoins.
                 </p>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     onClick={() => setShowDeleteConfirm(false)}
-                    className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
                   >
                     Cancel
                   </button>
@@ -1771,10 +1771,10 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       setPinVisible(true);
                     }}
                     disabled={deleting}
-                    className="flex-1 py-3.5 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 transition-all"
+                    className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-red-500 text-white font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-1.5 sm:gap-2 transition-all"
                   >
                     {deleting && (
-                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     )}
                     {deleting ? 'Deleting…' : 'Yes, Delete'}
                   </button>
@@ -1809,13 +1809,13 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mt-4 mb-1 sm:hidden" />
-              <div className="px-6 pt-5 pb-4 border-b border-white/[0.05] flex items-center justify-between">
+              <div className="px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4 border-b border-white/[0.05] flex items-center justify-between">
                 <div>
-                  <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
+                  <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.45em] text-blue-400/60 font-black mb-0.5">
                     Salva NS
                   </p>
-                  <h3 className="text-xl font-black text-white">Rename Pool</h3>
-                  <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
+                  <h3 className="text-sm sm:text-xl font-black text-white">Rename Pool</h3>
+                  <p className="font-mono text-[7px] sm:text-[10px] text-white/60 truncate mt-0.5">
                     {renamingPool.poolAddress}
                   </p>
                 </div>
@@ -1824,21 +1824,21 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     setShowRenameModal(false);
                     resetRenameModal();
                   }}
-                  className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors"
+                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors text-[10px] sm:text-base"
                 >
                   ✕
                 </button>
               </div>
-              <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-3.5 sm:space-y-5">
                 {renamingPool.poolName && (
-                  <div className="flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                    <span className="text-[10px] uppercase font-black text-white/60 tracking-widest flex-shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <span className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest flex-shrink-0">
                       Current
                     </span>
-                    <span className="text-blue-400 font-black text-sm truncate flex-1">
+                    <span className="text-blue-400 font-black text-[10px] sm:text-sm truncate flex-1">
                       {renamingPool.poolName}
                     </span>
-                    <span className="text-[9px] text-white/60 font-bold flex-shrink-0">
+                    <span className="text-[7px] sm:text-[9px] text-white/60 font-bold flex-shrink-0">
                       will unlink
                     </span>
                   </div>
@@ -1847,10 +1847,10 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <motion.div
                     initial={{ opacity: 0, y: 6 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="space-y-4"
+                    className="space-y-2.5 sm:space-y-4"
                   >
                     <div>
-                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                      <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
                         New Name
                       </label>
                       <input
@@ -1865,14 +1865,14 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                         className={darkInput}
                       />
                       {renameInput && renameRegistry && (
-                        <p className="text-[10px] text-blue-400/60 font-bold mt-1.5 ml-1">
+                        <p className="text-[7px] sm:text-[10px] text-blue-400/60 font-bold mt-1 sm:mt-1.5 ml-1">
                           Preview: {renameInput}
                           {renameRegistry.nspace}
                         </p>
                       )}
                     </div>
                     <div>
-                      <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                      <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
                         Wallet Service
                       </label>
                       <RegistryDropdown
@@ -1885,18 +1885,18 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       />
                     </div>
                     {renameError && (
-                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
-                        <span className="text-red-400 text-xs flex-shrink-0">⚠</span>
-                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
+                      <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+                        <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">⚠</span>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
                     <button
                       onClick={handleRenameCheck}
                       disabled={renameChecking || !renameInput || !renameRegistry}
-                      className="w-full py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+                      className="w-full py-2.5 sm:py-4 bg-blue-500 text-white font-black rounded-xl hover:brightness-110 transition-all disabled:opacity-40 uppercase tracking-widest text-[10px] sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20"
                     >
                       {renameChecking && (
-                        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                       )}
                       {renameChecking ? 'Checking…' : 'Check Availability'}
                     </button>
@@ -1906,45 +1906,45 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="space-y-4"
+                    className="space-y-2.5 sm:space-y-4"
                   >
-                    <div className="p-5 rounded-2xl bg-blue-500/8 border border-blue-500/20 text-center">
-                      <p className="text-[9px] uppercase tracking-[0.3em] font-black text-blue-400/50 mb-2">
+                    <div className="p-3.5 sm:p-5 rounded-2xl bg-blue-500/8 border border-blue-500/20 text-center">
+                      <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.3em] font-black text-blue-400/50 mb-1.5 sm:mb-2">
                         Name Available
                       </p>
-                      <p className="text-2xl font-black text-blue-400">
+                      <p className="text-base sm:text-2xl font-black text-blue-400">
                         {renameCheckResult.welded}
                       </p>
                     </div>
                     {renameFeeLoading ? (
-                      <div className="flex items-center gap-3 p-4 rounded-xl bg-white/5 border border-white/10">
-                        <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
-                        <p className="text-xs text-blue-400 font-bold">
+                      <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
+                        <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin flex-shrink-0" />
+                        <p className="text-[9px] sm:text-xs text-blue-400 font-bold">
                           Fetching registration fee…
                         </p>
                       </div>
                     ) : renameFee !== null && renameFee > 0 ? (
-                      <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-                        <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
+                      <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
+                        <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
                           Registration Fee
                         </p>
-                        <p className="font-black text-white text-sm">
+                        <p className="font-black text-white text-[10px] sm:text-sm">
                           {renameFee?.toLocaleString()}{' '}
-                          <span className="text-blue-400 text-xs">NGNs</span>
+                          <span className="text-blue-400 text-[8px] sm:text-xs">NGNs</span>
                         </p>
                       </div>
                     ) : renameFee === 0 ? (
-                      <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-                        <span className="text-green-400 text-sm flex-shrink-0">✦</span>
-                        <p className="text-xs font-black text-green-400">Free Registration</p>
+                      <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
+                        <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">✦</span>
+                        <p className="text-[9px] sm:text-xs font-black text-green-400">Free Registration</p>
                       </div>
                     ) : null}
                     {renamingPool.poolName && (
-                      <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                        <p className="text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-2">
+                      <div className="p-2.5 sm:p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
+                        <p className="text-[7px] sm:text-[10px] uppercase font-black text-yellow-400 tracking-widest mb-1.5 sm:mb-2">
                           What Happens
                         </p>
-                        <p className="text-xs text-white/60 leading-relaxed">
+                        <p className="text-[9px] sm:text-xs text-white/60 leading-relaxed">
                           1.{' '}
                           <span className="text-red-400 font-black">{renamingPool.poolName}</span>{' '}
                           unlinked on-chain
@@ -1958,25 +1958,25 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       </div>
                     )}
                     {renameError && (
-                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
-                        <span className="text-red-400 text-xs">⚠</span>
-                        <p className="text-xs text-red-400 font-bold">{renameError}</p>
+                      <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+                        <span className="text-red-400 text-[10px] sm:text-xs">⚠</span>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
                       </div>
                     )}
-                    <div className="flex gap-3 pt-1">
+                    <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
                       <button
                         onClick={() => setRenameStep('form')}
-                        className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white hover:bg-white/5 transition-all"
+                        className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white hover:bg-white/5 transition-all"
                       >
                         Back
                       </button>
                       <button
                         onClick={handleRenamePrepare}
                         disabled={renameLoading || renameFeeLoading}
-                        className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
+                        className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20 transition-all"
                       >
                         {renameLoading && (
-                          <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         )}
                         {renameLoading ? 'Preparing…' : 'Confirm & Enter PIN'}
                       </button>
@@ -1987,17 +1987,17 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
+                    className="py-11 sm:py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-2.5 sm:space-y-4"
                   >
-                    <div className="relative w-14 h-14 mx-auto">
+                    <div className="relative w-10 h-10 sm:w-14 sm:h-14 mx-auto">
                       <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
                       <div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <span className="text-blue-400 text-sm font-black">₦</span>
+                        <span className="text-blue-400 text-[9px] sm:text-sm font-black">₦</span>
                       </div>
                     </div>
-                    <p className="font-black text-white">Renaming on-chain…</p>
-                    <p className="text-xs text-white/60">
+                    <p className="font-black text-white text-xs sm:text-base">Renaming on-chain…</p>
+                    <p className="text-[9px] sm:text-xs text-white/60">
                       Unlinking old, linking new · 60–90 seconds
                     </p>
                   </motion.div>
