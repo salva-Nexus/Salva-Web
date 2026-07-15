@@ -34,11 +34,19 @@ router.get('/', requireValidator, async (req, res) => {
     const range = req.query.range || '30d';
     const windowMs = RANGE_MS[range];
 
-    const query = windowMs ? { recordedAt: { $gte: new Date(Date.now() - windowMs) } } : {};
+    // Only ever return snapshots recorded by THIS server's own environment.
+    // A production server must never surface testnet snapshots (and vice
+    // versa) — they share one physical collection, but are logically
+    // separate datasets.
+    const network = process.env.NODE_ENV === 'production' ? 'mainnet' : 'testnet';
+    const query = {
+      network,
+      ...(windowMs ? { recordedAt: { $gte: new Date(Date.now() - windowMs) } } : {}),
+    };
 
     const snapshots = await StatsSnapshot.find(query).sort({ recordedAt: 1 }).limit(2000).lean();
 
-    res.json({ snapshots });
+    res.json({ snapshots, network });
   } catch (err) {
     console.error('❌ /api/admin-stats:', err.message);
     res.status(500).json({ message: err.message });

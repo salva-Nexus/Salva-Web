@@ -137,6 +137,7 @@ async function recordSnapshot() {
   const transactionVolume = await Transaction.countDocuments().catch(() => 0);
 
   const snapshot = await StatsSnapshot.create({
+    network: prod ? 'mainnet' : 'testnet',
     userCount,
     ngnCirculating,
     treasuryNGN,
