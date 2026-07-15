@@ -553,7 +553,7 @@ const SantTab = ({ user, registries, showMsg }) => {
           <button
             onClick={handleClaimClick}
             disabled={!claim.active}
-            className={`w-full py-3.5 rounded-xl font-black text-sm uppercase tracking-widest transition-all ${
+            className={`w-full py-3.5 rounded-xl font-black text-xs sm:text-sm uppercase tracking-widest transition-all leading-tight ${
               claim.active
                 ? 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                 : 'bg-white/5 border border-white/10 text-white/25 cursor-not-allowed opacity-50'
@@ -590,11 +590,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                 Salva Secure Transfer
               </p>
               <p className="text-[10px] text-white/60 mb-5">
-                Balance:{' '}
-                {balanceLoading
-                  ? '…'
-                  : formatNumber(santBalance, { minDecimals: 2, maxDecimals: 4 })}{' '}
-                SANT
+                Balance: {balanceLoading ? '…' : fmtSant(santBalance)} SANT
               </p>
               <form
                 onSubmit={(e) => {
@@ -646,8 +642,13 @@ const SantTab = ({ user, registries, showMsg }) => {
                       type="button"
                       onClick={() => {
                         const raw = parseFloat(santBalance) || 0;
-                        setTransferAmountDisplay(String(raw));
-                        setTransferAmount(String(raw));
+                        // toFixed(6) avoids JS's scientific-notation string
+                        // conversion for tiny values (e.g. String(0.0000007)
+                        // → "7e-7"), then strip trailing zeros for a clean
+                        // decimal amount the input/amountWei parsing expects.
+                        const fixed = raw.toFixed(6).replace(/\.?0+$/, '');
+                        setTransferAmountDisplay(fixed);
+                        setTransferAmount(fixed);
                       }}
                       className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
                     >
