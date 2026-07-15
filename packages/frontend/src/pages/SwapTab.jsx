@@ -613,30 +613,61 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </div>
                 </div>
 
-                {/* ── Token Config Row ── */}
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <div>
-                    <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                      USD Stablecoins
-                    </label>
-                    <TokenPills
-                      options={['USDT', 'USDC']}
-                      value={stableToken}
-                      onChange={setStableToken}
-                      accentColor={accentColor}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                      NGN Stablecoins
-                    </label>
-                    <TokenPills
-                      options={['NGNS', 'CNGN']}
-                      value={ngnToken}
-                      onChange={setNgnToken}
-                      accentColor={accentColor}
-                    />
-                  </div>
+                {/* ── Token Config Row — Send side always left, Receive side always right ── */}
+                <div className="flex items-stretch gap-2 sm:gap-3">
+                  {section === 'buy' ? (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
+                          NGN to Send
+                        </label>
+                        <TokenPills
+                          options={['NGNS', 'CNGN']}
+                          value={ngnToken}
+                          onChange={setNgnToken}
+                          accentColor={accentColor}
+                        />
+                      </div>
+                      <div className="w-px bg-white/10 self-stretch flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
+                          USD to Receive
+                        </label>
+                        <TokenPills
+                          options={['USDT', 'USDC']}
+                          value={stableToken}
+                          onChange={setStableToken}
+                          accentColor={accentColor}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
+                          USD to Send
+                        </label>
+                        <TokenPills
+                          options={['USDT', 'USDC']}
+                          value={stableToken}
+                          onChange={setStableToken}
+                          accentColor={accentColor}
+                        />
+                      </div>
+                      <div className="w-px bg-white/10 self-stretch flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
+                          NGN to Receive
+                        </label>
+                        <TokenPills
+                          options={['NGNS', 'CNGN']}
+                          value={ngnToken}
+                          onChange={setNgnToken}
+                          accentColor={accentColor}
+                        />
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 {/* ── Mode toggle ── */}
