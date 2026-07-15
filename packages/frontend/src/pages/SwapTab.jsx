@@ -262,20 +262,28 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
   // ── User wallet balances ──────────────────────────────────────────────────
   const [userBal, setUserBal] = useState({});
+  // Raw (unparsed) balance strings — used by the Max button so it never truncates or rounds
+  const [userBalRaw, setUserBalRaw] = useState({});
   const [userBalLoading, setUserBalLoading] = useState(true);
   useEffect(() => {
     if (!user?.safeAddress) return;
     setUserBalLoading(true);
     fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
       .then((r) => r.json())
-      .then((d) =>
+      .then((d) => {
         setUserBal({
           NGNS: parseFloat(d.ngnsBalance || 0),
           CNGN: parseFloat(d.cNgnBalance || 0),
           USDT: parseFloat(d.usdtBalance || 0),
           USDC: parseFloat(d.usdcBalance || 0),
-        })
-      )
+        });
+        setUserBalRaw({
+          NGNS: String(d.ngnsBalance ?? '0'),
+          CNGN: String(d.cNgnBalance ?? '0'),
+          USDT: String(d.usdtBalance ?? '0'),
+          USDC: String(d.usdcBalance ?? '0'),
+        });
+      })
       .catch(() => {})
       .finally(() => setUserBalLoading(false));
   }, [user?.safeAddress]);
@@ -289,6 +297,25 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         : tokenOut === 'cNGN'
           ? parseFloat(pool.cNgnLiquidity || 0)
           : parseFloat(pool.ngnsLiquidity || 0);
+  // Raw string version — Max button source for exact_out mode, no precision loss
+  const poolReceiveBalRaw =
+    tokenOut === 'USDT'
+      ? String(pool.usdtLiquidity ?? '0')
+      : tokenOut === 'USDC'
+        ? String(pool.usdcLiquidity ?? '0')
+        : tokenOut === 'cNGN'
+          ? String(pool.cNgnLiquidity ?? '0')
+          : String(pool.ngnsLiquidity ?? '0');
+
+  // Max button: exact_in → user's balance of the token they're SENDING (tokenIn)
+  //             exact_out → pool's balance of the token they're RECEIVING (tokenOut)
+  // Always uses the raw string as-is — never parseFloat/toFixed round-tripped.
+  const handleMaxClick = () => {
+    const raw = swapType === 'exact_in' ? (userBalRaw[tokenIn] ?? '0') : poolReceiveBalRaw;
+    setAmountDisplay(fmtInput(raw));
+    setAmountRaw(parseFloat(raw) || 0);
+  };
+  const maxDisabled = swapType === 'exact_in' && userBalLoading;
 
   useEffect(() => {
     setTrustChecked(false);
@@ -786,9 +813,24 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
 
                 {/* Amount input */}
                 <div>
-                  <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
-                    {amountInputLabel}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      {amountInputLabel}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleMaxClick}
+                      disabled={maxDisabled}
+                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-opacity px-1.5 py-0.5 sm:px-2 rounded-lg border disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{
+                        color: accentColor,
+                        borderColor: `${accentColor}33`,
+                        background: `${accentColor}1A`,
+                      }}
+                    >
+                      Max
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"

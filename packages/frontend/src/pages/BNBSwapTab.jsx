@@ -333,22 +333,30 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     }
   };
 
-  // L1 user balance
+  /// L1 user balance
   const [userBal, setUserBal] = useState({});
+  // Raw (unparsed) balance strings — used by the Max button so it never truncates or rounds
+  const [userBalRaw, setUserBalRaw] = useState({});
   const [userBalLoading, setUserBalLoading] = useState(true);
   useEffect(() => {
     if (!user?.safeAddress) return;
     setUserBalLoading(true);
     fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`)
       .then((r) => r.json())
-      .then((d) =>
+      .then((d) => {
         setUserBal({
           NGNS: parseFloat(d.ngnsBalance || 0),
           CNGN: parseFloat(d.cNgnBalance || 0),
           USDT: parseFloat(d.usdtBalance || 0),
           USDC: parseFloat(d.usdcBalance || 0),
-        })
-      )
+        });
+        setUserBalRaw({
+          NGNS: String(d.ngnsBalance ?? '0'),
+          CNGN: String(d.cNgnBalance ?? '0'),
+          USDT: String(d.usdtBalance ?? '0'),
+          USDC: String(d.usdcBalance ?? '0'),
+        });
+      })
       .catch(() => {})
       .finally(() => setUserBalLoading(false));
   }, [user?.safeAddress]);
@@ -362,6 +370,25 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         : tokenOut === 'cNGN'
           ? parseFloat(pool.cNgnLiquidity || 0)
           : parseFloat(pool.ngnsLiquidity || 0);
+  // Raw string version — Max button source for exact_out mode, no precision loss
+  const poolReceiveBalRaw =
+    tokenOut === 'USDT'
+      ? String(pool.usdtLiquidity ?? '0')
+      : tokenOut === 'USDC'
+        ? String(pool.usdcLiquidity ?? '0')
+        : tokenOut === 'cNGN'
+          ? String(pool.cNgnLiquidity ?? '0')
+          : String(pool.ngnsLiquidity ?? '0');
+
+  // Max button: exact_in → user's balance of the token they're SENDING (tokenIn)
+  //             exact_out → pool's balance of the token they're RECEIVING (tokenOut)
+  // Always uses the raw string as-is — never parseFloat/toFixed round-tripped.
+  const handleMaxClick = () => {
+    const raw = swapType === 'exact_in' ? (userBalRaw[tokenIn] ?? '0') : poolReceiveBalRaw;
+    setAmountDisplay(fmtInput(raw));
+    setAmountRaw(parseFloat(raw) || 0);
+  };
+  const maxDisabled = swapType === 'exact_in' && userBalLoading;
 
   // Trust check via L1 endpoint
   useEffect(() => {
@@ -434,11 +461,16 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     if (amountRaw <= 0 || isBelowMin) return;
     // ── Security lockdown check ──────────────────────────────────────────────
     try {
-      const pinRes = await fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`);
+      const pinRes = await fetch(
+        `${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`
+      );
       const pinData = await pinRes.json();
       if (pinData.isLocked) {
         const h = Math.ceil((new Date(pinData.lockedUntil) - new Date()) / (1000 * 60 * 60));
-        showMsg(`Account locked for ${h} more hour${h !== 1 ? 's' : ''} — swaps disabled during security lockdown`, 'error');
+        showMsg(
+          `Account locked for ${h} more hour${h !== 1 ? 's' : ''} — swaps disabled during security lockdown`,
+          'error'
+        );
         return;
       }
     } catch {
@@ -518,11 +550,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         amountWeiStr = BigInt(Math.floor(amountRaw * 10 ** inputDecimals)).toString();
       } else {
         // param4 = desired output amount → scale with OUTPUT token decimals
-        const tokenOutAddr = tokenAddrMap[tokenOut] || tokenAddrMap[tokenOut?.replace('cNGN', 'CNGN')];
+        const tokenOutAddr =
+          tokenAddrMap[tokenOut] || tokenAddrMap[tokenOut?.replace('cNGN', 'CNGN')];
         let outputDecimals = inputDecimals; // safe fallback
         if (tokenOutAddr) {
           try {
-            const outDecRes = await fetch(`${SALVA_API_URL}/api/pool/token-decimals?address=${tokenOutAddr}`);
+            const outDecRes = await fetch(
+              `${SALVA_API_URL}/api/pool/token-decimals?address=${tokenOutAddr}`
+            );
             const outDecData = await outDecRes.json();
             outputDecimals = outDecData.decimals ?? inputDecimals;
           } catch {
@@ -538,7 +573,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       //                  Use ceil to avoid 1-wei under-approval reverts
       let approveAmountWei;
       if (doApproveMax) {
-        approveAmountWei = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
+        approveAmountWei =
+          '115792089237316195423570985008687907853269984665640564039457584007913129639935';
       } else if (swapType === 'exact_out' && quote !== null) {
         // quote is the required INPUT amount — scale with input token decimals
         // Use ceil to prevent 1-wei shortfall causing revert
@@ -578,9 +614,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       setTxHash(swapData.txHash);
       // exact_in  → show quote (what contract computed we'd receive)
       // exact_out → show amountRaw (the exact output the user requested)
-      const outAmt = swapType === 'exact_in'
-        ? (quote !== null ? parseFloat(quote) : null)
-        : amountRaw;
+      const outAmt =
+        swapType === 'exact_in' ? (quote !== null ? parseFloat(quote) : null) : amountRaw;
       setReceivedAmount(outAmt);
       setReceivedToken(tokenOut);
       setStep('done');
@@ -827,9 +862,24 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
                 {/* Amount input */}
                 <div>
-                  <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
-                    {amountInputLabel}
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      {amountInputLabel}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleMaxClick}
+                      disabled={maxDisabled}
+                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-opacity px-1.5 py-0.5 sm:px-2 rounded-lg border disabled:opacity-30 disabled:cursor-not-allowed"
+                      style={{
+                        color: accentColor,
+                        borderColor: `${accentColor}33`,
+                        background: `${accentColor}1A`,
+                      }}
+                    >
+                      Max
+                    </button>
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -1230,7 +1280,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       </AnimatePresence>
     </>
   );
-};
+};;
 
 // ─── Pool Card ────────────────────────────────────────────────────────────────
 const PoolCard = ({ pool, section, onSwap, index }) => {
