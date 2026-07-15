@@ -68,7 +68,20 @@ async function awardActivityPoints(chain, partyAAddress, partyBAddress) {
   const reward = MiningState.getTierReward(miningState.totalPointsIssued);
   if (reward === 0) return { awarded: 0, locked: true };
 
-  const parties = [partyAAddress, partyBAddress].filter(Boolean);
+  // Dedup by address (case-insensitive) before counting parties. This
+  // covers two real scenarios:
+  //   - Transfer: sender sends to their own wallet (partyA === partyB)
+  //   - Swap: the swapper is also the pool owner/deployer they're swapping
+  //     against (self-swap)
+  // In both cases it's ONE person performing ONE action — they should only
+  // ever receive the single-party reward, not double-counted as two parties.
+  const seen = new Set();
+  const parties = [partyAAddress, partyBAddress].filter(Boolean).filter((addr) => {
+    const key = addr.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   const pointsToIssue = reward * parties.length;
   const Model = getModelForChain(chain);
 
