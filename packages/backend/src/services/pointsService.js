@@ -91,15 +91,16 @@ async function awardActivityPoints(chain, partyAAddress, partyBAddress) {
     )
   );
 
+  const stateId = MiningState.getCurrentStateId();
   const updatedState = await MiningState.findByIdAndUpdate(
-    'GLOBAL_MINING_STATE',
+    stateId,
     { $inc: { totalPointsIssued: pointsToIssue }, $set: { updatedAt: new Date() } },
     { new: true }
   );
 
   if (updatedState.totalPointsIssued >= MiningState.HARD_CAP && !updatedState.isLocked) {
     const lockResult = await MiningState.findOneAndUpdate(
-      { _id: 'GLOBAL_MINING_STATE', isLocked: false },
+      { _id: stateId, isLocked: false },
       { $set: { isLocked: true, adminAlertSent: true } },
       { new: true }
     );
