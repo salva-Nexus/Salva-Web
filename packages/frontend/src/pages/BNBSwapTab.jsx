@@ -49,12 +49,12 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-        <div className="p-8 text-center">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔐</span>
+        <div className="p-5 sm:p-8 text-center">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-base sm:text-2xl">🔐</span>
           </div>
-          <h3 className="text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-xs text-white/60 mb-6 leading-relaxed">{subtitle}</p>
+          <h3 className="text-sm sm:text-xl font-black mb-1 text-white">{title}</h3>
+          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">{subtitle}</p>
           <input
             type="password"
             inputMode="numeric"
@@ -63,23 +63,23 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black mb-6 text-white transition-all"
+            className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
           />
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={onCancel}
               disabled={loading}
-              className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
             >
               Cancel
             </button>
             <button
               onClick={() => onConfirm(pin)}
               disabled={loading || pin.length !== 4}
-              className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 transition-all"
+              className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20 transition-all"
             >
               {loading && (
-                <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
               {loading ? 'Verifying…' : 'Confirm'}
             </button>
@@ -108,50 +108,50 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
       onClick={(e) => e.stopPropagation()}
     >
       <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-      <div className="p-8">
-        <div className="text-center mb-6">
-          <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🔓</span>
+      <div className="p-5 sm:p-8">
+        <div className="text-center mb-4 sm:mb-6">
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-base sm:text-2xl">🔓</span>
           </div>
-          <h3 className="text-xl font-black text-white mb-1">Trust This Pool?</h3>
-          <p className="text-xs text-white/60">
+          <h3 className="text-sm sm:text-xl font-black text-white mb-1">Trust This Pool?</h3>
+          <p className="text-[9px] sm:text-xs text-white/60">
             <span className="text-blue-400 font-black">
               {pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}
             </span>
           </p>
         </div>
-        <div className="space-y-3 mb-6">
-          <div className="p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-xs font-black text-white/60 mb-1">✅ This swap only — Recommended</p>
-            <p className="text-[11px] text-white/60 leading-relaxed">
+        <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+          <div className="p-3 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+            <p className="text-[9px] sm:text-xs font-black text-white/60 mb-1">✅ This swap only — Recommended</p>
+            <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
               Approve exact amount for this swap. You'll be asked again next time.
             </p>
           </div>
-          <div className="p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-            <p className="text-xs font-black text-yellow-400 mb-1">
+          <div className="p-3 sm:p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+            <p className="text-[9px] sm:text-xs font-black text-yellow-400 mb-1">
               ⚠️ Trust Pool — Use with caution
             </p>
-            <p className="text-[11px] text-white/60 leading-relaxed">
+            <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
               Approve unlimited {tokenLabel} spending. Future swaps skip the approval step.
             </p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5 sm:gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+            className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
           >
             Cancel
           </button>
           <button
             onClick={onSkip}
-            className="py-3.5 px-4 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all"
+            className="py-2.5 px-3 sm:py-3.5 sm:px-4 rounded-xl border border-white/10 text-white/60 font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
           >
             Skip
           </button>
           <button
             onClick={onTrust}
-            className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
+            className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
           >
             Trust
           </button>
@@ -163,12 +163,12 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
 
 // ─── Token Pills ──────────────────────────────────────────────────────────────
 const TokenPills = ({ options, value, onChange }) => (
-  <div className="flex gap-2">
+  <div className="flex gap-1.5 sm:gap-2">
     {options.map((t) => (
       <button
         key={t}
         onClick={() => onChange(t)}
-        className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${
+        className={`flex-1 py-1.5 sm:py-2.5 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest border transition-all ${
           value === t
             ? 'bg-blue-500 text-white border-blue-500 shadow-lg shadow-blue-500/20'
             : 'border-white/[0.08] bg-white/[0.03] text-white/30 hover:text-white/50'
@@ -624,30 +624,30 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 className="space-y-3"
               >
                 {/* ── Pool Identity Header ── */}
-                <div className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
+                <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3.5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
                   <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
+                    className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xs sm:text-base font-black"
                     style={{ background: `${accentColor}1A`, color: accentColor }}
                   >
                     {section === 'buy' ? '↑$' : '$↑'}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-black text-sm text-white truncate">
+                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                      <p className="font-black text-[10px] sm:text-sm text-white truncate">
                         {pool.poolName || 'Anonymous Pool'}
                       </p>
                       {isTrusted && (
-                        <span className="px-2 py-0.5 rounded-full text-[9px] font-black border border-green-500/30 bg-green-500/10 text-green-400 flex-shrink-0">
+                        <span className="px-1.5 py-0.5 sm:px-2 rounded-full text-[7px] sm:text-[9px] font-black border border-green-500/30 bg-green-500/10 text-green-400 flex-shrink-0">
                           ✓ Trusted
                         </span>
                       )}
                     </div>
-                    <p className="font-mono text-[9px] text-white/40 truncate mt-0.5">
+                    <p className="font-mono text-[7px] sm:text-[9px] text-white/40 truncate mt-0.5">
                       {pool.poolAddress.slice(0, 18)}…{pool.poolAddress.slice(-6)}
                     </p>
                   </div>
                   <div
-                    className="flex-shrink-0 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest"
+                    className="flex-shrink-0 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border text-[7px] sm:text-[9px] font-black uppercase tracking-widest"
                     style={{
                       borderColor: `${accentColor}40`,
                       color: accentColor,
@@ -659,9 +659,9 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 </div>
 
                 {/* ── Token Config Row ── */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   <div>
-                    <label className="text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1.5">
+                    <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
                       USD Stablecoins
                     </label>
                     <TokenPills
@@ -671,7 +671,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     />
                   </div>
                   <div>
-                    <label className="text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1.5">
+                    <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
                       NGN Stablecoins
                     </label>
                     <TokenPills
@@ -683,7 +683,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 </div>
 
                 {/* ── Mode toggle ── */}
-                <div className="flex gap-2 p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+                <div className="flex gap-1.5 sm:gap-2 p-0.5 sm:p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
                   {[
                     { id: 'exact_in', label: 'Exact Input' },
                     { id: 'exact_out', label: 'Exact Output' },
@@ -696,7 +696,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                         setAmountRaw(0);
                         setQuote(null);
                       }}
-                      className={`flex-1 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${
+                      className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[7px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${
                         swapType === id
                           ? 'bg-white/10 text-white shadow-sm'
                           : 'text-white/30 hover:text-white/50'
@@ -709,54 +709,57 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
                 {/* ── Flow banner ── */}
                 <div
-                  className="flex items-center justify-between px-4 py-2.5 rounded-xl border"
+                  className="flex items-center justify-between px-3 py-1.5 sm:px-4 sm:py-2.5 rounded-xl border"
                   style={{ borderColor: `${accentColor}25`, background: `${accentColor}08` }}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm" style={{ color: accentColor }}>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <span className="text-xs sm:text-sm" style={{ color: accentColor }}>
                       ↑
                     </span>
                     <div>
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">
+                      <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/40 font-black">
                         You Send
                       </p>
-                      <p className="text-xs font-black" style={{ color: accentColor }}>
+                      <p
+                        className="text-[9px] sm:text-xs font-black"
+                        style={{ color: accentColor }}
+                      >
                         {section === 'buy' ? ngnLabel : stableToken}
                       </p>
                     </div>
                   </div>
-                  <div className="text-white/20 text-lg font-black">→</div>
-                  <div className="flex items-center gap-2">
+                  <div className="text-white/20 text-sm sm:text-lg font-black">→</div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
                     <div className="text-right">
-                      <p className="text-[8px] uppercase tracking-widest text-white/40 font-black">
+                      <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/40 font-black">
                         You Get
                       </p>
-                      <p className="text-xs font-black text-green-400">
+                      <p className="text-[9px] sm:text-xs font-black text-green-400">
                         {section === 'buy' ? stableToken : ngnLabel}
                       </p>
                     </div>
-                    <span className="text-sm text-green-400">↓</span>
+                    <span className="text-xs sm:text-sm text-green-400">↓</span>
                   </div>
                 </div>
 
                 {/* ── Balance strip ── */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   <div
-                    className={`px-3 py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
                   >
-                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
+                    <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
                       Your Balance
                     </p>
                     {userBalLoading ? (
-                      <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                      <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                     ) : (
                       <p
-                        className={`text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                        className={`text-[9px] sm:text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}
                       >
                         {userSendBal !== null
                           ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd')
                           : '—'}
-                        <span className="text-white/40 font-normal text-[9px]">
+                        <span className="text-white/40 font-normal text-[7px] sm:text-[9px]">
                           {' '}
                           {section === 'buy' ? ngnLabel : stableToken}
                         </span>
@@ -764,16 +767,16 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     )}
                   </div>
                   <div
-                    className={`px-3 py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
                   >
-                    <p className="text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
+                    <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
                       Pool Has
                     </p>
                     <p
-                      className={`text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-white'}`}
+                      className={`text-[9px] sm:text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-white'}`}
                     >
                       {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}
-                      <span className="text-white/40 font-normal text-[9px]">
+                      <span className="text-white/40 font-normal text-[7px] sm:text-[9px]">
                         {' '}
                         {section === 'buy' ? stableToken : ngnLabel}
                       </span>
@@ -781,12 +784,12 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   </div>
                 </div>
                 {userCantAfford && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-1">
+                  <p className="text-[7px] sm:text-[10px] text-red-400 font-bold -mt-1">
                     ⚠ Insufficient balance to send
                   </p>
                 )}
                 {(poolEmpty || poolCantCover) && (
-                  <p className="text-[10px] text-red-400 font-bold -mt-1">
+                  <p className="text-[7px] sm:text-[10px] text-red-400 font-bold -mt-1">
                     {poolEmpty
                       ? `⚠ Pool has no ${section === 'buy' ? stableToken : ngnLabel} liquidity`
                       : `⚠ Pool only has ${fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')} ${section === 'buy' ? stableToken : ngnLabel}`}
@@ -795,7 +798,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
                 {/* Amount input */}
                 <div>
-                  <label className="text-[10px] uppercase tracking-widest text-white/60 font-black block mb-2">
+                  <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
                     {amountInputLabel}
                   </label>
                   <div className="relative">
@@ -809,16 +812,16 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                         setAmountDisplay(f);
                         setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
                       }}
-                      className={`w-full p-4 rounded-xl bg-white/5 border outline-none text-xl font-black text-white transition-all pr-20 ${
+                      className={`w-full p-3 sm:p-4 rounded-xl bg-white/5 border outline-none text-sm sm:text-xl font-black text-white transition-all pr-16 sm:pr-20 ${
                         isBelowMin ? 'border-red-500' : 'border-white/10 focus:border-blue-500'
                       }`}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 font-black text-sm text-blue-400">
+                    <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 font-black text-[10px] sm:text-sm text-blue-400">
                       {amountInputSuffix}
                     </span>
                   </div>
                   {isBelowMin && (
-                    <p className="text-[11px] text-red-400 font-bold mt-1.5 animate-pulse">
+                    <p className="text-[8px] sm:text-[11px] text-red-400 font-bold mt-1 sm:mt-1.5 animate-pulse">
                       ⚠️ Minimum:{' '}
                       {section === 'buy'
                         ? `${fmt(minAmount, 'ngn')} ${ngnLabel}`
@@ -829,8 +832,8 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
                 {/* Quote */}
                 {(quote !== null || quoteLoading) && amountRaw > 0 && (
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/10">
-                    <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                  <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
+                    <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
                       {quoteLabel}
                     </span>
                     {quoteLoading ? (
@@ -854,36 +857,36 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                 )}
 
                 {/* Rate */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Exchange Rate
                   </span>
-                  <span className="font-black text-sm text-white">
+                  <span className="font-black text-[9px] sm:text-sm text-white">
                     ₦{fmt(displayRate, 'ngn')}
-                    <span className="text-white/60 font-normal text-xs"> / USD</span>
+                    <span className="text-white/60 font-normal text-[8px] sm:text-xs"> / USD</span>
                   </span>
                 </div>
 
                 {/* Network Fee */}
-                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Network Fee
                   </span>
                   {swapFee.loading ? (
-                    <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                    <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                   ) : swapFee.feeNGN !== null ? (
-                    <span className="text-red-400 font-black text-[10px]">
+                    <span className="text-red-400 font-black text-[7px] sm:text-[10px]">
                       ₦{swapFee.feeNGN?.toFixed(2)}
                     </span>
                   ) : (
-                    <span className="text-white/30 text-[10px]">—</span>
+                    <span className="text-white/30 text-[7px] sm:text-[10px]">—</span>
                   )}
                 </div>
 
                 {/* ── Receiver ── */}
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] uppercase tracking-widest text-white/60 font-black">
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
                       Receiver
                     </label>
                     {receiverRaw !== defaultReceiver && (
@@ -895,7 +898,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                           setReceiverError('');
                           setReceiverConfirmed(false);
                         }}
-                        className="text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
+                        className="text-[6px] sm:text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
                       >
                         Reset ↺
                       </button>
@@ -907,7 +910,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                       value={receiverRaw}
                       onChange={(e) => handleReceiverChange(e.target.value)}
                       placeholder="0x… or charles@salva"
-                      className={`w-full p-3 rounded-xl bg-white/5 border outline-none text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
+                      className={`w-full p-2 sm:p-3 rounded-xl bg-white/5 border outline-none text-[9px] sm:text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
                         receiverError
                           ? 'border-red-500/60'
                           : receiverInputType === 'fullname' &&
@@ -942,7 +945,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                       )}
                   </div>
                   {receiverRaw === defaultReceiver && (
-                    <p className="text-[10px] text-white/30 font-bold mt-1.5">
+                    <p className="text-[7px] sm:text-[10px] text-white/30 font-bold mt-1 sm:mt-1.5">
                       Default: your BNB Safe wallet
                     </p>
                   )}
@@ -1002,34 +1005,34 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
             )}
 
             {step === 'loading' && (
-              <div className="text-center py-14">
-                <div className="relative w-14 h-14 mx-auto mb-6">
+              <div className="text-center py-9 sm:py-14">
+                <div className="relative w-10 h-10 sm:w-14 sm:h-14 mx-auto mb-4 sm:mb-6">
                   <div className="absolute inset-0 rounded-full border-2 border-blue-500/20" />
                   <div className="absolute inset-0 rounded-full border-2 border-t-blue-500 animate-spin" />
                   <div className="absolute inset-2 rounded-full bg-blue-500/10 flex items-center justify-center">
-                    <span className="text-blue-400 text-sm font-black">₦</span>
+                    <span className="text-blue-400 text-[9px] sm:text-sm font-black">₦</span>
                   </div>
                 </div>
-                <p className="font-black text-lg text-white">Executing swap…</p>
-                <p className="text-xs text-white/60 mt-2">
+                <p className="font-black text-sm sm:text-lg text-white">Executing swap…</p>
+                <p className="text-[9px] sm:text-xs text-white/60 mt-1.5 sm:mt-2">
                   Broadcasting via your BNB Safe. Please wait.
                 </p>
               </div>
             )}
 
             {step === 'done' && (
-              <div className="text-center py-8">
+              <div className="text-center py-5 sm:py-8">
                 <motion.div
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   transition={{ type: 'spring', stiffness: 300 }}
-                  className="w-16 h-16 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                  className="w-11 h-11 sm:w-16 sm:h-16 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5 sm:mb-5"
                 >
-                  <span className="text-3xl">🎉</span>
+                  <span className="text-xl sm:text-3xl">🎉</span>
                 </motion.div>
-                <h3 className="text-xl font-black mb-1 text-white">Swap Complete!</h3>
+                <h3 className="text-sm sm:text-xl font-black mb-1 text-white">Swap Complete!</h3>
                 {receivedAmount !== null && (
-                  <p className="text-sm text-white/60 mb-4">
+                  <p className="text-[9px] sm:text-sm text-white/60 mb-3 sm:mb-4">
                     You received{' '}
                     <span className="font-black text-white">
                       {fmt(receivedAmount, section === 'buy' ? 'usd' : 'ngn')}
@@ -1042,14 +1045,14 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     href={`https://${process.env.NODE_ENV === 'production' ? '' : 'testnet.'}bscscan.com/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-[11px] font-black underline break-all block mb-2 text-blue-400"
+                    className="text-[8px] sm:text-[11px] font-black underline break-all block mb-2 text-blue-400"
                   >
                     View on BscScan ↗
                   </a>
                 )}
                 <button
                   onClick={onClose}
-                  className="w-full mt-5 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
+                  className="w-full mt-3.5 sm:mt-5 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                 >
                   Done
                 </button>
@@ -1058,11 +1061,11 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           </div>
 
           {step === 'input' && (
-            <div className="flex-shrink-0 px-4 pb-5 pt-3 sm:px-6 border-t border-white/[0.06] bg-zinc-950">
-              <div className="flex gap-3">
+            <div className="flex-shrink-0 px-3 pb-4 pt-2.5 sm:px-6 sm:pb-5 sm:pt-3 border-t border-white/[0.06] bg-zinc-950">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={onClose}
-                  className="flex-1 py-3.5 rounded-xl border border-white/10 text-white font-bold text-sm hover:bg-white/5 transition-all"
+                  className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
@@ -1082,7 +1085,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     (receiverInputType === 'fullname' && receiverResolved && !receiverConfirmed) ||
                     receiverInputType === 'invalid'
                   }
-                  className="flex-1 py-3.5 rounded-xl bg-blue-500 text-white font-black text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20"
+                  className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20"
                 >
                   {!trustChecked ? 'Checking…' : 'Continue →'}
                 </button>
@@ -1111,42 +1114,42 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
               onClick={(e) => e.stopPropagation()}
             >
               <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-              <div className="p-7 text-center">
-                <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🔍</span>
+              <div className="p-5 sm:p-7 text-center">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <span className="text-base sm:text-2xl">🔍</span>
                 </div>
-                <h3 className="text-lg font-black text-white mb-1">Confirm Recipient</h3>
-                <p className="text-[11px] text-white/50 mb-5 leading-relaxed">
+                <h3 className="text-sm sm:text-lg font-black text-white mb-1">Confirm Recipient</h3>
+                <p className="text-[8px] sm:text-[11px] text-white/50 mb-3.5 sm:mb-5 leading-relaxed">
                   SNS resolved successfully. Verify this is the correct recipient before swapping.
                 </p>
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-2 text-left space-y-3">
+                <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-2 text-left space-y-2 sm:space-y-3">
                   <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
+                    <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
                       SNS Name
                     </p>
-                    <p className="font-black text-blue-400 text-sm">{receiverRaw}</p>
+                    <p className="font-black text-blue-400 text-[9px] sm:text-sm">{receiverRaw}</p>
                   </div>
                   <div>
-                    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
+                    <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
                       Resolved Address
                     </p>
-                    <p className="font-mono text-[11px] text-white/70 break-all">
+                    <p className="font-mono text-[8px] sm:text-[11px] text-white/70 break-all">
                       {receiverResolved}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20 mb-5">
-                  <span className="text-yellow-400 text-[10px] flex-shrink-0">⚠</span>
-                  <p className="text-[10px] text-yellow-400/80 font-bold text-left">
+                <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20 mb-3.5 sm:mb-5">
+                  <span className="text-yellow-400 text-[7px] sm:text-[10px] flex-shrink-0">⚠</span>
+                  <p className="text-[7px] sm:text-[10px] text-yellow-400/80 font-bold text-left">
                     Swap output will go to this address. This cannot be undone.
                   </p>
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-2 sm:gap-3">
                   <button
                     onClick={() => {
                       setShowReceiverConfirm(false);
                     }}
-                    className="flex-1 py-3 rounded-xl border border-white/10 text-white/60 font-bold text-sm hover:bg-white/5 transition-all"
+                    className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 text-white/60 font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
                   >
                     Go Back
                   </button>
@@ -1155,7 +1158,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                       setReceiverConfirmed(true);
                       setShowReceiverConfirm(false);
                     }}
-                    className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-black text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
+                    className="flex-1 py-2 sm:py-3 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-blue-500/20 transition-all"
                   >
                     ✓ Confirm
                   </button>
@@ -1217,18 +1220,18 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
       className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-white/[0.14] transition-all"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-3.5">
-        <div className="flex items-start justify-between gap-2 mb-3">
+      <div className="p-2.5 sm:p-3.5">
+        <div className="flex items-start justify-between gap-1.5 sm:gap-2 mb-2 sm:mb-3">
           <div className="min-w-0">
-            <p className="font-black text-sm text-white truncate">
+            <p className="font-black text-[10px] sm:text-sm text-white truncate">
               {pool.poolName || 'Anonymous Pool'}
             </p>
-            <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
+            <p className="font-mono text-[7px] sm:text-[10px] text-white/60 truncate mt-0.5">
               {pool.poolAddress}
             </p>
           </div>
           <div
-            className="flex-shrink-0 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest"
+            className="flex-shrink-0 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border text-[7px] sm:text-[9px] font-black uppercase tracking-widest"
             style={{
               borderColor: `${accentColor}40`,
               color: accentColor,
@@ -1241,87 +1244,99 @@ const PoolCard = ({ pool, section, onSwap, index }) => {
 
         {section === 'buy' ? (
           <div className="flex flex-col gap-1.5 mb-4">
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">Rate</p>
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">
+                Rate
+              </p>
               <div className="text-right min-w-0">
-                <span className="font-black text-sm text-white">
+                <span className="font-black text-[9px] sm:text-sm text-white">
                   ₦{fmt(rate, 'ngn')}
-                  <span className="text-[10px] text-white/40 font-normal">/USD</span>
+                  <span className="text-[7px] sm:text-[10px] text-white/40 font-normal">/USD</span>
                 </span>
                 {parseFloat(pool.minNgnAmount || 0) > 0 && (
-                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
+                  <p className="text-[6px] sm:text-[9px] text-yellow-400/70 font-bold mt-0.5">
                     Min: {fmt(parseFloat(pool.minNgnAmount), 'ngn')} NGN
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
+                <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   USDT
                 </p>
-                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                <p className="text-[5px] sm:text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   BEP-20
                 </p>
               </div>
-              <span className="font-black text-sm text-white">{fmt(usdtAvail, 'usd')}</span>
+              <span className="font-black text-[9px] sm:text-sm text-white">
+                {fmt(usdtAvail, 'usd')}
+              </span>
             </div>
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
+                <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   USDC
                 </p>
-                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                <p className="text-[5px] sm:text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   BEP-20
                 </p>
               </div>
-              <span className="font-black text-sm text-white">{fmt(usdcAvail, 'usd')}</span>
+              <span className="font-black text-[9px] sm:text-sm text-white">
+                {fmt(usdcAvail, 'usd')}
+              </span>
             </div>
           </div>
         ) : (
           <div className="flex flex-col gap-1.5 mb-4">
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-              <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">Rate</p>
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+              <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">
+                Rate
+              </p>
               <div className="text-right min-w-0">
-                <span className="font-black text-sm text-green-400">
+                <span className="font-black text-[9px] sm:text-sm text-white">
                   ₦{fmt(rate, 'ngn')}
-                  <span className="text-[10px] text-white/60 font-normal">/USD</span>
+                  <span className="text-[7px] sm:text-[10px] text-white/40 font-normal">/USD</span>
                 </span>
                 {parseFloat(pool.minTokenAmount || 0) > 0 && (
-                  <p className="text-[9px] text-yellow-400/70 font-bold mt-0.5">
+                  <p className="text-[6px] sm:text-[9px] text-yellow-400/70 font-bold mt-0.5">
                     Min: {fmt(parseFloat(pool.minTokenAmount), 'usd')} USD
                   </p>
                 )}
               </div>
             </div>
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
+                <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   NGNs
                 </p>
-                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                <p className="text-[5px] sm:text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   BEP-20
                 </p>
               </div>
-              <span className="font-black text-sm text-white">{fmt(ngnsAvail, 'ngn')}</span>
+              <span className="font-black text-[9px] sm:text-sm text-white">
+                {fmt(ngnsAvail, 'ngn')}
+              </span>
             </div>
-            <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
+            <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
               <div className="flex flex-col flex-shrink-0 mr-3">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
+                <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
                   cNGN
                 </p>
-                <p className="text-[7px] uppercase tracking-widest text-white/40 font-bold">
+                <p className="text-[5px] sm:text-[7px] uppercase tracking-widest text-white/40 font-bold">
                   BEP-20
                 </p>
               </div>
-              <span className="font-black text-sm text-white">{fmt(cNgnAvail, 'ngn')}</span>
+              <span className="font-black text-[9px] sm:text-sm text-white">
+                {fmt(cNgnAvail, 'ngn')}
+              </span>
             </div>
           </div>
         )}
 
         <button
           onClick={() => onSwap(pool)}
-          className="w-full py-3.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98]"
+          className="w-full py-2.5 sm:py-3.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98]"
           style={{
             background: accentColor,
             color: '#fff',
@@ -1383,26 +1398,26 @@ const BNBSwapTab = ({ user, showMsg }) => {
   const activePools = section === 'buy' ? buyPools : sellPools;
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5 relative">
-      <div className="flex items-start justify-between gap-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3.5 sm:space-y-5 relative">
+      <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-xl font-black tracking-tight">Naira Exchange</h2>
-          <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">
+          <h2 className="text-sm sm:text-xl font-black tracking-tight">Naira Exchange</h2>
+          <p className="text-[7px] sm:text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">
             BNB Chain
           </p>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0 mt-1">
+        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
           <a
             href="/dashboard"
-            className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
+            className="flex items-center gap-0.5 sm:gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
           >
-            <div className="w-3 h-3 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-[6px] font-black">B</span>
+            <div className="w-2 h-2 sm:w-3 sm:h-3 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-[4px] sm:text-[6px] font-black">B</span>
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest text-salvaGold">
+            <span className="text-[6px] sm:text-[8px] font-black uppercase tracking-widest text-salvaGold">
               Base
             </span>
-            <span className="text-salvaGold text-[9px]">↗</span>
+            <span className="text-salvaGold text-[6px] sm:text-[9px]">↗</span>
           </a>
           {lastTime && (
             <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest hidden sm:block">
@@ -1412,12 +1427,12 @@ const BNBSwapTab = ({ user, showMsg }) => {
           <button
             onClick={() => fetchPools(true)}
             disabled={refreshing}
-            className="w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-500/30 transition-all"
+            className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-blue-500/30 transition-all"
           >
             {refreshing ? (
-              <span className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+              <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
             ) : (
-              <span className="text-blue-400 text-lg leading-none">↻</span>
+              <span className="text-blue-400 text-xs sm:text-lg leading-none">↻</span>
             )}
           </button>
         </div>
@@ -1426,7 +1441,7 @@ const BNBSwapTab = ({ user, showMsg }) => {
       {/* Search */}
       <div className="relative">
         <svg
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60"
+          className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-white/60"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
@@ -1439,12 +1454,12 @@ const BNBSwapTab = ({ user, showMsg }) => {
           placeholder="Search pools by name…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-blue-500/30 transition-all"
+          className="w-full pl-8 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] sm:text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-blue-500/30 transition-all"
         />
         {search && (
           <button
             onClick={() => setSearch('')}
-            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 text-xs font-black"
+            className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 text-[9px] sm:text-xs font-black"
           >
             ✕
           </button>
@@ -1452,7 +1467,7 @@ const BNBSwapTab = ({ user, showMsg }) => {
       </div>
 
       {/* Section toggle */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         {[
           {
             id: 'buy',
@@ -1472,7 +1487,7 @@ const BNBSwapTab = ({ user, showMsg }) => {
           <button
             key={id}
             onClick={() => setSection(id)}
-            className={`py-4 px-4 rounded-2xl border transition-all text-left ${
+            className={`py-2.5 px-3 sm:py-4 sm:px-4 rounded-2xl border transition-all text-left ${
               section === id
                 ? 'border-transparent'
                 : 'border-white/[0.06] bg-white/[0.03] hover:border-white/[0.12]'
@@ -1481,13 +1496,13 @@ const BNBSwapTab = ({ user, showMsg }) => {
           >
             <div className="flex items-center justify-between mb-0.5">
               <span
-                className="font-black text-sm"
+                className="font-black text-[10px] sm:text-sm"
                 style={{ color: section === id ? color : 'rgba(255,255,255,0.85)' }}
               >
                 {label}
               </span>
               <span
-                className="text-[9px] font-black px-1.5 py-0.5 rounded-md"
+                className="text-[7px] sm:text-[9px] font-black px-1 py-0.5 sm:px-1.5 rounded-md"
                 style={
                   section === id
                     ? { background: `${color}20`, color }
@@ -1497,39 +1512,39 @@ const BNBSwapTab = ({ user, showMsg }) => {
                 {count}
               </span>
             </div>
-            <p className="text-[10px] text-white/60">{sub}</p>
+            <p className="text-[7px] sm:text-[10px] text-white/60">{sub}</p>
           </button>
         ))}
       </div>
 
       {/* Pool list */}
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="w-8 h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
+        <div className="flex justify-center py-14 sm:py-20">
+          <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin" />
         </div>
       ) : activePools.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
+          className="py-14 sm:py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
         >
-          <div className="w-14 h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <span className="text-2xl">🏊</span>
+          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-base sm:text-2xl">🏊</span>
           </div>
-          <p className="font-black text-white/60 text-sm">
+          <p className="font-black text-white/60 text-[10px] sm:text-sm">
             {search ? 'No pools match your search.' : 'No active pools in this section.'}
           </p>
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="mt-3 text-[10px] font-black text-blue-400/60 hover:text-blue-400 uppercase tracking-widest transition-colors"
+              className="mt-2 sm:mt-3 text-[7px] sm:text-[10px] font-black text-blue-400/60 hover:text-blue-400 uppercase tracking-widest transition-colors"
             >
               Clear search
             </button>
           )}
         </motion.div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {activePools.map((pool, i) => (
             <PoolCard
               key={pool.poolAddress}

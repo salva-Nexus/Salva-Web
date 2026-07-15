@@ -717,6 +717,7 @@ const BalanceCard = ({
 };
 
 // ── Link a Name Tab ────────────────────────────────────────────────────────
+// ── Link a Name Tab ────────────────────────────────────────────────────────
 const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [linkedNames, setLinkedNames] = useState([]);
   const [loadingNames, setLoadingNames] = useState(true);
@@ -997,64 +998,64 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
   const feeActive = registryFee !== null && registryFee > 0;
   const darkInput =
-    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+    'w-full p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-xs sm:text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4 sm:space-y-6">
       {/* ── Linked Names ── */}
       <div>
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
+        <div className="flex items-center justify-between mb-2.5 sm:mb-4">
+          <p className="text-[7px] sm:text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
             Your Linked Names
           </p>
           <button
             onClick={fetchLinkedNames}
-            className="text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors"
+            className="text-[7px] sm:text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors"
           >
             Refresh
           </button>
         </div>
 
         {loadingNames ? (
-          <div className="flex justify-center py-10">
-            <div className="w-7 h-7 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+          <div className="flex justify-center py-7 sm:py-10">
+            <div className="w-5 h-5 sm:w-7 sm:h-7 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
           </div>
         ) : linkedNames.length === 0 ? (
-          <div className="relative overflow-hidden p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
-            <div className="w-10 h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-3">
+          <div className="relative overflow-hidden p-4 sm:p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
+            <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-2 sm:mb-3">
               <svg
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth={1.75}
-                className="w-5 h-5 text-salvaGold/60"
+                className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-salvaGold/60"
               >
                 <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
                 <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
               </svg>
             </div>
-            <p className="text-sm font-black text-white/60">No names linked yet</p>
-            <p className="text-[10px] text-white/60 mt-1">Register a name below to get started</p>
+            <p className="text-[10px] sm:text-sm font-black text-white/60">No names linked yet</p>
+            <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5 sm:mt-1">Register a name below to get started</p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-1.5 sm:space-y-2">
             {linkedNames.map((alias, i) => (
               <motion.div
                 key={alias.name + i}
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between gap-4 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/25 hover:bg-salvaGold/[0.03] transition-all"
+                className="flex items-center justify-between gap-2.5 sm:gap-4 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/25 hover:bg-salvaGold/[0.03] transition-all"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-                    <span className="text-salvaGold text-xs font-black">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                  <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
+                    <span className="text-salvaGold text-[9px] sm:text-xs font-black">
                       {alias.name.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="min-w-0">
                     <p
-                      className="font-black text-salvaGold text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
+                      className="font-black text-salvaGold text-[10px] sm:text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.name);
                         showMsg('Name copied!');
@@ -1064,7 +1065,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                       {alias.name}
                     </p>
                     <p
-                      className="font-mono text-[10px] text-white/60 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
+                      className="font-mono text-[7px] sm:text-[10px] text-white/60 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
                       onClick={() => {
                         navigator.clipboard.writeText(alias.wallet);
                         showMsg('Wallet address copied!');
@@ -1082,7 +1083,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                     setUnlinkPinInput('');
                     setUnlinkPinStep(false);
                   }}
-                  className="flex-shrink-0 px-3 py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
+                  className="flex-shrink-0 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[7px] sm:text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
                 >
                   Unlink
                 </button>
@@ -1095,7 +1096,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       {/* ── Divider ── */}
       <div className="relative flex items-center">
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-        <span className="mx-3 text-[9px] uppercase tracking-[0.3em] font-black text-white/60">
+        <span className="mx-2.5 sm:mx-3 text-[7px] sm:text-[9px] uppercase tracking-[0.3em] font-black text-white/60">
           Register New
         </span>
         <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
@@ -1106,11 +1107,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-4"
+          className="space-y-2.5 sm:space-y-4"
         >
           {/* Name input */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
               Name
             </label>
             <div className="relative">
@@ -1134,17 +1135,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 className={darkInput}
               />
               {nameInput && selectedRegistry && (
-                <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                  <span className="text-salvaGold/50 text-[10px] font-black">
+                <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
+                  <span className="text-salvaGold/50 text-[7px] sm:text-[10px] font-black">
                     {selectedRegistry.nspace}
                   </span>
                 </div>
               )}
             </div>
             {nameInput && (
-              <div className="mt-2 px-3 py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
-                <p className="text-[10px] text-salvaGold font-black">
+              <div className="mt-1.5 sm:mt-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-1.5 sm:gap-2">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
+                <p className="text-[7px] sm:text-[10px] text-salvaGold font-black">
                   {nameInput}
                   {selectedRegistry ? selectedRegistry.nspace : '@salva'}
                 </p>
@@ -1154,7 +1155,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
 
           {/* Wallet input */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
               Wallet Address
             </label>
             <input
@@ -1165,13 +1166,13 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 setWalletInput(e.target.value.trim());
                 setNameError('');
               }}
-              className={`${darkInput} font-mono text-xs`}
+              className={`${darkInput} font-mono text-[10px] sm:text-xs`}
             />
           </div>
 
           {/* Registry dropdown */}
           <div>
-            <label className="text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-2">
+            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
               Wallet Service
             </label>
             <RegistryDropdown
@@ -1186,19 +1187,19 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           </div>
 
           {nameError && (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
-              <span className="text-red-400 text-xs flex-shrink-0">⚠</span>
-              <p className="text-xs text-red-400 font-bold">{nameError}</p>
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
+              <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">⚠</span>
+              <p className="text-[9px] sm:text-xs text-red-400 font-bold">{nameError}</p>
             </div>
           )}
 
           <button
             onClick={handleCheckName}
             disabled={checking || !nameInput || !walletInput || !selectedRegistry}
-            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-sm flex items-center justify-center gap-2 shadow-lg shadow-salvaGold/20"
+            className="w-full py-2.5 sm:py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-[10px] sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-salvaGold/20"
           >
             {checking && (
-              <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+              <span className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
             )}
             {checking ? 'Checking…' : 'Check Availability'}
           </button>
@@ -1210,15 +1211,15 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 space-y-5"
+          className="p-4 sm:p-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 space-y-3.5 sm:space-y-5"
         >
-          <div className="flex items-start gap-4">
-            <div className="w-10 h-10 rounded-xl bg-yellow-500/15 border border-yellow-500/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-lg">⭐</span>
+          <div className="flex items-start gap-2.5 sm:gap-4">
+            <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/15 border border-yellow-500/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm sm:text-lg">⭐</span>
             </div>
             <div>
-              <p className="font-black text-white text-sm">Reserved Name</p>
-              <p className="text-[11px] text-white/60 mt-0.5 leading-relaxed">
+              <p className="font-black text-white text-[10px] sm:text-sm">Reserved Name</p>
+              <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 leading-relaxed">
                 <span className="text-salvaGold font-black">{nameInput}</span> is reserved. Share
                 your email and we'll reach out about eligibility.
               </p>
@@ -1231,17 +1232,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             onChange={(e) => setReservedEmail(e.target.value)}
             className={darkInput}
           />
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={resetLinkForm}
-              className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+              className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
             >
               Back
             </button>
             <button
               onClick={handleSendReservedNotification}
               disabled={reservedSubmitting || !reservedEmail}
-              className="flex-1 py-3 rounded-xl bg-yellow-500 text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all"
+              className="flex-1 py-2 sm:py-3 rounded-xl bg-yellow-500 text-black font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all"
             >
               {reservedSubmitting ? 'Sending…' : 'Send Request'}
             </button>
@@ -1254,47 +1255,47 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="space-y-3"
+          className="space-y-2 sm:space-y-3"
         >
           {/* Name badge */}
-          <div className="p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
-            <p className="text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-2">
+          <div className="p-3.5 sm:p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
+            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-1.5 sm:mb-2">
               Name Available
             </p>
-            <p className="text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
+            <p className="text-base sm:text-2xl font-black text-salvaGold">{nameCheckResult.welded}</p>
           </div>
 
           {/* Fee */}
           {feeLoading ? (
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-              <p className="text-xs text-white/60 font-bold">Fetching fee…</p>
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+              <p className="text-[9px] sm:text-xs text-white/60 font-bold">Fetching fee…</p>
             </div>
           ) : feeActive ? (
-            <div className="flex items-center justify-between p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-red-400 block" />
-                <p className="text-[10px] uppercase font-black text-white/60 tracking-widest">
+            <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-red-400 block" />
+                <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
                   Registration Fee
                 </p>
               </div>
-              <p className="font-black text-white text-sm">
-                {registryFee?.toLocaleString()} <span className="text-salvaGold text-xs">NGNs</span>
+              <p className="font-black text-white text-[10px] sm:text-sm">
+                {registryFee?.toLocaleString()} <span className="text-salvaGold text-[8px] sm:text-xs">NGNs</span>
               </p>
             </div>
           ) : (
-            <div className="flex items-center gap-3 p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-              <span className="text-green-400 text-sm flex-shrink-0">✦</span>
-              <p className="text-xs font-black text-green-400">
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
+              <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">✦</span>
+              <p className="text-[9px] sm:text-xs font-black text-green-400">
                 Free Registration — no fee required
               </p>
             </div>
           )}
 
-          <div className="flex gap-3 pt-1">
+          <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
             <button
               onClick={resetLinkForm}
-              className="flex-1 py-3.5 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
             >
               Back
             </button>
@@ -1304,7 +1305,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 setPinInput('');
               }}
               disabled={feeLoading}
-              className="flex-2 flex-1 py-3.5 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
+              className="flex-2 flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
             >
               Continue →
             </button>
@@ -1317,14 +1318,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-5 text-center"
+          className="p-4 sm:p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-3.5 sm:space-y-5 text-center"
         >
-          <div className="w-12 h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
-            <span className="text-xl">🔐</span>
+          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
+            <span className="text-sm sm:text-xl">🔐</span>
           </div>
           <div>
-            <p className="font-black text-white text-lg">Transaction PIN</p>
-            <p className="text-[11px] text-white/60 mt-1">Authorise the on-chain name link</p>
+            <p className="font-black text-white text-sm sm:text-lg">Transaction PIN</p>
+            <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">Authorise the on-chain name link</p>
           </div>
           <input
             type="password"
@@ -1335,23 +1336,23 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ''))}
             placeholder="••••"
             autoFocus
-            className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black text-white"
+            className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black text-white"
           />
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               onClick={() => setLinkStep('confirm')}
               disabled={pinLoading}
-              className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+              className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
             >
               Back
             </button>
             <button
               onClick={handleExecuteLink}
               disabled={pinLoading || pinInput.length !== 4}
-              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+              className="flex-1 py-2 sm:py-3 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
             >
               {pinLoading && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               )}
               {pinLoading ? 'Signing…' : 'Confirm'}
             </button>
@@ -1364,17 +1365,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-4"
+          className="py-11 sm:py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-2.5 sm:space-y-4"
         >
-          <div className="relative w-14 h-14 mx-auto">
+          <div className="relative w-10 h-10 sm:w-14 sm:h-14 mx-auto">
             <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
             <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
             <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-              <span className="text-salvaGold text-sm font-black">₦</span>
+              <span className="text-salvaGold text-[9px] sm:text-sm font-black">₦</span>
             </div>
           </div>
-          <p className="font-black text-white">Linking on-chain…</p>
-          <p className="text-xs text-white/60">Broadcasting to Base · 30–60 seconds</p>
+          <p className="font-black text-white text-xs sm:text-base">Linking on-chain…</p>
+          <p className="text-[9px] sm:text-xs text-white/60">Broadcasting to Base · 30–60 seconds</p>
         </motion.div>
       )}
 
@@ -1383,23 +1384,23 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="py-12 px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-5"
+          className="py-8 sm:py-12 px-4 sm:px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-3.5 sm:space-y-5"
         >
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
             transition={{ type: 'spring', stiffness: 280, delay: 0.1 }}
-            className="w-16 h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
+            className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
           >
-            <span className="text-3xl">✓</span>
+            <span className="text-xl sm:text-3xl">✓</span>
           </motion.div>
           <div>
-            <p className="text-xl font-black text-white">Name Linked</p>
-            <p className="text-[11px] text-white/60 mt-1">Your name is now live on Base</p>
+            <p className="text-base sm:text-xl font-black text-white">Name Linked</p>
+            <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">Your name is now live on Base</p>
           </div>
           <button
             onClick={resetLinkForm}
-            className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-sm"
+            className="w-full py-2.5 sm:py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-[10px] sm:text-sm"
           >
             Link Another Name
           </button>
@@ -1409,7 +1410,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       {/* ── UNLINK CONFIRM MODAL ── */}
       <AnimatePresence>
         {showUnlinkConfirm && unlinkTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               onClick={() => setShowUnlinkConfirm(false)}
               className="absolute inset-0 bg-black/90 backdrop-blur-md"
@@ -1419,24 +1420,24 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-5 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center space-y-3">
-                <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                  <span className="text-xl">⚠️</span>
+              <div className="text-center space-y-2 sm:space-y-3">
+                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                  <span className="text-sm sm:text-xl">⚠️</span>
                 </div>
-                <p className="font-black text-white text-lg">Unlink Name?</p>
-                <p className="text-salvaGold font-black">{unlinkTarget.name}</p>
-                <p className="text-sm text-white/60">
+                <p className="font-black text-white text-sm sm:text-lg">Unlink Name?</p>
+                <p className="text-salvaGold font-black text-[10px] sm:text-base">{unlinkTarget.name}</p>
+                <p className="text-[9px] sm:text-sm text-white/60">
                   This removes the on-chain link and cannot be undone.
                 </p>
-                <div className="flex gap-3 pt-2">
+                <div className="flex gap-2 sm:gap-3 pt-1.5 sm:pt-2">
                   <button
                     onClick={() => setShowUnlinkConfirm(false)}
-                    className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+                    className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
                   >
                     Cancel
                   </button>
@@ -1446,7 +1447,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                       setUnlinkPinStep(true);
                       setUnlinkPinInput('');
                     }}
-                    className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 transition-all"
+                    className="flex-1 py-2 sm:py-3 rounded-xl bg-red-500 text-white font-black text-[10px] sm:text-sm hover:brightness-110 transition-all"
                   >
                     Unlink
                   </button>
@@ -1460,7 +1461,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       {/* ── UNLINK PIN MODAL ── */}
       <AnimatePresence>
         {unlinkPinStep && unlinkTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               onClick={() => {
                 setUnlinkPinStep(false);
@@ -1473,17 +1474,17 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-5"
+              className="relative bg-zinc-950 border border-white/10 p-5 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-3.5 sm:space-y-5"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="w-12 h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                <span className="text-xl">🔐</span>
+              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
+                <span className="text-sm sm:text-xl">🔐</span>
               </div>
               <div>
-                <p className="font-black text-white text-lg">Enter PIN</p>
-                <p className="text-[11px] text-white/60 mt-1">
+                <p className="font-black text-white text-sm sm:text-lg">Enter PIN</p>
+                <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">
                   Confirm unlinking{' '}
                   <span className="text-red-400 font-black">{unlinkTarget.name}</span>
                 </p>
@@ -1496,26 +1497,26 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 onChange={(e) => setUnlinkPinInput(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-3xl tracking-[1em] font-black text-white"
+                className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black text-white"
               />
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => {
                     setUnlinkPinStep(false);
                     setUnlinkPinInput('');
                   }}
                   disabled={unlinkLoading}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-sm text-white/60 hover:text-white transition-all"
+                  className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleExecuteUnlink}
                   disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-red-500 text-white font-black text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-2 sm:py-3 rounded-xl bg-red-500 text-white font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
                 >
                   {unlinkLoading && (
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   )}
                   {unlinkLoading ? 'Unlinking…' : 'Confirm'}
                 </button>

@@ -15,7 +15,11 @@ const AccountSettings = () => {
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
   const [pinStatus, setPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
-  const [bnbPinStatus, setBnbPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
+  const [bnbPinStatus, setBnbPinStatus] = useState({
+    hasPin: false,
+    isLocked: false,
+    lockedUntil: null,
+  });
 
   // New State for Modern Confirmation Cards
   const [confirmDialog, setConfirmDialog] = useState({
@@ -45,11 +49,13 @@ const AccountSettings = () => {
         // Check BNB pin status
         fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(parsedUser.email)}`)
           .then((r) => r.json())
-          .then((d) => setBnbPinStatus({
-            hasPin: !!d.hasPin,
-            isLocked: d.isLocked || false,
-            lockedUntil: d.lockedUntil || null,
-          }))
+          .then((d) =>
+            setBnbPinStatus({
+              hasPin: !!d.hasPin,
+              isLocked: d.isLocked || false,
+              lockedUntil: d.lockedUntil || null,
+            })
+          )
           .catch(() => {});
       } catch (error) {
         navigate('/login');
@@ -237,7 +243,13 @@ const AccountSettings = () => {
         if (activeModal === 'bnbpin' && !bnbPinStatus.hasPin) {
           fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`)
             .then((r) => r.json())
-            .then((d) => setBnbPinStatus({ hasPin: !!d.hasPin, isLocked: d.isLocked || false, lockedUntil: d.lockedUntil || null }))
+            .then((d) =>
+              setBnbPinStatus({
+                hasPin: !!d.hasPin,
+                isLocked: d.isLocked || false,
+                lockedUntil: d.lockedUntil || null,
+              })
+            )
             .catch(() => {});
         }
       } else {
@@ -263,64 +275,74 @@ const AccountSettings = () => {
   const isAnyResetPin = isResetPin || isResetBnbPin;
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-24 px-4 pb-12 relative overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-16 sm:pt-24 px-3 sm:px-4 pb-8 sm:pb-12 relative overflow-hidden">
       <Stars />
 
       <div className="max-w-2xl mx-auto relative z-10">
         <Link
           to={backPath}
-          className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-salvaGold hover:opacity-60 mb-8 font-bold"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-[9px] sm:text-xs uppercase tracking-widest text-salvaGold hover:opacity-60 mb-5 sm:mb-8 font-bold"
         >
-          <ArrowLeft size={16} /> Back to Dashboard
+          <ArrowLeft size={12} className="sm:hidden" />
+          <ArrowLeft size={16} className="hidden sm:block" />
+          Back to Dashboard
         </Link>
 
-        <header className="mb-12">
-          <h1 className="text-4xl font-black mb-2">Account Settings</h1>
-          <p className="text-sm opacity-60">Manage your Salva account preferences</p>
+        <header className="mb-7 sm:mb-12">
+          <h1 className="text-2xl sm:text-4xl font-black mb-1 sm:mb-2">Account Settings</h1>
+          <p className="text-[10px] sm:text-sm opacity-60">Manage your Salva account preferences</p>
         </header>
 
         {pinStatus.isLocked && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-6 p-4 bg-red-500/10 border border-red-500 rounded-2xl"
+            className="mb-4 sm:mb-6 p-2.5 sm:p-4 bg-red-500/10 border border-red-500 rounded-2xl"
           >
-            <p className="text-sm font-bold text-red-500 flex items-center gap-2">
-              <Lock size={16} /> Account Locked: Transactions disabled until{' '}
+            <p className="text-[10px] sm:text-sm font-bold text-red-500 flex items-center gap-1.5 sm:gap-2">
+              <Lock size={11} className="sm:hidden flex-shrink-0" />
+              <Lock size={16} className="hidden sm:block flex-shrink-0" />
+              Account Locked: Transactions disabled until{' '}
               {new Date(pinStatus.lockedUntil).toLocaleString()}
             </p>
           </motion.div>
         )}
 
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {/* Username */}
-          <div className="group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
+          <div className="group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">Full Name</p>
-                <p className="text-lg font-black">{user.username}</p>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Full Name
+                </p>
+                <p className="text-sm sm:text-lg font-black">{user.username}</p>
               </div>
               <button
                 onClick={() => openModal('username')}
-                className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm"
+                className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm"
               >
-                <Edit2 size={18} />
+                <Edit2 size={13} className="sm:hidden" />
+                <Edit2 size={18} className="hidden sm:block" />
               </button>
             </div>
           </div>
 
           {/* Email */}
-          <div className="group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
+          <div className="group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all">
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">Email Address</p>
-                <p className="text-lg font-black">{user.email}</p>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Email Address
+                </p>
+                <p className="text-sm sm:text-lg font-black">{user.email}</p>
               </div>
               <button
                 onClick={() => openModal('email')}
-                className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm"
+                className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm"
               >
-                <Mail size={18} />
+                <Mail size={13} className="sm:hidden" />
+                <Mail size={18} className="hidden sm:block" />
               </button>
             </div>
           </div>
@@ -328,34 +350,39 @@ const AccountSettings = () => {
           {/* Password */}
           <button
             onClick={() => openModal('password')}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
           >
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">Security</p>
-                <p className="text-lg font-black">Reset Password</p>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Security
+                </p>
+                <p className="text-sm sm:text-lg font-black">Reset Password</p>
               </div>
-              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
-                <Lock size={18} />
+              <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Lock size={13} className="sm:hidden" />
+                <Lock size={18} className="hidden sm:block" />
               </div>
             </div>
           </button>
 
-          {/* PIN */}
           {/* PIN — Base Chain */}
           <button
             onClick={() => openModal('pin')}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
           >
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">Base Chain Security</p>
-                <p className="text-lg font-black">
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Base Chain Security
+                </p>
+                <p className="text-sm sm:text-lg font-black">
                   {pinStatus.hasPin ? 'Reset' : 'Set'} Base Transaction PIN
                 </p>
               </div>
-              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
-                <Key size={18} />
+              <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Key size={13} className="sm:hidden" />
+                <Key size={18} className="hidden sm:block" />
               </div>
             </div>
           </button>
@@ -363,17 +390,20 @@ const AccountSettings = () => {
           {/* PIN — BNB Chain */}
           <button
             onClick={() => openModal('bnbpin')}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left"
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left"
           >
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-xs uppercase opacity-40 font-bold mb-1">BNB Chain Security</p>
-                <p className="text-lg font-black">
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  BNB Chain Security
+                </p>
+                <p className="text-sm sm:text-lg font-black">
                   {bnbPinStatus.hasPin ? 'Reset' : 'Set'} BNB Transaction PIN
                 </p>
               </div>
-              <div className="p-3 bg-white dark:bg-white/5 group-hover:bg-yellow-500 group-hover:text-black rounded-xl transition-all shadow-sm">
-                <Key size={18} />
+              <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-yellow-500 group-hover:text-black rounded-xl transition-all shadow-sm">
+                <Key size={13} className="sm:hidden" />
+                <Key size={18} className="hidden sm:block" />
               </div>
             </div>
           </button>
@@ -383,7 +413,7 @@ const AccountSettings = () => {
       {/* ── Dynamic Modals ── */}
       <AnimatePresence>
         {(activeModal || confirmDialog.show) && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-3 sm:px-4">
             <motion.div
               onClick={() => {
                 closeModal();
@@ -399,27 +429,31 @@ const AccountSettings = () => {
             {confirmDialog.show && (
               <motion.div
                 onClick={(e) => e.stopPropagation()}
-                className="relative bg-white dark:bg-[#121214] p-8 rounded-[2rem] w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden"
+                className="relative bg-white dark:bg-[#121214] p-5 sm:p-8 rounded-[1.75rem] sm:rounded-[2rem] w-full max-w-sm border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden"
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
               >
                 <div className="flex flex-col items-center text-center">
-                  <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-6">
-                    <AlertTriangle className="text-red-500" size={32} />
+                  <div className="w-11 h-11 sm:w-16 sm:h-16 bg-red-500/10 rounded-full flex items-center justify-center mb-4 sm:mb-6">
+                    <AlertTriangle className="text-red-500" size={22} />
                   </div>
-                  <h3 className="text-2xl font-black mb-2">{confirmDialog.title}</h3>
-                  <p className="text-sm opacity-60 mb-8">{confirmDialog.message}</p>
-                  <div className="flex w-full gap-3">
+                  <h3 className="text-base sm:text-2xl font-black mb-1.5 sm:mb-2">
+                    {confirmDialog.title}
+                  </h3>
+                  <p className="text-[10px] sm:text-sm opacity-60 mb-5 sm:mb-8">
+                    {confirmDialog.message}
+                  </p>
+                  <div className="flex w-full gap-2 sm:gap-3">
                     <button
                       onClick={() => setConfirmDialog({ ...confirmDialog, show: false })}
-                      className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                      className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
                     >
                       Go Back
                     </button>
                     <button
                       onClick={confirmDialog.onConfirm}
-                      className="flex-1 py-4 rounded-2xl bg-red-500 text-white font-bold hover:brightness-110 transition-all shadow-lg shadow-red-500/20"
+                      className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-red-500 text-white font-bold text-xs sm:text-base hover:brightness-110 transition-all shadow-lg shadow-red-500/20"
                     >
                       Unlink Now
                     </button>
@@ -432,7 +466,7 @@ const AccountSettings = () => {
             {activeModal && (
               <motion.div
                 onClick={(e) => e.stopPropagation()}
-                className="relative bg-white dark:bg-[#121214] p-8 rounded-[2.5rem] w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
+                className="relative bg-white dark:bg-[#121214] p-5 sm:p-8 rounded-[1.75rem] sm:rounded-[2.5rem] w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
@@ -440,26 +474,28 @@ const AccountSettings = () => {
                 {/* Step 1: Warning */}
                 {modalStep === 1 && requiresOTP && !isAnyFirstTimePin && (
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-6 mx-auto">
-                      <AlertTriangle className="text-salvaGold" size={32} />
+                    <div className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
+                      <AlertTriangle className="text-salvaGold" size={22} />
                     </div>
-                    <h3 className="text-2xl font-black mb-4">Security Protocol</h3>
-                    <p className="text-sm opacity-80 mb-8 leading-relaxed">
+                    <h3 className="text-base sm:text-2xl font-black mb-2.5 sm:mb-4">
+                      Security Protocol
+                    </h3>
+                    <p className="text-[10px] sm:text-sm opacity-80 mb-5 sm:mb-8 leading-relaxed">
                       Changing your <span className="text-salvaGold font-bold">{activeModal}</span>{' '}
                       will trigger a security cooldown. Your account will be{' '}
                       <strong className="text-white">locked for 24 hours</strong>.
                     </p>
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 sm:gap-3">
                       <button
                         onClick={closeModal}
-                        className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold hover:bg-gray-200 dark:hover:bg-white/10"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base hover:bg-gray-200 dark:hover:bg-white/10"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={sendOTP}
                         disabled={loading}
-                        className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
                       >
                         {loading ? 'Processing...' : 'I Understand'}
                       </button>
@@ -470,8 +506,8 @@ const AccountSettings = () => {
                 {/* Step 2: OTP */}
                 {modalStep === 2 && (
                   <div className="text-center">
-                    <h3 className="text-2xl font-black mb-2">Verify</h3>
-                    <p className="text-sm opacity-60 mb-8">
+                    <h3 className="text-base sm:text-2xl font-black mb-1.5 sm:mb-2">Verify</h3>
+                    <p className="text-[10px] sm:text-sm opacity-60 mb-5 sm:mb-8">
                       Verification code sent to <strong>{user.email}</strong>
                     </p>
                     <input
@@ -480,19 +516,19 @@ const AccountSettings = () => {
                       placeholder="••••••"
                       value={otp}
                       onChange={(e) => setOtp(e.target.value)}
-                      className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-3xl tracking-[0.4em] font-black mb-8"
+                      className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.3em] sm:tracking-[0.4em] font-black mb-5 sm:mb-8"
                     />
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 sm:gap-3">
                       <button
                         onClick={closeModal}
-                        className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={verifyOTP}
                         disabled={loading || !otp}
-                        className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold disabled:opacity-50 transition-all"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base disabled:opacity-50 transition-all"
                       >
                         {loading ? 'Verifying...' : 'Verify Identity'}
                       </button>
@@ -503,15 +539,19 @@ const AccountSettings = () => {
                 {/* Step 3: Input Fields */}
                 {(modalStep === 3 || (isAnyFirstTimePin && modalStep === 1)) && (
                   <>
-                    <h3 className="text-2xl font-black mb-6 flex items-center gap-2">
-                      <CheckCircle2 className="text-salvaGold" />
-                      {activeModal === 'bnbpin' ? 'Update BNB PIN' : activeModal === 'pin' ? 'Update Base PIN' : `Update ${activeModal}`}
+                    <h3 className="text-base sm:text-2xl font-black mb-4 sm:mb-6 flex items-center gap-1.5 sm:gap-2">
+                      <CheckCircle2 className="text-salvaGold" size={16} />
+                      {activeModal === 'bnbpin'
+                        ? 'Update BNB PIN'
+                        : activeModal === 'pin'
+                          ? 'Update Base PIN'
+                          : `Update ${activeModal}`}
                     </h3>
 
-                    <div className="space-y-4 mb-8">
+                    <div className="space-y-3 sm:space-y-4 mb-5 sm:mb-8">
                       {isAnyResetPin && (
-                        <div className="space-y-2">
-                          <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
+                        <div className="space-y-1.5 sm:space-y-2">
+                          <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
                             Current {activeModal === 'bnbpin' ? 'BNB' : 'Base'} PIN
                           </label>
                           <input
@@ -526,17 +566,25 @@ const AccountSettings = () => {
                                 oldPin: e.target.value.replace(/\D/g, ''),
                               })
                             }
-                            className="w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-2xl tracking-widest"
+                            className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-lg sm:text-2xl tracking-widest"
                           />
                         </div>
                       )}
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
-                          New {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''} PIN
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
+                          New{' '}
+                          {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''}{' '}
+                          PIN
                         </label>
                         <input
-                          type={isPinModal ? 'password' : (activeModal === 'password' ? 'password' : 'text')}
+                          type={
+                            isPinModal
+                              ? 'password'
+                              : activeModal === 'password'
+                                ? 'password'
+                                : 'text'
+                          }
                           inputMode={isPinModal ? 'numeric' : 'text'}
                           maxLength={isPinModal ? 4 : undefined}
                           placeholder={isPinModal ? '••••' : `Enter new ${activeModal}`}
@@ -549,16 +597,24 @@ const AccountSettings = () => {
                                 : e.target.value,
                             })
                           }
-                          className={`w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 ${isPinModal ? 'text-center text-2xl tracking-widest' : 'font-bold'}`}
+                          className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${isPinModal ? 'text-center text-lg sm:text-2xl tracking-widest' : 'font-bold'}`}
                         />
                       </div>
 
-                      <div className="space-y-2">
-                        <label className="text-[10px] uppercase tracking-widest font-black opacity-40 ml-2">
-                          Confirm {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''} PIN
+                      <div className="space-y-1.5 sm:space-y-2">
+                        <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
+                          Confirm{' '}
+                          {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''}{' '}
+                          PIN
                         </label>
                         <input
-                          type={isPinModal ? 'password' : (activeModal === 'password' ? 'password' : 'text')}
+                          type={
+                            isPinModal
+                              ? 'password'
+                              : activeModal === 'password'
+                                ? 'password'
+                                : 'text'
+                          }
                           inputMode={isPinModal ? 'numeric' : 'text'}
                           maxLength={isPinModal ? 4 : undefined}
                           placeholder={isPinModal ? '••••' : `Confirm new ${activeModal}`}
@@ -571,22 +627,22 @@ const AccountSettings = () => {
                                 : e.target.value,
                             })
                           }
-                          className={`w-full p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 ${isPinModal ? 'text-center text-2xl tracking-widest' : 'font-bold'}`}
+                          className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${isPinModal ? 'text-center text-lg sm:text-2xl tracking-widest' : 'font-bold'}`}
                         />
                       </div>
                     </div>
 
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 sm:gap-3">
                       <button
                         onClick={closeModal}
-                        className="flex-1 py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleSubmit}
                         disabled={loading || !formData.newValue}
-                        className="flex-1 py-4 rounded-2xl bg-salvaGold text-black font-bold hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
                       >
                         {loading ? 'Updating...' : 'Save Changes'}
                       </button>
@@ -606,12 +662,12 @@ const AccountSettings = () => {
             initial={{ y: 100, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: 100, x: '-50%', opacity: 0 }}
-            className={`fixed bottom-6 left-1/2 px-8 py-5 rounded-3xl z-[100] font-black text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center gap-3 ${notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'}`}
+            className={`fixed bottom-4 sm:bottom-6 left-1/2 px-5 py-3.5 sm:px-8 sm:py-5 rounded-2xl sm:rounded-3xl z-[100] font-black text-[7px] sm:text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center gap-2 sm:gap-3 ${notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'}`}
           >
             {notification.type === 'error' ? (
-              <AlertTriangle size={16} />
+              <AlertTriangle size={11} />
             ) : (
-              <CheckCircle2 size={16} />
+              <CheckCircle2 size={11} />
             )}
             {notification.message}
           </motion.div>
