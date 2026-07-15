@@ -55,13 +55,16 @@ const fmtTime = (iso) =>
 const SalvaTooltip = ({ active, payload, label }) => {
   if (!active || !payload || !payload.length) return null;
   return (
-    <div className="bg-zinc-950 border border-salvaGold/20 rounded-xl px-4 py-3 shadow-2xl">
-      <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-2">
+    <div className="bg-zinc-950 border border-salvaGold/20 rounded-lg sm:rounded-xl px-2.5 sm:px-4 py-2 sm:py-3 shadow-2xl">
+      <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-1 sm:mb-2">
         {fmtTime(label)}
       </p>
       {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-2 text-xs font-bold">
-          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
+        <div key={i} className="flex items-center gap-1.5 sm:gap-2 text-[8px] sm:text-xs font-bold">
+          <span
+            className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0"
+            style={{ background: p.color }}
+          />
           <span className="text-white/60">{p.name}:</span>
           <span className="text-white font-black">{fmtCompact(p.value)}</span>
         </div>
@@ -72,44 +75,50 @@ const SalvaTooltip = ({ active, payload, label }) => {
 
 // ── Reusable metric card wrapping a single LineChart ────────────────────────
 const MetricChart = ({ title, subtitle, data, lines, accent }) => (
-  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
+  <div className="rounded-lg sm:rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden">
     <div
       className="h-px"
       style={{ background: `linear-gradient(90deg, transparent, ${accent}55, transparent)` }}
     />
-    <div className="p-5">
-      <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60 mb-0.5">
+    <div className="p-2.5 sm:p-5">
+      <p className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] sm:tracking-[0.3em] font-black text-white/60 mb-0.5">
         {title}
       </p>
-      {subtitle && <p className="text-[11px] text-white/30 mb-4">{subtitle}</p>}
+      {subtitle && (
+        <p className="text-[7px] sm:text-[11px] text-white/30 mb-2 sm:mb-4">{subtitle}</p>
+      )}
       {data.length === 0 ? (
-        <div className="h-[220px] flex items-center justify-center">
-          <p className="text-xs text-white/25 font-bold">No data yet for this range</p>
+        <div className="h-[130px] sm:h-[220px] flex items-center justify-center">
+          <p className="text-[9px] sm:text-xs text-white/25 font-bold">
+            No data yet for this range
+          </p>
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={220}>
-          <LineChart data={data} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+        <ResponsiveContainer width="100%" height={130} className="sm:!h-[220px]">
+          <LineChart data={data} margin={{ top: 5, right: 6, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis
               dataKey="recordedAt"
-              tickFormatter={(v) => new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: 700 }}
+              tickFormatter={(v) =>
+                new Date(v).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              }
+              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 6, fontWeight: 700 }}
               axisLine={{ stroke: 'rgba(255,255,255,0.08)' }}
               tickLine={false}
             />
             <YAxis
               tickFormatter={fmtCompact}
-              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 9, fontWeight: 700 }}
+              tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 6, fontWeight: 700 }}
               axisLine={false}
               tickLine={false}
-              width={48}
+              width={30}
             />
             <Tooltip content={<SalvaTooltip />} />
             {lines.length > 1 && (
               <Legend
-                wrapperStyle={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}
+                wrapperStyle={{ fontSize: 7, fontWeight: 800, textTransform: 'uppercase' }}
                 iconType="circle"
-                iconSize={8}
+                iconSize={6}
               />
             )}
             {lines.map((l) => (
@@ -119,9 +128,9 @@ const MetricChart = ({ title, subtitle, data, lines, accent }) => (
                 dataKey={l.key}
                 name={l.name}
                 stroke={l.color}
-                strokeWidth={2}
+                strokeWidth={1.5}
                 dot={false}
-                activeDot={{ r: 4 }}
+                activeDot={{ r: 3 }}
               />
             ))}
           </LineChart>
@@ -132,9 +141,11 @@ const MetricChart = ({ title, subtitle, data, lines, accent }) => (
 );
 
 const StatPill = ({ label, value, color }) => (
-  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-    <p className="text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">{label}</p>
-    <p className="text-2xl font-black" style={{ color }}>
+  <div className="rounded-lg sm:rounded-2xl border border-white/[0.07] bg-white/[0.03] p-2.5 sm:p-4">
+    <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-0.5 sm:mb-1">
+      {label}
+    </p>
+    <p className="text-sm sm:text-2xl font-black" style={{ color }}>
       {fmtCompact(value)}
     </p>
   </div>
@@ -257,38 +268,38 @@ const AdminStatsPage = () => {
         {/* ── Header ── */}
         <a
           href="/dashboard"
-          className="inline-flex items-center gap-2 text-[8px] uppercase tracking-[0.3em] text-white/25 hover:text-salvaGold transition-colors mb-5 font-black"
+          className="inline-flex items-center gap-2 text-[6px] sm:text-[8px] uppercase tracking-[0.25em] sm:tracking-[0.3em] text-white/25 hover:text-salvaGold transition-colors mb-3 sm:mb-5 font-black"
         >
           ← Dashboard
         </a>
 
-        <header className="flex items-start justify-between gap-4 mb-8">
+        <header className="flex items-start justify-between gap-3 mb-5 sm:mb-8">
           <div>
-            <p className="text-[8px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-1">
+            <p className="text-[6px] sm:text-[8px] uppercase tracking-[0.3em] text-salvaGold/60 font-black mb-0.5 sm:mb-1">
               Salva Network Intelligence
             </p>
-            <h1 className="text-2xl sm:text-4xl font-black tracking-tight">Analytics</h1>
+            <h1 className="text-base sm:text-4xl font-black tracking-tight">Analytics</h1>
           </div>
           <button
             onClick={handleManualRefresh}
             disabled={refreshing}
-            className="flex-shrink-0 w-10 h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
+            className="flex-shrink-0 w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
           >
             {refreshing ? (
-              <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+              <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
             ) : (
-              <span className="text-salvaGold text-lg leading-none">↻</span>
+              <span className="text-salvaGold text-xs sm:text-lg leading-none">↻</span>
             )}
           </button>
         </header>
 
         {/* ── Range selector ── */}
-        <div className="flex gap-2 mb-6">
+        <div className="flex gap-1.5 sm:gap-2 mb-4 sm:mb-6">
           {RANGES.map((r) => (
             <button
               key={r.id}
               onClick={() => setRange(r.id)}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+              className={`px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-[7px] sm:text-[10px] font-black uppercase tracking-widest border transition-all ${
                 range === r.id
                   ? 'bg-salvaGold text-black border-salvaGold'
                   : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
@@ -308,10 +319,14 @@ const AdminStatsPage = () => {
             <p className="text-red-400 font-bold">{error}</p>
           </div>
         ) : (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="space-y-3 sm:space-y-5"
+          >
             {/* ── Top summary pills ── */}
             {latest && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                 <StatPill
                   label="Total Users"
                   value={extractMetric(latest.userCount)}
