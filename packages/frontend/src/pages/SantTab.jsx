@@ -541,7 +541,7 @@ const SantTab = ({ user, registries, showMsg }) => {
             <span>$0.00</span>
           </div>
           <p className="text-[9px] text-white/30 mt-1">
-            No market price yet — live once liquidity launches
+            No market price yet. Earn by using Salva.
           </p>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
