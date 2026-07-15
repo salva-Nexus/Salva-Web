@@ -603,23 +603,23 @@ const BalanceCard = ({
   const MASK = '••••••';
 
   return (
-    <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-3 sm:mb-5">
+    <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-2.5 sm:mb-5">
       <div className="h-px bg-gradient-to-r from-transparent via-blue-500//40 to-transparent" />
 
       {/* NGN — TOP */}
-      <div className="px-4 sm:px-7 pt-3 sm:pt-7 pb-2.5 sm:pb-4 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between mb-1.5 sm:mb-3">
-          <div className="flex items-center gap-1.5">
+      <div className="px-3 sm:px-7 pt-2 sm:pt-7 pb-2 sm:pb-4 border-b border-white/[0.06]">
+        <div className="flex items-center justify-between mb-1 sm:mb-3">
+          <div className="flex items-center gap-1">
             <motion.span
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1.5 h-1.5 rounded-full bg-blue-500/ block"
+              className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500/ block"
             />
-            <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
+            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
           </div>
           <button
             onClick={onToggleVisibility}
-            className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
+            className="text-white/60 hover:text-white/70 transition-colors text-xs sm:text-sm leading-none"
           >
             {showBalance ? '👁' : '👁‍🗨'}
           </button>
@@ -656,14 +656,14 @@ const BalanceCard = ({
       </div>
 
       {/* USD — BOTTOM */}
-      <div className="px-4 sm:px-7 pt-2.5 sm:pt-4 pb-2.5 sm:pb-6">
-        <div className="flex items-center gap-1.5 mb-1.5 sm:mb-3">
+      <div className="px-3 sm:px-7 pt-2 sm:pt-4 pb-2 sm:pb-6">
+        <div className="flex items-center gap-1 mb-1 sm:mb-3">
           <motion.span
             animate={{ opacity: [1, 0.3, 1] }}
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
-            className="w-1.5 h-1.5 rounded-full bg-blue-500/ block"
+            className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500/ block"
           />
-          <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
+          <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
         </div>
 
         <div className="min-h-[28px] sm:min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
@@ -697,18 +697,18 @@ const BalanceCard = ({
       </div>
 
       {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-3 px-4 sm:px-7 pb-4 sm:pb-7">
+      <div className="grid grid-cols-2 gap-1.5 sm:gap-3 px-3 sm:px-7 pb-3 sm:pb-7">
         <button
           onClick={onSend}
-          className="bg-blue-500 hover:brightness-110 active:scale-[0.98] transition-all text-white font-black py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2"
+          className="bg-blue-500 hover:brightness-110 active:scale-[0.98] transition-all text-white font-black py-1.5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest shadow-lg shadow-blue-500/20 flex items-center justify-center gap-1.5 sm:gap-2"
         >
-          <span className="text-base leading-none">↑</span> Send
+          <span className="text-sm sm:text-base leading-none">↑</span> Send
         </button>
         <button
           onClick={onReceive}
-          className="border border-white/10 hover:border-blue-500/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-2 sm:py-2.5 rounded-xl text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+          className="border border-white/10 hover:border-blue-500/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-1.5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 sm:gap-2"
         >
-          <span className="text-base leading-none">↓</span> Receive
+          <span className="text-sm sm:text-base leading-none">↓</span> Receive
         </button>
       </div>
     </div>
@@ -2637,9 +2637,9 @@ const Dashboard = () => {
       <Stars />
       <div className="max-w-2xl mx-auto relative z-10">
         {/* ── Header ── */}
-        <header className="mb-7 flex items-start justify-between gap-4">
+        <header className="mb-5 sm:mb-7 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-xl sm:text-4xl font-black tracking-tight leading-none">
+            <h1 className="text-sm sm:text-4xl font-black tracking-tight leading-none">
               {user.username}
             </h1>
           </div>
@@ -2659,30 +2659,30 @@ const Dashboard = () => {
         />
 
         {/* ── Info Bar: Chain + Wallet + TX History ── */}
-        <div className="mb-4 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+        <div className="mb-3 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
           {/* Row 1: Chain identifier + switcher */}
-          <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.05]">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between px-2 py-2 sm:px-3 sm:py-2.5 border-b border-white/[0.05]">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <img
                 src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
-                className="w-4 h-4 rounded-full flex-shrink-0"
+                className="w-3 h-3 sm:w-4 sm:h-4 rounded-full flex-shrink-0"
                 alt="BNB"
               />
-              <span className="text-[10px] font-black uppercase tracking-widest text-yellow-400">
+              <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-yellow-400">
                 BNB Chain
               </span>
             </div>
             <a
               href="/dashboard"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-blue-500/30 hover:bg-blue-500/[0.04] transition-all"
+              className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-blue-500/30 hover:bg-blue-500/[0.04] transition-all"
             >
-              <div className="w-3.5 h-3.5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-[7px] font-black">B</span>
+              <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
+                <span className="text-white text-[5px] sm:text-[7px] font-black">B</span>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-white/50">
+              <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-widest text-white/50">
                 Switch to Base
               </span>
-              <span className="text-white/30 text-[9px]">↗</span>
+              <span className="text-white/30 text-[7px] sm:text-[9px]">↗</span>
             </a>
           </div>
 
@@ -2693,20 +2693,20 @@ const Dashboard = () => {
               onClick={() => {
                 setShowReceiveNetworkReminder(true);
               }}
-              className="flex-1 flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
+              className="flex-1 flex items-center gap-1.5 sm:gap-2.5 px-2 py-2 sm:px-3 sm:py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
             >
-              <div className="w-6 h-6 rounded-lg bg-[#F0B90B] flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-lg bg-[#F0B90B] flex items-center justify-center flex-shrink-0 overflow-hidden">
                 <img
                   src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
-                  className="w-4 h-4 rounded-full"
+                  className="w-3 h-3 sm:w-4 sm:h-4 rounded-full"
                   alt="BNB"
                 />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">
+                <p className="text-[6px] sm:text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">
                   Address
                 </p>
-                <p className="font-mono text-[10px] text-blue-400/60 truncate group-hover:text-blue-400/80 transition-colors">
+                <p className="font-mono text-[7px] sm:text-[10px] text-blue-400/60 truncate group-hover:text-blue-400/80 transition-colors">
                   {showBalance ? (
                     <>
                       <span className="lg:hidden">
@@ -2720,7 +2720,7 @@ const Dashboard = () => {
                 </p>
               </div>
               <svg
-                className="w-3 h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors"
+                className="w-2 h-2 sm:w-3 sm:h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -2733,12 +2733,12 @@ const Dashboard = () => {
             {/* TX History */}
             <a
               href="/transactions?chain=bnb"
-              className="w-[50%] flex items-center justify-center gap-2 px-3 py-2.5 hover:bg-white/[0.02] transition-all group"
+              className="w-[50%] flex items-center justify-center gap-1.5 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 hover:bg-white/[0.02] transition-all group"
             >
-              <p className="text-[9px] font-black text-white/50 group-hover:text-blue-400 transition-colors uppercase tracking-wider whitespace-nowrap">
+              <p className="text-[7px] sm:text-[9px] font-black text-white/50 group-hover:text-blue-400 transition-colors uppercase tracking-wider whitespace-nowrap">
                 Transaction History
               </p>
-              <span className="text-blue-400/50 text-sm group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0">
+              <span className="text-blue-400/50 text-xs sm:text-sm group-hover:text-blue-400 group-hover:translate-x-0.5 transition-all flex-shrink-0">
                 →
               </span>
             </a>
