@@ -383,6 +383,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     return 0;
   };
 
+  // Raw string balance — no parseFloat round-trip, so Max never loses precision
+  const rawBalanceStringForAsset = (asset) => {
+    if (asset === 'NGNS') return String(pool.ngnsLiquidity ?? '0');
+    if (asset === 'CNGN') return String(pool.cNgnLiquidity ?? '0');
+    if (asset === 'USDT') return String(pool.usdtLiquidity ?? '0');
+    if (asset === 'USDC') return String(pool.usdcLiquidity ?? '0');
+    return '0';
+  };
+
   const verifyPin = async (pin) => {
     setPinLoading(true);
     try {
@@ -753,7 +762,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   {liqMode === 'remove' && (
                     <button
                       type="button"
-                      onClick={() => setLiqAmount(String(rawBalanceForAsset(liqAsset)))}
+                      onClick={() => setLiqAmount(rawBalanceStringForAsset(liqAsset))}
                       className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-1.5 py-0.5 sm:px-2 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
@@ -892,7 +901,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               className="space-y-2.5 sm:space-y-4"
             >
               <div className="px-3 py-2 sm:px-4 sm:py-3 rounded-xl bg-yellow-500/5 border border-yellow-500/15">
-                <p className="text-[9px] sm:text-xs font-black text-yellow-400 mb-0.5">Emergency Controls</p>
+                <p className="text-[9px] sm:text-xs font-black text-yellow-400 mb-0.5">
+                  Emergency Controls
+                </p>
                 <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
                   Pausing stops all swaps. Liquidity is safe — only you can unpause.
                 </p>
@@ -917,7 +928,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
                 <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-[9px] sm:text-xs font-black text-blue-400">Min NGN Per Swap</p>
+                    <p className="text-[9px] sm:text-xs font-black text-blue-400">
+                      Min NGN Per Swap
+                    </p>
                     <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minNgnAmount) > 0
@@ -948,7 +961,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
                 <div className="p-2.5 sm:p-3.5 space-y-1.5 sm:space-y-2.5">
                   <div>
-                    <p className="text-[9px] sm:text-xs font-black text-white/60">Min USD Per Swap</p>
+                    <p className="text-[9px] sm:text-xs font-black text-white/60">
+                      Min USD Per Swap
+                    </p>
                     <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minTokenAmount) > 0

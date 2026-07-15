@@ -3040,13 +3040,12 @@ const Dashboard = () => {
                     <button
                       type="button"
                       onClick={() => {
-                        const raw = parseFloat(currentCoinBalance) || 0;
-                        const fmt = raw
-                          .toLocaleString('en-US', { maximumFractionDigits: 6 })
-                          .replace(/,/g, ',');
-                        setTransferAmountDisplay(formatAmountInput(String(raw)));
-                        setTransferAmount(String(raw));
-                        computeFeePreview(String(raw), selectedCoin);
+                        // Use the raw balance string as-is — no parseFloat round-trip,
+                        // so Max never truncates or rounds the actual balance.
+                        const raw = String(currentCoinBalance ?? '0');
+                        setTransferAmountDisplay(formatAmountInput(raw));
+                        setTransferAmount(raw);
+                        computeFeePreview(raw, selectedCoin);
                       }}
                       className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
