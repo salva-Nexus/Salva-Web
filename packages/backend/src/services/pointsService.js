@@ -145,11 +145,17 @@ async function awardRegistrationPoints(newUserId, referralCodeUsed) {
  * @param {number} bnbPoints
  * @returns {Promise<{visible: boolean, active: boolean, totalPoints: number}>}
  */
+const CLAIM_UNLOCK_THRESHOLD = 200_000_000;
+
 async function getClaimVisibility(basePoints, bnbPoints) {
   const totalPoints = (basePoints || 0) + (bnbPoints || 0);
-  if (totalPoints > 0) return { visible: true, active: true, totalPoints };
-
   const miningState = await MiningState.getOrCreate();
+
+  if (totalPoints > 0) {
+    const active = miningState.totalPointsIssued >= CLAIM_UNLOCK_THRESHOLD;
+    return { visible: true, active, totalPoints };
+  }
+
   if (miningState.isLocked) return { visible: false, active: false, totalPoints: 0 };
 
   return { visible: true, active: false, totalPoints: 0 };
