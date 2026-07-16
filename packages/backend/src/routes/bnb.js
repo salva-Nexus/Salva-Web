@@ -214,6 +214,47 @@ router.get('/status/:email', async (req, res) => {
   }
 });
 
+// ── GET /api/bnb/pin-status/:email ────────────────────────────────────────────
+// Dedicated PIN-status check, mirroring /api/user/pin-status on Base. Kept
+// separate from /status/:email (which answers "is a BNB wallet deployed at
+// all") because AccountSettings needs isLocked/lockedUntil specifically and
+// should 404 clearly if no BNB wallet exists yet, rather than silently
+// defaulting hasPin to false.
+router.get('/pin-status/:email', async (req, res) => {
+  try {
+    const sanitizedEmail = sanitizeEmail(req.params.email);
+    const l1DB = getL1DB();
+    if (l1DB.readyState !== 1) {
+      try {
+        await Promise.race([
+          l1DB.readyPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 10000)),
+        ]);
+      } catch {
+        return res
+          .status(503)
+          .json({ message: 'Service temporarily unavailable', retryable: true });
+      }
+    }
+    const UserBNB = getUserBNB();
+
+    const user = await UserBNB.findOne({ email: sanitizedEmail });
+    if (!user) {
+      return res.status(404).json({ message: 'BNB wallet not found for this account' });
+    }
+
+    res.json({
+      hasPin: !!user.transactionPin,
+      pinSetupCompleted: user.pinSetupCompleted || false,
+      isLocked: !!(user.accountLockedUntil && new Date(user.accountLockedUntil) > new Date()),
+      lockedUntil: user.accountLockedUntil || null,
+    });
+  } catch (err) {
+    console.error('❌ /bnb/pin-status:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ── POST /api/bnb/verify-pin ──────────────────────────────────────────────────
 router.post('/verify-pin', async (req, res) => {
   try {
@@ -264,6 +305,60 @@ router.post('/verify-pin', async (req, res) => {
   } catch (err) {
     console.error('❌ /bnb/verify-pin:', err.message);
     res.status(401).json({ success: false, message: 'Invalid PIN or corrupted key' });
+  }
+});
+
+// ── POST /api/bnb/set-pin ─────────────────────────────────────────────────────
+// First-time BNB PIN set. In the normal flow the BNB PIN is set automatically
+// during /bnb/register (encrypted with the user's Base PIN at deploy time),
+// so this route mainly exists as a fallback for edge cases — e.g. a UserBNB
+// record that ended up without a PIN — and for parity with Base's
+// /api/user/set-pin so the "Set" path in Account Settings never 404s again.
+router.post('/set-pin', async (req, res) => {
+  try {
+    const { email, pin } = req.body;
+    if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      return res.status(400).json({ message: 'PIN must be exactly 4 digits' });
+    }
+    const sanitizedEmail = sanitizeEmail(email);
+
+    const l1DB = getL1DB();
+    if (l1DB.readyState !== 1) {
+      try {
+        await Promise.race([
+          l1DB.readyPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('L1DB timeout')), 10000)),
+        ]);
+      } catch {
+        return res
+          .status(503)
+          .json({ message: 'Service temporarily unavailable', retryable: true });
+      }
+    }
+    const UserBNB = getUserBNB();
+
+    const user = await UserBNB.findOne({ email: sanitizedEmail });
+    if (!user) {
+      return res.status(404).json({ message: 'BNB wallet not found for this account' });
+    }
+
+    if (user.transactionPin) {
+      return res.status(400).json({ message: 'BNB PIN already set. Use reset-pin instead.' });
+    }
+
+    const hashedPin = hashPin(pin);
+    const encryptedKey = encryptPrivateKey(user.ownerPrivateKey, pin);
+
+    user.transactionPin = hashedPin;
+    user.ownerPrivateKey = encryptedKey;
+    user.pinSetupCompleted = true;
+    await user.save();
+
+    console.log(`✅ BNB PIN set for user: ${sanitizedEmail}`);
+    res.json({ success: true, message: 'BNB transaction PIN set successfully!' });
+  } catch (err) {
+    console.error('❌ /bnb/set-pin:', err.message);
+    res.status(500).json({ message: err.message });
   }
 });
 

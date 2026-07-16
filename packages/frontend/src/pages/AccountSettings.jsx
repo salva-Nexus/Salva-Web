@@ -14,11 +14,19 @@ const AccountSettings = () => {
   const [modalStep, setModalStep] = useState(1);
   const [otp, setOtp] = useState('');
   const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
-  const [pinStatus, setPinStatus] = useState({ hasPin: false, isLocked: false, lockedUntil: null });
+  const [pinStatus, setPinStatus] = useState({
+    hasPin: false,
+    isLocked: false,
+    lockedUntil: null,
+    loading: true,
+    error: false,
+  });
   const [bnbPinStatus, setBnbPinStatus] = useState({
     hasPin: false,
     isLocked: false,
     lockedUntil: null,
+    loading: true,
+    error: false,
   });
 
   // New State for Modern Confirmation Cards
@@ -39,6 +47,25 @@ const AccountSettings = () => {
   });
   const backPath = location === 'bnb' ? '/bnb' : '/dashboard';
 
+  // Retries transient network/server hiccups before giving up — prevents a
+  // single dropped request from permanently mislabeling PIN status.
+  const fetchJsonWithRetry = async (url, { retries = 2, delayMs = 700 } = {}) => {
+    let lastErr;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`Request failed (${res.status})`);
+        return await res.json();
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retries) {
+          await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
+        }
+      }
+    }
+    throw lastErr;
+  };
+
   useEffect(() => {
     const savedUser = localStorage.getItem('salva_user');
     if (savedUser) {
@@ -46,17 +73,7 @@ const AccountSettings = () => {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
         checkPinStatus(parsedUser.email);
-        // Check BNB pin status
-        fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(parsedUser.email)}`)
-          .then((r) => r.json())
-          .then((d) =>
-            setBnbPinStatus({
-              hasPin: !!d.hasPin,
-              isLocked: d.isLocked || false,
-              lockedUntil: d.lockedUntil || null,
-            })
-          )
-          .catch(() => {});
+        checkBnbPinStatus(parsedUser.email);
       } catch (error) {
         navigate('/login');
       }
@@ -75,12 +92,40 @@ const AccountSettings = () => {
   const showMsg = (msg, type = 'success') => setNotification({ show: true, message: msg, type });
 
   const checkPinStatus = async (email) => {
+    setPinStatus((prev) => ({ ...prev, loading: true, error: false }));
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/pin-status/${email}`);
-      const data = await res.json();
-      setPinStatus(data);
+      const data = await fetchJsonWithRetry(
+        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(email)}`
+      );
+      setPinStatus({
+        hasPin: !!data.hasPin,
+        isLocked: !!data.isLocked,
+        lockedUntil: data.lockedUntil || null,
+        loading: false,
+        error: false,
+      });
     } catch (err) {
-      console.error('Failed to check PIN status');
+      console.error('❌ Failed to check Base PIN status:', err.message);
+      setPinStatus((prev) => ({ ...prev, loading: false, error: true }));
+    }
+  };
+
+  const checkBnbPinStatus = async (email) => {
+    setBnbPinStatus((prev) => ({ ...prev, loading: true, error: false }));
+    try {
+      const data = await fetchJsonWithRetry(
+        `${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(email)}`
+      );
+      setBnbPinStatus({
+        hasPin: !!data.hasPin,
+        isLocked: !!data.isLocked,
+        lockedUntil: data.lockedUntil || null,
+        loading: false,
+        error: false,
+      });
+    } catch (err) {
+      console.error('❌ Failed to check BNB PIN status:', err.message);
+      setBnbPinStatus((prev) => ({ ...prev, loading: false, error: true }));
     }
   };
 
@@ -241,16 +286,7 @@ const AccountSettings = () => {
           checkPinStatus(user.email);
         }
         if (activeModal === 'bnbpin' && !bnbPinStatus.hasPin) {
-          fetch(`${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(user.email)}`)
-            .then((r) => r.json())
-            .then((d) =>
-              setBnbPinStatus({
-                hasPin: !!d.hasPin,
-                isLocked: d.isLocked || false,
-                lockedUntil: d.lockedUntil || null,
-              })
-            )
-            .catch(() => {});
+          checkBnbPinStatus(user.email);
         }
       } else {
         showMsg(data.message || 'Update failed', 'error');
@@ -302,8 +338,23 @@ const AccountSettings = () => {
             <p className="text-[10px] sm:text-sm font-bold text-red-500 flex items-center gap-1.5 sm:gap-2">
               <Lock size={11} className="sm:hidden flex-shrink-0" />
               <Lock size={16} className="hidden sm:block flex-shrink-0" />
-              Account Locked: Transactions disabled until{' '}
+              Base Chain Locked: Transactions disabled until{' '}
               {new Date(pinStatus.lockedUntil).toLocaleString()}
+            </p>
+          </motion.div>
+        )}
+
+        {bnbPinStatus.isLocked && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-4 sm:mb-6 p-2.5 sm:p-4 bg-yellow-500/10 border border-yellow-500 rounded-2xl"
+          >
+            <p className="text-[10px] sm:text-sm font-bold text-yellow-500 flex items-center gap-1.5 sm:gap-2">
+              <Lock size={11} className="sm:hidden flex-shrink-0" />
+              <Lock size={16} className="hidden sm:block flex-shrink-0" />
+              BNB Chain Locked: Transactions disabled until{' '}
+              {new Date(bnbPinStatus.lockedUntil).toLocaleString()}
             </p>
           </motion.div>
         )}
@@ -368,17 +419,26 @@ const AccountSettings = () => {
 
           {/* PIN — Base Chain */}
           <button
-            onClick={() => openModal('pin')}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
+            onClick={() => (pinStatus.error ? checkPinStatus(user.email) : openModal('pin'))}
+            disabled={pinStatus.loading}
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left disabled:opacity-60 disabled:cursor-wait"
           >
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
                   Base Chain Security
                 </p>
-                <p className="text-sm sm:text-lg font-black">
-                  {pinStatus.hasPin ? 'Reset' : 'Set'} Base Transaction PIN
-                </p>
+                {pinStatus.loading ? (
+                  <p className="text-sm sm:text-lg font-black opacity-50">Checking PIN status…</p>
+                ) : pinStatus.error ? (
+                  <p className="text-sm sm:text-lg font-black text-red-500">
+                    Couldn't check status — tap to retry
+                  </p>
+                ) : (
+                  <p className="text-sm sm:text-lg font-black">
+                    {pinStatus.hasPin ? 'Reset' : 'Set'} Base Transaction PIN
+                  </p>
+                )}
               </div>
               <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
                 <Key size={13} className="sm:hidden" />
@@ -389,17 +449,28 @@ const AccountSettings = () => {
 
           {/* PIN — BNB Chain */}
           <button
-            onClick={() => openModal('bnbpin')}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left"
+            onClick={() =>
+              bnbPinStatus.error ? checkBnbPinStatus(user.email) : openModal('bnbpin')
+            }
+            disabled={bnbPinStatus.loading}
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left disabled:opacity-60 disabled:cursor-wait"
           >
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
                   BNB Chain Security
                 </p>
-                <p className="text-sm sm:text-lg font-black">
-                  {bnbPinStatus.hasPin ? 'Reset' : 'Set'} BNB Transaction PIN
-                </p>
+                {bnbPinStatus.loading ? (
+                  <p className="text-sm sm:text-lg font-black opacity-50">Checking PIN status…</p>
+                ) : bnbPinStatus.error ? (
+                  <p className="text-sm sm:text-lg font-black text-red-500">
+                    Couldn't check status — tap to retry
+                  </p>
+                ) : (
+                  <p className="text-sm sm:text-lg font-black">
+                    {bnbPinStatus.hasPin ? 'Reset' : 'Set'} BNB Transaction PIN
+                  </p>
+                )}
               </div>
               <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-yellow-500 group-hover:text-black rounded-xl transition-all shadow-sm">
                 <Key size={13} className="sm:hidden" />

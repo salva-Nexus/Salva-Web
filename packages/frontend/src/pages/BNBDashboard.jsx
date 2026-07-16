@@ -2536,10 +2536,10 @@ const Dashboard = () => {
   }
 
   const tabs = [
-    { id: 'buy', label: 'Buy / Sell NGNs' },
     { id: 'swap', label: 'Swap' },
-    { id: 'deploy', label: 'Deploy Pool' },
     { id: 'names', label: 'Link a Name' },
+    { id: 'deploy', label: 'Deploy Pool' },
+    { id: 'buy', label: 'Buy / Sell NGNs' },
   ];
 
   // ── Icon map for the Bybit-style grid nav ─────────────────────────────────

@@ -2446,11 +2446,11 @@ const Dashboard = () => {
     );
 
   const tabs = [
-    { id: 'buy', label: 'Buy / Sell NGNs' },
-    { id: 'sant', label: '$SANT' },
     { id: 'swap', label: 'Swap' },
-    { id: 'deploy', label: 'Deploy Pool' },
+    { id: 'sant', label: '$SANT' },
     { id: 'names', label: 'Link a Name' },
+    { id: 'deploy', label: 'Deploy Pool' },
+    { id: 'buy', label: 'Buy / Sell NGNs' },
     ...(user.isValidator ? [{ id: 'admin', label: 'Admin' }] : []),
     ...(user.isSeller ? [{ id: 'seller', label: 'Mint Requests' }] : []),
   ];
