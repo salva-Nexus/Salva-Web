@@ -1480,7 +1480,7 @@ const BNBSwapTab = ({ user, showMsg }) => {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3.5 sm:space-y-5 relative">
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-sm sm:text-xl font-black tracking-tight">Naira Exchange</h2>
+          <h2 className="text-sm sm:text-xl font-black tracking-tight">Liquidity Marketplace</h2>
           <p className="text-[7px] sm:text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">
             BNB Chain
           </p>
