@@ -1949,7 +1949,7 @@ const Dashboard = () => {
     if (urlAction === 'swap' || urlAction === 'pool_swap') return 'swap';
     if (urlAction === 'deploy') return 'deploy';
     if (urlAction === 'buy') return 'buy';
-    return 'buy';
+    return 'swap';
   });
   const [registries, setRegistries] = useState([]);
   const [feeConfig, setFeeConfig] = useState(null);
