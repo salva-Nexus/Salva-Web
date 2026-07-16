@@ -1475,7 +1475,7 @@ const SwapTab = ({ user, showMsg }) => {
       {/* Header */}
       <div className="flex items-start justify-between gap-3 sm:gap-4">
         <div>
-          <h2 className="text-sm sm:text-xl font-black tracking-tight">Naira Exchange</h2>
+          <h2 className="text-sm sm:text-xl font-black tracking-tight">Liquidity Marketplace</h2>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
           <a
