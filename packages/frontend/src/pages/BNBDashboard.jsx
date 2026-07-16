@@ -2631,7 +2631,7 @@ const Dashboard = () => {
     selectedCoin === 'NGN' ? 'NGNs' : selectedCoin === 'CNGN' ? 'cNGN' : selectedCoin;
   const recipientNameError = false;
   const darkInput =
-    'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+    'w-full p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none font-bold text-xs sm:text-sm text-white placeholder:text-white/60 transition-all';
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-4 pb-16 relative overflow-x-hidden">
@@ -2914,27 +2914,27 @@ const Dashboard = () => {
               exit={{ opacity: 0 }}
             />
             <motion.div
-              className="relative bg-zinc-950 border border-white/10 p-6 sm:p-10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-10 rounded-t-[1.75rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             >
-              <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <div className="mb-6 flex items-start justify-between gap-4">
+              <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
+              <div className="mb-4 sm:mb-6 flex items-start justify-between gap-2.5 sm:gap-4">
                 <div>
-                  <h3 className="text-2xl sm:text-3xl font-black text-white">Send</h3>
-                  <p className="text-[10px] text-blue-500 /60 uppercase tracking-[0.35em] font-black mt-0.5">
+                  <h3 className="text-base sm:text-3xl font-black text-white">Send</h3>
+                  <p className="text-[7px] sm:text-[10px] text-blue-500 /60 uppercase tracking-[0.25em] sm:tracking-[0.35em] font-black mt-0.5">
                     Salva Secure Transfer
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setIsScanOpen(true)}
-                  className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-blue-500/ hover:bg-blue-500/[0.06] transition-all flex items-center justify-center group mt-1"
+                  className="flex-shrink-0 w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-blue-500/ hover:bg-blue-500/[0.06] transition-all flex items-center justify-center group mt-1"
                 >
                   <svg
-                    className="w-5 h-5 text-white/60 group-hover:text-blue-500 transition-colors"
+                    className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white/60 group-hover:text-blue-500 transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -2956,11 +2956,11 @@ const Dashboard = () => {
                   </svg>
                 </button>
               </div>
-              <div className="mb-5">
-                <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">
+              <div className="mb-3.5 sm:mb-5">
+                <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block mb-1.5 sm:mb-2">
                   Select Token
                 </label>
-                <div className="flex gap-2">
+                <div className="flex gap-1.5 sm:gap-2">
                   {['NGN', 'CNGN', 'USDT', 'USDC'].map((coin) => (
                     <button
                       key={coin}
@@ -2970,13 +2970,13 @@ const Dashboard = () => {
                         setTransferAmountDisplay('');
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-2.5 rounded-xl font-black text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-blue-500 text-white border-blue-500' : 'border-white/10 text-white/60 hover:text-white/80'}`}
+                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-blue-500 text-white border-blue-500' : 'border-white/10 text-white/60 hover:text-white/80'}`}
                     >
                       {coin === 'NGN' ? 'NGNs' : coin}
                     </button>
                   ))}
                 </div>
-                <p className="text-[10px] text-white/60 mt-1.5">
+                <p className="text-[7px] sm:text-[10px] text-white/60 mt-1 sm:mt-1.5">
                   Balance:{' '}
                   {balanceLoading
                     ? '…'
@@ -2994,10 +2994,10 @@ const Dashboard = () => {
                   e.preventDefault();
                   resolveAndConfirm();
                 }}
-                className="space-y-4"
+                className="space-y-2.5 sm:space-y-4"
               >
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase text-white/60 font-bold block">
+                <div className="space-y-1.5 sm:space-y-2">
+                  <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block">
                     Recipient
                   </label>
                   <input
@@ -3009,7 +3009,7 @@ const Dashboard = () => {
                     className={`${darkInput} ${recipientNameError ? 'border-red-500' : ''}`}
                   />
                   {inputType !== 'empty' && (
-                    <p className="text-[10px] text-white/60 font-bold ml-1">
+                    <p className="text-[7px] sm:text-[10px] text-white/60 font-bold ml-1">
                       {inputType === 'address'
                         ? '✓ Wallet address — sending directly'
                         : inputType === 'fullname'
@@ -3020,7 +3020,7 @@ const Dashboard = () => {
 
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">
+                      <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block mb-1.5 sm:mb-2">
                         Select Wallet Service
                       </label>
                       <RegistryDropdown
@@ -3033,21 +3033,19 @@ const Dashboard = () => {
                   )}
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] uppercase text-white/60 font-bold">
+                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
+                    <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold">
                       Amount ({coinSymbol})
                     </label>
                     <button
                       type="button"
                       onClick={() => {
-                        // Use the raw balance string as-is — no parseFloat round-trip,
-                        // so Max never truncates or rounds the actual balance.
                         const raw = String(currentCoinBalance ?? '0');
                         setTransferAmountDisplay(formatAmountInput(raw));
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className="text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
+                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-blue-400 hover:opacity-80 transition-opacity px-1.5 sm:px-2 py-0.5 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20"
                     >
                       Max
                     </button>
@@ -3065,14 +3063,14 @@ const Dashboard = () => {
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`${darkInput} text-lg pr-16 ${amountError ? 'border-red-500' : ''}`}
+                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${amountError ? 'border-red-500' : ''}`}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-sm">
+                    <span className="absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-xs sm:text-sm">
                       {coinSymbol}
                     </span>
                   </div>
                   {amountError && (
-                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">
+                    <p className="text-[7px] sm:text-[10px] text-red-400 mt-1 font-bold animate-pulse">
                       ⚠️ Insufficient balance
                     </p>
                   )}
@@ -3080,12 +3078,12 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
-                            <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                            <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                           ) : (
                             <span className="text-red-400 font-black">
                               {feePreview.feeNGN > 0
@@ -3105,12 +3103,12 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-2 p-3 rounded-xl text-[10px] space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
                           {feePreview.loading ? (
-                            <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                            <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                           ) : (
                             <span className="text-red-400 font-black">
                               {feePreview.feeUsd > 0
@@ -3136,14 +3134,14 @@ const Dashboard = () => {
                     recipientNameError
                   }
                   type="submit"
-                  className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
+                  className={`w-full py-2.5 sm:py-4 rounded-2xl font-black transition-all text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-1.5 sm:gap-2 ${
                     loading || amountError || !recipientInput
                       ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
                       : 'bg-blue-500 text-white hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20'
                   }`}
                 >
                   {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
                   {loading ? 'Processing…' : 'Review & Send'}
                 </button>
@@ -3166,38 +3164,40 @@ const Dashboard = () => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-lg shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-3xl w-full max-w-lg shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">⚠️</span>
+              <div className="text-center mb-4 sm:mb-6">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
+                  <span className="text-lg sm:text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-1 text-white">Verify Recipient</h3>
-                <p className="text-sm text-white/60">
+                <h3 className="text-base sm:text-xl font-black mb-1 text-white">
+                  Verify Recipient
+                </h3>
+                <p className="text-xs sm:text-sm text-white/60">
                   Double-check before sending. Blockchain transactions are irreversible.
                 </p>
               </div>
-              <div className="space-y-3 mb-6">
-                <div className="p-4 rounded-2xl bg-blue-500/5 border border-blue-500/15">
-                  <p className="text-[10px] text-white/60 mb-1">Sending To</p>
-                  <p className="font-black text-sm text-blue-400 break-all leading-snug">
+              <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
+                <div className="p-2.5 sm:p-4 rounded-2xl bg-blue-500/5 border border-blue-500/15">
+                  <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">Sending To</p>
+                  <p className="font-black text-xs sm:text-sm text-blue-400 break-all leading-snug">
                     {confirmationData.displayIdentifier}
                   </p>
-                  <p className="font-mono text-[10px] text-white/60 mt-1 break-all">
+                  <p className="font-mono text-[7px] sm:text-[10px] text-white/60 mt-1 break-all">
                     {confirmationData.resolvedAddress}
                   </p>
                   {confirmationData.walletName && (
-                    <p className="text-[10px] text-white/60 mt-1 font-bold">
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-1 font-bold">
                       via {confirmationData.walletName}
                     </p>
                   )}
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                  <p className="text-[10px] text-white/60 mb-1">You Send</p>
-                  <p className="font-black text-xl text-white">
+                <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
+                  <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">You Send</p>
+                  <p className="font-black text-base sm:text-xl text-white">
                     {formatNumber(confirmationData.amount, {
                       minDecimals: 0,
                       maxDecimals: 6,
@@ -3208,9 +3208,9 @@ const Dashboard = () => {
                   </p>
                 </div>
                 {(confirmationData.feeNGN > 0 || confirmationData.feeUsd > 0) && (
-                  <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
-                    <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
-                    <p className="font-black text-base text-red-400">
+                  <div className="p-2.5 sm:p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
+                    <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">Network Fee</p>
+                    <p className="font-black text-xs sm:text-base text-red-400">
                       {(confirmationData.coin === 'NGN' || confirmationData.coin === 'CNGN') &&
                       confirmationData.feeNGN > 0
                         ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
@@ -3219,10 +3219,10 @@ const Dashboard = () => {
                   </div>
                 )}
               </div>
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => setIsConfirmModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl border border-white/10 font-bold text-xs sm:text-base text-white hover:bg-white/5 transition-all"
                 >
                   Go Back
                 </button>
@@ -3233,7 +3233,7 @@ const Dashboard = () => {
                     setTransactionPin('');
                     setPinAttempts(0);
                   }}
-                  className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:brightness-110 transition-all"
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl bg-blue-500 text-white font-bold text-xs sm:text-base hover:brightness-110 transition-all"
                 >
                   Confirm & Sign
                 </button>
@@ -3256,17 +3256,19 @@ const Dashboard = () => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-md shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🔐</span>
+              <div className="text-center mb-4 sm:mb-6">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
+                  <span className="text-lg sm:text-2xl">🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-1 text-white">Transaction PIN</h3>
-                <p className="text-sm text-white/60">Verify identity to proceed</p>
+                <h3 className="text-base sm:text-2xl font-black mb-1 text-white">
+                  Transaction PIN
+                </h3>
+                <p className="text-xs sm:text-sm text-white/60">Verify identity to proceed</p>
               </div>
               <input
                 type="password"
@@ -3277,28 +3279,28 @@ const Dashboard = () => {
                 onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
+                className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-3.5 sm:mb-5 text-white"
               />
               {pinAttempts > 0 && (
-                <p className="text-xs text-red-400 text-center mb-4 font-bold">
+                <p className="text-[9px] sm:text-xs text-red-400 text-center mb-3 sm:mb-4 font-bold">
                   ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? 's' : ''} remaining
                 </p>
               )}
-              <div className="flex gap-3">
+              <div className="flex gap-2 sm:gap-3">
                 <button
                   onClick={() => setIsPinModalOpen(false)}
                   disabled={loading}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl border border-white/10 font-bold text-xs sm:text-base text-white hover:bg-white/5 transition-all"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={verifyPinAndProceed}
                   disabled={loading || transactionPin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-blue-500 text-white font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-2.5 sm:py-3 rounded-xl bg-blue-500 text-white font-bold text-xs sm:text-base hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                 >
                   {loading && (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   )}
                   {loading ? 'Verifying…' : 'Verify'}
                 </button>
@@ -3357,20 +3359,20 @@ const Dashboard = () => {
               exit={{ opacity: 0 }}
             />
             <motion.div
-              className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
+              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-t-[1.75rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             >
-              <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-7 sm:hidden" />
-              <div className="text-center mb-7">
-                <p className="text-[9px] uppercase tracking-[0.45em] text-blue-400/50 font-black mb-1">
+              <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-5 sm:hidden" />
+              <div className="text-center mb-5 sm:mb-7">
+                <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.3em] sm:tracking-[0.45em] text-blue-400/50 font-black mb-1">
                   Receive Funds
                 </p>
-                <h3 className="text-2xl font-black text-white">{user.username}</h3>
+                <h3 className="text-base sm:text-2xl font-black text-white">{user.username}</h3>
               </div>
-              <div className="flex justify-center mb-6">
+              <div className="flex justify-center mb-4 sm:mb-6">
                 <div
                   onClick={() => {
                     navigator.clipboard.writeText(user.safeAddress);
@@ -3379,10 +3381,10 @@ const Dashboard = () => {
                   className="relative group cursor-pointer"
                 >
                   <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-blue-500/40 via-blue-500/10 to-transparent blur-md group-hover:blur-lg transition-all" />
-                  <div className="relative p-4 rounded-2xl bg-white border-2 border-blue-500/30 group-hover:border-blue-500/60 transition-all shadow-2xl shadow-black">
+                  <div className="relative p-2.5 sm:p-4 rounded-2xl bg-white border-2 border-blue-500/30 group-hover:border-blue-500/60 transition-all shadow-2xl shadow-black">
                     <QRCodeSVG
                       value={user.safeAddress}
-                      size={188}
+                      size={132}
                       bgColor="#FFFFFF"
                       fgColor="#0A0A0B"
                       level="M"
@@ -3390,7 +3392,7 @@ const Dashboard = () => {
                     />
                   </div>
                   <div className="absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                    <div className="bg-black/80 text-white text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full">
+                    <div className="bg-black/80 text-white text-[7px] sm:text-[10px] font-black uppercase tracking-widest px-2 sm:px-3 py-1 sm:py-1.5 rounded-full">
                       Tap to copy
                     </div>
                   </div>
@@ -3401,19 +3403,19 @@ const Dashboard = () => {
                   navigator.clipboard.writeText(user.safeAddress);
                   showMsg('Address copied!');
                 }}
-                className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-3"
+                className="w-full flex items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-2 sm:mb-3"
               >
                 <div className="min-w-0 text-left">
-                  <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
+                  <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.35em] text-white/60 font-black mb-0.5 sm:mb-1">
                     Wallet Address
                   </p>
-                  <p className="font-mono text-[10px] text-blue-400/70 truncate">
+                  <p className="font-mono text-[7px] sm:text-[10px] text-blue-400/70 truncate">
                     {user.safeAddress}
                   </p>
                 </div>
-                <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
+                <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
                   <svg
-                    className="w-3 h-3 text-white/60 group-hover:text-blue-400 transition-colors"
+                    className="w-2 h-2 sm:w-3 sm:h-3 text-white/60 group-hover:text-blue-400 transition-colors"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -3432,17 +3434,17 @@ const Dashboard = () => {
                     navigator.clipboard.writeText(user.nameAlias);
                     showMsg('Name alias copied!');
                   }}
-                  className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-3"
+                  className="w-full flex items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-blue-500/30 hover:bg-blue-500/[0.03] transition-all group mb-2 sm:mb-3"
                 >
                   <div className="min-w-0 text-left">
-                    <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
+                    <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.35em] text-white/60 font-black mb-0.5 sm:mb-1">
                       Name Alias
                     </p>
-                    <p className="font-black text-sm text-blue-400">{user.nameAlias}</p>
+                    <p className="font-black text-xs sm:text-sm text-blue-400">{user.nameAlias}</p>
                   </div>
-                  <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
+                  <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-blue-500/30 group-hover:bg-blue-500/10 flex items-center justify-center flex-shrink-0 transition-all">
                     <svg
-                      className="w-3 h-3 text-white/60 group-hover:text-blue-400 transition-colors"
+                      className="w-2 h-2 sm:w-3 sm:h-3 text-white/60 group-hover:text-blue-400 transition-colors"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -3458,7 +3460,7 @@ const Dashboard = () => {
               )}
               <button
                 onClick={() => setIsReceiveOpen(false)}
-                className="w-full py-3.5 rounded-2xl border border-white/10 font-bold text-white/60 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all text-sm uppercase tracking-widest mt-1"
+                className="w-full py-2.5 sm:py-3.5 rounded-2xl border border-white/10 font-bold text-white/60 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all text-xs sm:text-sm uppercase tracking-widest mt-0.5 sm:mt-1"
               >
                 Close
               </button>
