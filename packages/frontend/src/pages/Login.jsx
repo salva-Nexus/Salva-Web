@@ -4,8 +4,27 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Eye, EyeOff } from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
 import FloatingCoin from '../components/FloatingCoin';
 import Stars from '../components/Stars';
+
+// ── Mobile content-scale helpers ────────────────────────────────────────────
+// Same pattern used across the app's chat widgets and Seller Mint Panel:
+// container size (card padding/border-radius/width) is NOT touched here —
+// only inner content (font sizes, gaps, input padding) scales down 30% under
+// 640px via a CSS custom property, so it responds to real device width
+// without any JS resize listeners.
+const loginPx = (n) => `calc(${n}px * var(--login-scale, 1))`;
+const loginPxs = (...vals) => vals.map((v) => (typeof v === 'number' ? loginPx(v) : v)).join(' ');
+
+const LoginScaleStyle = () => (
+  <style>{`
+    .login-scale { --login-scale: 1; }
+    @media (max-width: 639px) {
+      .login-scale { --login-scale: 0.7; }
+    }
+  `}</style>
+);
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -22,6 +41,11 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  // ── Are we running inside the native (Play Store / App Store) app? ────────
+  // On native, there's no marketing "Home" page to go back to — the app opens
+  // straight into Login/Dashboard — so the link is only useful/valid on web.
+  const isNativeApp = Capacitor.isNativePlatform();
 
   // ── Read referral code from URL ?ref=CODE ──────────────────────────────────
   const referredByCode =
@@ -168,7 +192,9 @@ const Login = () => {
           showMsg('Access Granted!');
           try {
             const pinStatusRes = await fetch(
-              `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(sanitizeInput(formData.email))}`
+              `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(
+                sanitizeInput(formData.email)
+              )}`
             );
             const pinStatus = await pinStatusRes.json();
             if (!pinStatus.hasPin) {
@@ -210,6 +236,7 @@ const Login = () => {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white dark:bg-[#0A0A0B] transition-colors duration-500">
+      <LoginScaleStyle />
       <Stars />
       <FloatingCoin x="10%" y="20%" size="100px" delay={0} blur="blur-sm" />
       <FloatingCoin x="80%" y="70%" size="150px" delay={1} blur="blur-md" />
@@ -221,42 +248,72 @@ const Login = () => {
             initial={{ x: 400 }}
             animate={{ x: 0 }}
             exit={{ x: 400 }}
-            className={`fixed top-10 right-10 z-[100] p-5 rounded-2xl border shadow-2xl ${notif.type === 'error' ? 'bg-red-500/20 border-red-500' : 'bg-zinc-900 border-salvaGold'}`}
+            className={`login-scale fixed z-[100] rounded-2xl border shadow-2xl ${
+              notif.type === 'error'
+                ? 'bg-red-500/20 border-red-500'
+                : 'bg-zinc-900 border-salvaGold'
+            }`}
+            style={{ top: loginPx(40), right: loginPx(40), padding: loginPx(20) }}
           >
-            <p className="text-sm font-bold text-white">{notif.msg}</p>
+            <p className="font-bold text-white" style={{ fontSize: loginPx(14) }}>
+              {notif.msg}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
 
-      <motion.div className="z-10 w-full max-w-md p-10 rounded-[2.5rem] border border-gray-200 dark:border-white/10 bg-white/90 dark:bg-black/40 backdrop-blur-2xl shadow-2xl">
-        <Link
-          to="/"
-          className="text-xs uppercase tracking-widest opacity-50 hover:opacity-100 flex items-center gap-2 mb-8 transition-opacity text-black dark:text-white font-bold"
+      {/* Card container — width/padding/border-radius NEVER scaled. Only the
+          .login-scale content inside responds to mobile. */}
+      <motion.div className="login-scale z-10 w-full max-w-md p-10 rounded-[2.5rem] border border-gray-200 dark:border-white/10 bg-white/90 dark:bg-black/40 backdrop-blur-2xl shadow-2xl">
+        {/* "Back to Home" only makes sense on web — the native app has no
+            marketing home page, it opens straight into Login/Dashboard. */}
+        {!isNativeApp && (
+          <Link
+            to="/"
+            className="uppercase opacity-50 hover:opacity-100 flex items-center transition-opacity text-black dark:text-white font-bold"
+            style={{
+              fontSize: loginPx(12),
+              letterSpacing: '0.1em',
+              gap: loginPx(8),
+              marginBottom: loginPx(32),
+            }}
+          >
+            ← Back to Home
+          </Link>
+        )}
+        <h2
+          className="font-black text-black dark:text-white tracking-tighter"
+          style={{ fontSize: loginPx(36), marginBottom: loginPx(8) }}
         >
-          ← Back to Home
-        </Link>
-        <h2 className="text-4xl font-black mb-2 text-black dark:text-white tracking-tighter">
           {isLogin ? 'Sign In' : 'Create Wallet'}
         </h2>
         {!isLogin && (
-          <p className="text-[10px] text-salvaGold uppercase tracking-widest font-bold mb-8">
+          <p
+            className="text-salvaGold uppercase tracking-widest font-bold"
+            style={{ fontSize: loginPx(10), marginBottom: loginPx(32) }}
+          >
             {regStep === 1 ? 'Step 1: Account Details' : 'Step 2: Email Verification'}
           </p>
         )}
         {/* Show referral badge if coming from a referral link */}
         {!isLogin && referredByCode && (
-          <div className="mb-4 px-4 py-2 rounded-xl bg-salvaGold/10 border border-salvaGold/30 flex items-center gap-2">
-            <span className="text-salvaGold text-sm">🎁</span>
-            <p className="text-xs font-black text-salvaGold">
+          <div
+            className="rounded-xl bg-salvaGold/10 border border-salvaGold/30 flex items-center"
+            style={{ marginBottom: loginPx(16), padding: loginPxs(8, 16), gap: loginPx(8) }}
+          >
+            <span className="text-salvaGold" style={{ fontSize: loginPx(14) }}>
+              🎁
+            </span>
+            <p className="font-black text-salvaGold" style={{ fontSize: loginPx(12) }}>
               Referred by: <span className="tracking-widest">{referredByCode}</span>
             </p>
           </div>
         )}
-        {isLogin && <div className="mb-8" />}
+        {isLogin && <div style={{ marginBottom: loginPx(32) }} />}
 
         <form
           onSubmit={isLogin ? handleSubmit : regStep === 1 ? handleStartRegistration : handleSubmit}
-          className="space-y-4"
+          style={{ display: 'flex', flexDirection: 'column', gap: loginPx(16) }}
         >
           {isLogin || regStep === 1 ? (
             <>
@@ -274,7 +331,8 @@ const Login = () => {
                   required
                   maxLength={20}
                   pattern="[a-zA-Z0-9_]{3,20}"
-                  className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                  className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                  style={{ padding: loginPx(16), fontSize: loginPx(16) }}
                 />
               )}
               <input
@@ -288,9 +346,10 @@ const Login = () => {
                   })
                 }
                 required
-                className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                style={{ padding: loginPx(16), fontSize: loginPx(16) }}
               />
-              <div className="space-y-2">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: loginPx(8) }}>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -299,21 +358,31 @@ const Login = () => {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                     minLength={8}
-                    className="w-full p-4 pr-12 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                    className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
+                    style={{
+                      padding: loginPx(16),
+                      paddingRight: loginPx(48),
+                      fontSize: loginPx(16),
+                    }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-salvaGold transition-colors"
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? (
+                      <EyeOff style={{ width: loginPx(20), height: loginPx(20) }} />
+                    ) : (
+                      <Eye style={{ width: loginPx(20), height: loginPx(20) }} />
+                    )}
                   </button>
                 </div>
                 {isLogin && (
                   <div className="flex justify-end px-1">
                     <Link
                       to="/forgot-password"
-                      className="text-[10px] uppercase text-salvaGold/60 hover:text-salvaGold transition-colors font-bold tracking-widest"
+                      className="uppercase text-salvaGold/60 hover:text-salvaGold transition-colors font-bold tracking-widest"
+                      style={{ fontSize: loginPx(10) }}
                     >
                       Forgot Password?
                     </Link>
@@ -322,8 +391,11 @@ const Login = () => {
               </div>
             </>
           ) : (
-            <div className="py-4">
-              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block text-center">
+            <div style={{ paddingTop: loginPx(16), paddingBottom: loginPx(16) }}>
+              <label
+                className="uppercase opacity-40 font-bold block text-center"
+                style={{ fontSize: loginPx(10), marginBottom: loginPx(8) }}
+              >
                 Enter 6-Digit Code
               </label>
               <input
@@ -334,9 +406,17 @@ const Login = () => {
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
                 required
                 pattern="\d{6}"
-                className="w-full p-4 rounded-2xl bg-gray-100 dark:bg-white/5 border border-salvaGold text-center text-3xl tracking-[0.5em] font-black outline-none text-black dark:text-white"
+                className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-salvaGold text-center font-black outline-none text-black dark:text-white"
+                style={{
+                  padding: loginPx(16),
+                  fontSize: loginPx(30),
+                  letterSpacing: '0.5em',
+                }}
               />
-              <p className="text-[10px] opacity-40 text-center mt-3 font-bold">
+              <p
+                className="opacity-40 text-center font-bold"
+                style={{ fontSize: loginPx(10), marginTop: loginPx(12) }}
+              >
                 After verification, your wallet will be deployed automatically
               </p>
             </div>
@@ -344,28 +424,33 @@ const Login = () => {
           <button
             disabled={loading}
             type="submit"
-            className="w-full py-5 rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ padding: loginPx(20), fontSize: loginPx(14) }}
           >
             {loading
               ? !isLogin && regStep === 2
                 ? 'DEPLOYING WALLET...'
                 : 'WAITING...'
               : isLogin
-                ? 'ACCESS WALLET'
-                : regStep === 1
-                  ? 'SEND VERIFICATION'
-                  : 'VERIFY & DEPLOY'}
+              ? 'ACCESS WALLET'
+              : regStep === 1
+              ? 'SEND VERIFICATION'
+              : 'VERIFY & DEPLOY'}
           </button>
         </form>
 
-        <div className="mt-6 flex flex-col items-center gap-4">
+        <div
+          className="flex flex-col items-center"
+          style={{ marginTop: loginPx(24), gap: loginPx(16) }}
+        >
           <button
             onClick={() => {
               setIsLogin(!isLogin);
               setRegStep(1);
               setOtp('');
             }}
-            className="text-sm text-gray-600 dark:text-white/60 font-bold"
+            className="text-gray-600 dark:text-white/60 font-bold"
+            style={{ fontSize: loginPx(14) }}
           >
             {isLogin ? 'New to Salva? ' : 'Already a citizen? '}
             <span className="text-salvaGold hover:underline">
@@ -375,7 +460,8 @@ const Login = () => {
           {isLogin && (
             <Link
               to="/forgot-password"
-              className="text-[10px] uppercase opacity-40 hover:opacity-100 transition-opacity font-bold tracking-widest"
+              className="uppercase opacity-40 hover:opacity-100 transition-opacity font-bold tracking-widest"
+              style={{ fontSize: loginPx(10) }}
             >
               Forgot Password?
             </Link>
