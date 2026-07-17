@@ -1851,7 +1851,7 @@ const SellerMintPanel = ({ user, showMsg }) => {
 };
 
 // ── Rewards Bar: SANT points summary + referral link ────────────────────────
-const RewardsBar = ({ user, showMsg }) => {
+const RewardsBar = ({ user, showMsg, refreshKey }) => {
   const [claim, setClaim] = useState(null);
 
   useEffect(() => {
@@ -1860,7 +1860,10 @@ const RewardsBar = ({ user, showMsg }) => {
       .then((r) => r.json())
       .then((d) => setClaim(d))
       .catch(() => {});
-  }, [user?.email]);
+    // refreshKey is bumped by the main balance card's refresh button — including
+    // it here (even though it's unused in the body) forces this effect to re-run
+    // and pull fresh SANT points alongside the NGN/USD balance refresh.
+  }, [user?.email, refreshKey]);
 
   const referralLink = user.referralCode
     ? `https://salva-nexus.org/register?ref=${user.referralCode}`
@@ -2089,12 +2092,19 @@ const Dashboard = () => {
     }
   }, []);
 
+  // Bumped every time the balance card's refresh button is tapped — passed
+  // into RewardsBar so a single refresh tap also pulls fresh SANT points,
+  // not just the NGN/USD balance.
+  const [rewardsRefreshKey, setRewardsRefreshKey] = useState(0);
+
   // Manual refresh — mobile has no pull-to-refresh here, so this button
-  // lets the user force a fresh balance fetch + incoming-tx sync on tap.
+  // lets the user force a fresh balance fetch + incoming-tx sync + SANT
+  // points refresh, all on one tap.
   const handleManualRefresh = useCallback(() => {
     if (!user?.safeAddress || balanceLoading) return;
     fetchBalance(user.safeAddress, true);
     syncIncoming(user.safeAddress);
+    setRewardsRefreshKey((k) => k + 1);
   }, [user?.safeAddress, balanceLoading, fetchBalance, syncIncoming]);
 
   useEffect(() => {
@@ -2143,12 +2153,12 @@ const Dashboard = () => {
       const currentBalance =
         parseFloat(
           selectedCoin === 'NGN'
-            ? (ngnsBalance ?? '0')
+            ? ngnsBalance ?? '0'
             : selectedCoin === 'CNGN'
-              ? (cNgnBalance ?? '0')
-              : selectedCoin === 'USDT'
-                ? (usdtBalance ?? '0')
-                : (usdcBalance ?? '0')
+            ? cNgnBalance ?? '0'
+            : selectedCoin === 'USDT'
+            ? usdtBalance ?? '0'
+            : usdcBalance ?? '0'
         ) || 0;
       // Only block when: balance can't cover amount+fee AND fee >= amount (nothing useful to send)
       const canCoverFeeFromBalance = currentBalance >= amt + fee;
@@ -2642,12 +2652,12 @@ const Dashboard = () => {
   const showRegistryDropdown = inputType === 'name';
   const currentCoinBalance =
     selectedCoin === 'NGN'
-      ? (ngnsBalance ?? '0.00')
+      ? ngnsBalance ?? '0.00'
       : selectedCoin === 'CNGN'
-        ? (cNgnBalance ?? '0.00')
-        : selectedCoin === 'USDT'
-          ? (usdtBalance ?? '0.00')
-          : (usdcBalance ?? '0.00');
+      ? cNgnBalance ?? '0.00'
+      : selectedCoin === 'USDT'
+      ? usdtBalance ?? '0.00'
+      : usdcBalance ?? '0.00';
   const coinSymbol =
     selectedCoin === 'NGN' ? 'NGNs' : selectedCoin === 'CNGN' ? 'cNGN' : selectedCoin;
   const recipientNameError = false;
@@ -2682,7 +2692,7 @@ const Dashboard = () => {
         </header>
 
         {/* ── Rewards: SANT points + referral link ── */}
-        <RewardsBar user={user} showMsg={showMsg} />
+        <RewardsBar user={user} showMsg={showMsg} refreshKey={rewardsRefreshKey} />
 
         {/* ── Balance Card ── */}
         <BalanceCard
@@ -2818,7 +2828,9 @@ const Dashboard = () => {
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
           </div>
           <div
-            className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}
+            className={`grid gap-x-1 gap-y-5 ${
+              tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'
+            }`}
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -3028,7 +3040,11 @@ const Dashboard = () => {
                         setTransferAmountDisplay('');
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-salvaGold text-black border-salvaGold' : 'border-white/10 text-white/60 hover:text-white/80'}`}
+                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${
+                        selectedCoin === coin
+                          ? 'bg-salvaGold text-black border-salvaGold'
+                          : 'border-white/10 text-white/60 hover:text-white/80'
+                      }`}
                     >
                       {coin === 'NGN' ? 'NGNs' : coin}
                     </button>
@@ -3039,11 +3055,11 @@ const Dashboard = () => {
                   {balanceLoading
                     ? '…'
                     : showBalance
-                      ? formatNumber(currentCoinBalance, {
-                          minDecimals: 3,
-                          maxDecimals: 6,
-                        })
-                      : '••••'}{' '}
+                    ? formatNumber(currentCoinBalance, {
+                        minDecimals: 3,
+                        maxDecimals: 6,
+                      })
+                    : '••••'}{' '}
                   {coinSymbol}
                 </p>
               </div>
@@ -3071,8 +3087,8 @@ const Dashboard = () => {
                       {inputType === 'address'
                         ? '✓ Wallet address — sending directly'
                         : inputType === 'fullname'
-                          ? '✓ Full name detected — resolving directly'
-                          : 'Name alias — select a wallet below'}
+                        ? '✓ Full name detected — resolving directly'
+                        : 'Name alias — select a wallet below'}
                     </p>
                   )}
 
@@ -3121,7 +3137,9 @@ const Dashboard = () => {
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${amountError ? 'border-red-500' : ''}`}
+                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${
+                        amountError ? 'border-red-500' : ''
+                      }`}
                     />
                     <span className="absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs sm:text-sm">
                       {coinSymbol}
@@ -3136,7 +3154,11 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
+                          feeExceedsAmount
+                            ? 'bg-red-500/8 border-red-500/30'
+                            : 'bg-white/[0.03] border-white/[0.06]'
+                        }`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
@@ -3161,7 +3183,11 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
+                          feeExceedsAmount
+                            ? 'bg-red-500/8 border-red-500/30'
+                            : 'bg-white/[0.03] border-white/[0.06]'
+                        }`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
@@ -3231,7 +3257,9 @@ const Dashboard = () => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
                   <span className="text-lg sm:text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-base sm:text-xl font-black mb-1 text-white">Verify Recipient</h3>
+                <h3 className="text-base sm:text-xl font-black mb-1 text-white">
+                  Verify Recipient
+                </h3>
                 <p className="text-xs sm:text-sm text-white/60">
                   Double-check before sending. Blockchain transactions are irreversible.
                 </p>
@@ -3321,7 +3349,9 @@ const Dashboard = () => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
                   <span className="text-lg sm:text-2xl">🔐</span>
                 </div>
-                <h3 className="text-base sm:text-2xl font-black mb-1 text-white">Transaction PIN</h3>
+                <h3 className="text-base sm:text-2xl font-black mb-1 text-white">
+                  Transaction PIN
+                </h3>
                 <p className="text-xs sm:text-sm text-white/60">Verify identity to proceed</p>
               </div>
               <input

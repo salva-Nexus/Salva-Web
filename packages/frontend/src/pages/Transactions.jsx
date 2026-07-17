@@ -1,6 +1,6 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Transactions.jsx
 import { SALVA_API_URL } from '../config';
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Stars from '../components/Stars';
 import { Capacitor } from '@capacitor/core';
@@ -377,6 +377,22 @@ const Transactions = () => {
   };
 
   const showMsg = (msg, type = 'success') => setToast({ show: true, message: msg, type });
+
+  // Manual refresh — mobile has no pull-to-refresh here, so this button lets
+  // the user force a fresh transaction list fetch on tap. Reuses the same
+  // fetchTransactions() the initial load and the pending-tx poller already
+  // use, passing the current list as prevTxs so pending→success/failed
+  // toasts still fire correctly if something completed since the last poll.
+  const [refreshing, setRefreshing] = useState(false);
+  const handleManualRefresh = useCallback(async () => {
+    if (!user?.safeAddress || refreshing) return;
+    setRefreshing(true);
+    try {
+      await fetchTransactions(user.safeAddress, transactions, chainRef.current);
+    } finally {
+      setRefreshing(false);
+    }
+  }, [user?.safeAddress, refreshing, transactions]);
 
   const filtered = useMemo(() => {
     let list = [...transactions].sort(
@@ -766,7 +782,7 @@ const Transactions = () => {
         {/* ── Toolbar ── */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
           {/* Filter pills */}
-          <div className="flex gap-1 sm:gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
             {FILTERS.map((f) => (
               <button
                 key={f}
@@ -780,6 +796,25 @@ const Transactions = () => {
                 {f}
               </button>
             ))}
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing || loading}
+              aria-label="Refresh transactions"
+              className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg border border-white/10 text-white/30 hover:text-salvaGold hover:border-salvaGold/40 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
+            >
+              <svg
+                className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${refreshing ? 'animate-spin' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <polyline points="21 3 21 9 15 9" />
+              </svg>
+            </button>
           </div>
 
           <div className="flex-1" />
@@ -905,7 +940,11 @@ const Transactions = () => {
             initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 40, opacity: 0 }}
-            className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl font-black text-[7px] sm:text-[10px] uppercase tracking-widest z-[100] shadow-2xl ${toast.type === 'error' ? 'bg-red-500 text-white shadow-red-500/20' : 'bg-salvaGold text-black shadow-salvaGold/20'}`}
+            className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl font-black text-[7px] sm:text-[10px] uppercase tracking-widest z-[100] shadow-2xl ${
+              toast.type === 'error'
+                ? 'bg-red-500 text-white shadow-red-500/20'
+                : 'bg-salvaGold text-black shadow-salvaGold/20'
+            }`}
           >
             {toast.message}
           </motion.div>
