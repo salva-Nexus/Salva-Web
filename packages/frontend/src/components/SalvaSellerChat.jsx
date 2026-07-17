@@ -1084,709 +1084,718 @@ const SalvaSellerChat = ({ user }) => {
           setMessages([]);
         }}
       />
-      <motion.div
-        initial={{ opacity: 0, scale: 0.92, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
+      {/* Outer plain div owns the mobile-shrink scale — see SalvaNGNsChat.jsx
+          for why this can't live on the motion.div itself. */}
+      <div
         className="fixed bottom-2 left-2 z-[9000] origin-bottom-left scale-[0.42] sm:scale-100 sm:bottom-6 sm:left-6"
         style={{ width: '320px' }}
       >
-        <div
-          className="h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col"
-          style={{ boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)' }}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.92, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.92, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* ── HEADER ── */}
           <div
-            className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/20 flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+            className="h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col"
+            style={{ boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)' }}
           >
-            {view === 'chat' && (
+            {/* ── HEADER ── */}
+            <div
+              className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/20 flex-shrink-0"
+              style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+            >
+              {view === 'chat' && (
+                <button
+                  onClick={() => {
+                    setView('list');
+                    setSelected(null);
+                    setMessages([]);
+                    setMintError('');
+                  }}
+                  className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+                >
+                  ←
+                </button>
+              )}
+              <div
+                className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-sm font-black text-black"
+                style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+              >
+                ₦
+              </div>
+              <div className="flex-1 min-w-0">
+                {view === 'list' ? (
+                  <>
+                    <p className="text-[#f5f0e8] text-[13px] font-black m-0">NGNs Requests</p>
+                    <p className="text-salvaGold/50 text-[10px] m-0">
+                      {requests.length} conversation{requests.length !== 1 ? 's' : ''}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
+                      {selected?.username}
+                    </p>
+                    <p className="text-salvaGold/50 text-[10px] m-0 truncate">
+                      {selected?.userEmail}
+                    </p>
+                  </>
+                )}
+              </div>
+              {view === 'chat' && selected?.status && <StatusBadge status={selected.status} />}
               <button
                 onClick={() => {
-                  setView('list');
+                  setView('closed');
                   setSelected(null);
                   setMessages([]);
-                  setMintError('');
                 }}
-                className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+                className="w-6 h-6 rounded-full bg-white/[0.06] border border-white/10 cursor-pointer text-white/40 text-[15px] flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
               >
-                ←
+                ×
               </button>
-            )}
-            <div
-              className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-sm font-black text-black"
-              style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
-            >
-              ₦
             </div>
-            <div className="flex-1 min-w-0">
-              {view === 'list' ? (
-                <>
-                  <p className="text-[#f5f0e8] text-[13px] font-black m-0">NGNs Requests</p>
-                  <p className="text-salvaGold/50 text-[10px] m-0">
-                    {requests.length} conversation{requests.length !== 1 ? 's' : ''}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
-                    {selected?.username}
-                  </p>
-                  <p className="text-salvaGold/50 text-[10px] m-0 truncate">
-                    {selected?.userEmail}
-                  </p>
-                </>
-              )}
-            </div>
-            {view === 'chat' && selected?.status && <StatusBadge status={selected.status} />}
-            <button
-              onClick={() => {
-                setView('closed');
-                setSelected(null);
-                setMessages([]);
-              }}
-              className="w-6 h-6 rounded-full bg-white/[0.06] border border-white/10 cursor-pointer text-white/40 text-[15px] flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
-            >
-              ×
-            </button>
-          </div>
 
-          {/* ── LIST VIEW ── */}
-          {view === 'list' && (
-            <div className="flex-1 overflow-y-auto bg-[#0a0a0b]">
-              {requests.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center gap-2.5 px-5 py-16">
-                  <span className="text-4xl opacity-30">₦</span>
-                  <p className="text-salvaGold/40 text-[12px] font-bold m-0">No requests yet</p>
-                  <p className="text-white/20 text-[10px] m-0">
-                    Buy/sell requests will appear here
-                  </p>
-                </div>
-              ) : (
-                requests.map((req) => {
-                  const lastMsg = req.messages?.[req.messages.length - 1];
-                  const isUnread =
-                    !req.sellerRead &&
-                    req.status !== 'minted' &&
-                    req.status !== 'burned' &&
-                    req.status !== 'sell_completed';
-                  const isPaid = req.status === 'paid';
-                  const isSell = req.type === 'sell';
-                  const hasRedeem =
-                    req.pointsRedemption?.requested && req.pointsRedemption?.pointsToRedeem > 0;
-                  return (
-                    <button
-                      key={req._id}
-                      onClick={() => openRequest(req)}
-                      className="w-full px-3.5 py-3 border-none border-b border-white/[0.04] text-left cursor-pointer transition-colors hover:bg-salvaGold/[0.07]"
-                      style={{
-                        background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'transparent',
-                      }}
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <div
-                          className="w-10 h-10 rounded-[11px] flex-shrink-0 flex items-center justify-center font-black text-[15px]"
-                          style={{
-                            background: isSell
-                              ? 'rgba(239,68,68,0.15)'
-                              : isPaid
-                              ? 'rgba(212,175,55,0.2)'
-                              : 'rgba(255,255,255,0.06)',
-                            border: `1px solid ${
-                              isSell
-                                ? 'rgba(239,68,68,0.35)'
+            {/* ── LIST VIEW ── */}
+            {view === 'list' && (
+              <div className="flex-1 overflow-y-auto bg-[#0a0a0b]">
+                {requests.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center gap-2.5 px-5 py-16">
+                    <span className="text-4xl opacity-30">₦</span>
+                    <p className="text-salvaGold/40 text-[12px] font-bold m-0">No requests yet</p>
+                    <p className="text-white/20 text-[10px] m-0">
+                      Buy/sell requests will appear here
+                    </p>
+                  </div>
+                ) : (
+                  requests.map((req) => {
+                    const lastMsg = req.messages?.[req.messages.length - 1];
+                    const isUnread =
+                      !req.sellerRead &&
+                      req.status !== 'minted' &&
+                      req.status !== 'burned' &&
+                      req.status !== 'sell_completed';
+                    const isPaid = req.status === 'paid';
+                    const isSell = req.type === 'sell';
+                    const hasRedeem =
+                      req.pointsRedemption?.requested && req.pointsRedemption?.pointsToRedeem > 0;
+                    return (
+                      <button
+                        key={req._id}
+                        onClick={() => openRequest(req)}
+                        className="w-full px-3.5 py-3 border-none border-b border-white/[0.04] text-left cursor-pointer transition-colors hover:bg-salvaGold/[0.07]"
+                        style={{
+                          background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'transparent',
+                        }}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div
+                            className="w-10 h-10 rounded-[11px] flex-shrink-0 flex items-center justify-center font-black text-[15px]"
+                            style={{
+                              background: isSell
+                                ? 'rgba(239,68,68,0.15)'
                                 : isPaid
-                                ? 'rgba(212,175,55,0.4)'
-                                : 'rgba(255,255,255,0.08)'
-                            }`,
-                            color: isSell
-                              ? '#ef4444'
-                              : isPaid
-                              ? '#D4AF37'
-                              : 'rgba(255,255,255,0.4)',
-                          }}
-                        >
-                          {req.username?.charAt(0)?.toUpperCase() || '?'}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-baseline mb-0.5">
-                            <p
-                              className={`text-[13px] m-0 truncate flex-1 ${
-                                isUnread ? 'text-[#f5f0e8] font-bold' : 'text-white/70 font-medium'
-                              }`}
-                            >
-                              {req.username}
-                            </p>
-                            <p className="text-white/25 text-[9px] m-0 flex-shrink-0 ml-2">
-                              {new Date(req.updatedAt).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
-                            </p>
+                                ? 'rgba(212,175,55,0.2)'
+                                : 'rgba(255,255,255,0.06)',
+                              border: `1px solid ${
+                                isSell
+                                  ? 'rgba(239,68,68,0.35)'
+                                  : isPaid
+                                  ? 'rgba(212,175,55,0.4)'
+                                  : 'rgba(255,255,255,0.08)'
+                              }`,
+                              color: isSell
+                                ? '#ef4444'
+                                : isPaid
+                                ? '#D4AF37'
+                                : 'rgba(255,255,255,0.4)',
+                            }}
+                          >
+                            {req.username?.charAt(0)?.toUpperCase() || '?'}
                           </div>
-                          <div className="flex items-center justify-between gap-1.5 mb-1">
-                            <p className="text-white/35 text-[11px] m-0 truncate flex-1">
-                              {lastMsg?.isReceipt
-                                ? '📎 Receipt uploaded'
-                                : lastMsg?.isBurned
-                                ? '🔥 Sell request'
-                                : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
-                                  'No messages'}
-                            </p>
-                            <div className="flex items-center gap-1 flex-shrink-0">
-                              <span
-                                className={`text-[10px] font-bold ${
-                                  isSell ? 'text-red-400' : 'text-salvaGold'
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-baseline mb-0.5">
+                              <p
+                                className={`text-[13px] m-0 truncate flex-1 ${
+                                  isUnread
+                                    ? 'text-[#f5f0e8] font-bold'
+                                    : 'text-white/70 font-medium'
                                 }`}
                               >
-                                ₦{(req.amountNgn || 0).toLocaleString()}
-                              </span>
-                              {isUnread && (
+                                {req.username}
+                              </p>
+                              <p className="text-white/25 text-[9px] m-0 flex-shrink-0 ml-2">
+                                {new Date(req.updatedAt).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </p>
+                            </div>
+                            <div className="flex items-center justify-between gap-1.5 mb-1">
+                              <p className="text-white/35 text-[11px] m-0 truncate flex-1">
+                                {lastMsg?.isReceipt
+                                  ? '📎 Receipt uploaded'
+                                  : lastMsg?.isBurned
+                                  ? '🔥 Sell request'
+                                  : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
+                                    'No messages'}
+                              </p>
+                              <div className="flex items-center gap-1 flex-shrink-0">
                                 <span
-                                  className="w-2 h-2 rounded-full bg-salvaGold inline-block"
-                                  style={{ boxShadow: '0 0 6px rgba(212,175,55,0.6)' }}
-                                />
+                                  className={`text-[10px] font-bold ${
+                                    isSell ? 'text-red-400' : 'text-salvaGold'
+                                  }`}
+                                >
+                                  ₦{(req.amountNgn || 0).toLocaleString()}
+                                </span>
+                                {isUnread && (
+                                  <span
+                                    className="w-2 h-2 rounded-full bg-salvaGold inline-block"
+                                    style={{ boxShadow: '0 0 6px rgba(212,175,55,0.6)' }}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-1 items-center flex-wrap">
+                              <TypeBadge type={req.type} />
+                              <ChainBadge chain={req.chain} isL1={req.isL1} />
+                              <StatusBadge status={req.status} />
+                              {hasRedeem && (
+                                <span className="px-1.5 py-0.5 rounded-[5px] bg-purple-500/15 border border-purple-500/30 text-purple-400 text-[8px] font-bold">
+                                  ⭐ {req.pointsRedemption.pointsToRedeem.toLocaleString()} pts
+                                </span>
                               )}
                             </div>
                           </div>
-                          <div className="flex gap-1 items-center flex-wrap">
-                            <TypeBadge type={req.type} />
-                            <ChainBadge chain={req.chain} isL1={req.isL1} />
-                            <StatusBadge status={req.status} />
-                            {hasRedeem && (
-                              <span className="px-1.5 py-0.5 rounded-[5px] bg-purple-500/15 border border-purple-500/30 text-purple-400 text-[8px] font-bold">
-                                ⭐ {req.pointsRedemption.pointsToRedeem.toLocaleString()} pts
-                              </span>
-                            )}
-                          </div>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          )}
-
-          {/* ── CHAT VIEW ── */}
-          {view === 'chat' && selected && (
-            <>
-              {/* ── BSC L1 Banner — own dedicated row, no overlap ── */}
-              <EthL1Banner selected={selected} />
-
-              {/* ── Summary bar ── */}
-              <div
-                style={{
-                  padding: '8px 14px',
-                  background: 'rgba(212,175,55,0.05)',
-                  borderBottom: '1px solid rgba(212,175,55,0.1)',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: '8px',
-                  flexShrink: 0,
-                  minWidth: 0,
-                  overflow: 'hidden',
-                }}
-              >
-                {selected.type === 'sell' && selected.status !== 'sell_completed' ? (
-                  <>
-                    <span
-                      style={{
-                        color: 'rgba(255,255,255,0.4)',
-                        fontSize: '10px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs burned
-                    </span>
-                    <span
-                      style={{
-                        color: '#ef4444',
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Pay: ₦{(selected.mintAmountNgn || 0).toLocaleString()}
-                    </span>
-                  </>
-                ) : selected.type !== 'sell' ? (
-                  <>
-                    <span
-                      style={{
-                        color: 'rgba(255,255,255,0.4)',
-                        fontSize: '10px',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee: {selected.feeNgn}{' '}
-                      NGNs
-                    </span>
-                    <span
-                      style={{
-                        color: '#D4AF37',
-                        fontWeight: '900',
-                        fontSize: '12px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Mint: {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
-                    </span>
-                  </>
-                ) : null}
+                      </button>
+                    );
+                  })
+                )}
               </div>
+            )}
 
-              {/* ── SELL: Bank payout details ── */}
-              {selected.type === 'sell' &&
-                selected.status !== 'sell_completed' &&
-                selected.bankDetails?.accountNumber && (
+            {/* ── CHAT VIEW ── */}
+            {view === 'chat' && selected && (
+              <>
+                {/* ── BSC L1 Banner — own dedicated row, no overlap ── */}
+                <EthL1Banner selected={selected} />
+
+                {/* ── Summary bar ── */}
+                <div
+                  style={{
+                    padding: '8px 14px',
+                    background: 'rgba(212,175,55,0.05)',
+                    borderBottom: '1px solid rgba(212,175,55,0.1)',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    gap: '8px',
+                    flexShrink: 0,
+                    minWidth: 0,
+                    overflow: 'hidden',
+                  }}
+                >
+                  {selected.type === 'sell' && selected.status !== 'sell_completed' ? (
+                    <>
+                      <span
+                        style={{
+                          color: 'rgba(255,255,255,0.4)',
+                          fontSize: '10px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Sell: {(selected.amountNgn || 0).toLocaleString()} NGNs burned
+                      </span>
+                      <span
+                        style={{
+                          color: '#ef4444',
+                          fontWeight: '900',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Pay: ₦{(selected.mintAmountNgn || 0).toLocaleString()}
+                      </span>
+                    </>
+                  ) : selected.type !== 'sell' ? (
+                    <>
+                      <span
+                        style={{
+                          color: 'rgba(255,255,255,0.4)',
+                          fontSize: '10px',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        Buy: ₦{(selected.amountNgn || 0).toLocaleString()} · Fee: {selected.feeNgn}{' '}
+                        NGNs
+                      </span>
+                      <span
+                        style={{
+                          color: '#D4AF37',
+                          fontWeight: '900',
+                          fontSize: '12px',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        Mint: {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
+                      </span>
+                    </>
+                  ) : null}
+                </div>
+
+                {/* ── SELL: Bank payout details ── */}
+                {selected.type === 'sell' &&
+                  selected.status !== 'sell_completed' &&
+                  selected.bankDetails?.accountNumber && (
+                    <div
+                      style={{
+                        padding: '8px 14px',
+                        background: 'rgba(239,68,68,0.05)',
+                        borderBottom: '1px solid rgba(239,68,68,0.1)',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <p
+                        style={{
+                          color: 'rgba(255,255,255,0.4)',
+                          fontSize: '9px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.1em',
+                          margin: '0 0 6px',
+                          fontWeight: '700',
+                        }}
+                      >
+                        Payout Details
+                      </p>
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '5px',
+                        }}
+                      >
+                        {[
+                          { label: 'Bank', value: selected.bankDetails.bankName },
+                          {
+                            label: 'Account Name',
+                            value: selected.bankDetails.accountName,
+                          },
+                          {
+                            label: 'Account Number',
+                            value: selected.bankDetails.accountNumber,
+                          },
+                        ].map(({ label, value }) => (
+                          <div
+                            key={label}
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                color: 'rgba(255,255,255,0.35)',
+                                fontSize: '10px',
+                                flexShrink: 0,
+                              }}
+                            >
+                              {label}
+                            </span>
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                minWidth: 0,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  color: '#f5f0e8',
+                                  fontSize: '11px',
+                                  fontWeight: '700',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
+                              >
+                                {value}
+                              </span>
+                              {value && <CopyBtn value={value} />}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                {/* ── SELL: Points redemption ── */}
+                {selected.type === 'sell' && hasRedemption && (
                   <div
                     style={{
                       padding: '8px 14px',
-                      background: 'rgba(239,68,68,0.05)',
-                      borderBottom: '1px solid rgba(239,68,68,0.1)',
+                      background: 'rgba(168,85,247,0.06)',
+                      borderBottom: '1px solid rgba(168,85,247,0.2)',
                       flexShrink: 0,
                     }}
                   >
                     <p
                       style={{
-                        color: 'rgba(255,255,255,0.4)',
+                        color: '#a855f7',
                         fontSize: '9px',
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em',
-                        margin: '0 0 6px',
+                        margin: '0 0 5px',
                         fontWeight: '700',
                       }}
                     >
-                      Payout Details
+                      ⭐ Points Redemption
                     </p>
                     <div
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        gap: '5px',
+                        gap: '3px',
                       }}
                     >
-                      {[
-                        { label: 'Bank', value: selected.bankDetails.bankName },
-                        {
-                          label: 'Account Name',
-                          value: selected.bankDetails.accountName,
-                        },
-                        {
-                          label: 'Account Number',
-                          value: selected.bankDetails.accountNumber,
-                        },
-                      ].map(({ label, value }) => (
-                        <div
-                          key={label}
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <span
                           style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            gap: '8px',
+                            color: 'rgba(255,255,255,0.45)',
+                            fontSize: '10px',
                           }}
                         >
-                          <span
-                            style={{
-                              color: 'rgba(255,255,255,0.35)',
-                              fontSize: '10px',
-                              flexShrink: 0,
-                            }}
-                          >
-                            {label}
-                          </span>
-                          <div
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '6px',
-                              minWidth: 0,
-                            }}
-                          >
-                            <span
-                              style={{
-                                color: '#f5f0e8',
-                                fontSize: '11px',
-                                fontWeight: '700',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                              }}
-                            >
-                              {value}
-                            </span>
-                            {value && <CopyBtn value={value} />}
-                          </div>
-                        </div>
-                      ))}
+                          Points redeemed
+                        </span>
+                        <span
+                          style={{
+                            color: '#a855f7',
+                            fontWeight: '700',
+                            fontSize: '11px',
+                          }}
+                        >
+                          {selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'rgba(255,255,255,0.45)',
+                            fontSize: '10px',
+                          }}
+                        >
+                          Extra payout
+                        </span>
+                        <span
+                          style={{
+                            color: '#a855f7',
+                            fontWeight: '700',
+                            fontSize: '11px',
+                          }}
+                        >
+                          +₦
+                          {selected.pointsRedemption.pointsToRedeem.toLocaleString()}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          paddingTop: '4px',
+                          borderTop: '1px solid rgba(168,85,247,0.15)',
+                          marginTop: '2px',
+                        }}
+                      >
+                        <span
+                          style={{
+                            color: 'rgba(255,255,255,0.6)',
+                            fontSize: '10px',
+                            fontWeight: '700',
+                          }}
+                        >
+                          TOTAL to pay user
+                        </span>
+                        <span
+                          style={{
+                            color: '#22c55e',
+                            fontWeight: '900',
+                            fontSize: '13px',
+                          }}
+                        >
+                          ₦
+                          {(
+                            (selected.amountNgn || 0) +
+                            (selected.pointsRedemption.pointsToRedeem || 0)
+                          ).toLocaleString()}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 )}
 
-              {/* ── SELL: Points redemption ── */}
-              {selected.type === 'sell' && hasRedemption && (
+                {/* Messages */}
                 <div
+                  ref={chatContainerRef}
+                  onScroll={(e) => {
+                    const el = e.currentTarget;
+                    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  }}
                   style={{
-                    padding: '8px 14px',
-                    background: 'rgba(168,85,247,0.06)',
-                    borderBottom: '1px solid rgba(168,85,247,0.2)',
-                    flexShrink: 0,
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '12px 12px 8px',
+                    background: '#0a0a0b',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '7px',
                   }}
                 >
-                  <p
-                    style={{
-                      color: '#a855f7',
-                      fontSize: '9px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.1em',
-                      margin: '0 0 5px',
-                      fontWeight: '700',
-                    }}
-                  >
-                    ⭐ Points Redemption
-                  </p>
+                  {messages.map((msg, i) => (
+                    <SellerBubble key={msg._id || i} msg={msg} />
+                  ))}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Error */}
+                {mintError && (
                   <div
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '3px',
-                    }}
-                  >
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: 'rgba(255,255,255,0.45)',
-                          fontSize: '10px',
-                        }}
-                      >
-                        Points redeemed
-                      </span>
-                      <span
-                        style={{
-                          color: '#a855f7',
-                          fontWeight: '700',
-                          fontSize: '11px',
-                        }}
-                      >
-                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: 'rgba(255,255,255,0.45)',
-                          fontSize: '10px',
-                        }}
-                      >
-                        Extra payout
-                      </span>
-                      <span
-                        style={{
-                          color: '#a855f7',
-                          fontWeight: '700',
-                          fontSize: '11px',
-                        }}
-                      >
-                        +₦
-                        {selected.pointsRedemption.pointsToRedeem.toLocaleString()}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        paddingTop: '4px',
-                        borderTop: '1px solid rgba(168,85,247,0.15)',
-                        marginTop: '2px',
-                      }}
-                    >
-                      <span
-                        style={{
-                          color: 'rgba(255,255,255,0.6)',
-                          fontSize: '10px',
-                          fontWeight: '700',
-                        }}
-                      >
-                        TOTAL to pay user
-                      </span>
-                      <span
-                        style={{
-                          color: '#22c55e',
-                          fontWeight: '900',
-                          fontSize: '13px',
-                        }}
-                      >
-                        ₦
-                        {(
-                          (selected.amountNgn || 0) +
-                          (selected.pointsRedemption.pointsToRedeem || 0)
-                        ).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Messages */}
-              <div
-                ref={chatContainerRef}
-                onScroll={(e) => {
-                  const el = e.currentTarget;
-                  isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-                }}
-                style={{
-                  flex: 1,
-                  overflowY: 'auto',
-                  padding: '12px 12px 8px',
-                  background: '#0a0a0b',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '7px',
-                }}
-              >
-                {messages.map((msg, i) => (
-                  <SellerBubble key={msg._id || i} msg={msg} />
-                ))}
-                <div ref={chatEndRef} />
-              </div>
-
-              {/* Error */}
-              {mintError && (
-                <div
-                  style={{
-                    padding: '10px 14px',
-                    background: 'rgba(239,68,68,0.1)',
-                    borderTop: '1px solid rgba(239,68,68,0.2)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
-                  <p
-                    style={{
-                      color: '#ef4444',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      margin: 0,
-                    }}
-                  >
-                    Mint failed. Please try again.
-                  </p>
-                </div>
-              )}
-
-              {/* BUY: Confirm mint when paid */}
-              {canMint && (
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    background: '#0d0d0e',
-                    borderTop: '1px solid rgba(212,175,55,0.1)',
-                    display: 'flex',
-                    gap: '8px',
-                    flexShrink: 0,
-                  }}
-                >
-                  <button
-                    onClick={handleReject}
-                    disabled={rejecting}
-                    style={{
-                      flex: 1,
-                      padding: '10px',
-                      borderRadius: '10px',
+                      padding: '10px 14px',
                       background: 'rgba(239,68,68,0.1)',
-                      border: '1px solid rgba(239,68,68,0.25)',
-                      color: '#ef4444',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      cursor: 'pointer',
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'rgba(239,68,68,0.18)')
-                    }
-                    onMouseLeave={(e) => (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')}
-                  >
-                    {rejecting ? '…' : '❌ Reject'}
-                  </button>
-                  <button
-                    onClick={() => setShowConfirm(true)}
-                    style={{
-                      flex: 2,
-                      padding: '10px',
-                      borderRadius: '10px',
-                      background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: '12px',
-                      fontWeight: '900',
-                      cursor: 'pointer',
-                      boxShadow: '0 0 14px rgba(34,197,94,0.3)',
+                      borderTop: '1px solid rgba(239,68,68,0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
                     }}
                   >
-                    ✅ Confirm Payment & Mint
-                  </button>
-                </div>
-              )}
-
-              {/* SELL: NGNs burned — pay user */}
-              {isSellPaid && (
-                <div
-                  style={{
-                    padding: '10px 12px',
-                    background: '#0d0d0e',
-                    borderTop: '1px solid rgba(239,68,68,0.15)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      padding: '10px 12px',
-                      borderRadius: '10px',
-                      background: 'rgba(239,68,68,0.08)',
-                      border: '1px solid rgba(239,68,68,0.2)',
-                      marginBottom: '8px',
-                    }}
-                  >
+                    <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
                     <p
                       style={{
                         color: '#ef4444',
                         fontSize: '11px',
                         fontWeight: '700',
-                        margin: '0 0 4px',
+                        margin: 0,
                       }}
                     >
-                      🔥 NGNs burned on-chain. Send ₦
-                      {(
-                        (selected.mintAmountNgn || 0) +
-                        (hasRedemption ? selected.pointsRedemption.pointsToRedeem : 0)
-                      ).toLocaleString()}{' '}
-                      to user's bank account above.
+                      Mint failed. Please try again.
                     </p>
-                    {hasRedemption && (
+                  </div>
+                )}
+
+                {/* BUY: Confirm mint when paid */}
+                {canMint && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      background: '#0d0d0e',
+                      borderTop: '1px solid rgba(212,175,55,0.1)',
+                      display: 'flex',
+                      gap: '8px',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <button
+                      onClick={handleReject}
+                      disabled={rejecting}
+                      style={{
+                        flex: 1,
+                        padding: '10px',
+                        borderRadius: '10px',
+                        background: 'rgba(239,68,68,0.1)',
+                        border: '1px solid rgba(239,68,68,0.25)',
+                        color: '#ef4444',
+                        fontSize: '11px',
+                        fontWeight: '700',
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'rgba(239,68,68,0.18)')
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = 'rgba(239,68,68,0.1)')
+                      }
+                    >
+                      {rejecting ? '…' : '❌ Reject'}
+                    </button>
+                    <button
+                      onClick={() => setShowConfirm(true)}
+                      style={{
+                        flex: 2,
+                        padding: '10px',
+                        borderRadius: '10px',
+                        background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: '900',
+                        cursor: 'pointer',
+                        boxShadow: '0 0 14px rgba(34,197,94,0.3)',
+                      }}
+                    >
+                      ✅ Confirm Payment & Mint
+                    </button>
+                  </div>
+                )}
+
+                {/* SELL: NGNs burned — pay user */}
+                {isSellPaid && (
+                  <div
+                    style={{
+                      padding: '10px 12px',
+                      background: '#0d0d0e',
+                      borderTop: '1px solid rgba(239,68,68,0.15)',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        marginBottom: '8px',
+                      }}
+                    >
                       <p
                         style={{
-                          color: '#a855f7',
-                          fontSize: '10px',
-                          margin: 0,
+                          color: '#ef4444',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          margin: '0 0 4px',
                         }}
                       >
-                        Includes ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()} points
-                        redemption payout.
+                        🔥 NGNs burned on-chain. Send ₦
+                        {(
+                          (selected.mintAmountNgn || 0) +
+                          (hasRedemption ? selected.pointsRedemption.pointsToRedeem : 0)
+                        ).toLocaleString()}{' '}
+                        to user's bank account above.
                       </p>
-                    )}
+                      {hasRedemption && (
+                        <p
+                          style={{
+                            color: '#a855f7',
+                            fontSize: '10px',
+                            margin: 0,
+                          }}
+                        >
+                          Includes ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()}{' '}
+                          points redemption payout.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!selected?._id || completingSell) return;
+                        setCompletingSell(true);
+                        try {
+                          await fetch(`${SALVA_API_URL}/api/buy-ngns/complete-sell`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              requestId: selected._id,
+                              safeAddress: user.safeAddress,
+                            }),
+                          });
+                          await fetchChat();
+                          await fetchList();
+                        } catch {
+                          /* ignore */
+                        }
+                        setCompletingSell(false);
+                      }}
+                      disabled={completingSell}
+                      style={{
+                        width: '100%',
+                        padding: '11px',
+                        borderRadius: '10px',
+                        background: completingSell
+                          ? 'rgba(34,197,94,0.4)'
+                          : 'linear-gradient(135deg, #22c55e, #16a34a)',
+                        border: 'none',
+                        color: '#fff',
+                        fontSize: '13px',
+                        fontWeight: '900',
+                        cursor: completingSell ? 'wait' : 'pointer',
+                        boxShadow: completingSell ? 'none' : '0 0 14px rgba(34,197,94,0.3)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      {completingSell && (
+                        <span
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            border: '2px solid rgba(255,255,255,0.3)',
+                            borderTopColor: '#fff',
+                            borderRadius: '50%',
+                            display: 'inline-block',
+                            animation: 'spin 0.6s linear infinite',
+                          }}
+                        />
+                      )}
+                      {completingSell ? 'Completing…' : '✅ SENT — Mark as Complete'}
+                    </button>
                   </div>
-                  <button
-                    onClick={async () => {
-                      if (!selected?._id || completingSell) return;
-                      setCompletingSell(true);
-                      try {
-                        await fetch(`${SALVA_API_URL}/api/buy-ngns/complete-sell`, {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            requestId: selected._id,
-                            safeAddress: user.safeAddress,
-                          }),
-                        });
-                        await fetchChat();
-                        await fetchList();
-                      } catch {
-                        /* ignore */
-                      }
-                      setCompletingSell(false);
-                    }}
-                    disabled={completingSell}
+                )}
+
+                {/* Reject when pending */}
+                {selected?.status === 'pending' && (
+                  <div
                     style={{
-                      width: '100%',
-                      padding: '11px',
-                      borderRadius: '10px',
-                      background: completingSell
-                        ? 'rgba(34,197,94,0.4)'
-                        : 'linear-gradient(135deg, #22c55e, #16a34a)',
-                      border: 'none',
-                      color: '#fff',
-                      fontSize: '13px',
-                      fontWeight: '900',
-                      cursor: completingSell ? 'wait' : 'pointer',
-                      boxShadow: completingSell ? 'none' : '0 0 14px rgba(34,197,94,0.3)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
+                      padding: '8px 12px',
+                      background: '#0d0d0e',
+                      borderTop: '1px solid rgba(255,255,255,0.05)',
+                      flexShrink: 0,
                     }}
                   >
-                    {completingSell && (
-                      <span
-                        style={{
-                          width: '12px',
-                          height: '12px',
-                          border: '2px solid rgba(255,255,255,0.3)',
-                          borderTopColor: '#fff',
-                          borderRadius: '50%',
-                          display: 'inline-block',
-                          animation: 'spin 0.6s linear infinite',
-                        }}
-                      />
-                    )}
-                    {completingSell ? 'Completing…' : '✅ SENT — Mark as Complete'}
-                  </button>
-                </div>
-              )}
+                    <button
+                      onClick={handleReject}
+                      disabled={rejecting}
+                      style={{
+                        width: '100%',
+                        padding: '9px',
+                        borderRadius: '10px',
+                        background: 'rgba(239,68,68,0.08)',
+                        border: '1px solid rgba(239,68,68,0.2)',
+                        color: 'rgba(239,68,68,0.7)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {rejecting ? 'Rejecting…' : 'Cancel / Reject Request'}
+                    </button>
+                  </div>
+                )}
 
-              {/* Reject when pending */}
-              {selected?.status === 'pending' && (
-                <div
-                  style={{
-                    padding: '8px 12px',
-                    background: '#0d0d0e',
-                    borderTop: '1px solid rgba(255,255,255,0.05)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <button
-                    onClick={handleReject}
-                    disabled={rejecting}
-                    style={{
-                      width: '100%',
-                      padding: '9px',
-                      borderRadius: '10px',
-                      background: 'rgba(239,68,68,0.08)',
-                      border: '1px solid rgba(239,68,68,0.2)',
-                      color: 'rgba(239,68,68,0.7)',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {rejecting ? 'Rejecting…' : 'Cancel / Reject Request'}
-                  </button>
-                </div>
-              )}
-
-              {/* Input */}
-              {['pending', 'paid'].includes(selected?.status) && (
-                <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
-              )}
-            </>
-          )}
-        </div>
-        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-      </motion.div>
+                {/* Input */}
+                {['pending', 'paid'].includes(selected?.status) && (
+                  <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
+                )}
+              </>
+            )}
+          </div>
+          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+        </motion.div>
+      </div>
     </>
   );
 };
