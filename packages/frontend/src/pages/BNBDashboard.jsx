@@ -597,6 +597,8 @@ const BalanceCard = ({
   onToggleVisibility,
   onSend,
   onReceive,
+  onRefresh,
+  refreshing,
 }) => {
   const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
   const totalUsd = addDecimals(usdtBalance, usdcBalance);
@@ -615,14 +617,37 @@ const BalanceCard = ({
               transition={{ repeat: Infinity, duration: 2.5 }}
               className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500/ block"
             />
-            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">NGN</p>
+            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
+              NGN
+            </p>
           </div>
-          <button
-            onClick={onToggleVisibility}
-            className="text-white/60 hover:text-white/70 transition-colors text-xs sm:text-sm leading-none"
-          >
-            {showBalance ? '👁' : '👁‍🗨'}
-          </button>
+          <div className="flex items-center gap-2.5 sm:gap-3.5">
+            <button
+              onClick={onRefresh}
+              disabled={refreshing}
+              aria-label="Refresh balance"
+              className="text-white/60 hover:text-blue-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg
+                className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${refreshing ? 'animate-spin' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                <polyline points="21 3 21 9 15 9" />
+              </svg>
+            </button>
+            <button
+              onClick={onToggleVisibility}
+              className="text-white/60 hover:text-white/70 transition-colors text-xs sm:text-sm leading-none"
+            >
+              {showBalance ? '👁' : '👁‍🗨'}
+            </button>
+          </div>
         </div>
 
         <div className="min-h-[36px] sm:min-h-[44px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
@@ -663,7 +688,9 @@ const BalanceCard = ({
             transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
             className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-blue-500/ block"
           />
-          <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">USD</p>
+          <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
+            USD
+          </p>
         </div>
 
         <div className="min-h-[28px] sm:min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
@@ -2062,6 +2089,14 @@ const Dashboard = () => {
     }
   }, []);
 
+  // Manual refresh — mobile has no pull-to-refresh here, so this button
+  // lets the user force a fresh balance fetch + incoming-tx sync on tap.
+  const handleManualRefresh = useCallback(() => {
+    if (!user?.safeAddress || balanceLoading) return;
+    fetchBalance(user.safeAddress, true);
+    syncIncoming(user.safeAddress);
+  }, [user?.safeAddress, balanceLoading, fetchBalance, syncIncoming]);
+
   useEffect(() => {
     if (!user?.safeAddress) return;
     fetchBalance(user.safeAddress, true);
@@ -2341,17 +2376,35 @@ const Dashboard = () => {
         let attempts = 0;
         const maxAttempts = 30;
         const queuedAt = Date.now();
-        const pollInterval = setInterval(async () => {
+        // `settled` guards against a duplicate "Transfer Successful" toast.
+        // We poll on a self-scheduling setTimeout chain (NOT setInterval) so a
+        // slow tick can never overlap the next one — setInterval fires on a
+        // fixed clock even if the previous async tick hasn't finished, which
+        // let two ticks independently see the same confirmed transaction and
+        // both call showMsg(). The flag is a second layer of protection: it's
+        // checked before AND after every await, so even a stray overlapping
+        // call is a no-op once the poll has already resolved.
+        let settled = false;
+
+        const runPollTick = async () => {
+          if (settled) return;
           attempts++;
           try {
             // Trigger processor
             await fetch(`${SALVA_API_URL}/api/queue/process/${user.safeAddress}`, {
               method: 'POST',
             }).catch(() => {});
+            if (settled) return;
+
             // Fetch transaction history
             const txRes = await fetch(`${SALVA_API_URL}/api/transactions/${user.safeAddress}`);
             const txData = await txRes.json();
-            if (!Array.isArray(txData)) return;
+            if (settled) return;
+
+            if (!Array.isArray(txData)) {
+              if (attempts < maxAttempts) setTimeout(runPollTick, 6000);
+              return;
+            }
 
             // Recent window — transactions created after we queued this one
             const recentCutoff = new Date(queuedAt - 10_000); // 10s grace for clock skew
@@ -2368,29 +2421,40 @@ const Dashboard = () => {
             );
 
             if (hasNewSuccess) {
-              clearInterval(pollInterval);
+              settled = true;
               showMsg('✅ Transfer Successful!');
               fetchBalance(user.safeAddress);
-            } else if (hasNewFailure) {
-              clearInterval(pollInterval);
+              return;
+            }
+            if (hasNewFailure) {
+              settled = true;
               showMsg(
                 'Transaction failed — insufficient gas or on-chain error. Please check your BNB balance and try again.',
                 'error'
               );
               fetchBalance(user.safeAddress);
-            } else if (!hasPending && attempts >= 5) {
+              return;
+            }
+            if (!hasPending && attempts >= 5) {
               // No pending, no success, no explicit failure after 30s — something went wrong silently
-              clearInterval(pollInterval);
+              settled = true;
               showMsg('Transaction status unclear — check your transaction history.', 'warning');
               fetchBalance(user.safeAddress);
-            } else if (attempts >= maxAttempts) {
-              clearInterval(pollInterval);
-              fetchBalance(user.safeAddress);
+              return;
             }
+            if (attempts >= maxAttempts) {
+              settled = true;
+              fetchBalance(user.safeAddress);
+              return;
+            }
+            setTimeout(runPollTick, 6000);
           } catch {
-            // ignore transient poll errors
+            // Transient poll error — retry unless we've already resolved or run out of attempts
+            if (!settled && attempts < maxAttempts) setTimeout(runPollTick, 6000);
           }
-        }, 6000);
+        };
+
+        setTimeout(runPollTick, 6000);
       } else if (res.ok) {
         showMsg('✅ Transfer Successful!');
         fetchBalance(user.safeAddress);
@@ -2657,6 +2721,8 @@ const Dashboard = () => {
           onToggleVisibility={toggleShowBalance}
           onSend={handleTransferClick}
           onReceive={() => setShowReceiveNetworkReminder(true)}
+          onRefresh={handleManualRefresh}
+          refreshing={balanceLoading}
         />
 
         {/* ── Info Bar: Chain + Wallet + TX History ── */}
@@ -2768,7 +2834,9 @@ const Dashboard = () => {
             <div className="flex-1 h-px bg-gradient-to-r from-transparent via-blue-500/30 to-transparent" />
           </div>
           <div
-            className={`grid gap-x-1 gap-y-5 ${tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}
+            className={`grid gap-x-1 gap-y-5 ${
+              tabs.length <= 4 ? 'grid-cols-4' : tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'
+            }`}
           >
             {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
@@ -2970,7 +3038,11 @@ const Dashboard = () => {
                         setTransferAmountDisplay('');
                         setFeePreview({ feeNGN: 0, feeUsd: 0 });
                       }}
-                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${selectedCoin === coin ? 'bg-blue-500 text-white border-blue-500' : 'border-white/10 text-white/60 hover:text-white/80'}`}
+                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${
+                        selectedCoin === coin
+                          ? 'bg-blue-500 text-white border-blue-500'
+                          : 'border-white/10 text-white/60 hover:text-white/80'
+                      }`}
                     >
                       {coin === 'NGN' ? 'NGNs' : coin}
                     </button>
@@ -2981,11 +3053,11 @@ const Dashboard = () => {
                   {balanceLoading
                     ? '…'
                     : showBalance
-                      ? formatNumber(currentCoinBalance, {
-                          minDecimals: 3,
-                          maxDecimals: 6,
-                        })
-                      : '••••'}{' '}
+                    ? formatNumber(currentCoinBalance, {
+                        minDecimals: 3,
+                        maxDecimals: 6,
+                      })
+                    : '••••'}{' '}
                   {coinSymbol}
                 </p>
               </div>
@@ -3013,8 +3085,8 @@ const Dashboard = () => {
                       {inputType === 'address'
                         ? '✓ Wallet address — sending directly'
                         : inputType === 'fullname'
-                          ? '✓ Full name detected — resolving directly'
-                          : 'Name alias — select a wallet below'}
+                        ? '✓ Full name detected — resolving directly'
+                        : 'Name alias — select a wallet below'}
                     </p>
                   )}
 
@@ -3063,7 +3135,9 @@ const Dashboard = () => {
                         setTransferAmount(raw);
                         computeFeePreview(raw, selectedCoin);
                       }}
-                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${amountError ? 'border-red-500' : ''}`}
+                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${
+                        amountError ? 'border-red-500' : ''
+                      }`}
                     />
                     <span className="absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-blue-400 font-black text-xs sm:text-sm">
                       {coinSymbol}
@@ -3078,7 +3152,11 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
+                          feeExceedsAmount
+                            ? 'bg-red-500/8 border-red-500/30'
+                            : 'bg-white/[0.03] border-white/[0.06]'
+                        }`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>
@@ -3103,7 +3181,11 @@ const Dashboard = () => {
                     transferAmount &&
                     !amountError && (
                       <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${feeExceedsAmount ? 'bg-red-500/8 border-red-500/30' : 'bg-white/[0.03] border-white/[0.06]'}`}
+                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
+                          feeExceedsAmount
+                            ? 'bg-red-500/8 border-red-500/30'
+                            : 'bg-white/[0.03] border-white/[0.06]'
+                        }`}
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-white/60 uppercase font-bold">Network Fee</span>

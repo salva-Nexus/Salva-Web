@@ -3,6 +3,9 @@ import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Stars from '../components/Stars';
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 // ── FROM/TO display logic ──────────────────────────────────────────────────
 function getTxDisplayNames(tx, user) {
@@ -410,7 +413,7 @@ const Transactions = () => {
   useEffect(() => setPage(1), [filter, search]);
 
   // ── Receipt — Canvas → PNG image download ─────────────────────────────
-  const downloadReceipt = (tx) => {
+  const downloadReceipt = async (tx) => {
     if (!user) return;
 
     const { fromLabel, toLabel } = getTxDisplayNames(tx, user);
@@ -522,7 +525,15 @@ const Transactions = () => {
     ctx.fillStyle = badgeColor;
     ctx.textAlign = 'center';
     const badgeText = isSuccessful
-      ? `✓  VERIFIED  ·  ${IS_PRODUCTION ? (isBNBChain ? 'BNB MAINNET' : 'BASE MAINNET') : isBNBChain ? 'BNB TESTNET' : 'BASE TESTNET'}`
+      ? `✓  VERIFIED  ·  ${
+          IS_PRODUCTION
+            ? isBNBChain
+              ? 'BNB MAINNET'
+              : 'BASE MAINNET'
+            : isBNBChain
+            ? 'BNB TESTNET'
+            : 'BASE TESTNET'
+        }`
       : '✗  TRANSACTION FAILED';
     ctx.fillText(badgeText, W / 2, badgeY + 21);
 
@@ -629,8 +640,8 @@ const Transactions = () => {
           ? 'BNB Mainnet'
           : 'Base Mainnet'
         : isBNBChain
-          ? 'BNB Testnet'
-          : 'Base Testnet',
+        ? 'BNB Testnet'
+        : 'Base Testnet',
       40,
       netY + 24,
       14,
@@ -671,10 +682,60 @@ const Transactions = () => {
 
     ctx.textAlign = 'left';
 
-    // ── Download as PNG ───────────────────────────────────────────────────
+    // ── Save as PNG ──────────────────────────────────────────────────────
+    // On the web, canvas.toDataURL() + an <a download> click works because
+    // a real browser download manager is backing it. Inside a Capacitor
+    // WebView (the actual mobile app) there is no download manager — that
+    // click is silently a no-op, which is why the file never showed up in
+    // your gallery even though the toast fired. Native apps must instead
+    // write the file to disk via the Filesystem plugin and hand it to the
+    // OS Share sheet, which is what lets the user save it into Photos.
+    const fileName = `Salva_Receipt_${Date.now()}.png`;
+    const dataUrl = canvas.toDataURL('image/png');
+
+    if (Capacitor.isNativePlatform()) {
+      try {
+        // Filesystem.writeFile wants raw base64 — strip the data URL prefix
+        const base64Data = dataUrl.split(',')[1];
+
+        // Directory.Cache is the correct target here: it's always writable
+        // without extra runtime permissions, and we only need the file to
+        // exist long enough to hand it to the native Share sheet — we are
+        // not trying to persist it ourselves.
+        const writeResult = await Filesystem.writeFile({
+          path: fileName,
+          data: base64Data,
+          directory: Directory.Cache,
+        });
+
+        await Share.share({
+          title: 'Salva Transaction Receipt',
+          text: 'Your Salva transaction receipt',
+          url: writeResult.uri,
+          dialogTitle: 'Save or share your receipt',
+        });
+
+        showMsg('Receipt ready — choose "Save Image" to add it to your gallery');
+      } catch (err) {
+        // Most common cause here is the user dismissing the native share
+        // sheet without picking an action — Share.share() rejects in that
+        // case too, so we don't want to show a scary error for a cancel.
+        const cancelled =
+          err?.message?.toLowerCase().includes('cancel') ||
+          err?.message?.toLowerCase().includes('dismiss');
+        if (!cancelled) {
+          console.error('Receipt save failed:', err);
+          showMsg('Could not save receipt. Please try again.', 'error');
+        }
+      }
+      return;
+    }
+
+    // ── Web fallback — unchanged, still works via the browser's own
+    // download manager ──────────────────────────────────────────────────
     const link = document.createElement('a');
-    link.download = `Salva_Receipt_${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.download = fileName;
+    link.href = dataUrl;
     link.click();
     showMsg('Receipt saved as image');
   };

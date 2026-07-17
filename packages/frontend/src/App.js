@@ -1,6 +1,7 @@
 // src/App.js
 import React, { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Capacitor } from '@capacitor/core';
 import Navbar from './components/Navbar';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -49,7 +50,19 @@ function App() {
         <Navbar />
         <main>
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route
+              path="/"
+              element={
+                Capacitor.isNativePlatform() ? (
+                  <Navigate
+                    to={localStorage.getItem('salva_user') ? '/dashboard' : '/login'}
+                    replace
+                  />
+                ) : (
+                  <Home />
+                )
+              }
+            />
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/bnb" element={<BNBDashboard />} />

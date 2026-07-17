@@ -221,6 +221,29 @@ const SantTab = ({ user, registries, showMsg }) => {
   const [santBalance, setSantBalance] = useState('0.00');
   const [balanceLoading, setBalanceLoading] = useState(true);
 
+  // Shares the same localStorage key as the main Dashboard balance card —
+  // toggling visibility here or there stays in sync everywhere.
+  const [showBalance, setShowBalance] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salva_show_balance');
+      return saved === null ? true : saved === 'true';
+    } catch {
+      return true;
+    }
+  });
+
+  const toggleShowBalance = useCallback(() => {
+    setShowBalance((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('salva_show_balance', String(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }, []);
+
   const [claim, setClaim] = useState({ totalPoints: 0, visible: true, active: false });
   const [claimLoading, setClaimLoading] = useState(true);
   const [claimPinModal, setClaimPinModal] = useState(false);
@@ -273,6 +296,18 @@ const SantTab = ({ user, registries, showMsg }) => {
       setClaimLoading(false);
     }
   }, [user?.email]);
+
+  // Manual refresh — mobile has no pull-to-refresh here, so this button
+  // lets the user force a fresh SANT balance fetch (and re-check claim
+  // status, since a claim can change both) on tap. Placed after both
+  // fetchBalance and fetchClaimStatus are declared — referencing either
+  // one in this closure/dependency array before its own `const` line
+  // would hit the temporal dead zone and throw at render time.
+  const handleManualRefresh = useCallback(() => {
+    if (!user?.safeAddress || balanceLoading) return;
+    fetchBalance();
+    fetchClaimStatus();
+  }, [user?.safeAddress, balanceLoading, fetchBalance, fetchClaimStatus]);
 
   useEffect(() => {
     fetchBalance();
@@ -508,17 +543,46 @@ const SantTab = ({ user, registries, showMsg }) => {
       <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-salvaGold/[0.15] bg-gradient-to-b from-salvaGold/[0.06] to-white/[0.02] shadow-2xl">
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/50 to-transparent" />
         <div className="px-5 sm:px-7 pt-6 sm:pt-8 pb-6 sm:pb-8">
-          <div className="flex items-center gap-1.5 mb-3">
-            <span className="w-9 h-9 rounded-full bg-black border border-salvaGold/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
-              <img
-                src="/salva-logo.png"
-                alt="Salva"
-                className="w-full h-full object-contain scale-150"
-              />
-            </span>
-            <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/70 font-black">
-              SANT · Base Chain
-            </p>
+          <div className="flex items-center justify-between gap-1.5 mb-3">
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="w-9 h-9 rounded-full bg-black border border-salvaGold/30 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                <img
+                  src="/salva-logo.png"
+                  alt="Salva"
+                  className="w-full h-full object-contain scale-150"
+                />
+              </span>
+              <p className="text-[9px] uppercase tracking-[0.35em] text-salvaGold/70 font-black truncate">
+                SANT · Base Chain
+              </p>
+            </div>
+            <div className="flex items-center gap-2.5 sm:gap-3.5 flex-shrink-0">
+              <button
+                onClick={handleManualRefresh}
+                disabled={balanceLoading}
+                aria-label="Refresh balance"
+                className="text-white/60 hover:text-salvaGold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg
+                  className={`w-3.5 h-3.5 ${balanceLoading ? 'animate-spin' : ''}`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2.4}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                  <polyline points="21 3 21 9 15 9" />
+                </svg>
+              </button>
+              <button
+                onClick={toggleShowBalance}
+                className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
+              >
+                {showBalance ? '👁' : '👁‍🗨'}
+              </button>
+            </div>
           </div>
 
           {balanceLoading ? (
@@ -530,8 +594,14 @@ const SantTab = ({ user, registries, showMsg }) => {
               className="font-black text-white tracking-tight break-all leading-none"
               style={{ fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)' }}
             >
-              {fmtSant(santBalance)}{' '}
-              <span className="text-salvaGold text-[0.55em] align-middle">SNT</span>
+              {showBalance ? (
+                <>
+                  {fmtSant(santBalance)}{' '}
+                  <span className="text-salvaGold text-[0.55em] align-middle">SNT</span>
+                </>
+              ) : (
+                '••••••'
+              )}
             </p>
           )}
 
@@ -640,8 +710,8 @@ const SantTab = ({ user, registries, showMsg }) => {
                       {inputType === 'address'
                         ? '✓ Wallet address — sending directly'
                         : inputType === 'fullname'
-                          ? '✓ Full name detected — resolving directly'
-                          : 'Name alias — select a wallet below'}
+                        ? '✓ Full name detected — resolving directly'
+                        : 'Name alias — select a wallet below'}
                     </p>
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
@@ -691,7 +761,9 @@ const SantTab = ({ user, registries, showMsg }) => {
                         setTransferAmountDisplay(v);
                         setTransferAmount(v);
                       }}
-                      className={`${darkInput} text-lg pr-16 ${amountError ? 'border-red-500' : ''}`}
+                      className={`${darkInput} text-lg pr-16 ${
+                        amountError ? 'border-red-500' : ''
+                      }`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
                       SANT
