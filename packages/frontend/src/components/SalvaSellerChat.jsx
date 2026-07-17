@@ -1089,7 +1089,7 @@ const SalvaSellerChat = ({ user }) => {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.92, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-2 left-2 z-[9000] origin-bottom-left scale-[0.6] sm:scale-100 sm:bottom-6 sm:left-6"
+        className="fixed bottom-2 left-2 z-[9000] origin-bottom-left scale-[0.42] sm:scale-100 sm:bottom-6 sm:left-6"
         style={{ width: '320px' }}
       >
         <div
@@ -1191,14 +1191,20 @@ const SalvaSellerChat = ({ user }) => {
                             background: isSell
                               ? 'rgba(239,68,68,0.15)'
                               : isPaid
-                                ? 'rgba(212,175,55,0.2)'
-                                : 'rgba(255,255,255,0.06)',
-                            border: `1px solid ${isSell ? 'rgba(239,68,68,0.35)' : isPaid ? 'rgba(212,175,55,0.4)' : 'rgba(255,255,255,0.08)'}`,
+                              ? 'rgba(212,175,55,0.2)'
+                              : 'rgba(255,255,255,0.06)',
+                            border: `1px solid ${
+                              isSell
+                                ? 'rgba(239,68,68,0.35)'
+                                : isPaid
+                                ? 'rgba(212,175,55,0.4)'
+                                : 'rgba(255,255,255,0.08)'
+                            }`,
                             color: isSell
                               ? '#ef4444'
                               : isPaid
-                                ? '#D4AF37'
-                                : 'rgba(255,255,255,0.4)',
+                              ? '#D4AF37'
+                              : 'rgba(255,255,255,0.4)',
                           }}
                         >
                           {req.username?.charAt(0)?.toUpperCase() || '?'}
@@ -1206,7 +1212,9 @@ const SalvaSellerChat = ({ user }) => {
                         <div className="flex-1 min-w-0">
                           <div className="flex justify-between items-baseline mb-0.5">
                             <p
-                              className={`text-[13px] m-0 truncate flex-1 ${isUnread ? 'text-[#f5f0e8] font-bold' : 'text-white/70 font-medium'}`}
+                              className={`text-[13px] m-0 truncate flex-1 ${
+                                isUnread ? 'text-[#f5f0e8] font-bold' : 'text-white/70 font-medium'
+                              }`}
                             >
                               {req.username}
                             </p>
@@ -1222,13 +1230,15 @@ const SalvaSellerChat = ({ user }) => {
                               {lastMsg?.isReceipt
                                 ? '📎 Receipt uploaded'
                                 : lastMsg?.isBurned
-                                  ? '🔥 Sell request'
-                                  : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
-                                    'No messages'}
+                                ? '🔥 Sell request'
+                                : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
+                                  'No messages'}
                             </p>
                             <div className="flex items-center gap-1 flex-shrink-0">
                               <span
-                                className={`text-[10px] font-bold ${isSell ? 'text-red-400' : 'text-salvaGold'}`}
+                                className={`text-[10px] font-bold ${
+                                  isSell ? 'text-red-400' : 'text-salvaGold'
+                                }`}
                               >
                                 ₦{(req.amountNgn || 0).toLocaleString()}
                               </span>

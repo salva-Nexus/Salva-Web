@@ -878,7 +878,9 @@ const SalvaNGNsChat = ({ user }) => {
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   style={{
-                    border: `2px dashed ${receiptPreview ? 'rgba(34,197,94,0.5)' : 'rgba(212,175,55,0.3)'}`,
+                    border: `2px dashed ${
+                      receiptPreview ? 'rgba(34,197,94,0.5)' : 'rgba(212,175,55,0.3)'
+                    }`,
                     borderRadius: '14px',
                     padding: '24px',
                     cursor: 'pointer',
@@ -979,7 +981,7 @@ const SalvaNGNsChat = ({ user }) => {
         initial={{ opacity: 0, scale: 0.92, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.6] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
+        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.42] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
         style={{ width: '320px' }}
       >
         <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
@@ -1047,20 +1049,20 @@ const SalvaNGNsChat = ({ user }) => {
                 {!mode
                   ? 'Choose an option'
                   : mode === 'buy'
-                    ? buyPhase === 'chat'
-                      ? status === 'pending'
-                        ? 'Awaiting payment'
-                        : status === 'paid'
-                          ? 'Verifying…'
-                          : status === 'minting'
-                            ? 'Minting…'
-                            : status === 'minted'
-                              ? 'Complete ✓'
-                              : 'Rejected'
-                      : 'Salva · Online'
-                    : sellPhase === 'chat'
-                      ? 'Sell request active'
-                      : 'Salva · Online'}
+                  ? buyPhase === 'chat'
+                    ? status === 'pending'
+                      ? 'Awaiting payment'
+                      : status === 'paid'
+                      ? 'Verifying…'
+                      : status === 'minting'
+                      ? 'Minting…'
+                      : status === 'minted'
+                      ? 'Complete ✓'
+                      : 'Rejected'
+                    : 'Salva · Online'
+                  : sellPhase === 'chat'
+                  ? 'Sell request active'
+                  : 'Salva · Online'}
               </p>
             </div>
             <button
@@ -1186,7 +1188,9 @@ const SalvaNGNsChat = ({ user }) => {
                   ].map(([l, v, c], i) => (
                     <div
                       key={i}
-                      className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}
+                      className={`flex justify-between items-center ${
+                        i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
+                      }`}
                     >
                       <span className="text-white/45 text-[11px]">{l}</span>
                       <span
@@ -1208,7 +1212,9 @@ const SalvaNGNsChat = ({ user }) => {
               <button
                 onClick={() => buyValid && setBuyPhase('confirm')}
                 disabled={!buyValid}
-                className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'}`}
+                className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${
+                  buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'
+                }`}
                 style={{
                   background: buyValid
                     ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
@@ -1299,16 +1305,22 @@ const SalvaNGNsChat = ({ user }) => {
                           raw > ngnBalance
                             ? 'Insufficient NGNs balance'
                             : raw > 0 && raw < otcConfig.minNgn
-                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
-                              : raw > otcConfig.maxNgn
-                                ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
-                                : ''
+                            ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
+                            : raw > otcConfig.maxNgn
+                            ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
+                            : ''
                         );
                       }}
-                      className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${sellAmountError ? 'border-2 border-red-500 text-red-400' : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'}`}
+                      className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${
+                        sellAmountError
+                          ? 'border-2 border-red-500 text-red-400'
+                          : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'
+                      }`}
                     />
                     <span
-                      className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${sellAmountError ? 'text-red-400' : 'text-salvaGold'}`}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${
+                        sellAmountError ? 'text-red-400' : 'text-salvaGold'
+                      }`}
                     >
                       NGNs
                     </span>
@@ -1332,7 +1344,9 @@ const SalvaNGNsChat = ({ user }) => {
                     ].map(([l, v, c], i) => (
                       <div
                         key={l}
-                        className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}
+                        className={`flex justify-between items-center ${
+                          i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
+                        }`}
                       >
                         <span className="text-white/45 text-[11px]">{l}</span>
                         <span
@@ -1355,7 +1369,11 @@ const SalvaNGNsChat = ({ user }) => {
                 <button
                   onClick={() => sellValid && setSellPhase('bank')}
                   disabled={!sellValid}
-                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${sellValid ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed'}`}
+                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${
+                    sellValid
+                      ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]'
+                      : 'cursor-not-allowed'
+                  }`}
                   style={{
                     background: sellValid
                       ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
@@ -1554,13 +1572,17 @@ const SalvaNGNsChat = ({ user }) => {
                 {(isMinted || isRejected || isBurned) && (
                   <button
                     onClick={resetAll}
-                    className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${isMinted ? 'bg-green-500/15 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
+                    className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${
+                      isMinted
+                        ? 'bg-green-500/15 border-green-500/30 text-green-400'
+                        : 'bg-red-500/10 border-red-500/30 text-red-400'
+                    }`}
                   >
                     {isMinted
                       ? 'Buy More NGNs →'
                       : isBurned
-                        ? 'New Transaction →'
-                        : 'Start New Request →'}
+                      ? 'New Transaction →'
+                      : 'Start New Request →'}
                   </button>
                 )}
 
