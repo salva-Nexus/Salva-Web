@@ -1556,6 +1556,21 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   );
 };
 
+// ── Mobile content-scale helpers — reduces only content (font, padding,
+// gaps, icon sizes), never the container itself, and only under 640px. ──
+const smpPx = (n) => `calc(${n}px * var(--smp-scale, 1))`;
+const smpPxs = (...vals) => vals.map((v) => (typeof v === 'number' ? smpPx(v) : v)).join(' ');
+
+const SellerMintScaleStyle = () => (
+  <style>{`
+    .smp-scale { --smp-scale: 1; }
+    @media (max-width: 639px) {
+      .smp-scale { --smp-scale: 0.7; }
+    }
+  `}</style>
+);
+
+// ── Seller Mint Requests Panel ─────────────────────────────────────────────
 // ── Seller Mint Requests Panel ─────────────────────────────────────────────
 const SellerMintPanel = ({ user, showMsg }) => {
   const [requests, setRequests] = useState([]);
@@ -1687,104 +1702,147 @@ const SellerMintPanel = ({ user, showMsg }) => {
 
   if (selected)
     return (
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="smp-scale space-y-4">
+        <SellerMintScaleStyle />
         <button
           onClick={() => setSelected(null)}
-          className="text-xs text-white/60 hover:text-white font-bold transition-colors"
+          className="text-white/60 hover:text-white font-bold transition-colors"
+          style={{ fontSize: smpPx(12) }}
         >
           ← All Requests
         </button>
         <div className="flex items-center justify-between">
           <div>
-            <p className="font-black text-lg text-white">{selected.username}</p>
-            <p className="text-xs text-white/60 font-mono">{selected.userEmail}</p>
+            <p className="font-black text-white" style={{ fontSize: smpPx(18) }}>
+              {selected.username}
+            </p>
+            <p className="text-white/60 font-mono" style={{ fontSize: smpPx(12) }}>
+              {selected.userEmail}
+            </p>
           </div>
           <span
-            className={`px-3 py-1 rounded-full text-[10px] font-black uppercase border ${statusColor(selected.status)}`}
+            className={`rounded-full font-black uppercase border ${statusColor(selected.status)}`}
+            style={{ padding: smpPxs(4, 12), fontSize: smpPx(10) }}
           >
             {selected.status}
           </span>
         </div>
-        <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/20 flex justify-between">
+        <div
+          className="rounded-2xl bg-salvaGold/5 border border-salvaGold/20 flex justify-between"
+          style={{ padding: smpPx(16) }}
+        >
           <div>
-            <p className="text-[10px] text-white/60">Requested</p>
-            <p className="font-black text-white">
+            <p className="text-white/60" style={{ fontSize: smpPx(10) }}>
+              Requested
+            </p>
+            <p className="font-black text-white" style={{ fontSize: smpPx(16) }}>
               {(selected.amountNgn || 0).toLocaleString()} NGN
             </p>
           </div>
           <div>
-            <p className="text-[10px] text-white/60">Fee</p>
-            <p className="font-black text-red-400">{selected.feeNgn} NGNs</p>
+            <p className="text-white/60" style={{ fontSize: smpPx(10) }}>
+              Fee
+            </p>
+            <p className="font-black text-red-400" style={{ fontSize: smpPx(16) }}>
+              {selected.feeNgn} NGNs
+            </p>
           </div>
           <div>
-            <p className="text-[10px] text-white/60">To Mint</p>
-            <p className="font-black text-salvaGold">
+            <p className="text-white/60" style={{ fontSize: smpPx(10) }}>
+              To Mint
+            </p>
+            <p className="font-black text-salvaGold" style={{ fontSize: smpPx(16) }}>
               {(selected.mintAmountNgn || 0).toLocaleString()} NGNs
             </p>
           </div>
         </div>
         {selected.receiptImageBase64 && (
-          <div className="p-3 rounded-2xl border border-white/10">
-            <p className="text-[10px] uppercase font-black text-white/60 mb-2">Payment Receipt</p>
+          <div className="rounded-2xl border border-white/10" style={{ padding: smpPx(12) }}>
+            <p
+              className="uppercase font-black text-white/60"
+              style={{ fontSize: smpPx(10), marginBottom: smpPx(8) }}
+            >
+              Payment Receipt
+            </p>
             <img
               src={selected.receiptImageBase64}
               alt="Receipt"
-              className="max-h-48 rounded-xl object-contain"
+              className="rounded-xl object-contain"
+              style={{ maxHeight: smpPx(192) }}
             />
           </div>
         )}
         <div className="rounded-2xl border border-white/10 overflow-hidden">
-          <div className="h-64 overflow-y-auto p-3 space-y-2 bg-white/[0.02]">
+          <div
+            className="overflow-y-auto flex flex-col bg-white/[0.02]"
+            style={{ height: smpPx(256), padding: smpPx(12), gap: smpPx(8) }}
+          >
             {(selected.messages || []).map((msg, i) => (
               <div
                 key={i}
                 className={`flex ${msg.sender === 'seller' ? 'justify-start' : 'justify-end'}`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl p-2.5 text-xs ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-salvaGold text-black'}`}
+                  className={`max-w-[80%] rounded-2xl ${msg.sender === 'seller' ? 'bg-white/5 border border-white/10 text-white' : 'bg-salvaGold text-black'}`}
+                  style={{ padding: smpPx(10), fontSize: smpPx(12) }}
                 >
                   {msg.text}
                   {msg.imageUrl && (
-                    <img src={msg.imageUrl} alt="" className="mt-1 max-h-24 rounded-lg" />
+                    <img
+                      src={msg.imageUrl}
+                      alt=""
+                      className="rounded-lg"
+                      style={{ marginTop: smpPx(4), maxHeight: smpPx(96) }}
+                    />
                   )}
                 </div>
               </div>
             ))}
           </div>
-          <div className="border-t border-white/10 p-2 flex gap-2">
+          <div
+            className="border-t border-white/10 flex"
+            style={{ padding: smpPx(8), gap: smpPx(8) }}
+          >
             <input
               type="text"
               placeholder="Reply to user…"
               value={replyText}
               onChange={(e) => setReplyText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && sendSellerMessage()}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-xs outline-none text-white placeholder:text-white/60"
+              className="flex-1 bg-white/5 border border-white/10 rounded-xl outline-none text-white placeholder:text-white/60"
+              style={{ padding: smpPxs(8, 12), fontSize: smpPx(12) }}
             />
             <button
               onClick={sendSellerMessage}
               disabled={sending || !replyText.trim()}
-              className="px-3 py-2 bg-salvaGold text-black font-black rounded-xl text-xs disabled:opacity-50"
+              className="bg-salvaGold text-black font-black rounded-xl disabled:opacity-50"
+              style={{ padding: smpPxs(8, 12), fontSize: smpPx(12) }}
             >
               Send
             </button>
           </div>
         </div>
         {selected.status === 'paid' && (
-          <div className="flex gap-3">
+          <div className="flex" style={{ gap: smpPx(12) }}>
             <button
               onClick={handleReject}
               disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black text-sm hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+              className="flex-1 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 font-black hover:bg-red-500 hover:text-white transition-all disabled:opacity-50"
+              style={{ padding: smpPx(12), fontSize: smpPx(14) }}
             >
               Reject
             </button>
             <button
               onClick={handleMinted}
               disabled={actioning}
-              className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-black text-sm hover:brightness-110 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 rounded-xl bg-salvaGold text-black font-black hover:brightness-110 disabled:opacity-50 flex items-center justify-center"
+              style={{ padding: smpPx(12), fontSize: smpPx(14), gap: smpPx(8) }}
             >
               {actioning && (
-                <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                <span
+                  className="border-2 border-black/30 border-t-black rounded-full animate-spin"
+                  style={{ width: smpPx(12), height: smpPx(12) }}
+                />
               )}
               ✅ Mark as Minted
             </button>
@@ -1794,29 +1852,45 @@ const SellerMintPanel = ({ user, showMsg }) => {
     );
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="smp-scale space-y-4">
+      <SellerMintScaleStyle />
       <div className="flex items-center justify-between">
-        <p className="text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
+        <p
+          className="uppercase tracking-[0.3em] font-black text-white/60"
+          style={{ fontSize: smpPx(10) }}
+        >
           Mint Requests
         </p>
         <button
           onClick={fetchRequests}
           disabled={loading}
-          className="text-[10px] uppercase font-black text-salvaGold hover:opacity-70 flex items-center gap-1"
+          className="uppercase font-black text-salvaGold hover:opacity-70 flex items-center"
+          style={{ fontSize: smpPx(10), gap: smpPx(4) }}
         >
           {loading && (
-            <span className="w-3 h-3 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+            <span
+              className="border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin"
+              style={{ width: smpPx(12), height: smpPx(12) }}
+            />
           )}
           Refresh
         </button>
       </div>
       {loading ? (
-        <div className="flex justify-center py-8">
-          <div className="w-8 h-8 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
+        <div className="flex justify-center" style={{ paddingTop: smpPx(32), paddingBottom: smpPx(32) }}>
+          <div
+            className="border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin"
+            style={{ width: smpPx(32), height: smpPx(32) }}
+          />
         </div>
       ) : requests.length === 0 ? (
-        <div className="p-8 rounded-2xl border border-dashed border-white/10 text-center">
-          <p className="text-sm text-white/60 font-bold">No requests yet.</p>
+        <div
+          className="rounded-2xl border border-dashed border-white/10 text-center"
+          style={{ padding: smpPx(32) }}
+        >
+          <p className="text-white/60 font-bold" style={{ fontSize: smpPx(14) }}>
+            No requests yet.
+          </p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -1824,19 +1898,25 @@ const SellerMintPanel = ({ user, showMsg }) => {
             <button
               key={r._id}
               onClick={() => setSelected(r)}
-              className="w-full p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
+              className="w-full rounded-2xl border border-white/[0.06] bg-white/[0.02] hover:border-salvaGold/30 transition-all text-left"
+              style={{ padding: smpPx(16) }}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between" style={{ gap: smpPx(12) }}>
                 <div className="min-w-0">
-                  <p className="font-black text-sm truncate text-white">{r.username}</p>
-                  <p className="text-xs text-white/60 font-mono truncate">{r.userEmail}</p>
+                  <p className="font-black truncate text-white" style={{ fontSize: smpPx(14) }}>
+                    {r.username}
+                  </p>
+                  <p className="text-white/60 font-mono truncate" style={{ fontSize: smpPx(12) }}>
+                    {r.userEmail}
+                  </p>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="font-black text-salvaGold text-sm">
+                  <p className="font-black text-salvaGold" style={{ fontSize: smpPx(14) }}>
                     {(r.mintAmountNgn || 0).toLocaleString()} NGNs
                   </p>
                   <span
-                    className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-black uppercase border mt-1 ${statusColor(r.status)}`}
+                    className={`inline-block rounded-full font-black uppercase border ${statusColor(r.status)}`}
+                    style={{ padding: smpPxs(2, 8), fontSize: smpPx(9), marginTop: smpPx(4) }}
                   >
                     {r.status}
                   </span>
