@@ -3,6 +3,24 @@ import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
 
+// ── Mobile content-scale helpers ────────────────────────────────────────────
+// Container size (card width/height/border) is NEVER touched by these — only
+// font sizes, padding, gaps, icon/avatar boxes, and border radii use them.
+// --cscale is defined once below via a <style> tag: 1 on desktop/tablet,
+// 0.7 (30% smaller) under 640px. Every value below reads that variable live,
+// so it's a pure CSS media-query response — no JS resize listeners needed.
+const px = (n) => `calc(${n}px * var(--cscale, 1))`;
+const pxs = (...vals) => vals.map((v) => (typeof v === 'number' ? px(v) : v)).join(' ');
+
+const ContentScaleStyle = () => (
+  <style>{`
+    .ssc-scale { --cscale: 1; }
+    @media (max-width: 639px) {
+      .ssc-scale { --cscale: 0.7; }
+    }
+  `}</style>
+);
+
 // ── Status meta ────────────────────────────────────────────────────────────
 const STATUS_META = {
   pending: {
@@ -54,12 +72,12 @@ function StatusBadge({ status }) {
   return (
     <span
       style={{
-        padding: '2px 8px',
-        borderRadius: '8px',
+        padding: pxs(2, 8),
+        borderRadius: px(8),
         background: m.bg,
         border: `1px solid ${m.border}`,
         color: m.color,
-        fontSize: '9px',
+        fontSize: px(9),
         fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
@@ -76,9 +94,9 @@ function TypeBadge({ type }) {
   return (
     <span
       style={{
-        padding: '1px 6px',
-        borderRadius: '6px',
-        fontSize: '8px',
+        padding: pxs(1, 6),
+        borderRadius: px(6),
+        fontSize: px(8),
         fontWeight: '900',
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
@@ -99,9 +117,9 @@ function ChainBadge({ chain, isL1 }) {
   return (
     <span
       style={{
-        padding: '1px 6px',
-        borderRadius: '6px',
-        fontSize: '8px',
+        padding: pxs(1, 6),
+        borderRadius: px(6),
+        fontSize: px(8),
         fontWeight: '900',
         textTransform: 'uppercase',
         letterSpacing: '0.08em',
@@ -146,12 +164,12 @@ const CopyBtn = ({ value }) => {
     <button
       onClick={copy}
       style={{
-        padding: '4px 10px',
-        borderRadius: '7px',
+        padding: pxs(4, 10),
+        borderRadius: px(7),
         background: copied ? 'rgba(34,197,94,0.18)' : 'rgba(212,175,55,0.12)',
         border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(212,175,55,0.3)'}`,
         color: copied ? '#22c55e' : '#D4AF37',
-        fontSize: '9px',
+        fontSize: px(9),
         fontWeight: '700',
         cursor: 'pointer',
         textTransform: 'uppercase',
@@ -210,22 +228,22 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
   return (
     <div
       style={{
-        padding: '10px 12px',
+        padding: pxs(10, 12),
         background: '#0d0d0e',
         borderTop: '1px solid rgba(212,175,55,0.12)',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: px(8), alignItems: 'flex-end' }}>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
           title="Upload image"
           style={{
             flexShrink: 0,
-            width: '36px',
-            height: '36px',
-            borderRadius: '9px',
+            width: px(36),
+            height: px(36),
+            borderRadius: px(9),
             background: 'rgba(212,175,55,0.12)',
             border: '1px solid rgba(212,175,55,0.2)',
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -236,8 +254,7 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           }}
         >
           <svg
-            width="14"
-            height="14"
+            style={{ width: px(14), height: px(14) }}
             fill="none"
             stroke="#D4AF37"
             strokeWidth="2"
@@ -267,18 +284,18 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           rows={1}
           style={{
             flex: 1,
-            padding: '9px 12px',
-            borderRadius: '10px',
+            padding: pxs(9, 12),
+            borderRadius: px(10),
             border: '1px solid rgba(212,175,55,0.2)',
             background: '#1a1a1b',
             color: '#f5f0e8',
-            fontSize: '12.5px',
+            fontSize: px(12.5),
             outline: 'none',
             resize: 'none',
             overflowY: 'hidden',
             lineHeight: '1.5',
             fontFamily: 'inherit',
-            minHeight: '36px',
+            minHeight: px(36),
             maxHeight: '100px',
             transition: 'border-color 0.2s',
           }}
@@ -289,9 +306,9 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           onClick={submit}
           disabled={disabled || !text.trim()}
           style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '9px',
+            width: px(36),
+            height: px(36),
+            borderRadius: px(9),
             flexShrink: 0,
             background:
               disabled || !text.trim()
@@ -306,8 +323,7 @@ const MessageInput = memo(({ onSend, onImage, disabled }) => {
           }}
         >
           <svg
-            width="14"
-            height="14"
+            style={{ width: px(14), height: px(14) }}
             fill={disabled || !text.trim() ? 'rgba(212,175,55,0.4)' : '#000'}
             viewBox="0 0 24 24"
           >
@@ -329,24 +345,24 @@ const SellerBubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: '6px 0',
-          padding: '12px 14px',
-          borderRadius: '14px',
+          margin: pxs(6, 0),
+          padding: pxs(12, 14),
+          borderRadius: px(14),
           textAlign: 'center',
           background: 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.05))',
           border: '1px solid rgba(34,197,94,0.35)',
         }}
       >
-        <span style={{ fontSize: '22px' }}>🎉</span>
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+        <span style={{ fontSize: px(22) }}>🎉</span>
+        <div style={{ display: 'flex', justifyContent: 'center', margin: pxs(4, 0) }}>
           <TypeBadge type="buy" />
         </div>
         <p
           style={{
             color: '#22c55e',
             fontWeight: '900',
-            fontSize: '12px',
-            margin: '0 0 3px',
+            fontSize: px(12),
+            margin: `0 0 ${px(3)}`,
           }}
         >
           Minted Successfully
@@ -354,7 +370,7 @@ const SellerBubble = memo(({ msg }) => {
         <p
           style={{
             color: 'rgba(255,255,255,0.5)',
-            fontSize: '10px',
+            fontSize: px(10),
             margin: 0,
             whiteSpace: 'pre-line',
           }}
@@ -371,24 +387,24 @@ const SellerBubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: '6px 0',
-          padding: '12px 14px',
-          borderRadius: '14px',
+          margin: pxs(6, 0),
+          padding: pxs(12, 14),
+          borderRadius: px(14),
           textAlign: 'center',
           background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))',
           border: '1px solid rgba(239,68,68,0.35)',
         }}
       >
-        <span style={{ fontSize: '22px' }}>🔥</span>
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '4px 0' }}>
+        <span style={{ fontSize: px(22) }}>🔥</span>
+        <div style={{ display: 'flex', justifyContent: 'center', margin: pxs(4, 0) }}>
           <TypeBadge type="sell" />
         </div>
         <p
           style={{
             color: '#ef4444',
             fontWeight: '900',
-            fontSize: '12px',
-            margin: '0 0 3px',
+            fontSize: px(12),
+            margin: `0 0 ${px(3)}`,
           }}
         >
           Sell Request
@@ -396,7 +412,7 @@ const SellerBubble = memo(({ msg }) => {
         <p
           style={{
             color: 'rgba(255,255,255,0.5)',
-            fontSize: '10px',
+            fontSize: px(10),
             margin: 0,
             whiteSpace: 'pre-line',
           }}
@@ -413,22 +429,22 @@ const SellerBubble = memo(({ msg }) => {
         display: 'flex',
         justifyContent: isMine ? 'flex-end' : 'flex-start',
         alignItems: 'flex-end',
-        gap: '5px',
+        gap: px(5),
       }}
     >
       {!isMine && (
         <div
           style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '7px',
+            width: px(24),
+            height: px(24),
+            borderRadius: px(7),
             flexShrink: 0,
             background: 'rgba(212,175,55,0.15)',
             border: '1px solid rgba(212,175,55,0.2)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '10px',
+            fontSize: px(10),
             fontWeight: '900',
             color: '#D4AF37',
           }}
@@ -439,8 +455,8 @@ const SellerBubble = memo(({ msg }) => {
       <div
         style={{
           maxWidth: '78%',
-          padding: '9px 12px',
-          borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+          padding: pxs(9, 12),
+          borderRadius: isMine ? pxs(14, 14, 4, 14) : pxs(14, 14, 14, 4),
           background: isMine
             ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
             : 'rgba(255,255,255,0.05)',
@@ -453,9 +469,9 @@ const SellerBubble = memo(({ msg }) => {
             alt="attachment"
             style={{
               maxWidth: '100%',
-              maxHeight: '160px',
-              borderRadius: '8px',
-              marginBottom: msg.text ? '6px' : 0,
+              maxHeight: px(160),
+              borderRadius: px(8),
+              marginBottom: msg.text ? px(6) : 0,
               display: 'block',
               objectFit: 'contain',
             }}
@@ -464,16 +480,16 @@ const SellerBubble = memo(({ msg }) => {
         {msg.isReceipt && (
           <div
             style={{
-              padding: '4px 8px',
-              borderRadius: '6px',
+              padding: pxs(4, 8),
+              borderRadius: px(6),
               background: 'rgba(212,175,55,0.15)',
               border: '1px solid rgba(212,175,55,0.3)',
               color: '#D4AF37',
-              fontSize: '9px',
+              fontSize: px(9),
               fontWeight: '700',
               textTransform: 'uppercase',
               letterSpacing: '0.1em',
-              marginBottom: '6px',
+              marginBottom: px(6),
               display: 'inline-block',
             }}
           >
@@ -483,7 +499,7 @@ const SellerBubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: '11px',
+              fontSize: px(11),
               color: isMine ? '#000' : '#f5f0e8',
               margin: 0,
               lineHeight: '1.5',
@@ -496,9 +512,9 @@ const SellerBubble = memo(({ msg }) => {
         )}
         <p
           style={{
-            fontSize: '9px',
+            fontSize: px(9),
             color: isMine ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.3)',
-            margin: '3px 0 0',
+            margin: `${px(3)} 0 0`,
             textAlign: 'right',
           }}
         >
@@ -506,7 +522,7 @@ const SellerBubble = memo(({ msg }) => {
             hour: '2-digit',
             minute: '2-digit',
           })}
-          {isMine && <span style={{ marginLeft: '4px' }}>✓✓</span>}
+          {isMine && <span style={{ marginLeft: px(4) }}>✓✓</span>}
         </p>
       </div>
     </div>
@@ -514,6 +530,9 @@ const SellerBubble = memo(({ msg }) => {
 });
 
 // ── Confirm Mint Modal ─────────────────────────────────────────────────────
+// Modal is a separate overlay, not the chat card — kept at its own
+// natural, comfortable size on all devices (not part of the "clustered
+// card" complaint), so no content-scale applied here.
 const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
   <motion.div
     initial={{ opacity: 0 }}
@@ -681,7 +700,6 @@ const ConfirmModal = memo(({ request, onConfirm, onClose, loading }) => (
 ));
 
 // ── Ethereum L1 Banner ─────────────────────────────────────────────────────
-// Rendered as its own dedicated row so it never collides with the summary bar
 const EthL1Banner = memo(({ selected }) => {
   const isL1 = selected?.isL1 === true || selected?.chain === 'ethereum';
   if (!isL1) return null;
@@ -693,8 +711,8 @@ const EthL1Banner = memo(({ selected }) => {
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
-        padding: '6px 14px',
+        gap: px(8),
+        padding: pxs(6, 14),
         background: 'linear-gradient(90deg, rgba(59,130,246,0.1), rgba(59,130,246,0.04))',
         borderBottom: '1px solid rgba(59,130,246,0.18)',
         flexShrink: 0,
@@ -702,18 +720,17 @@ const EthL1Banner = memo(({ selected }) => {
         overflow: 'hidden',
       }}
     >
-      {/* lightning pill */}
       <span
         style={{
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
-          padding: '2px 8px',
+          gap: px(4),
+          padding: pxs(2, 8),
           borderRadius: '20px',
           background: 'rgba(59,130,246,0.15)',
           border: '1px solid rgba(59,130,246,0.35)',
           color: '#60a5fa',
-          fontSize: '9px',
+          fontSize: px(9),
           fontWeight: '800',
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
@@ -724,12 +741,11 @@ const EthL1Banner = memo(({ selected }) => {
         ⚡ BSC · BNB Chain
       </span>
 
-      {/* mint-to address — truncated cleanly */}
       {hasMintTo && (
         <span
           style={{
             color: 'rgba(96,165,250,0.65)',
-            fontSize: '9.5px',
+            fontSize: px(9.5),
             fontFamily: 'monospace',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -1065,6 +1081,7 @@ const SalvaSellerChat = ({ user }) => {
   // ── WINDOW ─────────────────────────────────────────────────────────────────
   return (
     <>
+      <ContentScaleStyle />
       <AnimatePresence>
         {showConfirm && (
           <ConfirmModal
@@ -1084,10 +1101,10 @@ const SalvaSellerChat = ({ user }) => {
           setMessages([]);
         }}
       />
-      {/* Outer plain div owns the mobile-shrink scale — see SalvaNGNsChat.jsx
-          for why this can't live on the motion.div itself. */}
+      {/* Container — width/height/border/background are fixed and NEVER
+          scaled. Only the .ssc-scale content inside responds to mobile. */}
       <div
-        className="fixed bottom-2 left-2 z-[9000] origin-bottom-left scale-[0.42] sm:scale-100 sm:bottom-6 sm:left-6"
+        className="fixed bottom-2 left-2 z-[9000] origin-bottom-left sm:bottom-6 sm:left-6"
         style={{ width: '320px' }}
       >
         <motion.div
@@ -1097,13 +1114,18 @@ const SalvaSellerChat = ({ user }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div
-            className="h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col"
+            className="ssc-scale h-[520px] bg-[#0d0d0e] border border-salvaGold/[0.18] rounded-[22px] overflow-hidden flex flex-col"
             style={{ boxShadow: '0 28px 72px rgba(0,0,0,0.85), 0 0 0 1px rgba(212,175,55,0.04)' }}
           >
             {/* ── HEADER ── */}
             <div
-              className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/20 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+              className="flex items-center flex-shrink-0"
+              style={{
+                gap: px(10),
+                padding: pxs(10, 12),
+                borderBottom: '1px solid rgba(212,175,55,0.2)',
+                background: 'linear-gradient(135deg, #1a1500, #111100)',
+              }}
             >
               {view === 'chat' && (
                 <button
@@ -1113,31 +1135,43 @@ const SalvaSellerChat = ({ user }) => {
                     setMessages([]);
                     setMintError('');
                   }}
-                  className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+                  className="text-salvaGold/60 cursor-pointer bg-transparent border-none flex-shrink-0 hover:text-salvaGold transition-colors"
+                  style={{ fontSize: px(18), lineHeight: 1, paddingRight: px(4) }}
                 >
                   ←
                 </button>
               )}
               <div
-                className="w-[34px] h-[34px] rounded-[9px] flex-shrink-0 flex items-center justify-center text-sm font-black text-black"
-                style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+                className="flex-shrink-0 flex items-center justify-center font-black text-black"
+                style={{
+                  width: px(34),
+                  height: px(34),
+                  borderRadius: px(9),
+                  fontSize: px(14),
+                  background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                }}
               >
                 ₦
               </div>
               <div className="flex-1 min-w-0">
                 {view === 'list' ? (
                   <>
-                    <p className="text-[#f5f0e8] text-[13px] font-black m-0">NGNs Requests</p>
-                    <p className="text-salvaGold/50 text-[10px] m-0">
+                    <p className="text-[#f5f0e8] font-black m-0" style={{ fontSize: px(13) }}>
+                      NGNs Requests
+                    </p>
+                    <p className="text-salvaGold/50 m-0" style={{ fontSize: px(10) }}>
                       {requests.length} conversation{requests.length !== 1 ? 's' : ''}
                     </p>
                   </>
                 ) : (
                   <>
-                    <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
+                    <p
+                      className="text-[#f5f0e8] font-black m-0 truncate"
+                      style={{ fontSize: px(13) }}
+                    >
                       {selected?.username}
                     </p>
-                    <p className="text-salvaGold/50 text-[10px] m-0 truncate">
+                    <p className="text-salvaGold/50 m-0 truncate" style={{ fontSize: px(10) }}>
                       {selected?.userEmail}
                     </p>
                   </>
@@ -1150,7 +1184,8 @@ const SalvaSellerChat = ({ user }) => {
                   setSelected(null);
                   setMessages([]);
                 }}
-                className="w-6 h-6 rounded-full bg-white/[0.06] border border-white/10 cursor-pointer text-white/40 text-[15px] flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+                className="rounded-full bg-white/[0.06] border border-white/10 cursor-pointer text-white/40 flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+                style={{ width: px(24), height: px(24), fontSize: px(15) }}
               >
                 ×
               </button>
@@ -1160,10 +1195,15 @@ const SalvaSellerChat = ({ user }) => {
             {view === 'list' && (
               <div className="flex-1 overflow-y-auto bg-[#0a0a0b]">
                 {requests.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center gap-2.5 px-5 py-16">
-                    <span className="text-4xl opacity-30">₦</span>
-                    <p className="text-salvaGold/40 text-[12px] font-bold m-0">No requests yet</p>
-                    <p className="text-white/20 text-[10px] m-0">
+                  <div
+                    className="h-full flex flex-col items-center justify-center"
+                    style={{ gap: px(10), padding: `${px(64)} ${px(20)}` }}
+                  >
+                    <span style={{ fontSize: px(36), opacity: 0.3 }}>₦</span>
+                    <p className="text-salvaGold/40 font-bold m-0" style={{ fontSize: px(12) }}>
+                      No requests yet
+                    </p>
+                    <p className="text-white/20 m-0" style={{ fontSize: px(10) }}>
                       Buy/sell requests will appear here
                     </p>
                   </div>
@@ -1183,15 +1223,20 @@ const SalvaSellerChat = ({ user }) => {
                       <button
                         key={req._id}
                         onClick={() => openRequest(req)}
-                        className="w-full px-3.5 py-3 border-none border-b border-white/[0.04] text-left cursor-pointer transition-colors hover:bg-salvaGold/[0.07]"
+                        className="w-full border-none border-b border-white/[0.04] text-left cursor-pointer transition-colors hover:bg-salvaGold/[0.07]"
                         style={{
+                          padding: pxs(12, 14),
                           background: isPaid && isUnread ? 'rgba(212,175,55,0.04)' : 'transparent',
                         }}
                       >
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center" style={{ gap: px(10) }}>
                           <div
-                            className="w-10 h-10 rounded-[11px] flex-shrink-0 flex items-center justify-center font-black text-[15px]"
+                            className="flex-shrink-0 flex items-center justify-center font-black"
                             style={{
+                              width: px(40),
+                              height: px(40),
+                              borderRadius: px(11),
+                              fontSize: px(15),
                               background: isSell
                                 ? 'rgba(239,68,68,0.15)'
                                 : isPaid
@@ -1214,25 +1259,38 @@ const SalvaSellerChat = ({ user }) => {
                             {req.username?.charAt(0)?.toUpperCase() || '?'}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-baseline mb-0.5">
+                            <div
+                              className="flex justify-between items-baseline"
+                              style={{ marginBottom: px(2) }}
+                            >
                               <p
-                                className={`text-[13px] m-0 truncate flex-1 ${
+                                className={`m-0 truncate flex-1 ${
                                   isUnread
                                     ? 'text-[#f5f0e8] font-bold'
                                     : 'text-white/70 font-medium'
                                 }`}
+                                style={{ fontSize: px(13) }}
                               >
                                 {req.username}
                               </p>
-                              <p className="text-white/25 text-[9px] m-0 flex-shrink-0 ml-2">
+                              <p
+                                className="text-white/25 m-0 flex-shrink-0"
+                                style={{ fontSize: px(9), marginLeft: px(8) }}
+                              >
                                 {new Date(req.updatedAt).toLocaleTimeString([], {
                                   hour: '2-digit',
                                   minute: '2-digit',
                                 })}
                               </p>
                             </div>
-                            <div className="flex items-center justify-between gap-1.5 mb-1">
-                              <p className="text-white/35 text-[11px] m-0 truncate flex-1">
+                            <div
+                              className="flex items-center justify-between"
+                              style={{ gap: px(6), marginBottom: px(4) }}
+                            >
+                              <p
+                                className="text-white/35 m-0 truncate flex-1"
+                                style={{ fontSize: px(11) }}
+                              >
                                 {lastMsg?.isReceipt
                                   ? '📎 Receipt uploaded'
                                   : lastMsg?.isBurned
@@ -1240,28 +1298,39 @@ const SalvaSellerChat = ({ user }) => {
                                   : lastMsg?.text?.replace(/\*\*/g, '')?.slice(0, 45) ||
                                     'No messages'}
                               </p>
-                              <div className="flex items-center gap-1 flex-shrink-0">
+                              <div
+                                className="flex items-center flex-shrink-0"
+                                style={{ gap: px(4) }}
+                              >
                                 <span
-                                  className={`text-[10px] font-bold ${
+                                  className={`font-bold ${
                                     isSell ? 'text-red-400' : 'text-salvaGold'
                                   }`}
+                                  style={{ fontSize: px(10) }}
                                 >
                                   ₦{(req.amountNgn || 0).toLocaleString()}
                                 </span>
                                 {isUnread && (
                                   <span
-                                    className="w-2 h-2 rounded-full bg-salvaGold inline-block"
-                                    style={{ boxShadow: '0 0 6px rgba(212,175,55,0.6)' }}
+                                    className="rounded-full bg-salvaGold inline-block"
+                                    style={{
+                                      width: px(8),
+                                      height: px(8),
+                                      boxShadow: '0 0 6px rgba(212,175,55,0.6)',
+                                    }}
                                   />
                                 )}
                               </div>
                             </div>
-                            <div className="flex gap-1 items-center flex-wrap">
+                            <div className="flex items-center flex-wrap" style={{ gap: px(4) }}>
                               <TypeBadge type={req.type} />
                               <ChainBadge chain={req.chain} isL1={req.isL1} />
                               <StatusBadge status={req.status} />
                               {hasRedeem && (
-                                <span className="px-1.5 py-0.5 rounded-[5px] bg-purple-500/15 border border-purple-500/30 text-purple-400 text-[8px] font-bold">
+                                <span
+                                  className="rounded-[5px] bg-purple-500/15 border border-purple-500/30 text-purple-400 font-bold"
+                                  style={{ padding: pxs(2, 6), fontSize: px(8) }}
+                                >
                                   ⭐ {req.pointsRedemption.pointsToRedeem.toLocaleString()} pts
                                 </span>
                               )}
@@ -1278,20 +1347,16 @@ const SalvaSellerChat = ({ user }) => {
             {/* ── CHAT VIEW ── */}
             {view === 'chat' && selected && (
               <>
-                {/* ── BSC L1 Banner — own dedicated row, no overlap ── */}
                 <EthL1Banner selected={selected} />
 
                 {/* ── Summary bar ── */}
                 <div
+                  className="flex justify-between items-center flex-shrink-0"
                   style={{
-                    padding: '8px 14px',
+                    padding: pxs(8, 14),
                     background: 'rgba(212,175,55,0.05)',
                     borderBottom: '1px solid rgba(212,175,55,0.1)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '8px',
-                    flexShrink: 0,
+                    gap: px(8),
                     minWidth: 0,
                     overflow: 'hidden',
                   }}
@@ -1301,7 +1366,7 @@ const SalvaSellerChat = ({ user }) => {
                       <span
                         style={{
                           color: 'rgba(255,255,255,0.4)',
-                          fontSize: '10px',
+                          fontSize: px(10),
                           whiteSpace: 'nowrap',
                         }}
                       >
@@ -1311,7 +1376,7 @@ const SalvaSellerChat = ({ user }) => {
                         style={{
                           color: '#ef4444',
                           fontWeight: '900',
-                          fontSize: '12px',
+                          fontSize: px(12),
                           whiteSpace: 'nowrap',
                         }}
                       >
@@ -1323,7 +1388,7 @@ const SalvaSellerChat = ({ user }) => {
                       <span
                         style={{
                           color: 'rgba(255,255,255,0.4)',
-                          fontSize: '10px',
+                          fontSize: px(10),
                           whiteSpace: 'nowrap',
                           overflow: 'hidden',
                           textOverflow: 'ellipsis',
@@ -1336,7 +1401,7 @@ const SalvaSellerChat = ({ user }) => {
                         style={{
                           color: '#D4AF37',
                           fontWeight: '900',
-                          fontSize: '12px',
+                          fontSize: px(12),
                           whiteSpace: 'nowrap',
                         }}
                       >
@@ -1351,42 +1416,30 @@ const SalvaSellerChat = ({ user }) => {
                   selected.status !== 'sell_completed' &&
                   selected.bankDetails?.accountNumber && (
                     <div
+                      className="flex-shrink-0"
                       style={{
-                        padding: '8px 14px',
+                        padding: pxs(8, 14),
                         background: 'rgba(239,68,68,0.05)',
                         borderBottom: '1px solid rgba(239,68,68,0.1)',
-                        flexShrink: 0,
                       }}
                     >
                       <p
                         style={{
                           color: 'rgba(255,255,255,0.4)',
-                          fontSize: '9px',
+                          fontSize: px(9),
                           textTransform: 'uppercase',
                           letterSpacing: '0.1em',
-                          margin: '0 0 6px',
+                          margin: `0 0 ${px(6)}`,
                           fontWeight: '700',
                         }}
                       >
                         Payout Details
                       </p>
-                      <div
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '5px',
-                        }}
-                      >
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: px(5) }}>
                         {[
                           { label: 'Bank', value: selected.bankDetails.bankName },
-                          {
-                            label: 'Account Name',
-                            value: selected.bankDetails.accountName,
-                          },
-                          {
-                            label: 'Account Number',
-                            value: selected.bankDetails.accountNumber,
-                          },
+                          { label: 'Account Name', value: selected.bankDetails.accountName },
+                          { label: 'Account Number', value: selected.bankDetails.accountNumber },
                         ].map(({ label, value }) => (
                           <div
                             key={label}
@@ -1394,13 +1447,13 @@ const SalvaSellerChat = ({ user }) => {
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center',
-                              gap: '8px',
+                              gap: px(8),
                             }}
                           >
                             <span
                               style={{
                                 color: 'rgba(255,255,255,0.35)',
-                                fontSize: '10px',
+                                fontSize: px(10),
                                 flexShrink: 0,
                               }}
                             >
@@ -1410,14 +1463,14 @@ const SalvaSellerChat = ({ user }) => {
                               style={{
                                 display: 'flex',
                                 alignItems: 'center',
-                                gap: '6px',
+                                gap: px(6),
                                 minWidth: 0,
                               }}
                             >
                               <span
                                 style={{
                                   color: '#f5f0e8',
-                                  fontSize: '11px',
+                                  fontSize: px(11),
                                   fontWeight: '700',
                                   overflow: 'hidden',
                                   textOverflow: 'ellipsis',
@@ -1437,106 +1490,61 @@ const SalvaSellerChat = ({ user }) => {
                 {/* ── SELL: Points redemption ── */}
                 {selected.type === 'sell' && hasRedemption && (
                   <div
+                    className="flex-shrink-0"
                     style={{
-                      padding: '8px 14px',
+                      padding: pxs(8, 14),
                       background: 'rgba(168,85,247,0.06)',
                       borderBottom: '1px solid rgba(168,85,247,0.2)',
-                      flexShrink: 0,
                     }}
                   >
                     <p
                       style={{
                         color: '#a855f7',
-                        fontSize: '9px',
+                        fontSize: px(9),
                         textTransform: 'uppercase',
                         letterSpacing: '0.1em',
-                        margin: '0 0 5px',
+                        margin: `0 0 ${px(5)}`,
                         fontWeight: '700',
                       }}
                     >
                       ⭐ Points Redemption
                     </p>
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: '3px',
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'rgba(255,255,255,0.45)',
-                            fontSize: '10px',
-                          }}
-                        >
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: px(3) }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: px(10) }}>
                           Points redeemed
                         </span>
-                        <span
-                          style={{
-                            color: '#a855f7',
-                            fontWeight: '700',
-                            fontSize: '11px',
-                          }}
-                        >
+                        <span style={{ color: '#a855f7', fontWeight: '700', fontSize: px(11) }}>
                           {selected.pointsRedemption.pointsToRedeem.toLocaleString()} pts
                         </span>
                       </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                        }}
-                      >
-                        <span
-                          style={{
-                            color: 'rgba(255,255,255,0.45)',
-                            fontSize: '10px',
-                          }}
-                        >
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: 'rgba(255,255,255,0.45)', fontSize: px(10) }}>
                           Extra payout
                         </span>
-                        <span
-                          style={{
-                            color: '#a855f7',
-                            fontWeight: '700',
-                            fontSize: '11px',
-                          }}
-                        >
-                          +₦
-                          {selected.pointsRedemption.pointsToRedeem.toLocaleString()}
+                        <span style={{ color: '#a855f7', fontWeight: '700', fontSize: px(11) }}>
+                          +₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()}
                         </span>
                       </div>
                       <div
                         style={{
                           display: 'flex',
                           justifyContent: 'space-between',
-                          paddingTop: '4px',
+                          paddingTop: px(4),
                           borderTop: '1px solid rgba(168,85,247,0.15)',
-                          marginTop: '2px',
+                          marginTop: px(2),
                         }}
                       >
                         <span
                           style={{
                             color: 'rgba(255,255,255,0.6)',
-                            fontSize: '10px',
+                            fontSize: px(10),
                             fontWeight: '700',
                           }}
                         >
                           TOTAL to pay user
                         </span>
-                        <span
-                          style={{
-                            color: '#22c55e',
-                            fontWeight: '900',
-                            fontSize: '13px',
-                          }}
-                        >
+                        <span style={{ color: '#22c55e', fontWeight: '900', fontSize: px(13) }}>
                           ₦
                           {(
                             (selected.amountNgn || 0) +
@@ -1558,11 +1566,11 @@ const SalvaSellerChat = ({ user }) => {
                   style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '12px 12px 8px',
+                    padding: `${px(12)} ${px(12)} ${px(8)}`,
                     background: '#0a0a0b',
                     display: 'flex',
                     flexDirection: 'column',
-                    gap: '7px',
+                    gap: px(7),
                   }}
                 >
                   {messages.map((msg, i) => (
@@ -1575,23 +1583,16 @@ const SalvaSellerChat = ({ user }) => {
                 {mintError && (
                   <div
                     style={{
-                      padding: '10px 14px',
+                      padding: pxs(10, 14),
                       background: 'rgba(239,68,68,0.1)',
                       borderTop: '1px solid rgba(239,68,68,0.2)',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
+                      gap: px(8),
                     }}
                   >
-                    <span style={{ fontSize: '14px', flexShrink: 0 }}>⚠️</span>
-                    <p
-                      style={{
-                        color: '#ef4444',
-                        fontSize: '11px',
-                        fontWeight: '700',
-                        margin: 0,
-                      }}
-                    >
+                    <span style={{ fontSize: px(14), flexShrink: 0 }}>⚠️</span>
+                    <p style={{ color: '#ef4444', fontSize: px(11), fontWeight: '700', margin: 0 }}>
                       Mint failed. Please try again.
                     </p>
                   </div>
@@ -1600,13 +1601,13 @@ const SalvaSellerChat = ({ user }) => {
                 {/* BUY: Confirm mint when paid */}
                 {canMint && (
                   <div
+                    className="flex-shrink-0"
                     style={{
-                      padding: '10px 12px',
+                      padding: pxs(10, 12),
                       background: '#0d0d0e',
                       borderTop: '1px solid rgba(212,175,55,0.1)',
                       display: 'flex',
-                      gap: '8px',
-                      flexShrink: 0,
+                      gap: px(8),
                     }}
                   >
                     <button
@@ -1614,12 +1615,12 @@ const SalvaSellerChat = ({ user }) => {
                       disabled={rejecting}
                       style={{
                         flex: 1,
-                        padding: '10px',
-                        borderRadius: '10px',
+                        padding: px(10),
+                        borderRadius: px(10),
                         background: 'rgba(239,68,68,0.1)',
                         border: '1px solid rgba(239,68,68,0.25)',
                         color: '#ef4444',
-                        fontSize: '11px',
+                        fontSize: px(11),
                         fontWeight: '700',
                         cursor: 'pointer',
                       }}
@@ -1636,12 +1637,12 @@ const SalvaSellerChat = ({ user }) => {
                       onClick={() => setShowConfirm(true)}
                       style={{
                         flex: 2,
-                        padding: '10px',
-                        borderRadius: '10px',
+                        padding: px(10),
+                        borderRadius: px(10),
                         background: 'linear-gradient(135deg, #22c55e, #16a34a)',
                         border: 'none',
                         color: '#fff',
-                        fontSize: '12px',
+                        fontSize: px(12),
                         fontWeight: '900',
                         cursor: 'pointer',
                         boxShadow: '0 0 14px rgba(34,197,94,0.3)',
@@ -1655,28 +1656,28 @@ const SalvaSellerChat = ({ user }) => {
                 {/* SELL: NGNs burned — pay user */}
                 {isSellPaid && (
                   <div
+                    className="flex-shrink-0"
                     style={{
-                      padding: '10px 12px',
+                      padding: pxs(10, 12),
                       background: '#0d0d0e',
                       borderTop: '1px solid rgba(239,68,68,0.15)',
-                      flexShrink: 0,
                     }}
                   >
                     <div
                       style={{
-                        padding: '10px 12px',
-                        borderRadius: '10px',
+                        padding: pxs(10, 12),
+                        borderRadius: px(10),
                         background: 'rgba(239,68,68,0.08)',
                         border: '1px solid rgba(239,68,68,0.2)',
-                        marginBottom: '8px',
+                        marginBottom: px(8),
                       }}
                     >
                       <p
                         style={{
                           color: '#ef4444',
-                          fontSize: '11px',
+                          fontSize: px(11),
                           fontWeight: '700',
-                          margin: '0 0 4px',
+                          margin: `0 0 ${px(4)}`,
                         }}
                       >
                         🔥 NGNs burned on-chain. Send ₦
@@ -1687,13 +1688,7 @@ const SalvaSellerChat = ({ user }) => {
                         to user's bank account above.
                       </p>
                       {hasRedemption && (
-                        <p
-                          style={{
-                            color: '#a855f7',
-                            fontSize: '10px',
-                            margin: 0,
-                          }}
-                        >
+                        <p style={{ color: '#a855f7', fontSize: px(10), margin: 0 }}>
                           Includes ₦{selected.pointsRedemption.pointsToRedeem.toLocaleString()}{' '}
                           points redemption payout.
                         </p>
@@ -1722,28 +1717,28 @@ const SalvaSellerChat = ({ user }) => {
                       disabled={completingSell}
                       style={{
                         width: '100%',
-                        padding: '11px',
-                        borderRadius: '10px',
+                        padding: px(11),
+                        borderRadius: px(10),
                         background: completingSell
                           ? 'rgba(34,197,94,0.4)'
                           : 'linear-gradient(135deg, #22c55e, #16a34a)',
                         border: 'none',
                         color: '#fff',
-                        fontSize: '13px',
+                        fontSize: px(13),
                         fontWeight: '900',
                         cursor: completingSell ? 'wait' : 'pointer',
                         boxShadow: completingSell ? 'none' : '0 0 14px rgba(34,197,94,0.3)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        gap: '6px',
+                        gap: px(6),
                       }}
                     >
                       {completingSell && (
                         <span
                           style={{
-                            width: '12px',
-                            height: '12px',
+                            width: px(12),
+                            height: px(12),
                             border: '2px solid rgba(255,255,255,0.3)',
                             borderTopColor: '#fff',
                             borderRadius: '50%',
@@ -1760,11 +1755,11 @@ const SalvaSellerChat = ({ user }) => {
                 {/* Reject when pending */}
                 {selected?.status === 'pending' && (
                   <div
+                    className="flex-shrink-0"
                     style={{
-                      padding: '8px 12px',
+                      padding: pxs(8, 12),
                       background: '#0d0d0e',
                       borderTop: '1px solid rgba(255,255,255,0.05)',
-                      flexShrink: 0,
                     }}
                   >
                     <button
@@ -1772,12 +1767,12 @@ const SalvaSellerChat = ({ user }) => {
                       disabled={rejecting}
                       style={{
                         width: '100%',
-                        padding: '9px',
-                        borderRadius: '10px',
+                        padding: px(9),
+                        borderRadius: px(10),
                         background: 'rgba(239,68,68,0.08)',
                         border: '1px solid rgba(239,68,68,0.2)',
                         color: 'rgba(239,68,68,0.7)',
-                        fontSize: '11px',
+                        fontSize: px(11),
                         cursor: 'pointer',
                       }}
                     >

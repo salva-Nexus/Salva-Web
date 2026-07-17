@@ -878,9 +878,7 @@ const SalvaNGNsChat = ({ user }) => {
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   style={{
-                    border: `2px dashed ${
-                      receiptPreview ? 'rgba(34,197,94,0.5)' : 'rgba(212,175,55,0.3)'
-                    }`,
+                    border: `2px dashed ${receiptPreview ? 'rgba(34,197,94,0.5)' : 'rgba(212,175,55,0.3)'}`,
                     borderRadius: '14px',
                     padding: '24px',
                     cursor: 'pointer',
@@ -977,224 +975,364 @@ const SalvaNGNsChat = ({ user }) => {
         onClick={() => setIsOpen(false)}
         style={{ touchAction: 'none' }}
       />
-      {/* Outer plain div owns the mobile-shrink scale — see SalvaNGNsChat.jsx
-          for why this can't live on the motion.div itself. */}
-      <div
-        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.42] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
+      <motion.div
+        initial={{ opacity: 0, scale: 0.92, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        onClick={(e) => e.stopPropagation()}
+        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.6] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
         style={{ width: '320px' }}
       >
-        <motion.div
-          initial={{ opacity: 0, scale: 0.92, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
-            {/* ── HEADER ── */}
-            <div
-              className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/25 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
-            >
-              {mode &&
-                (buyPhase === 'amount' ||
-                  buyPhase === 'confirm' ||
-                  sellPhase === 'amount' ||
-                  sellPhase === 'bank') && (
-                  <button
-                    onClick={() => {
-                      if (mode === 'buy') {
-                        if (buyPhase === 'amount') {
-                          setMode(null);
-                          setBuyPhase('amount');
-                        } else setBuyPhase('amount');
-                      } else {
-                        if (sellPhase === 'amount') {
-                          setMode(null);
-                          setSellPhase('amount');
-                        } else if (sellPhase === 'bank') setSellPhase('amount');
-                      }
-                    }}
-                    className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
-                  >
-                    ←
-                  </button>
-                )}
-              {((mode === 'buy' && buyPhase === 'chat') ||
-                (mode === 'sell' && sellPhase === 'chat')) && (
+        <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
+          {/* ── HEADER ── */}
+          <div
+            className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/25 flex-shrink-0"
+            style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+          >
+            {mode &&
+              (buyPhase === 'amount' ||
+                buyPhase === 'confirm' ||
+                sellPhase === 'amount' ||
+                sellPhase === 'bank') && (
                 <button
                   onClick={() => {
-                    setMintRequest(null);
-                    setMessages([]);
-                    setBuyPhase('amount');
-                    setSellPhase('amount');
-                    setMode(null);
+                    if (mode === 'buy') {
+                      if (buyPhase === 'amount') {
+                        setMode(null);
+                        setBuyPhase('amount');
+                      } else setBuyPhase('amount');
+                    } else {
+                      if (sellPhase === 'amount') {
+                        setMode(null);
+                        setSellPhase('amount');
+                      } else if (sellPhase === 'bank') setSellPhase('amount');
+                    }
                   }}
                   className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
                 >
                   ←
                 </button>
               )}
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
-                style={{
-                  background:
-                    mode === 'sell'
-                      ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
-                      : 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                  color: mode === 'sell' ? '#fff' : '#000',
+            {((mode === 'buy' && buyPhase === 'chat') ||
+              (mode === 'sell' && sellPhase === 'chat')) && (
+              <button
+                onClick={() => {
+                  setMintRequest(null);
+                  setMessages([]);
+                  setBuyPhase('amount');
+                  setSellPhase('amount');
+                  setMode(null);
                 }}
+                className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
               >
-                ₦
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
-                  {!mode ? 'NGNs Exchange' : mode === 'sell' ? 'Sell NGNs' : 'Buy NGNs'}
-                </p>
-                <p className="text-salvaGold/60 text-[10px] m-0 truncate">
-                  {!mode
-                    ? 'Choose an option'
-                    : mode === 'buy'
+                ←
+              </button>
+            )}
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
+              style={{
+                background:
+                  mode === 'sell'
+                    ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
+                    : 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                color: mode === 'sell' ? '#fff' : '#000',
+              }}
+            >
+              ₦
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
+                {!mode ? 'NGNs Exchange' : mode === 'sell' ? 'Sell NGNs' : 'Buy NGNs'}
+              </p>
+              <p className="text-salvaGold/60 text-[10px] m-0 truncate">
+                {!mode
+                  ? 'Choose an option'
+                  : mode === 'buy'
                     ? buyPhase === 'chat'
                       ? status === 'pending'
                         ? 'Awaiting payment'
                         : status === 'paid'
-                        ? 'Verifying…'
-                        : status === 'minting'
-                        ? 'Minting…'
-                        : status === 'minted'
-                        ? 'Complete ✓'
-                        : 'Rejected'
+                          ? 'Verifying…'
+                          : status === 'minting'
+                            ? 'Minting…'
+                            : status === 'minted'
+                              ? 'Complete ✓'
+                              : 'Rejected'
                       : 'Salva · Online'
                     : sellPhase === 'chat'
-                    ? 'Sell request active'
-                    : 'Salva · Online'}
+                      ? 'Sell request active'
+                      : 'Salva · Online'}
+              </p>
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="w-7 h-7 rounded-full bg-white/[0.07] border border-white/10 cursor-pointer text-white/50 text-base flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* ── MODE SELECTOR ── */}
+          {!mode && (
+            <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
+              {/* Gold accent line */}
+              <div className="w-px h-8 bg-gradient-to-b from-transparent via-salvaGold/40 to-transparent" />
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-black shadow-lg shadow-salvaGold/20"
+                style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+              >
+                ₦
+              </div>
+              <div className="text-center">
+                <h3 className="text-[#f5f0e8] text-lg font-black m-0 mb-1">NGNs Exchange</h3>
+                <p className="text-white/40 text-[11px] m-0">
+                  Buy or sell Nigerian Naira stablecoin
                 </p>
               </div>
-              <button
-                onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/[0.07] border border-white/10 cursor-pointer text-white/50 text-base flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
-              >
-                ×
-              </button>
-            </div>
-
-            {/* ── MODE SELECTOR ── */}
-            {!mode && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
-                {/* Gold accent line */}
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-salvaGold/40 to-transparent" />
-                <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-black shadow-lg shadow-salvaGold/20"
-                  style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={() => {
+                    setMintRequest(null);
+                    setMessages([]);
+                    setBuyPhase('amount');
+                    setMode('buy');
+                  }}
+                  className="flex-1 py-4 rounded-2xl text-sm font-black text-black cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                  style={{
+                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                    boxShadow: '0 0 20px rgba(212,175,55,0.3)',
+                  }}
                 >
-                  ₦
+                  🛒 Buy NGNs
+                </button>
+                <button
+                  onClick={() => {
+                    setMintRequest(null);
+                    setMessages([]);
+                    setSellPhase('amount');
+                    setMode('sell');
+                    fetchBalance();
+                  }}
+                  className="flex-1 py-4 rounded-2xl text-sm font-black text-white cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                    boxShadow: '0 0 20px rgba(239,68,68,0.3)',
+                  }}
+                >
+                  💸 Sell NGNs
+                </button>
+              </div>
+              <div className="w-full rounded-xl p-3 bg-white/[0.03] border border-white/[0.05]">
+                <p className="text-salvaGold/50 text-[9px] uppercase tracking-[0.15em] font-bold m-0 mb-2">
+                  How it works
+                </p>
+                {[
+                  'Buy: Transfer fiat → receive NGNs in wallet',
+                  'Sell: Burn NGNs → receive fiat in bank account',
+                ].map((s, i) => (
+                  <div key={i} className="flex gap-2 items-center mb-1.5 last:mb-0">
+                    <span className="w-4 h-4 rounded-full bg-salvaGold/20 text-salvaGold text-[9px] font-black flex items-center justify-center flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="text-white/40 text-[11px]">{s}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── BUY: AMOUNT ── */}
+          {mode === 'buy' && buyPhase === 'amount' && (
+            <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div className="text-center">
+                <div className="text-4xl mb-2">🛒</div>
+                <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Buy NGNs</h3>
+                <p className="text-white/40 text-[11px] m-0">
+                  Enter the amount you want to purchase
+                </p>
+              </div>
+              <div>
+                <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
+                  Amount (NGNs)
+                </p>
+                <div className="relative">
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
+                    value={amountDisplay}
+                    onChange={(e) => {
+                      const f = fmtInput(e.target.value);
+                      setAmountDisplay(f);
+                      setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
+                      setInitError('');
+                    }}
+                    className="w-full py-3 pl-3.5 pr-14 rounded-xl border border-salvaGold/25 bg-[#1a1a1b] text-[#f5f0e8] text-lg font-black outline-none focus:border-salvaGold/70 transition-colors box-border"
+                  />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs">
+                    NGNs
+                  </span>
                 </div>
-                <div className="text-center">
-                  <h3 className="text-[#f5f0e8] text-lg font-black m-0 mb-1">NGNs Exchange</h3>
-                  <p className="text-white/40 text-[11px] m-0">
-                    Buy or sell Nigerian Naira stablecoin
-                  </p>
-                </div>
-                <div className="flex gap-3 w-full">
-                  <button
-                    onClick={() => {
-                      setMintRequest(null);
-                      setMessages([]);
-                      setBuyPhase('amount');
-                      setMode('buy');
-                    }}
-                    className="flex-1 py-4 rounded-2xl text-sm font-black text-black cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
-                    style={{
-                      background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                      boxShadow: '0 0 20px rgba(212,175,55,0.3)',
-                    }}
-                  >
-                    🛒 Buy NGNs
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMintRequest(null);
-                      setMessages([]);
-                      setSellPhase('amount');
-                      setMode('sell');
-                      fetchBalance();
-                    }}
-                    className="flex-1 py-4 rounded-2xl text-sm font-black text-white cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
-                    style={{
-                      background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                      boxShadow: '0 0 20px rgba(239,68,68,0.3)',
-                    }}
-                  >
-                    💸 Sell NGNs
-                  </button>
-                </div>
-                <div className="w-full rounded-xl p-3 bg-white/[0.03] border border-white/[0.05]">
-                  <p className="text-salvaGold/50 text-[9px] uppercase tracking-[0.15em] font-bold m-0 mb-2">
-                    How it works
-                  </p>
+                <p className="text-white/30 text-[10px] mt-1">
+                  Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
+                  {otcConfig.maxNgn.toLocaleString()}
+                </p>
+              </div>
+              {buyValid && (
+                <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
                   {[
-                    'Buy: Transfer fiat → receive NGNs in wallet',
-                    'Sell: Burn NGNs → receive fiat in bank account',
-                  ].map((s, i) => (
-                    <div key={i} className="flex gap-2 items-center mb-1.5 last:mb-0">
-                      <span className="w-4 h-4 rounded-full bg-salvaGold/20 text-salvaGold text-[9px] font-black flex items-center justify-center flex-shrink-0">
-                        {i + 1}
+                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
+                    ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
+                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
+                  ].map(([l, v, c], i) => (
+                    <div
+                      key={i}
+                      className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}
+                    >
+                      <span className="text-white/45 text-[11px]">{l}</span>
+                      <span
+                        className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`}
+                        style={{ color: c }}
+                      >
+                        {v}
                       </span>
-                      <span className="text-white/40 text-[11px]">{s}</span>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+              {initError && (
+                <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
+                  <span className="text-sm flex-shrink-0">⚠️</span>
+                  <p className="text-red-400 text-[11px] font-bold m-0">{initError}</p>
+                </div>
+              )}
+              <button
+                onClick={() => buyValid && setBuyPhase('confirm')}
+                disabled={!buyValid}
+                className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'}`}
+                style={{
+                  background: buyValid
+                    ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
+                    : 'rgba(212,175,55,0.2)',
+                  color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
+                }}
+              >
+                Continue →
+              </button>
+            </div>
+          )}
 
-            {/* ── BUY: AMOUNT ── */}
-            {mode === 'buy' && buyPhase === 'amount' && (
-              <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+          {/* ── BUY: CONFIRM ── */}
+          {mode === 'buy' && buyPhase === 'confirm' && (
+            <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div className="text-center">
+                <div className="text-4xl mb-2">⚡</div>
+                <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Confirm Purchase</h3>
+                <p className="text-white/40 text-[11px] m-0">Review before proceeding</p>
+              </div>
+              <div className="rounded-2xl p-4 bg-salvaGold/[0.06] border border-salvaGold/20 space-y-2.5">
+                {[
+                  ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8', '13px'],
+                  [
+                    'Fee',
+                    fee > 0 ? `-${fee} NGNs` : 'Free',
+                    fee > 0 ? '#ef4444' : '#22c55e',
+                    '13px',
+                  ],
+                  ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37', '16px'],
+                ].map(([l, v, c, fs]) => (
+                  <div key={l} className="flex justify-between items-center">
+                    <span className="text-white/50 text-[12px]">{l}</span>
+                    <span className="font-black" style={{ color: c, fontSize: fs }}>
+                      {v}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {initError && <p className="text-red-400 text-[11px] text-center m-0">{initError}</p>}
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setBuyPhase('amount')}
+                  className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleBuyInitiate}
+                  disabled={initiating}
+                  className="flex-[2] py-3 rounded-xl border-none text-black text-[13px] font-black cursor-pointer flex items-center justify-center gap-1.5 hover:brightness-110 transition-all"
+                  style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+                >
+                  {initiating && <Spinner />}
+                  {initiating ? 'Starting…' : 'Confirm & Start'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── SELL: AMOUNT ── */}
+          {mode === 'sell' && sellPhase === 'amount' && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3 flex flex-col gap-3.5">
                 <div className="text-center">
-                  <div className="text-4xl mb-2">🛒</div>
-                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Buy NGNs</h3>
+                  <div className="text-4xl mb-2">💸</div>
+                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Sell NGNs</h3>
                   <p className="text-white/40 text-[11px] m-0">
-                    Enter the amount you want to purchase
+                    Balance: {ngnBalance.toLocaleString()} NGNs
                   </p>
                 </div>
                 <div>
                   <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
-                    Amount (NGNs)
+                    Amount to Burn (NGNs)
                   </p>
                   <div className="relative">
                     <input
                       type="text"
                       inputMode="decimal"
                       placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
-                      value={amountDisplay}
+                      value={sellAmountDisplay}
                       onChange={(e) => {
                         const f = fmtInput(e.target.value);
-                        setAmountDisplay(f);
-                        setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
-                        setInitError('');
+                        setSellAmountDisplay(f);
+                        const raw = parseFloat(f.replace(/,/g, '')) || 0;
+                        setSellAmountRaw(raw);
+                        setSellAmountError(
+                          raw > ngnBalance
+                            ? 'Insufficient NGNs balance'
+                            : raw > 0 && raw < otcConfig.minNgn
+                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
+                              : raw > otcConfig.maxNgn
+                                ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
+                                : ''
+                        );
                       }}
-                      className="w-full py-3 pl-3.5 pr-14 rounded-xl border border-salvaGold/25 bg-[#1a1a1b] text-[#f5f0e8] text-lg font-black outline-none focus:border-salvaGold/70 transition-colors box-border"
+                      className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${sellAmountError ? 'border-2 border-red-500 text-red-400' : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'}`}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs">
+                    <span
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${sellAmountError ? 'text-red-400' : 'text-salvaGold'}`}
+                    >
                       NGNs
                     </span>
                   </div>
+                  {sellAmountError && (
+                    <p className="text-red-400 text-[10px] font-bold mt-1 m-0">
+                      ⚠️ {sellAmountError}
+                    </p>
+                  )}
                   <p className="text-white/30 text-[10px] mt-1">
                     Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
                     {otcConfig.maxNgn.toLocaleString()}
                   </p>
                 </div>
-                {buyValid && (
+                {sellValid && (
                   <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
                     {[
-                      ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
-                      ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
-                      ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37'],
+                      ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`, '#f5f0e8'],
+                      ['Fee', `-${sellFee.toLocaleString()} NGNs`, '#ef4444'],
+                      ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`, '#D4AF37'],
                     ].map(([l, v, c], i) => (
                       <div
-                        key={i}
-                        className={`flex justify-between items-center ${
-                          i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
-                        }`}
+                        key={l}
+                        className={`flex justify-between items-center ${i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''}`}
                       >
                         <span className="text-white/45 text-[11px]">{l}</span>
                         <span
@@ -1207,405 +1345,236 @@ const SalvaNGNsChat = ({ user }) => {
                     ))}
                   </div>
                 )}
-                {initError && (
-                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
-                    <span className="text-sm flex-shrink-0">⚠️</span>
-                    <p className="text-red-400 text-[11px] font-bold m-0">{initError}</p>
-                  </div>
-                )}
+                <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.06] border border-red-500/15">
+                  <p className="text-red-400 text-[10px] m-0">
+                    ⚠️ NGNs are burned immediately on-chain. Cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e]">
                 <button
-                  onClick={() => buyValid && setBuyPhase('confirm')}
-                  disabled={!buyValid}
-                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${
-                    buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'
-                  }`}
+                  onClick={() => sellValid && setSellPhase('bank')}
+                  disabled={!sellValid}
+                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${sellValid ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]' : 'cursor-not-allowed'}`}
                   style={{
-                    background: buyValid
-                      ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
-                      : 'rgba(212,175,55,0.2)',
-                    color: buyValid ? '#000' : 'rgba(212,175,55,0.4)',
+                    background: sellValid
+                      ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
+                      : 'rgba(239,68,68,0.2)',
+                    color: sellValid ? '#fff' : 'rgba(239,68,68,0.4)',
                   }}
                 >
                   Continue →
                 </button>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* ── BUY: CONFIRM ── */}
-            {mode === 'buy' && buyPhase === 'confirm' && (
-              <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+          {/* ── SELL: BANK DETAILS ── */}
+          {mode === 'sell' && sellPhase === 'bank' && (
+            <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 flex flex-col gap-3">
                 <div className="text-center">
-                  <div className="text-4xl mb-2">⚡</div>
-                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">
-                    Confirm Purchase
+                  <div className="text-4xl mb-1.5">🏦</div>
+                  <h3 className="text-[#f5f0e8] text-[16px] font-black m-0 mb-1">
+                    Your Bank Details
                   </h3>
-                  <p className="text-white/40 text-[11px] m-0">Review before proceeding</p>
+                  <p className="text-white/40 text-[11px] m-0">
+                    Salva will pay ₦{sellPayout.toLocaleString()} here
+                  </p>
                 </div>
-                <div className="rounded-2xl p-4 bg-salvaGold/[0.06] border border-salvaGold/20 space-y-2.5">
-                  {[
-                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8', '13px'],
-                    [
-                      'Fee',
-                      fee > 0 ? `-${fee} NGNs` : 'Free',
-                      fee > 0 ? '#ef4444' : '#22c55e',
-                      '13px',
-                    ],
-                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37', '16px'],
-                  ].map(([l, v, c, fs]) => (
-                    <div key={l} className="flex justify-between items-center">
-                      <span className="text-white/50 text-[12px]">{l}</span>
-                      <span className="font-black" style={{ color: c, fontSize: fs }}>
-                        {v}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                {initError && (
-                  <p className="text-red-400 text-[11px] text-center m-0">{initError}</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setBuyPhase('amount')}
-                    className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleBuyInitiate}
-                    disabled={initiating}
-                    className="flex-[2] py-3 rounded-xl border-none text-black text-[13px] font-black cursor-pointer flex items-center justify-center gap-1.5 hover:brightness-110 transition-all"
-                    style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
-                  >
-                    {initiating && <Spinner />}
-                    {initiating ? 'Starting…' : 'Confirm & Start'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── SELL: AMOUNT ── */}
-            {mode === 'sell' && sellPhase === 'amount' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3 flex flex-col gap-3.5">
-                  <div className="text-center">
-                    <div className="text-4xl mb-2">💸</div>
-                    <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Sell NGNs</h3>
-                    <p className="text-white/40 text-[11px] m-0">
-                      Balance: {ngnBalance.toLocaleString()} NGNs
-                    </p>
-                  </div>
-                  <div>
+                {[
+                  {
+                    label: 'Bank Name',
+                    value: bankName,
+                    setter: setBankName,
+                    placeholder: 'e.g. OPay, GTBank',
+                  },
+                  {
+                    label: 'Account Number',
+                    value: accountNumber,
+                    setter: setAccountNumber,
+                    placeholder: '10-digit account number',
+                  },
+                  {
+                    label: 'Account Name',
+                    value: accountName,
+                    setter: setAccountName,
+                    placeholder: 'Full account name',
+                  },
+                ].map(({ label, value, setter, placeholder }) => (
+                  <div key={label}>
                     <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
-                      Amount to Burn (NGNs)
+                      {label}
                     </p>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        inputMode="decimal"
-                        placeholder={`e.g. ${otcConfig.minNgn.toLocaleString()}`}
-                        value={sellAmountDisplay}
-                        onChange={(e) => {
-                          const f = fmtInput(e.target.value);
-                          setSellAmountDisplay(f);
-                          const raw = parseFloat(f.replace(/,/g, '')) || 0;
-                          setSellAmountRaw(raw);
-                          setSellAmountError(
-                            raw > ngnBalance
-                              ? 'Insufficient NGNs balance'
-                              : raw > 0 && raw < otcConfig.minNgn
-                              ? `Minimum is ₦${otcConfig.minNgn.toLocaleString()}`
-                              : raw > otcConfig.maxNgn
-                              ? `Maximum is ₦${otcConfig.maxNgn.toLocaleString()}`
-                              : ''
-                          );
-                        }}
-                        className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${
-                          sellAmountError
-                            ? 'border-2 border-red-500 text-red-400'
-                            : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'
-                        }`}
-                      />
-                      <span
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${
-                          sellAmountError ? 'text-red-400' : 'text-salvaGold'
-                        }`}
-                      >
-                        NGNs
-                      </span>
-                    </div>
-                    {sellAmountError && (
-                      <p className="text-red-400 text-[10px] font-bold mt-1 m-0">
-                        ⚠️ {sellAmountError}
-                      </p>
-                    )}
-                    <p className="text-white/30 text-[10px] mt-1">
-                      Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
-                      {otcConfig.maxNgn.toLocaleString()}
-                    </p>
+                    <input
+                      type="text"
+                      placeholder={placeholder}
+                      value={value}
+                      onChange={(e) => setter(e.target.value)}
+                      className="w-full py-2.5 px-3.5 rounded-xl border border-salvaGold/20 bg-[#1a1a1b] text-[#f5f0e8] text-[13px] outline-none focus:border-salvaGold/60 transition-colors box-border"
+                    />
                   </div>
-                  {sellValid && (
-                    <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
-                      {[
-                        ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`, '#f5f0e8'],
-                        ['Fee', `-${sellFee.toLocaleString()} NGNs`, '#ef4444'],
-                        ['You Receive (fiat)', `₦${sellPayout.toLocaleString()}`, '#D4AF37'],
-                      ].map(([l, v, c], i) => (
-                        <div
-                          key={l}
-                          className={`flex justify-between items-center ${
-                            i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
-                          }`}
-                        >
-                          <span className="text-white/45 text-[11px]">{l}</span>
-                          <span
-                            className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`}
-                            style={{ color: c }}
-                          >
-                            {v}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.06] border border-red-500/15">
-                    <p className="text-red-400 text-[10px] m-0">
-                      ⚠️ NGNs are burned immediately on-chain. Cannot be undone.
-                    </p>
+                ))}
+                {sellError && (
+                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
+                    <span className="text-sm flex-shrink-0">⚠️</span>
+                    <p className="text-red-400 text-[11px] font-bold m-0">{sellError}</p>
                   </div>
-                </div>
-                <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e]">
-                  <button
-                    onClick={() => sellValid && setSellPhase('bank')}
-                    disabled={!sellValid}
-                    className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${
-                      sellValid
-                        ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]'
-                        : 'cursor-not-allowed'
-                    }`}
-                    style={{
-                      background: sellValid
-                        ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
-                        : 'rgba(239,68,68,0.2)',
-                      color: sellValid ? '#fff' : 'rgba(239,68,68,0.4)',
-                    }}
-                  >
-                    Continue →
-                  </button>
-                </div>
+                )}
               </div>
-            )}
-
-            {/* ── SELL: BANK DETAILS ── */}
-            {mode === 'sell' && sellPhase === 'bank' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 flex flex-col gap-3">
-                  <div className="text-center">
-                    <div className="text-4xl mb-1.5">🏦</div>
-                    <h3 className="text-[#f5f0e8] text-[16px] font-black m-0 mb-1">
-                      Your Bank Details
-                    </h3>
-                    <p className="text-white/40 text-[11px] m-0">
-                      Salva will pay ₦{sellPayout.toLocaleString()} here
-                    </p>
-                  </div>
-                  {[
-                    {
-                      label: 'Bank Name',
-                      value: bankName,
-                      setter: setBankName,
-                      placeholder: 'e.g. OPay, GTBank',
-                    },
-                    {
-                      label: 'Account Number',
-                      value: accountNumber,
-                      setter: setAccountNumber,
-                      placeholder: '10-digit account number',
-                    },
-                    {
-                      label: 'Account Name',
-                      value: accountName,
-                      setter: setAccountName,
-                      placeholder: 'Full account name',
-                    },
-                  ].map(({ label, value, setter, placeholder }) => (
-                    <div key={label}>
-                      <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
-                        {label}
-                      </p>
-                      <input
-                        type="text"
-                        placeholder={placeholder}
-                        value={value}
-                        onChange={(e) => setter(e.target.value)}
-                        className="w-full py-2.5 px-3.5 rounded-xl border border-salvaGold/20 bg-[#1a1a1b] text-[#f5f0e8] text-[13px] outline-none focus:border-salvaGold/60 transition-colors box-border"
-                      />
-                    </div>
-                  ))}
-                  {sellError && (
-                    <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
-                      <span className="text-sm flex-shrink-0">⚠️</span>
-                      <p className="text-red-400 text-[11px] font-bold m-0">{sellError}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e] flex gap-2">
-                  <button
-                    onClick={() => setSellPhase('amount')}
-                    className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
-                  >
-                    Back
-                  </button>
-                  <button
-                    onClick={handleSellInitiate}
-                    disabled={
+              <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e] flex gap-2">
+                <button
+                  onClick={() => setSellPhase('amount')}
+                  className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleSellInitiate}
+                  disabled={
+                    sellInitiating ||
+                    !bankName.trim() ||
+                    !accountNumber.trim() ||
+                    !accountName.trim()
+                  }
+                  className="flex-[2] py-3 rounded-xl border-none text-white text-[13px] font-black flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                  style={{
+                    background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
+                    opacity:
+                      !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
+                    cursor:
                       sellInitiating ||
                       !bankName.trim() ||
                       !accountNumber.trim() ||
                       !accountName.trim()
-                    }
-                    className="flex-[2] py-3 rounded-xl border-none text-white text-[13px] font-black flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
-                    style={{
-                      background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
-                      opacity:
-                        !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
-                      cursor:
-                        sellInitiating ||
-                        !bankName.trim() ||
-                        !accountNumber.trim() ||
-                        !accountName.trim()
-                          ? 'not-allowed'
-                          : 'pointer',
-                    }}
-                  >
-                    {sellInitiating && <Spinner color="#fff" />}
-                    {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* ── SHARED CHAT ── */}
-            {((mode === 'buy' && buyPhase === 'chat') ||
-              (mode === 'sell' && sellPhase === 'chat')) && (
-              <>
-                <div
-                  ref={chatContainerRef}
-                  onScroll={(e) => {
-                    const el = e.currentTarget;
-                    isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                        ? 'not-allowed'
+                        : 'pointer',
                   }}
-                  className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2 bg-[#0a0a0b]"
                 >
-                  {messages.length === 0 && (
-                    <div className="flex-1 flex items-center justify-center opacity-40">
-                      <p className="text-salvaGold text-[12px] m-0">Loading messages…</p>
-                    </div>
-                  )}
+                  {sellInitiating && <Spinner color="#fff" />}
+                  {sellInitiating ? 'Burning…' : '🔥 Burn & Submit'}
+                </button>
+              </div>
+            </div>
+          )}
 
-                  {messages.map((msg, i) => (
-                    <Bubble key={msg._id || i} msg={msg} />
-                  ))}
+          {/* ── SHARED CHAT ── */}
+          {((mode === 'buy' && buyPhase === 'chat') ||
+            (mode === 'sell' && sellPhase === 'chat')) && (
+            <>
+              <div
+                ref={chatContainerRef}
+                onScroll={(e) => {
+                  const el = e.currentTarget;
+                  isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                }}
+                className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2 bg-[#0a0a0b]"
+              >
+                {messages.length === 0 && (
+                  <div className="flex-1 flex items-center justify-center opacity-40">
+                    <p className="text-salvaGold text-[12px] m-0">Loading messages…</p>
+                  </div>
+                )}
 
-                  {mode === 'buy' && status === 'pending' && sellerInfo && (
-                    <div className="px-3.5 py-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 my-1">
-                      <p className="text-salvaGold/70 text-[9px] uppercase tracking-[0.12em] font-bold m-0 mb-2.5">
-                        📤 Send your payment to:
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        {[
-                          { label: 'Bank', value: sellerInfo.bankName },
-                          { label: 'Account Name', value: sellerInfo.accountName },
-                          { label: 'Account Number', value: sellerInfo.accountNumber },
-                        ].map(({ label, value }) => (
-                          <div key={label} className="flex justify-between items-center gap-2">
-                            <span className="text-white/35 text-[10px] flex-shrink-0">{label}</span>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-[#f5f0e8] text-[12px] font-bold truncate">
-                                {value || '—'}
-                              </span>
-                              {value && <CopyBtn value={value} />}
-                            </div>
+                {messages.map((msg, i) => (
+                  <Bubble key={msg._id || i} msg={msg} />
+                ))}
+
+                {mode === 'buy' && status === 'pending' && sellerInfo && (
+                  <div className="px-3.5 py-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 my-1">
+                    <p className="text-salvaGold/70 text-[9px] uppercase tracking-[0.12em] font-bold m-0 mb-2.5">
+                      📤 Send your payment to:
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {[
+                        { label: 'Bank', value: sellerInfo.bankName },
+                        { label: 'Account Name', value: sellerInfo.accountName },
+                        { label: 'Account Number', value: sellerInfo.accountNumber },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="flex justify-between items-center gap-2">
+                          <span className="text-white/35 text-[10px] flex-shrink-0">{label}</span>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[#f5f0e8] text-[12px] font-bold truncate">
+                              {value || '—'}
+                            </span>
+                            {value && <CopyBtn value={value} />}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      ))}
                     </div>
-                  )}
+                  </div>
+                )}
 
-                  {mode === 'buy' &&
-                    status === 'pending' &&
-                    messages.length > 0 &&
-                    !showReceiptUpload && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="flex justify-end"
-                      >
-                        <button
-                          onClick={() => setShowReceiptUpload(true)}
-                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-none text-black text-[12px] font-black cursor-pointer hover:brightness-110 transition-all active:scale-[0.97]"
-                          style={{
-                            background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
-                            boxShadow: '0 0 16px rgba(212,175,55,0.4)',
-                          }}
-                        >
-                          ✅ I Have Paid
-                        </button>
-                      </motion.div>
-                    )}
-
-                  {isBurning && (
-                    <div className="p-3 rounded-xl bg-red-500/[0.06] border border-red-500/20 flex items-center gap-2.5">
-                      <div
-                        className="w-4 h-4 rounded-full border-2 border-red-500/30 border-t-red-500 flex-shrink-0"
-                        style={{ animation: 'spin 0.8s linear infinite' }}
-                      />
-                      <p className="text-red-400 text-[12px] font-bold m-0">
-                        ⚠️ Burn in progress — do NOT submit another request. Refresh if this takes
-                        over 2 minutes.
-                      </p>
-                    </div>
-                  )}
-                  {status === 'minting' && (
-                    <div className="p-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center gap-2.5">
-                      <div
-                        className="w-4 h-4 rounded-full border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0"
-                        style={{ animation: 'spin 0.8s linear infinite' }}
-                      />
-                      <p className="text-salvaGold text-[12px] font-bold m-0">
-                        Minting on-chain… please wait.
-                      </p>
-                    </div>
-                  )}
-
-                  {(isMinted || isRejected || isBurned) && (
-                    <button
-                      onClick={resetAll}
-                      className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${
-                        isMinted
-                          ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                          : 'bg-red-500/10 border-red-500/30 text-red-400'
-                      }`}
+                {mode === 'buy' &&
+                  status === 'pending' &&
+                  messages.length > 0 &&
+                  !showReceiptUpload && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="flex justify-end"
                     >
-                      {isMinted
-                        ? 'Buy More NGNs →'
-                        : isBurned
+                      <button
+                        onClick={() => setShowReceiptUpload(true)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-none text-black text-[12px] font-black cursor-pointer hover:brightness-110 transition-all active:scale-[0.97]"
+                        style={{
+                          background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                          boxShadow: '0 0 16px rgba(212,175,55,0.4)',
+                        }}
+                      >
+                        ✅ I Have Paid
+                      </button>
+                    </motion.div>
+                  )}
+
+                {isBurning && (
+                  <div className="p-3 rounded-xl bg-red-500/[0.06] border border-red-500/20 flex items-center gap-2.5">
+                    <div
+                      className="w-4 h-4 rounded-full border-2 border-red-500/30 border-t-red-500 flex-shrink-0"
+                      style={{ animation: 'spin 0.8s linear infinite' }}
+                    />
+                    <p className="text-red-400 text-[12px] font-bold m-0">
+                      ⚠️ Burn in progress — do NOT submit another request. Refresh if this takes
+                      over 2 minutes.
+                    </p>
+                  </div>
+                )}
+                {status === 'minting' && (
+                  <div className="p-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center gap-2.5">
+                    <div
+                      className="w-4 h-4 rounded-full border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0"
+                      style={{ animation: 'spin 0.8s linear infinite' }}
+                    />
+                    <p className="text-salvaGold text-[12px] font-bold m-0">
+                      Minting on-chain… please wait.
+                    </p>
+                  </div>
+                )}
+
+                {(isMinted || isRejected || isBurned) && (
+                  <button
+                    onClick={resetAll}
+                    className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${isMinted ? 'bg-green-500/15 border-green-500/30 text-green-400' : 'bg-red-500/10 border-red-500/30 text-red-400'}`}
+                  >
+                    {isMinted
+                      ? 'Buy More NGNs →'
+                      : isBurned
                         ? 'New Transaction →'
                         : 'Start New Request →'}
-                    </button>
-                  )}
-
-                  <div ref={chatEndRef} />
-                </div>
-
-                {canChat && (
-                  <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
+                  </button>
                 )}
-              </>
-            )}
-          </div>
-          <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
-        </motion.div>
-      </div>
+
+                <div ref={chatEndRef} />
+              </div>
+
+              {canChat && (
+                <MessageInput onSend={handleSend} onImage={handleSendImage} disabled={sending} />
+              )}
+            </>
+          )}
+        </div>
+        <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+      </motion.div>
     </>
   );
 };

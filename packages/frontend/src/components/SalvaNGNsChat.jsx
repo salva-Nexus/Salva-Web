@@ -4,6 +4,20 @@ import NetworkReminder, { useNetworkReminder } from './NetworkReminder';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
 
+// ── Mobile content-scale helpers — see SalvaSellerChat.jsx for the full
+// explanation. Container size is never touched; only content inside scales. ──
+const px = (n) => `calc(${n}px * var(--cscale, 1))`;
+const pxs = (...vals) => vals.map((v) => (typeof v === 'number' ? px(v) : v)).join(' ');
+
+const ContentScaleStyle = () => (
+  <style>{`
+    .snc-scale { --cscale: 1; }
+    @media (max-width: 639px) {
+      .snc-scale { --cscale: 0.7; }
+    }
+  `}</style>
+);
+
 const fmtInput = (raw) => {
   const d = raw.replace(/[^0-9.]/g, '');
   const p = d.split('.');
@@ -44,12 +58,12 @@ const CopyBtn = ({ value, label }) => {
     <button
       onClick={copy}
       style={{
-        padding: '3px 9px',
-        borderRadius: '6px',
+        padding: pxs(3, 9),
+        borderRadius: px(6),
         background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(212,175,55,0.12)',
         border: `1px solid ${copied ? 'rgba(34,197,94,0.4)' : 'rgba(212,175,55,0.3)'}`,
         color: copied ? '#22c55e' : '#D4AF37',
-        fontSize: '9px',
+        fontSize: px(9),
         fontWeight: '700',
         cursor: 'pointer',
         textTransform: 'uppercase',
@@ -101,21 +115,21 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
   return (
     <div
       style={{
-        padding: '7px 10px',
+        padding: pxs(7, 10),
         background: '#0d0d0e',
         borderTop: '1px solid rgba(212,175,55,0.15)',
         flexShrink: 0,
       }}
     >
-      <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: px(8), alignItems: 'flex-end' }}>
         <button
           onClick={() => fileRef.current?.click()}
           disabled={disabled}
           style={{
             flexShrink: 0,
-            width: '36px',
-            height: '36px',
-            borderRadius: '9px',
+            width: px(36),
+            height: px(36),
+            borderRadius: px(9),
             background: 'rgba(212,175,55,0.12)',
             border: '1px solid rgba(212,175,55,0.2)',
             cursor: disabled ? 'not-allowed' : 'pointer',
@@ -126,8 +140,7 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
           title="Upload image"
         >
           <svg
-            width="14"
-            height="14"
+            style={{ width: px(14), height: px(14) }}
             fill="none"
             stroke="#D4AF37"
             strokeWidth="2"
@@ -157,18 +170,18 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
           rows={1}
           style={{
             flex: 1,
-            padding: '9px 12px',
-            borderRadius: '12px',
+            padding: pxs(9, 12),
+            borderRadius: px(12),
             border: '1px solid rgba(212,175,55,0.2)',
             background: '#1a1a1b',
             color: '#f5f0e8',
-            fontSize: '13px',
+            fontSize: px(13),
             outline: 'none',
             resize: 'none',
             overflowY: 'hidden',
             lineHeight: '1.5',
             fontFamily: 'inherit',
-            minHeight: '38px',
+            minHeight: px(38),
             maxHeight: '100px',
             transition: 'border-color 0.2s',
           }}
@@ -180,9 +193,9 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
           disabled={disabled || !text.trim()}
           style={{
             flexShrink: 0,
-            width: '36px',
-            height: '36px',
-            borderRadius: '10px',
+            width: px(36),
+            height: px(36),
+            borderRadius: px(10),
             background:
               disabled || !text.trim()
                 ? 'rgba(212,175,55,0.2)'
@@ -196,8 +209,7 @@ const MessageInput = memo(({ onSend, onImage, disabled, placeholder = 'Ask a que
           }}
         >
           <svg
-            width="14"
-            height="14"
+            style={{ width: px(14), height: px(14) }}
             fill={disabled || !text.trim() ? 'rgba(212,175,55,0.4)' : '#000'}
             viewBox="0 0 24 24"
           >
@@ -218,29 +230,24 @@ const Bubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: '8px 0',
-          padding: '14px 16px',
-          borderRadius: '16px',
+          margin: pxs(8, 0),
+          padding: pxs(14, 16),
+          borderRadius: px(16),
           background: 'linear-gradient(135deg, rgba(34,197,94,0.15), rgba(34,197,94,0.05))',
           border: '1px solid rgba(34,197,94,0.4)',
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '28px', marginBottom: '6px' }}>🎉</div>
+        <div style={{ fontSize: px(28), marginBottom: px(6) }}>🎉</div>
         <p
-          style={{
-            color: '#22c55e',
-            fontWeight: '900',
-            fontSize: '13px',
-            margin: '0 0 4px',
-          }}
+          style={{ color: '#22c55e', fontWeight: '900', fontSize: px(13), margin: `0 0 ${px(4)}` }}
         >
           NGNs Minted!
         </p>
         <p
           style={{
             color: 'rgba(255,255,255,0.6)',
-            fontSize: '11px',
+            fontSize: px(11),
             margin: 0,
             whiteSpace: 'pre-line',
           }}
@@ -257,29 +264,24 @@ const Bubble = memo(({ msg }) => {
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
         style={{
-          margin: '8px 0',
-          padding: '14px 16px',
-          borderRadius: '16px',
+          margin: pxs(8, 0),
+          padding: pxs(14, 16),
+          borderRadius: px(16),
           background: 'linear-gradient(135deg, rgba(239,68,68,0.12), rgba(239,68,68,0.05))',
           border: '1px solid rgba(239,68,68,0.35)',
           textAlign: 'center',
         }}
       >
-        <div style={{ fontSize: '28px', marginBottom: '6px' }}>🔥</div>
+        <div style={{ fontSize: px(28), marginBottom: px(6) }}>🔥</div>
         <p
-          style={{
-            color: '#ef4444',
-            fontWeight: '900',
-            fontSize: '13px',
-            margin: '0 0 4px',
-          }}
+          style={{ color: '#ef4444', fontWeight: '900', fontSize: px(13), margin: `0 0 ${px(4)}` }}
         >
           Sell Request Submitted
         </p>
         <p
           style={{
             color: 'rgba(255,255,255,0.6)',
-            fontSize: '11px',
+            fontSize: px(11),
             margin: 0,
             whiteSpace: 'pre-line',
           }}
@@ -296,21 +298,21 @@ const Bubble = memo(({ msg }) => {
         display: 'flex',
         justifyContent: isMe ? 'flex-end' : 'flex-start',
         alignItems: 'flex-end',
-        gap: '6px',
+        gap: px(6),
       }}
     >
       {!isMe && (
         <div
           style={{
-            width: '26px',
-            height: '26px',
-            borderRadius: '8px',
+            width: px(26),
+            height: px(26),
+            borderRadius: px(8),
             flexShrink: 0,
             background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '10px',
+            fontSize: px(10),
             fontWeight: '900',
             color: '#000',
           }}
@@ -321,8 +323,8 @@ const Bubble = memo(({ msg }) => {
       <div
         style={{
           maxWidth: '78%',
-          padding: '10px 13px',
-          borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+          padding: pxs(10, 13),
+          borderRadius: isMe ? pxs(16, 16, 4, 16) : pxs(16, 16, 16, 4),
           background: isMe ? 'linear-gradient(135deg, #D4AF37, #b8941e)' : 'rgba(255,255,255,0.05)',
           border: isMe ? 'none' : '1px solid rgba(212,175,55,0.15)',
         }}
@@ -333,9 +335,9 @@ const Bubble = memo(({ msg }) => {
             alt="attachment"
             style={{
               maxWidth: '100%',
-              maxHeight: '180px',
-              borderRadius: '10px',
-              marginBottom: msg.text ? '6px' : 0,
+              maxHeight: px(180),
+              borderRadius: px(10),
+              marginBottom: msg.text ? px(6) : 0,
               display: 'block',
               objectFit: 'contain',
             }}
@@ -344,7 +346,7 @@ const Bubble = memo(({ msg }) => {
         {msg.text && (
           <p
             style={{
-              fontSize: '11px',
+              fontSize: px(11),
               color: isMe ? '#000' : '#f5f0e8',
               margin: 0,
               lineHeight: '1.55',
@@ -357,9 +359,9 @@ const Bubble = memo(({ msg }) => {
         )}
         <p
           style={{
-            fontSize: '9px',
+            fontSize: px(9),
             color: isMe ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.35)',
-            margin: '4px 0 0',
+            margin: `${px(4)} 0 0`,
             textAlign: 'right',
           }}
         >
@@ -367,7 +369,7 @@ const Bubble = memo(({ msg }) => {
             hour: '2-digit',
             minute: '2-digit',
           })}
-          {isMe && <span style={{ marginLeft: '4px' }}>✓</span>}
+          {isMe && <span style={{ marginLeft: px(4) }}>✓</span>}
         </p>
       </div>
     </div>
@@ -379,14 +381,12 @@ const SalvaNGNsChat = ({ user }) => {
   const [mode, setMode] = useState(null);
   const [showNetworkReminder, setShowNetworkReminder] = useState(false);
 
-  // ── OTC Config ────────────────────────────────────────────────────────────
   const [otcConfig, setOtcConfig] = useState({
     minNgn: 10000,
     maxNgn: 200000,
     feePercent: 0.2,
   });
 
-  // ── Buy state ────────────────────────────────────────────────────────────
   const [buyPhase, setBuyPhase] = useState('amount');
   const [amountDisplay, setAmountDisplay] = useState('');
   const [amountRaw, setAmountRaw] = useState(0);
@@ -394,7 +394,6 @@ const SalvaNGNsChat = ({ user }) => {
   const [initError, setInitError] = useState('');
   const [sellerInfo, setSellerInfo] = useState(null);
 
-  // ── Sell state ───────────────────────────────────────────────────────────
   const [sellPhase, setSellPhase] = useState('amount');
   const [sellAmountDisplay, setSellAmountDisplay] = useState('');
   const [sellAmountRaw, setSellAmountRaw] = useState(0);
@@ -406,7 +405,6 @@ const SalvaNGNsChat = ({ user }) => {
   const [sellInitiating, setSellInitiating] = useState(false);
   const [ngnBalance, setNgnBalance] = useState(0);
 
-  // ── Shared chat state ─────────────────────────────────────────────────────
   const [mintRequest, setMintRequest] = useState(null);
   const [messages, setMessages] = useState([]);
   const [sending, setSending] = useState(false);
@@ -734,8 +732,8 @@ const SalvaNGNsChat = ({ user }) => {
   const Spinner = ({ color = '#000' }) => (
     <span
       style={{
-        width: '10px',
-        height: '10px',
+        width: px(10),
+        height: px(10),
         border: `2px solid ${color}30`,
         borderTopColor: color,
         borderRadius: '50%',
@@ -743,22 +741,6 @@ const SalvaNGNsChat = ({ user }) => {
         animation: 'spin 0.6s linear infinite',
       }}
     />
-  );
-
-  const SectionLabel = ({ children, color = 'rgba(212,175,55,0.6)' }) => (
-    <label
-      style={{
-        color,
-        fontSize: '9px',
-        textTransform: 'uppercase',
-        letterSpacing: '0.15em',
-        fontWeight: '700',
-        display: 'block',
-        marginBottom: '6px',
-      }}
-    >
-      {children}
-    </label>
   );
 
   if (!isOpen) {
@@ -802,6 +784,7 @@ const SalvaNGNsChat = ({ user }) => {
 
   return (
     <>
+      <ContentScaleStyle />
       <AnimatePresence>
         {showReceiptUpload && (
           <motion.div
@@ -844,14 +827,7 @@ const SalvaNGNsChat = ({ user }) => {
                   alignItems: 'center',
                 }}
               >
-                <p
-                  style={{
-                    color: '#f5f0e8',
-                    fontSize: '13px',
-                    fontWeight: '700',
-                    margin: 0,
-                  }}
-                >
+                <p style={{ color: '#f5f0e8', fontSize: '13px', fontWeight: '700', margin: 0 }}>
                   Upload Payment Receipt
                 </p>
                 <button
@@ -895,13 +871,7 @@ const SalvaNGNsChat = ({ user }) => {
                   ) : (
                     <>
                       <div style={{ fontSize: '28px', marginBottom: '8px' }}>📎</div>
-                      <p
-                        style={{
-                          color: 'rgba(212,175,55,0.7)',
-                          fontSize: '12px',
-                          margin: 0,
-                        }}
-                      >
+                      <p style={{ color: 'rgba(212,175,55,0.7)', fontSize: '12px', margin: 0 }}>
                         Tap to select receipt
                       </p>
                     </>
@@ -970,13 +940,9 @@ const SalvaNGNsChat = ({ user }) => {
         onClick={() => setIsOpen(false)}
         style={{ touchAction: 'none' }}
       />
-      {/* Outer plain div owns the mobile-shrink scale — framer-motion writes
-          its own inline transform on motion.div for the entrance animation,
-          which silently overrides any transform-based Tailwind class placed
-          directly on that same element. Keeping the scale on this untouched
-          wrapper is what actually makes it apply. */}
+      {/* Container — width/height/border/background fixed and NEVER scaled. */}
       <div
-        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right scale-[0.42] sm:scale-100 sm:bottom-6 sm:right-6 sm:w-[320px]"
+        className="fixed bottom-2 right-2 z-[9000] origin-bottom-right sm:bottom-6 sm:right-6"
         style={{ width: '320px' }}
       >
         <motion.div
@@ -984,11 +950,16 @@ const SalvaNGNsChat = ({ user }) => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
+          <div className="snc-scale h-[520px] bg-[#0d0d0e] border border-salvaGold/20 rounded-[22px] overflow-hidden flex flex-col shadow-[0_28px_72px_rgba(0,0,0,0.8)]">
             {/* ── HEADER ── */}
             <div
-              className="flex items-center gap-2.5 px-3 py-2.5 border-b border-salvaGold/25 flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg, #1a1500, #111100)' }}
+              className="flex items-center flex-shrink-0"
+              style={{
+                gap: px(10),
+                padding: pxs(10, 12),
+                borderBottom: '1px solid rgba(212,175,55,0.25)',
+                background: 'linear-gradient(135deg, #1a1500, #111100)',
+              }}
             >
               {mode &&
                 (buyPhase === 'amount' ||
@@ -1009,7 +980,8 @@ const SalvaNGNsChat = ({ user }) => {
                         } else if (sellPhase === 'bank') setSellPhase('amount');
                       }
                     }}
-                    className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+                    className="text-salvaGold/60 cursor-pointer bg-transparent border-none flex-shrink-0 hover:text-salvaGold transition-colors"
+                    style={{ fontSize: px(18), lineHeight: 1, paddingRight: px(4) }}
                   >
                     ←
                   </button>
@@ -1024,14 +996,19 @@ const SalvaNGNsChat = ({ user }) => {
                     setSellPhase('amount');
                     setMode(null);
                   }}
-                  className="text-salvaGold/60 text-lg leading-none cursor-pointer bg-transparent border-none pr-1 flex-shrink-0 hover:text-salvaGold transition-colors"
+                  className="text-salvaGold/60 cursor-pointer bg-transparent border-none flex-shrink-0 hover:text-salvaGold transition-colors"
+                  style={{ fontSize: px(18), lineHeight: 1, paddingRight: px(4) }}
                 >
                   ←
                 </button>
               )}
               <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base font-black"
+                className="flex items-center justify-center flex-shrink-0 font-black"
                 style={{
+                  width: px(36),
+                  height: px(36),
+                  borderRadius: px(12),
+                  fontSize: px(16),
                   background:
                     mode === 'sell'
                       ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
@@ -1042,10 +1019,10 @@ const SalvaNGNsChat = ({ user }) => {
                 ₦
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[#f5f0e8] text-[13px] font-black m-0 truncate">
+                <p className="text-[#f5f0e8] font-black m-0 truncate" style={{ fontSize: px(13) }}>
                   {!mode ? 'NGNs Exchange' : mode === 'sell' ? 'Sell NGNs' : 'Buy NGNs'}
                 </p>
-                <p className="text-salvaGold/60 text-[10px] m-0 truncate">
+                <p className="text-salvaGold/60 m-0 truncate" style={{ fontSize: px(10) }}>
                   {!mode
                     ? 'Choose an option'
                     : mode === 'buy'
@@ -1067,7 +1044,8 @@ const SalvaNGNsChat = ({ user }) => {
               </div>
               <button
                 onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/[0.07] border border-white/10 cursor-pointer text-white/50 text-base flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+                className="rounded-full bg-white/[0.07] border border-white/10 cursor-pointer text-white/50 flex items-center justify-center flex-shrink-0 hover:bg-white/10 transition-all"
+                style={{ width: px(28), height: px(28), fontSize: px(16) }}
               >
                 ×
               </button>
@@ -1075,22 +1053,38 @@ const SalvaNGNsChat = ({ user }) => {
 
             {/* ── MODE SELECTOR ── */}
             {!mode && (
-              <div className="flex-1 flex flex-col items-center justify-center p-6 gap-4">
-                {/* Gold accent line */}
-                <div className="w-px h-8 bg-gradient-to-b from-transparent via-salvaGold/40 to-transparent" />
+              <div
+                className="flex-1 flex flex-col items-center justify-center"
+                style={{ padding: px(24), gap: px(16) }}
+              >
                 <div
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center text-2xl font-black text-black shadow-lg shadow-salvaGold/20"
-                  style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+                  className="bg-gradient-to-b from-transparent via-salvaGold/40 to-transparent"
+                  style={{ width: '1px', height: px(32) }}
+                />
+                <div
+                  className="flex items-center justify-center font-black text-black shadow-lg shadow-salvaGold/20"
+                  style={{
+                    width: px(56),
+                    height: px(56),
+                    borderRadius: px(16),
+                    fontSize: px(24),
+                    background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                  }}
                 >
                   ₦
                 </div>
                 <div className="text-center">
-                  <h3 className="text-[#f5f0e8] text-lg font-black m-0 mb-1">NGNs Exchange</h3>
-                  <p className="text-white/40 text-[11px] m-0">
+                  <h3
+                    className="text-[#f5f0e8] font-black m-0"
+                    style={{ fontSize: px(18), marginBottom: px(4) }}
+                  >
+                    NGNs Exchange
+                  </h3>
+                  <p className="text-white/40 m-0" style={{ fontSize: px(11) }}>
                     Buy or sell Nigerian Naira stablecoin
                   </p>
                 </div>
-                <div className="flex gap-3 w-full">
+                <div className="flex w-full" style={{ gap: px(12) }}>
                   <button
                     onClick={() => {
                       setMintRequest(null);
@@ -1098,8 +1092,11 @@ const SalvaNGNsChat = ({ user }) => {
                       setBuyPhase('amount');
                       setMode('buy');
                     }}
-                    className="flex-1 py-4 rounded-2xl text-sm font-black text-black cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                    className="flex-1 font-black text-black cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
                     style={{
+                      padding: px(16),
+                      borderRadius: px(16),
+                      fontSize: px(14),
                       background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
                       boxShadow: '0 0 20px rgba(212,175,55,0.3)',
                     }}
@@ -1114,8 +1111,11 @@ const SalvaNGNsChat = ({ user }) => {
                       setMode('sell');
                       fetchBalance();
                     }}
-                    className="flex-1 py-4 rounded-2xl text-sm font-black text-white cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
+                    className="flex-1 font-black text-white cursor-pointer border-none transition-all hover:brightness-110 active:scale-[0.97]"
                     style={{
+                      padding: px(16),
+                      borderRadius: px(16),
+                      fontSize: px(14),
                       background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
                       boxShadow: '0 0 20px rgba(239,68,68,0.3)',
                     }}
@@ -1123,19 +1123,34 @@ const SalvaNGNsChat = ({ user }) => {
                     💸 Sell NGNs
                   </button>
                 </div>
-                <div className="w-full rounded-xl p-3 bg-white/[0.03] border border-white/[0.05]">
-                  <p className="text-salvaGold/50 text-[9px] uppercase tracking-[0.15em] font-bold m-0 mb-2">
+                <div
+                  className="w-full bg-white/[0.03] border border-white/[0.05]"
+                  style={{ borderRadius: px(12), padding: px(12) }}
+                >
+                  <p
+                    className="text-salvaGold/50 uppercase font-bold m-0"
+                    style={{ fontSize: px(9), letterSpacing: '0.15em', marginBottom: px(8) }}
+                  >
                     How it works
                   </p>
                   {[
                     'Buy: Transfer fiat → receive NGNs in wallet',
                     'Sell: Burn NGNs → receive fiat in bank account',
                   ].map((s, i) => (
-                    <div key={i} className="flex gap-2 items-center mb-1.5 last:mb-0">
-                      <span className="w-4 h-4 rounded-full bg-salvaGold/20 text-salvaGold text-[9px] font-black flex items-center justify-center flex-shrink-0">
+                    <div
+                      key={i}
+                      className="flex items-center"
+                      style={{ gap: px(8), marginBottom: i === 0 ? px(6) : 0 }}
+                    >
+                      <span
+                        className="rounded-full bg-salvaGold/20 text-salvaGold font-black flex items-center justify-center flex-shrink-0"
+                        style={{ width: px(16), height: px(16), fontSize: px(9) }}
+                      >
                         {i + 1}
                       </span>
-                      <span className="text-white/40 text-[11px]">{s}</span>
+                      <span className="text-white/40" style={{ fontSize: px(11) }}>
+                        {s}
+                      </span>
                     </div>
                   ))}
                 </div>
@@ -1144,16 +1159,27 @@ const SalvaNGNsChat = ({ user }) => {
 
             {/* ── BUY: AMOUNT ── */}
             {mode === 'buy' && buyPhase === 'amount' && (
-              <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div
+                className="flex-1 flex flex-col justify-center overflow-y-auto"
+                style={{ padding: `${px(24)} ${px(20)}`, gap: px(16) }}
+              >
                 <div className="text-center">
-                  <div className="text-4xl mb-2">🛒</div>
-                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Buy NGNs</h3>
-                  <p className="text-white/40 text-[11px] m-0">
+                  <div style={{ fontSize: px(36), marginBottom: px(8) }}>🛒</div>
+                  <h3
+                    className="text-[#f5f0e8] font-black m-0"
+                    style={{ fontSize: px(17), marginBottom: px(4) }}
+                  >
+                    Buy NGNs
+                  </h3>
+                  <p className="text-white/40 m-0" style={{ fontSize: px(11) }}>
                     Enter the amount you want to purchase
                   </p>
                 </div>
                 <div>
-                  <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
+                  <p
+                    className="text-salvaGold/60 uppercase font-bold"
+                    style={{ fontSize: px(9), letterSpacing: '0.15em', marginBottom: px(6) }}
+                  >
                     Amount (NGNs)
                   </p>
                   <div className="relative">
@@ -1168,19 +1194,30 @@ const SalvaNGNsChat = ({ user }) => {
                         setAmountRaw(parseFloat(f.replace(/,/g, '')) || 0);
                         setInitError('');
                       }}
-                      className="w-full py-3 pl-3.5 pr-14 rounded-xl border border-salvaGold/25 bg-[#1a1a1b] text-[#f5f0e8] text-lg font-black outline-none focus:border-salvaGold/70 transition-colors box-border"
+                      className="w-full border border-salvaGold/25 bg-[#1a1a1b] text-[#f5f0e8] font-black outline-none focus:border-salvaGold/70 transition-colors box-border"
+                      style={{
+                        padding: `${px(12)} ${px(56)} ${px(12)} ${px(14)}`,
+                        borderRadius: px(12),
+                        fontSize: px(18),
+                      }}
                     />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs">
+                    <span
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-salvaGold font-black"
+                      style={{ fontSize: px(12) }}
+                    >
                       NGNs
                     </span>
                   </div>
-                  <p className="text-white/30 text-[10px] mt-1">
+                  <p className="text-white/30" style={{ fontSize: px(10), marginTop: px(4) }}>
                     Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
                     {otcConfig.maxNgn.toLocaleString()}
                   </p>
                 </div>
                 {buyValid && (
-                  <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
+                  <div
+                    className="bg-salvaGold/5 border border-salvaGold/15"
+                    style={{ borderRadius: px(12), padding: px(14) }}
+                  >
                     {[
                       ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8'],
                       ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e'],
@@ -1188,14 +1225,19 @@ const SalvaNGNsChat = ({ user }) => {
                     ].map(([l, v, c], i) => (
                       <div
                         key={i}
-                        className={`flex justify-between items-center ${
-                          i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
-                        }`}
+                        className="flex justify-between items-center"
+                        style={{
+                          paddingTop: i === 2 ? px(8) : 0,
+                          borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
+                          marginTop: i === 1 ? px(6) : i === 2 ? px(6) : 0,
+                        }}
                       >
-                        <span className="text-white/45 text-[11px]">{l}</span>
+                        <span className="text-white/45" style={{ fontSize: px(11) }}>
+                          {l}
+                        </span>
                         <span
-                          className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`}
-                          style={{ color: c }}
+                          className="font-black"
+                          style={{ color: c, fontSize: i === 2 ? px(14) : px(11) }}
                         >
                           {v}
                         </span>
@@ -1204,18 +1246,26 @@ const SalvaNGNsChat = ({ user }) => {
                   </div>
                 )}
                 {initError && (
-                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
-                    <span className="text-sm flex-shrink-0">⚠️</span>
-                    <p className="text-red-400 text-[11px] font-bold m-0">{initError}</p>
+                  <div
+                    className="flex items-center bg-red-500/10 border border-red-500/25"
+                    style={{ gap: px(8), padding: `${px(10)} ${px(14)}`, borderRadius: px(12) }}
+                  >
+                    <span style={{ fontSize: px(14), flexShrink: 0 }}>⚠️</span>
+                    <p className="text-red-400 font-bold m-0" style={{ fontSize: px(11) }}>
+                      {initError}
+                    </p>
                   </div>
                 )}
                 <button
                   onClick={() => buyValid && setBuyPhase('confirm')}
                   disabled={!buyValid}
-                  className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${
+                  className={`w-full border-none font-black uppercase cursor-pointer transition-all active:scale-[0.98] ${
                     buyValid ? 'hover:brightness-110' : 'cursor-not-allowed'
                   }`}
                   style={{
+                    padding: px(14),
+                    borderRadius: px(12),
+                    fontSize: px(14),
                     background: buyValid
                       ? 'linear-gradient(135deg, #D4AF37, #b8941e)'
                       : 'rgba(212,175,55,0.2)',
@@ -1229,48 +1279,69 @@ const SalvaNGNsChat = ({ user }) => {
 
             {/* ── BUY: CONFIRM ── */}
             {mode === 'buy' && buyPhase === 'confirm' && (
-              <div className="flex-1 flex flex-col justify-center px-5 py-6 gap-4 overflow-y-auto">
+              <div
+                className="flex-1 flex flex-col justify-center overflow-y-auto"
+                style={{ padding: `${px(24)} ${px(20)}`, gap: px(16) }}
+              >
                 <div className="text-center">
-                  <div className="text-4xl mb-2">⚡</div>
-                  <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">
+                  <div style={{ fontSize: px(36), marginBottom: px(8) }}>⚡</div>
+                  <h3
+                    className="text-[#f5f0e8] font-black m-0"
+                    style={{ fontSize: px(17), marginBottom: px(4) }}
+                  >
                     Confirm Purchase
                   </h3>
-                  <p className="text-white/40 text-[11px] m-0">Review before proceeding</p>
+                  <p className="text-white/40 m-0" style={{ fontSize: px(11) }}>
+                    Review before proceeding
+                  </p>
                 </div>
-                <div className="rounded-2xl p-4 bg-salvaGold/[0.06] border border-salvaGold/20 space-y-2.5">
+                <div
+                  className="bg-salvaGold/[0.06] border border-salvaGold/20"
+                  style={{ borderRadius: px(16), padding: px(16) }}
+                >
                   {[
-                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8', '13px'],
-                    [
-                      'Fee',
-                      fee > 0 ? `-${fee} NGNs` : 'Free',
-                      fee > 0 ? '#ef4444' : '#22c55e',
-                      '13px',
-                    ],
-                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37', '16px'],
-                  ].map(([l, v, c, fs]) => (
-                    <div key={l} className="flex justify-between items-center">
-                      <span className="text-white/50 text-[12px]">{l}</span>
-                      <span className="font-black" style={{ color: c, fontSize: fs }}>
+                    ['You Send (fiat)', `₦${amountRaw.toLocaleString()}`, '#f5f0e8', 13],
+                    ['Fee', fee > 0 ? `-${fee} NGNs` : 'Free', fee > 0 ? '#ef4444' : '#22c55e', 13],
+                    ['You Receive', `${mintAmt.toLocaleString()} NGNs`, '#D4AF37', 16],
+                  ].map(([l, v, c, fs], i) => (
+                    <div
+                      key={l}
+                      className="flex justify-between items-center"
+                      style={{ marginTop: i > 0 ? px(10) : 0 }}
+                    >
+                      <span className="text-white/50" style={{ fontSize: px(12) }}>
+                        {l}
+                      </span>
+                      <span className="font-black" style={{ color: c, fontSize: px(fs) }}>
                         {v}
                       </span>
                     </div>
                   ))}
                 </div>
                 {initError && (
-                  <p className="text-red-400 text-[11px] text-center m-0">{initError}</p>
+                  <p className="text-red-400 text-center m-0" style={{ fontSize: px(11) }}>
+                    {initError}
+                  </p>
                 )}
-                <div className="flex gap-2">
+                <div className="flex" style={{ gap: px(8) }}>
                   <button
                     onClick={() => setBuyPhase('amount')}
-                    className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
+                    className="flex-1 bg-white/5 border border-white/10 text-white/60 cursor-pointer hover:bg-white/10 transition-all"
+                    style={{ padding: px(12), borderRadius: px(12), fontSize: px(12) }}
                   >
                     Back
                   </button>
                   <button
                     onClick={handleBuyInitiate}
                     disabled={initiating}
-                    className="flex-[2] py-3 rounded-xl border-none text-black text-[13px] font-black cursor-pointer flex items-center justify-center gap-1.5 hover:brightness-110 transition-all"
-                    style={{ background: 'linear-gradient(135deg, #D4AF37, #b8941e)' }}
+                    className="flex-[2] border-none text-black font-black cursor-pointer flex items-center justify-center hover:brightness-110 transition-all"
+                    style={{
+                      padding: px(12),
+                      borderRadius: px(12),
+                      fontSize: px(13),
+                      gap: px(6),
+                      background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
+                    }}
                   >
                     {initiating && <Spinner />}
                     {initiating ? 'Starting…' : 'Confirm & Start'}
@@ -1282,16 +1353,27 @@ const SalvaNGNsChat = ({ user }) => {
             {/* ── SELL: AMOUNT ── */}
             {mode === 'sell' && sellPhase === 'amount' && (
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 pt-5 pb-3 flex flex-col gap-3.5">
+                <div
+                  className="flex-1 overflow-y-auto flex flex-col"
+                  style={{ padding: `${px(20)} ${px(20)} ${px(12)}`, gap: px(14) }}
+                >
                   <div className="text-center">
-                    <div className="text-4xl mb-2">💸</div>
-                    <h3 className="text-[#f5f0e8] text-[17px] font-black m-0 mb-1">Sell NGNs</h3>
-                    <p className="text-white/40 text-[11px] m-0">
+                    <div style={{ fontSize: px(36), marginBottom: px(8) }}>💸</div>
+                    <h3
+                      className="text-[#f5f0e8] font-black m-0"
+                      style={{ fontSize: px(17), marginBottom: px(4) }}
+                    >
+                      Sell NGNs
+                    </h3>
+                    <p className="text-white/40 m-0" style={{ fontSize: px(11) }}>
                       Balance: {ngnBalance.toLocaleString()} NGNs
                     </p>
                   </div>
                   <div>
-                    <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
+                    <p
+                      className="text-salvaGold/60 uppercase font-bold"
+                      style={{ fontSize: px(9), letterSpacing: '0.15em', marginBottom: px(6) }}
+                    >
                       Amount to Burn (NGNs)
                     </p>
                     <div className="relative">
@@ -1315,32 +1397,44 @@ const SalvaNGNsChat = ({ user }) => {
                               : ''
                           );
                         }}
-                        className={`w-full py-3 pl-3.5 pr-14 rounded-xl bg-[#1a1a1b] text-lg font-black outline-none transition-colors box-border ${
+                        className={`w-full bg-[#1a1a1b] font-black outline-none transition-colors box-border ${
                           sellAmountError
                             ? 'border-2 border-red-500 text-red-400'
                             : 'border border-salvaGold/25 text-[#f5f0e8] focus:border-salvaGold/70'
                         }`}
+                        style={{
+                          padding: `${px(12)} ${px(56)} ${px(12)} ${px(14)}`,
+                          borderRadius: px(12),
+                          fontSize: px(18),
+                        }}
                       />
                       <span
-                        className={`absolute right-3 top-1/2 -translate-y-1/2 font-black text-xs ${
+                        className={`absolute right-3 top-1/2 -translate-y-1/2 font-black ${
                           sellAmountError ? 'text-red-400' : 'text-salvaGold'
                         }`}
+                        style={{ fontSize: px(12) }}
                       >
                         NGNs
                       </span>
                     </div>
                     {sellAmountError && (
-                      <p className="text-red-400 text-[10px] font-bold mt-1 m-0">
+                      <p
+                        className="text-red-400 font-bold m-0"
+                        style={{ fontSize: px(10), marginTop: px(4) }}
+                      >
                         ⚠️ {sellAmountError}
                       </p>
                     )}
-                    <p className="text-white/30 text-[10px] mt-1">
+                    <p className="text-white/30" style={{ fontSize: px(10), marginTop: px(4) }}>
                       Min: ₦{otcConfig.minNgn.toLocaleString()} · Max: ₦
                       {otcConfig.maxNgn.toLocaleString()}
                     </p>
                   </div>
                   {sellValid && (
-                    <div className="rounded-xl p-3.5 bg-salvaGold/5 border border-salvaGold/15 space-y-1.5">
+                    <div
+                      className="bg-salvaGold/5 border border-salvaGold/15"
+                      style={{ borderRadius: px(12), padding: px(14) }}
+                    >
                       {[
                         ['You Burn', `${sellAmountRaw.toLocaleString()} NGNs`, '#f5f0e8'],
                         ['Fee', `-${sellFee.toLocaleString()} NGNs`, '#ef4444'],
@@ -1348,14 +1442,19 @@ const SalvaNGNsChat = ({ user }) => {
                       ].map(([l, v, c], i) => (
                         <div
                           key={l}
-                          className={`flex justify-between items-center ${
-                            i === 2 ? 'pt-2 border-t border-salvaGold/10' : ''
-                          }`}
+                          className="flex justify-between items-center"
+                          style={{
+                            paddingTop: i === 2 ? px(8) : 0,
+                            borderTop: i === 2 ? '1px solid rgba(212,175,55,0.1)' : 'none',
+                            marginTop: i > 0 ? px(6) : 0,
+                          }}
                         >
-                          <span className="text-white/45 text-[11px]">{l}</span>
+                          <span className="text-white/45" style={{ fontSize: px(11) }}>
+                            {l}
+                          </span>
                           <span
-                            className={`font-black ${i === 2 ? 'text-sm' : 'text-[11px]'}`}
-                            style={{ color: c }}
+                            className="font-black"
+                            style={{ color: c, fontSize: i === 2 ? px(14) : px(11) }}
                           >
                             {v}
                           </span>
@@ -1363,22 +1462,31 @@ const SalvaNGNsChat = ({ user }) => {
                       ))}
                     </div>
                   )}
-                  <div className="px-3 py-2.5 rounded-xl bg-red-500/[0.06] border border-red-500/15">
-                    <p className="text-red-400 text-[10px] m-0">
+                  <div
+                    className="bg-red-500/[0.06] border border-red-500/15"
+                    style={{ borderRadius: px(12), padding: `${px(10)} ${px(12)}` }}
+                  >
+                    <p className="text-red-400 m-0" style={{ fontSize: px(10) }}>
                       ⚠️ NGNs are burned immediately on-chain. Cannot be undone.
                     </p>
                   </div>
                 </div>
-                <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e]">
+                <div
+                  className="flex-shrink-0 border-t border-white/[0.06] bg-[#0d0d0e]"
+                  style={{ padding: `${px(12)} ${px(20)}` }}
+                >
                   <button
                     onClick={() => sellValid && setSellPhase('bank')}
                     disabled={!sellValid}
-                    className={`w-full py-3.5 rounded-xl border-none text-sm font-black uppercase transition-all ${
+                    className={`w-full border-none font-black uppercase transition-all ${
                       sellValid
                         ? 'cursor-pointer hover:brightness-110 active:scale-[0.98]'
                         : 'cursor-not-allowed'
                     }`}
                     style={{
+                      padding: px(14),
+                      borderRadius: px(12),
+                      fontSize: px(14),
                       background: sellValid
                         ? 'linear-gradient(135deg, #ef4444, #b91c1c)'
                         : 'rgba(239,68,68,0.2)',
@@ -1394,13 +1502,19 @@ const SalvaNGNsChat = ({ user }) => {
             {/* ── SELL: BANK DETAILS ── */}
             {mode === 'sell' && sellPhase === 'bank' && (
               <div className="flex-1 flex flex-col min-h-0">
-                <div className="flex-1 overflow-y-auto px-5 pt-4 pb-3 flex flex-col gap-3">
+                <div
+                  className="flex-1 overflow-y-auto flex flex-col"
+                  style={{ padding: `${px(16)} ${px(20)} ${px(12)}`, gap: px(12) }}
+                >
                   <div className="text-center">
-                    <div className="text-4xl mb-1.5">🏦</div>
-                    <h3 className="text-[#f5f0e8] text-[16px] font-black m-0 mb-1">
+                    <div style={{ fontSize: px(36), marginBottom: px(6) }}>🏦</div>
+                    <h3
+                      className="text-[#f5f0e8] font-black m-0"
+                      style={{ fontSize: px(16), marginBottom: px(4) }}
+                    >
                       Your Bank Details
                     </h3>
-                    <p className="text-white/40 text-[11px] m-0">
+                    <p className="text-white/40 m-0" style={{ fontSize: px(11) }}>
                       Salva will pay ₦{sellPayout.toLocaleString()} here
                     </p>
                   </div>
@@ -1425,7 +1539,10 @@ const SalvaNGNsChat = ({ user }) => {
                     },
                   ].map(({ label, value, setter, placeholder }) => (
                     <div key={label}>
-                      <p className="text-salvaGold/60 text-[9px] uppercase tracking-[0.15em] font-bold mb-1.5">
+                      <p
+                        className="text-salvaGold/60 uppercase font-bold"
+                        style={{ fontSize: px(9), letterSpacing: '0.15em', marginBottom: px(6) }}
+                      >
                         {label}
                       </p>
                       <input
@@ -1433,21 +1550,35 @@ const SalvaNGNsChat = ({ user }) => {
                         placeholder={placeholder}
                         value={value}
                         onChange={(e) => setter(e.target.value)}
-                        className="w-full py-2.5 px-3.5 rounded-xl border border-salvaGold/20 bg-[#1a1a1b] text-[#f5f0e8] text-[13px] outline-none focus:border-salvaGold/60 transition-colors box-border"
+                        className="w-full border border-salvaGold/20 bg-[#1a1a1b] text-[#f5f0e8] outline-none focus:border-salvaGold/60 transition-colors box-border"
+                        style={{
+                          padding: `${px(10)} ${px(14)}`,
+                          borderRadius: px(12),
+                          fontSize: px(13),
+                        }}
                       />
                     </div>
                   ))}
                   {sellError && (
-                    <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-red-500/10 border border-red-500/25">
-                      <span className="text-sm flex-shrink-0">⚠️</span>
-                      <p className="text-red-400 text-[11px] font-bold m-0">{sellError}</p>
+                    <div
+                      className="flex items-center bg-red-500/10 border border-red-500/25"
+                      style={{ gap: px(8), padding: `${px(10)} ${px(14)}`, borderRadius: px(12) }}
+                    >
+                      <span style={{ fontSize: px(14), flexShrink: 0 }}>⚠️</span>
+                      <p className="text-red-400 font-bold m-0" style={{ fontSize: px(11) }}>
+                        {sellError}
+                      </p>
                     </div>
                   )}
                 </div>
-                <div className="flex-shrink-0 px-5 py-3 border-t border-white/[0.06] bg-[#0d0d0e] flex gap-2">
+                <div
+                  className="flex-shrink-0 border-t border-white/[0.06] bg-[#0d0d0e] flex"
+                  style={{ padding: `${px(12)} ${px(20)}`, gap: px(8) }}
+                >
                   <button
                     onClick={() => setSellPhase('amount')}
-                    className="flex-1 py-3 rounded-xl bg-white/5 border border-white/10 text-white/60 text-[12px] cursor-pointer hover:bg-white/10 transition-all"
+                    className="flex-1 bg-white/5 border border-white/10 text-white/60 cursor-pointer hover:bg-white/10 transition-all"
+                    style={{ padding: px(12), borderRadius: px(12), fontSize: px(12) }}
                   >
                     Back
                   </button>
@@ -1459,8 +1590,12 @@ const SalvaNGNsChat = ({ user }) => {
                       !accountNumber.trim() ||
                       !accountName.trim()
                     }
-                    className="flex-[2] py-3 rounded-xl border-none text-white text-[13px] font-black flex items-center justify-center gap-1.5 transition-all hover:brightness-110"
+                    className="flex-[2] border-none text-white font-black flex items-center justify-center transition-all hover:brightness-110"
                     style={{
+                      padding: px(12),
+                      borderRadius: px(12),
+                      fontSize: px(13),
+                      gap: px(6),
                       background: 'linear-gradient(135deg, #ef4444, #b91c1c)',
                       opacity:
                         !bankName.trim() || !accountNumber.trim() || !accountName.trim() ? 0.5 : 1,
@@ -1490,11 +1625,14 @@ const SalvaNGNsChat = ({ user }) => {
                     const el = e.currentTarget;
                     isNearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
                   }}
-                  className="flex-1 overflow-y-auto p-3.5 flex flex-col gap-2 bg-[#0a0a0b]"
+                  className="flex-1 overflow-y-auto flex flex-col bg-[#0a0a0b]"
+                  style={{ padding: px(14), gap: px(8) }}
                 >
                   {messages.length === 0 && (
                     <div className="flex-1 flex items-center justify-center opacity-40">
-                      <p className="text-salvaGold text-[12px] m-0">Loading messages…</p>
+                      <p className="text-salvaGold m-0" style={{ fontSize: px(12) }}>
+                        Loading messages…
+                      </p>
                     </div>
                   )}
 
@@ -1503,20 +1641,42 @@ const SalvaNGNsChat = ({ user }) => {
                   ))}
 
                   {mode === 'buy' && status === 'pending' && sellerInfo && (
-                    <div className="px-3.5 py-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 my-1">
-                      <p className="text-salvaGold/70 text-[9px] uppercase tracking-[0.12em] font-bold m-0 mb-2.5">
+                    <div
+                      className="bg-salvaGold/[0.06] border border-salvaGold/20"
+                      style={{
+                        padding: `${px(12)} ${px(14)}`,
+                        borderRadius: px(12),
+                        margin: `${px(4)} 0`,
+                      }}
+                    >
+                      <p
+                        className="text-salvaGold/70 uppercase font-bold m-0"
+                        style={{ fontSize: px(9), letterSpacing: '0.12em', marginBottom: px(10) }}
+                      >
                         📤 Send your payment to:
                       </p>
-                      <div className="flex flex-col gap-2">
+                      <div className="flex flex-col" style={{ gap: px(8) }}>
                         {[
                           { label: 'Bank', value: sellerInfo.bankName },
                           { label: 'Account Name', value: sellerInfo.accountName },
                           { label: 'Account Number', value: sellerInfo.accountNumber },
                         ].map(({ label, value }) => (
-                          <div key={label} className="flex justify-between items-center gap-2">
-                            <span className="text-white/35 text-[10px] flex-shrink-0">{label}</span>
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-[#f5f0e8] text-[12px] font-bold truncate">
+                          <div
+                            key={label}
+                            className="flex justify-between items-center"
+                            style={{ gap: px(8) }}
+                          >
+                            <span
+                              className="text-white/35 flex-shrink-0"
+                              style={{ fontSize: px(10) }}
+                            >
+                              {label}
+                            </span>
+                            <div className="flex items-center min-w-0" style={{ gap: px(6) }}>
+                              <span
+                                className="text-[#f5f0e8] font-bold truncate"
+                                style={{ fontSize: px(12) }}
+                              >
                                 {value || '—'}
                               </span>
                               {value && <CopyBtn value={value} />}
@@ -1538,8 +1698,12 @@ const SalvaNGNsChat = ({ user }) => {
                       >
                         <button
                           onClick={() => setShowReceiptUpload(true)}
-                          className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl border-none text-black text-[12px] font-black cursor-pointer hover:brightness-110 transition-all active:scale-[0.97]"
+                          className="flex items-center border-none text-black font-black cursor-pointer hover:brightness-110 transition-all active:scale-[0.97]"
                           style={{
+                            gap: px(6),
+                            padding: `${px(10)} ${px(16)}`,
+                            borderRadius: px(12),
+                            fontSize: px(12),
                             background: 'linear-gradient(135deg, #D4AF37, #b8941e)',
                             boxShadow: '0 0 16px rgba(212,175,55,0.4)',
                           }}
@@ -1550,24 +1714,40 @@ const SalvaNGNsChat = ({ user }) => {
                     )}
 
                   {isBurning && (
-                    <div className="p-3 rounded-xl bg-red-500/[0.06] border border-red-500/20 flex items-center gap-2.5">
+                    <div
+                      className="bg-red-500/[0.06] border border-red-500/20 flex items-center"
+                      style={{ padding: px(12), borderRadius: px(12), gap: px(10) }}
+                    >
                       <div
-                        className="w-4 h-4 rounded-full border-2 border-red-500/30 border-t-red-500 flex-shrink-0"
-                        style={{ animation: 'spin 0.8s linear infinite' }}
+                        className="border-2 border-red-500/30 border-t-red-500 flex-shrink-0"
+                        style={{
+                          width: px(16),
+                          height: px(16),
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
                       />
-                      <p className="text-red-400 text-[12px] font-bold m-0">
+                      <p className="text-red-400 font-bold m-0" style={{ fontSize: px(12) }}>
                         ⚠️ Burn in progress — do NOT submit another request. Refresh if this takes
                         over 2 minutes.
                       </p>
                     </div>
                   )}
                   {status === 'minting' && (
-                    <div className="p-3 rounded-xl bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center gap-2.5">
+                    <div
+                      className="bg-salvaGold/[0.06] border border-salvaGold/20 flex items-center"
+                      style={{ padding: px(12), borderRadius: px(12), gap: px(10) }}
+                    >
                       <div
-                        className="w-4 h-4 rounded-full border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0"
-                        style={{ animation: 'spin 0.8s linear infinite' }}
+                        className="border-2 border-salvaGold/30 border-t-salvaGold flex-shrink-0"
+                        style={{
+                          width: px(16),
+                          height: px(16),
+                          borderRadius: '50%',
+                          animation: 'spin 0.8s linear infinite',
+                        }}
                       />
-                      <p className="text-salvaGold text-[12px] font-bold m-0">
+                      <p className="text-salvaGold font-bold m-0" style={{ fontSize: px(12) }}>
                         Minting on-chain… please wait.
                       </p>
                     </div>
@@ -1576,11 +1756,12 @@ const SalvaNGNsChat = ({ user }) => {
                   {(isMinted || isRejected || isBurned) && (
                     <button
                       onClick={resetAll}
-                      className={`w-full py-2.5 rounded-xl text-[12px] font-bold cursor-pointer border transition-all hover:brightness-110 ${
+                      className={`w-full font-bold cursor-pointer border transition-all hover:brightness-110 ${
                         isMinted
                           ? 'bg-green-500/15 border-green-500/30 text-green-400'
                           : 'bg-red-500/10 border-red-500/30 text-red-400'
                       }`}
+                      style={{ padding: px(10), borderRadius: px(12), fontSize: px(12) }}
                     >
                       {isMinted
                         ? 'Buy More NGNs →'
