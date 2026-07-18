@@ -379,12 +379,23 @@ async function _simulateMultiSendGasUnits(
       }
     }
     // Always append the real fee-transfer leg too, for an accurate total.
+    // IMPORTANT: simulate this leg from the SAME real address as the action
+    // legs above (the user/owner actually calling the function) — NOT the
+    // treasury. Gas cost of an ERC20 transfer depends on the SENDER's
+    // on-chain state (cold vs warm storage slot, etc.), so treasury was
+    // giving an inaccurate number for the account that actually pays.
+    // Every actionCall passed into this function already carries the real
+    // caller's address in `.from`, so we just reuse it. Falls back to
+    // treasuryAddress only if no actionCall supplied one (shouldn't happen).
+    const feeLegFrom = actionCalls[0]?.from
+      ? ethers.getAddress(actionCalls[0].from)
+      : ethers.getAddress(treasuryAddress);
     const feeData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
       ethers.getAddress(treasuryAddress),
       1n,
     ]);
     const feeLegGas = await provider.estimateGas({
-      from: ethers.getAddress(treasuryAddress),
+      from: feeLegFrom,
       to: ethers.getAddress(tokenAddress),
       data: feeData,
     });
@@ -459,7 +470,7 @@ async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2, actionCalls = nu
 //
 // Returns: { feeUSD, feeNGN, feeWei, decimals }
 // ─────────────────────────────────────────────────────────────────────────────
-async function estimateTransferFee(chain, coin, actionCalls = null) {
+async function estimateTransferFee(chain, coin, fromAddress = null, actionCalls = null) {
   const isNGN = coin === 'NGN' || coin === 'CNGN';
   const isBNB = chain === 'bnb';
 
@@ -471,11 +482,36 @@ async function estimateTransferFee(chain, coin, actionCalls = null) {
     _fetchUSDtoNGN(),
   ]);
 
+  // Build a real-calldata simulation using the caller's OWN address — chain
+  // specific — rather than a treasury placeholder, mirroring what pool.js
+  // already does for every pool operation.
+  let effectiveActionCalls = actionCalls;
+  if (!effectiveActionCalls && fromAddress) {
+    try {
+      const tokenAddr = _resolveTokenAddress(chain, coin);
+      if (tokenAddr) {
+        const dummyRecipient = '0x000000000000000000000000000000000000dEaD';
+        effectiveActionCalls = [
+          {
+            to: ethers.getAddress(tokenAddr),
+            data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [dummyRecipient, 1n]),
+            from: ethers.getAddress(fromAddress),
+          },
+        ];
+      }
+    } catch (e) {
+      console.warn(
+        '⚠️ [GasOracle] Could not build actionCalls from fromAddress, falling back:',
+        e.message
+      );
+    }
+  }
+
   const { gasUnits, bufferMultiplier, simulated } = await _resolveGasUnitsAndBuffer(
     chain,
     coin,
     2,
-    actionCalls
+    effectiveActionCalls
   );
 
   const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);

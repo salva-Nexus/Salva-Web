@@ -569,9 +569,9 @@ async function cleanupStaleQueueEntries() {
 // coin  : 'NGN' | 'CNGN' | 'USDT' | 'USDC'
 //
 // Returns: { feeNGN, feeUsd, feeWei }
-async function getFeeForTransfer(chain, coin) {
+async function getFeeForTransfer(chain, coin, fromAddress = null) {
   try {
-    const result = await estimateTransferFee(chain, coin);
+    const result = await estimateTransferFee(chain, coin, fromAddress);
     return {
       feeNGN: result.feeNGN,
       feeUsd: result.feeUSD,
@@ -583,7 +583,6 @@ async function getFeeForTransfer(chain, coin) {
     const isNGN = coin === 'NGN' || coin === 'CNGN';
     const isBNB = chain === 'bnb';
     if (isNGN) {
-
       const fallbackNGN = isBNB ? '25' : '10';
       let decimals = 6;
       if (isBNB) {
@@ -628,6 +627,96 @@ async function getFeeForTransfer(chain, coin) {
       return { feeNGN: 0, feeUsd: parseFloat(fallbackUsd), feeWei };
     }
   }
+}
+
+// ── resolveAltFamilyFeeToken ─────────────────────────────────────────────────
+// Transfer's fee-token dynamic is CURRENCY-FAMILY SCOPED, not a global waterfall
+// like pools/swaps. Families never cross:
+//   NGN family: NGNs ↔ cNGN
+//   USD family: USDT ↔ USDC
+//
+// The amount being sent always comes from the exact coin the user picked — no
+// fallback on principal. This function ONLY resolves where the FEE can come
+// from, and ONLY checks the OTHER member of the same family (the coin itself
+// was already checked by the caller via the amount+fee combined check).
+//
+// Returns { symbol, tokenAddress, decimals, feeWei } or null if the alt
+// family member also can't cover the fee.
+async function resolveAltFamilyFeeToken(chain, coin, safeAddress, feeNGN, feeUsd) {
+  const isBNB = chain === 'bnb';
+  const isProd = process.env.NODE_ENV === 'production';
+  const isNGNFamily = coin === 'NGN' || coin === 'CNGN';
+  const feeAmount = isNGNFamily ? feeNGN : feeUsd;
+  const altSymbol = isNGNFamily
+    ? coin === 'NGN'
+      ? 'CNGN'
+      : 'NGN'
+    : coin === 'USDT'
+      ? 'USDC'
+      : 'USDT';
+
+  function addrFor(sym) {
+    if (isBNB) {
+      if (sym === 'USDT')
+        return isProd
+          ? process.env.L1_USDT_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
+      if (sym === 'USDC')
+        return isProd
+          ? process.env.L1_USDC_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDC_CONTRACT_ADDRESS;
+      if (sym === 'CNGN')
+        return isProd
+          ? process.env.L1_CNGN_CONTRACT_ADDRESS
+          : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS;
+      return isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+    }
+    if (sym === 'USDT') return process.env.USDT_CONTRACT_ADDRESS;
+    if (sym === 'USDC') return process.env.USDC_CONTRACT_ADDRESS;
+    if (sym === 'CNGN') return process.env.CNGN_CONTRACT_ADDRESS;
+    return process.env.NGN_TOKEN_ADDRESS;
+  }
+
+  const altAddr = addrFor(altSymbol);
+  if (!altAddr) return null;
+
+  let decimals = 6; // Base: hardcoded 6 for all 4 tokens
+  if (isBNB) {
+    try {
+      const { getL1TokenDecimals } = require('./utils/l1Decimals');
+      decimals = await getL1TokenDecimals(altAddr);
+    } catch (e) {
+      decimals = isNGNFamily ? 6 : 18;
+      console.warn(`⚠️ [transfer fee] alt decimals fallback for ${altSymbol}:`, e.message);
+    }
+  }
+
+  let balanceProvider = provider;
+  if (isBNB) {
+    balanceProvider = new ethers.JsonRpcProvider(
+      isProd ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL
+    );
+  }
+
+  try {
+    const TOKEN_ABI = ['function balanceOf(address) view returns (uint256)'];
+    const contract = new ethers.Contract(altAddr, TOKEN_ABI, balanceProvider);
+    const balWei = await contract.balanceOf(safeAddress);
+    const balNum = parseFloat(ethers.formatUnits(balWei, decimals));
+    if (balNum >= feeAmount) {
+      const feeWei = ethers.parseUnits(feeAmount.toFixed(decimals), decimals);
+      console.log(
+        `✅ [transfer fee] Fee covered by alt-family token ${altSymbol} (balance=${balNum.toFixed(4)})`
+      );
+      return { symbol: altSymbol, tokenAddress: altAddr, decimals, feeWei };
+    }
+    console.log(
+      `⏭️ [transfer fee] Alt-family ${altSymbol} balance=${balNum.toFixed(4)} < fee=${feeAmount}`
+    );
+  } catch (e) {
+    console.warn(`⚠️ [transfer fee] alt-family balance check failed for ${altSymbol}:`, e.message);
+  }
+  return null;
 }
 
 // ===============================================
@@ -678,15 +767,17 @@ app.get('/api/estimate-pool-fee', async (req, res) => {
 // ===============================================
 app.get('/api/estimate-fee', async (req, res) => {
   try {
-    const { chain = 'base', coin = 'NGN' } = req.query;
+    const { chain = 'base', coin = 'NGN', address } = req.query;
 
     const validChains = ['base', 'bnb'];
-    const validCoins  = ['NGN', 'CNGN', 'USDT', 'USDC'];
+    const validCoins = ['NGN', 'CNGN', 'USDT', 'USDC'];
 
     if (!validChains.includes(chain)) return res.status(400).json({ message: 'Invalid chain' });
-    if (!validCoins.includes(coin))   return res.status(400).json({ message: 'Invalid coin' });
+    if (!validCoins.includes(coin)) return res.status(400).json({ message: 'Invalid coin' });
 
-    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(chain, coin);
+    // Simulate gas from the REAL caller's address, chain-specific, when given.
+    const fromAddr = address && ethers.isAddress(address) ? address : null;
+    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(chain, coin, fromAddr);
 
     res.json({
       chain,
@@ -2187,8 +2278,9 @@ app.post('/api/transfer', async (req, res) => {
     }
 
     // ── 2. Fee Calculation — live gas oracle, no hardcoded tiers ────────────
+    // Simulated from the sender's own Safe address, chain-specific.
     const txChain = isBnbChain ? 'bnb' : 'base';
-    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(txChain, coin);
+    const { feeNGN, feeUsd, feeWei } = await getFeeForTransfer(txChain, coin, safeAddress);
     const amountNum = parseFloat(amount);
 
     // Check balance — use BNB provider if chain=bnb, Base provider otherwise
@@ -2221,33 +2313,48 @@ app.post('/api/transfer', async (req, res) => {
 
     const balanceNum = parseFloat(ethers.formatUnits(balanceWei, decimals));
 
-    let actualAmountWei;
-    let actualFeeWei;
-    let recipientReceives;
+    // ── Principal check — NO fallback here. The amount always comes from the
+    // exact coin selected. ─────────────────────────────────────────────────
+    if (balanceNum < amountNum) {
+      return res.status(400).json({ message: 'Insufficient balance' });
+    }
 
     const feeHuman = coin === 'NGN' || coin === 'CNGN' ? feeNGN : feeUsd;
+    const isNGNFamily = coin === 'NGN' || coin === 'CNGN';
+    const familyLabel = isNGNFamily ? 'NGNs or cNGN' : 'USDT or USDC';
 
-    if (feeHuman === 0) {
-      // No fee — send full amount
-      actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
-      actualFeeWei = 0n;
-      recipientReceives = amountNum;
-    } else if (balanceNum >= amountNum + feeHuman) {
-      // Best case: balance covers amount + fee — recipient gets full amount, fee from surplus balance
-      actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
-      actualFeeWei = feeWei;
-      recipientReceives = amountNum;
-    } else if (balanceNum >= amountNum && feeHuman < amountNum) {
-      // Balance covers amount but not amount+fee, and fee is less than amount
-      // Deduct fee from amount — recipient gets amount - fee
-      recipientReceives = amountNum - feeHuman;
-      actualAmountWei = ethers.parseUnits(recipientReceives.toFixed(6), decimals);
-      actualFeeWei = feeWei;
-    } else if (balanceNum < amountNum) {
-      return res.status(400).json({ message: 'Insufficient balance' });
-    } else {
-      // Balance covers amount but fee >= amount — nothing useful to send
-      return res.status(400).json({ message: 'Amount too small to cover network fee' });
+    let actualAmountWei = ethers.parseUnits(amount.toString(), decimals);
+    let actualFeeWei = 0n;
+    let recipientReceives = amountNum;
+    let feeTokenAddress = tokenAddress; // default: fee paid in the same coin
+    let feeTokenDecimals = decimals;
+    let feeCoinUsed = coin;
+
+    if (feeHuman > 0) {
+      if (balanceNum >= amountNum + feeHuman) {
+        // Same-coin surplus covers the fee too — single token, no extra leg.
+        actualFeeWei = feeWei;
+      } else {
+        // Same-coin balance covers the amount but not amount+fee — check the
+        // OTHER member of this coin's family (NGNs↔cNGN or USDT↔USDC) for
+        // the fee only. Never crosses into the other family.
+        const altFee = await resolveAltFamilyFeeToken(
+          isBnbChain ? 'bnb' : 'base',
+          coin,
+          safeAddress,
+          feeNGN,
+          feeUsd
+        );
+        if (!altFee) {
+          return res.status(400).json({
+            message: `Insufficient balance for network fee. Need ${familyLabel} to cover the fee — top up and try again.`,
+          });
+        }
+        actualFeeWei = altFee.feeWei;
+        feeTokenAddress = altFee.tokenAddress;
+        feeTokenDecimals = altFee.decimals;
+        feeCoinUsed = altFee.symbol;
+      }
     }
 
     // ── 3. Metadata ──────────────────────────────────────────────────────────
@@ -2271,6 +2378,9 @@ app.post('/api/transfer', async (req, res) => {
         actualAmountWei: actualAmountWei.toString(),
         actualFeeWei: actualFeeWei.toString(),
         tokenAddress,
+        feeTokenAddress,
+        feeTokenDecimals,
+        feeCoinUsed,
         coin,
         chain: req.body.chain || 'base',
         amount,
@@ -2841,12 +2951,18 @@ app.post('/api/queue/process/:address', async (req, res) => {
           actualAmountWei,
           actualFeeWei,
           tokenAddress,
+          feeTokenAddress,
           coin,
           amount,
           feeHuman,
           toInput,
           senderDisplayIdentifier,
         } = claimed.payload;
+        // Fee paid in a different token than the one being sent (e.g. sending
+        // cNGN but fee comes from NGNs) — needs its own MultiSend leg instead
+        // of the single-token combined transfer.
+        const feeInDifferentToken =
+          feeTokenAddress && feeTokenAddress.toLowerCase() !== tokenAddress.toLowerCase();
 
         const senderUser = await User.findOne({
           safeAddress: safeAddress.toLowerCase(),
@@ -2915,20 +3031,79 @@ app.post('/api/queue/process/:address', async (req, res) => {
           // ────────────────────────────────────────────────────────────────────
 
           if (chain === 'bnb') {
-            const { sponsorBNBTransfer } = require('./services/relayServiceBNB');
             const isProd = process.env.NODE_ENV === 'production';
             const treasury = isProd
               ? process.env.L1_TREASURY_CONTRACT_ADDRESS
               : process.env.L1_BSC_TREASURY_CONTRACT_ADDRESS;
-            result = await sponsorBNBTransfer(
-              safeAddress,
-              userPrivateKey,
-              recipientAddress,
-              BigInt(actualAmountWei),
-              BigInt(actualFeeWei),
-              tokenAddress,
-              treasury
-            );
+
+            if (feeInDifferentToken) {
+              // Two-leg MultiSend: full amount in the sent coin + fee in the
+              // family-alt coin (e.g. send cNGN, fee from NGNs).
+              const { executeViaSafeBNB } = require('./services/relayServiceBNB');
+              const MULTISEND_ADDR_BNB = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
+              const ERC20_IFACE_BNB = new ethers.Interface([
+                'function transfer(address to, uint256 amount) returns (bool)',
+              ]);
+              const MULTISEND_IFACE_BNB = new ethers.Interface([
+                'function multiSend(bytes memory transactions) public payable',
+              ]);
+              function _encMSTxBNB(to, data) {
+                const db = ethers.getBytes(data);
+                const buf = new Uint8Array(1 + 20 + 32 + 32 + db.length);
+                let o = 0;
+                buf[o++] = 0;
+                ethers.getBytes(ethers.getAddress(to)).forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(0n), 32))
+                  .forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(db.length), 32))
+                  .forEach((b) => (buf[o++] = b));
+                db.forEach((b) => (buf[o++] = b));
+                return buf;
+              }
+              const calls = [
+                _encMSTxBNB(
+                  tokenAddress,
+                  ERC20_IFACE_BNB.encodeFunctionData('transfer', [
+                    recipientAddress,
+                    BigInt(actualAmountWei),
+                  ])
+                ),
+                ...(BigInt(actualFeeWei) > 0n
+                  ? [
+                      _encMSTxBNB(
+                        feeTokenAddress,
+                        ERC20_IFACE_BNB.encodeFunctionData('transfer', [
+                          treasury,
+                          BigInt(actualFeeWei),
+                        ])
+                      ),
+                    ]
+                  : []),
+              ];
+              const msData = MULTISEND_IFACE_BNB.encodeFunctionData('multiSend', [
+                ethers.concat(calls),
+              ]);
+              result = await executeViaSafeBNB(
+                safeAddress,
+                userPrivateKey,
+                MULTISEND_ADDR_BNB,
+                msData,
+                1
+              );
+            } else {
+              const { sponsorBNBTransfer } = require('./services/relayServiceBNB');
+              result = await sponsorBNBTransfer(
+                safeAddress,
+                userPrivateKey,
+                recipientAddress,
+                BigInt(actualAmountWei),
+                BigInt(actualFeeWei),
+                tokenAddress,
+                treasury
+              );
+            }
           } else {
             // If a loan repayment leg was prepared, use a custom MultiSend
             // that bundles: transfer + treasury fee + loan repayment
@@ -2986,6 +3161,63 @@ app.post('/api/queue/process/:address', async (req, res) => {
                 safeAddress,
                 userPrivateKey,
                 MULTISEND_ADDR_QUEUE,
+                msData,
+                1
+              );
+            } else if (feeInDifferentToken) {
+              // Two-leg MultiSend on Base: full amount in sent coin + fee in
+              // the family-alt coin (e.g. send cNGN, fee from NGNs).
+              const { _executeViaSafeBase } = require('./services/relayService');
+              const MULTISEND_ADDR_BASE = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
+              const ERC20_IFACE_BASE = new ethers.Interface([
+                'function transfer(address to, uint256 amount) returns (bool)',
+              ]);
+              const MULTISEND_IFACE_BASE = new ethers.Interface([
+                'function multiSend(bytes memory transactions) public payable',
+              ]);
+              function _encMSTxBase(to, data) {
+                const db = ethers.getBytes(data);
+                const buf = new Uint8Array(1 + 20 + 32 + 32 + db.length);
+                let o = 0;
+                buf[o++] = 0;
+                ethers.getBytes(ethers.getAddress(to)).forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(0n), 32))
+                  .forEach((b) => (buf[o++] = b));
+                ethers
+                  .getBytes(ethers.zeroPadValue(ethers.toBeHex(db.length), 32))
+                  .forEach((b) => (buf[o++] = b));
+                db.forEach((b) => (buf[o++] = b));
+                return buf;
+              }
+              const TREASURY_BASE = process.env.TREASURY_CONTRACT_ADDRESS;
+              const calls = [
+                _encMSTxBase(
+                  tokenAddress,
+                  ERC20_IFACE_BASE.encodeFunctionData('transfer', [
+                    recipientAddress,
+                    BigInt(actualAmountWei),
+                  ])
+                ),
+                ...(BigInt(actualFeeWei) > 0n && TREASURY_BASE
+                  ? [
+                      _encMSTxBase(
+                        feeTokenAddress,
+                        ERC20_IFACE_BASE.encodeFunctionData('transfer', [
+                          TREASURY_BASE,
+                          BigInt(actualFeeWei),
+                        ])
+                      ),
+                    ]
+                  : []),
+              ];
+              const msData = MULTISEND_IFACE_BASE.encodeFunctionData('multiSend', [
+                ethers.concat(calls),
+              ]);
+              result = await _executeViaSafeBase(
+                safeAddress,
+                userPrivateKey,
+                MULTISEND_ADDR_BASE,
                 msData,
                 1
               );

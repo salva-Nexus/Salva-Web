@@ -289,14 +289,22 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   }, [user?.safeAddress]);
 
   const userSendBal = userBal[tokenIn] ?? null;
+  // Pre-check: zero balance across every fee-payable token means we already
+  // know the fee cannot be paid — no point running/allowing a fallback.
+  const hasNoFeeFunds =
+    !userBalLoading &&
+    (userBal.NGNS ?? 0) <= 0 &&
+    (userBal.CNGN ?? 0) <= 0 &&
+    (userBal.USDT ?? 0) <= 0 &&
+    (userBal.USDC ?? 0) <= 0;
   const poolReceiveBal =
     tokenOut === 'USDT'
       ? parseFloat(pool.usdtLiquidity || 0)
       : tokenOut === 'USDC'
-        ? parseFloat(pool.usdcLiquidity || 0)
-        : tokenOut === 'cNGN'
-          ? parseFloat(pool.cNgnLiquidity || 0)
-          : parseFloat(pool.ngnsLiquidity || 0);
+      ? parseFloat(pool.usdcLiquidity || 0)
+      : tokenOut === 'cNGN'
+      ? parseFloat(pool.cNgnLiquidity || 0)
+      : parseFloat(pool.ngnsLiquidity || 0);
   // Raw string version — Max button source for exact_out mode, no precision loss
   const poolReceiveBalRaw =
     tokenOut === 'USDT'
@@ -760,7 +768,11 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                 {/* ── Balance strip ── */}
                 <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
                   <div
-                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${userCantAfford ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${
+                      userCantAfford
+                        ? 'border-red-500/30 bg-red-500/5'
+                        : 'border-white/[0.06] bg-white/[0.02]'
+                    }`}
                   >
                     <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
                       Your Balance
@@ -769,7 +781,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                       <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
                     ) : (
                       <p
-                        className={`text-[9px] sm:text-xs font-black truncate ${userCantAfford ? 'text-red-400' : 'text-white'}`}
+                        className={`text-[9px] sm:text-xs font-black truncate ${
+                          userCantAfford ? 'text-red-400' : 'text-white'
+                        }`}
                       >
                         {userSendBal !== null
                           ? fmt(userSendBal, section === 'buy' ? 'ngn' : 'usd')
@@ -782,13 +796,19 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     )}
                   </div>
                   <div
-                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? 'border-red-500/30 bg-red-500/5' : 'border-white/[0.06] bg-white/[0.02]'}`}
+                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${
+                      poolEmpty || poolCantCover
+                        ? 'border-red-500/30 bg-red-500/5'
+                        : 'border-white/[0.06] bg-white/[0.02]'
+                    }`}
                   >
                     <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
                       Pool Has
                     </p>
                     <p
-                      className={`text-[9px] sm:text-xs font-black truncate ${poolEmpty || poolCantCover ? 'text-red-400' : 'text-white'}`}
+                      className={`text-[9px] sm:text-xs font-black truncate ${
+                        poolEmpty || poolCantCover ? 'text-red-400' : 'text-white'
+                      }`}
                     >
                       {fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')}
                       <span className="text-white/40 font-normal text-[7px] sm:text-[9px]">
@@ -807,8 +827,21 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   <p className="text-[7px] sm:text-[10px] text-red-400 font-bold -mt-1">
                     {poolEmpty
                       ? `⚠ Pool has no ${section === 'buy' ? stableToken : ngnLabel} liquidity`
-                      : `⚠ Pool only has ${fmt(poolReceiveBal, section === 'buy' ? 'usd' : 'ngn')} ${section === 'buy' ? stableToken : ngnLabel}`}
+                      : `⚠ Pool only has ${fmt(
+                          poolReceiveBal,
+                          section === 'buy' ? 'usd' : 'ngn'
+                        )} ${section === 'buy' ? stableToken : ngnLabel}`}
                   </p>
+                )}
+
+                {hasNoFeeFunds && (
+                  <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                    <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
+                    <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
+                      This transaction may not go through — you have no NGNs, cNGN, USDT, or USDC to
+                      cover the network fee.
+                    </p>
+                  </div>
                 )}
 
                 {/* Amount input */}
@@ -880,8 +913,8 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                               ? 'usd'
                               : 'ngn'
                             : section === 'buy'
-                              ? 'ngn'
-                              : 'usd'
+                            ? 'ngn'
+                            : 'usd'
                         )}{' '}
                         {quoteSuffix}
                       </span>
@@ -947,14 +980,14 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                         receiverError
                           ? 'border-red-500/60'
                           : receiverInputType === 'fullname' &&
-                              receiverResolved &&
-                              receiverConfirmed
-                            ? 'border-green-500/40'
-                            : receiverInputType === 'fullname' &&
-                                receiverResolved &&
-                                !receiverConfirmed
-                              ? 'border-yellow-500/40'
-                              : 'border-white/10 focus:border-salvaGold'
+                            receiverResolved &&
+                            receiverConfirmed
+                          ? 'border-green-500/40'
+                          : receiverInputType === 'fullname' &&
+                            receiverResolved &&
+                            !receiverConfirmed
+                          ? 'border-yellow-500/40'
+                          : 'border-white/10 focus:border-salvaGold'
                       }`}
                     />
                     {receiverResolving && (
@@ -1104,7 +1137,9 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                 )}
                 {txHash && (
                   <a
-                    href={`https://${process.env.NODE_ENV === 'production' ? '' : 'sepolia.'}basescan.org/tx/${txHash}`}
+                    href={`https://${
+                      process.env.NODE_ENV === 'production' ? '' : 'sepolia.'
+                    }basescan.org/tx/${txHash}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-[8px] sm:text-[11px] font-black underline break-all block mb-2"

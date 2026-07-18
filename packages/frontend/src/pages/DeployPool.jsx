@@ -372,13 +372,55 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   useEffect(() => {
     const key = 'base_pool';
     const cached = panelFeeCache.current[key];
-    if (cached && Date.now() - cached.at < 30_000) { setPanelFee({ ...cached.data, loading: false }); return; }
+    if (cached && Date.now() - cached.at < 30_000) {
+      setPanelFee({ ...cached.data, loading: false });
+      return;
+    }
     setPanelFee((p) => ({ ...p, loading: true }));
     fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=base`)
       .then((r) => r.json())
-      .then((d) => { const fee = { feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }; panelFeeCache.current[key] = { data: fee, at: Date.now() }; setPanelFee(fee); })
+      .then((d) => {
+        const fee = { feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false };
+        panelFeeCache.current[key] = { data: fee, at: Date.now() };
+        setPanelFee(fee);
+      })
       .catch(() => setPanelFee({ feeNGN: null, feeUSD: null, loading: false }));
   }, []);
+
+  // ── Fee-funds check — MetaMask-style pre-warning, shared across all tabs ──
+  const [manageFeeFunds, setManageFeeFunds] = useState(null);
+  useEffect(() => {
+    if (!user?.safeAddress) return;
+    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setManageFeeFunds({
+          ngns: parseFloat(d.ngnsBalance || 0),
+          cngn: parseFloat(d.cNgnBalance || 0),
+          usdt: parseFloat(d.usdtBalance || 0),
+          usdc: parseFloat(d.usdcBalance || 0),
+        });
+      })
+      .catch(() => setManageFeeFunds(null));
+  }, [user?.safeAddress]);
+
+  const hasNoManageFeeFunds =
+    manageFeeFunds &&
+    manageFeeFunds.ngns <= 0 &&
+    manageFeeFunds.cngn <= 0 &&
+    manageFeeFunds.usdt <= 0 &&
+    manageFeeFunds.usdc <= 0;
+
+  const FeeFundsBanner = () =>
+    hasNoManageFeeFunds ? (
+      <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+        <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
+        <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
+          This may not go through — you have no NGNs, cNGN, USDT, or USDC to cover the network fee.
+        </p>
+      </div>
+    ) : null;
+
   const [liqAsset, setLiqAsset] = useState('NGNS');
   const [liqAmount, setLiqAmount] = useState('');
   const [liqMode, setLiqMode] = useState('provide');
@@ -727,6 +769,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 ))}
               </div>
 
+              <FeeFundsBanner />
+
               {/* Token selector — shows raw balance, compact-formatted */}
               <div>
                 <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black block mb-1.5 sm:mb-2">
@@ -749,7 +793,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                         }`}
                       >
                         <span
-                          className={`text-[9px] sm:text-xs font-black uppercase ${liqAsset === a ? 'text-salvaGold' : 'text-white/60'}`}
+                          className={`text-[9px] sm:text-xs font-black uppercase ${
+                            liqAsset === a ? 'text-salvaGold' : 'text-white/60'
+                          }`}
                         >
                           {a}
                         </span>
@@ -828,8 +874,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 {txLoading
                   ? 'Processing…'
                   : liqMode === 'provide'
-                    ? `Add ${liqAsset}`
-                    : `Remove ${liqAsset}`}
+                  ? `Add ${liqAsset}`
+                  : `Remove ${liqAsset}`}
               </button>
             </motion.div>
           )}
@@ -847,6 +893,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                   saves as a separate on-chain transaction.
                 </p>
               </div>
+
+              <FeeFundsBanner />
 
               {/* Buy Rate */}
               <div className="rounded-2xl border border-green-500/20 bg-green-500/[0.02] overflow-hidden">
@@ -938,6 +986,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                 </p>
               </div>
 
+              <FeeFundsBanner />
+
               <div className="grid grid-cols-2 gap-2 sm:gap-3">
                 <button
                   onClick={() => triggerPin('pause')}
@@ -966,7 +1016,9 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minNgnAmount) > 0
-                        ? `${toNum(pool.minNgnAmount).toLocaleString('en-US', { maximumFractionDigits: 2 })} NGN`
+                        ? `${toNum(pool.minNgnAmount).toLocaleString('en-US', {
+                            maximumFractionDigits: 2,
+                          })} NGN`
                         : 'Not set'}
                     </p>
                   </div>
@@ -1001,7 +1053,10 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5">
                       Current:{' '}
                       {toNum(pool.minTokenAmount) > 0
-                        ? `${toNum(pool.minTokenAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`
+                        ? `${toNum(pool.minTokenAmount).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })} USD`
                         : 'Not set'}
                     </p>
                   </div>
@@ -1198,6 +1253,30 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const pendingAction = useRef(null);
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ── Fee-funds check — MetaMask-style pre-warning ─────────────────────────
+  const [deployFeeFunds, setDeployFeeFunds] = useState(null);
+  useEffect(() => {
+    if (!user?.safeAddress) return;
+    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
+      .then((r) => r.json())
+      .then((d) => {
+        setDeployFeeFunds({
+          ngns: parseFloat(d.ngnsBalance || 0),
+          cngn: parseFloat(d.cNgnBalance || 0),
+          usdt: parseFloat(d.usdtBalance || 0),
+          usdc: parseFloat(d.usdcBalance || 0),
+        });
+      })
+      .catch(() => setDeployFeeFunds(null));
+  }, [user?.safeAddress]);
+
+  const hasNoDeployFeeFunds =
+    deployFeeFunds &&
+    deployFeeFunds.ngns <= 0 &&
+    deployFeeFunds.cngn <= 0 &&
+    deployFeeFunds.usdt <= 0 &&
+    deployFeeFunds.usdc <= 0;
   useNetworkReminder();
 
   const fetchMyPools = useCallback(
@@ -1579,6 +1658,16 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
         </div>
       </div>
+
+      {hasNoDeployFeeFunds && (
+        <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+          <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
+          <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
+            This may not go through — you have no NGNs, cNGN, USDT, or USDC to cover the network
+            fee.
+          </p>
+        </div>
+      )}
 
       {/* Info card */}
       <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">

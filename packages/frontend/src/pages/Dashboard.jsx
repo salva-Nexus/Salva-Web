@@ -2259,6 +2259,38 @@ const Dashboard = () => {
     feePreview,
   ]);
 
+  // Family-aware fee check — mirrors backend exactly: amount always comes
+  // from the exact selected coin (no fallback there), but the FEE can be
+  // covered by either member of that coin's family (NGNs↔cNGN or
+  // USDT↔USDC), never crossing between families.
+  const currentFeeAmount =
+    selectedCoin === 'NGN' || selectedCoin === 'CNGN' ? feePreview.feeNGN : feePreview.feeUsd;
+  const isNGNFamilySelected = selectedCoin === 'NGN' || selectedCoin === 'CNGN';
+  const selectedCoinBalance =
+    parseFloat(
+      selectedCoin === 'NGN'
+        ? ngnsBalance ?? '0'
+        : selectedCoin === 'CNGN'
+        ? cNgnBalance ?? '0'
+        : selectedCoin === 'USDT'
+        ? usdtBalance ?? '0'
+        : usdcBalance ?? '0'
+    ) || 0;
+  const altFamilyBalance = isNGNFamilySelected
+    ? parseFloat((selectedCoin === 'NGN' ? cNgnBalance : ngnsBalance) ?? '0') || 0
+    : parseFloat((selectedCoin === 'USDT' ? usdcBalance : usdtBalance) ?? '0') || 0;
+  const parsedAmt = parseFloat(transferAmount) || 0;
+  // Same-coin surplus covers amount+fee → fine. Otherwise check the ONE
+  // alt-family coin for the fee alone (amount still must fit in same-coin balance).
+  const feeCoveredBySameCoin = selectedCoinBalance >= parsedAmt + currentFeeAmount;
+  const feeCoveredByAltFamily = altFamilyBalance >= currentFeeAmount;
+  const hasNoFeeFundsForTransfer =
+    !!transferAmount &&
+    currentFeeAmount > 0 &&
+    selectedCoinBalance >= parsedAmt && // principal itself is covered
+    !feeCoveredBySameCoin &&
+    !feeCoveredByAltFamily;
+
   const fetchMeta = async () => {
     try {
       const [regRes] = await Promise.all([fetch(`${SALVA_API_URL}/api/registries`)]);
@@ -3288,12 +3320,24 @@ const Dashboard = () => {
                         )}
                       </div>
                     )}
+
+                  {hasNoFeeFundsForTransfer && !feeExceedsAmount && (
+                    <div className="mt-1.5 sm:mt-2 flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                      <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
+                      <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
+                        This may not go through — your{' '}
+                        {isNGNFamilySelected ? 'NGNs and cNGN' : 'USDT and USDC'} balance can't
+                        cover the network fee.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <button
                   disabled={
                     loading ||
                     amountError ||
                     feeExceedsAmount ||
+                    hasNoFeeFundsForTransfer ||
                     !recipientInput ||
                     recipientNameError
                   }

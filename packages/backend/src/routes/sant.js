@@ -162,7 +162,8 @@ router.post('/transfer', async (req, res) => {
     // rather than throwing and giving the user a vague 500.
     let feeNGN, feeUSD;
     try {
-      const result = await estimateTransferFee('base', 'NGN');
+      // Simulated from the sender's own Safe address, not a treasury placeholder.
+      const result = await estimateTransferFee('base', 'NGN', safeAddress);
       feeNGN = result.feeNGN;
       feeUSD = result.feeUSD;
     } catch (oracleErr) {

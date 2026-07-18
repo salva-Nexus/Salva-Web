@@ -259,6 +259,7 @@ const SantTab = ({ user, registries, showMsg }) => {
   const [transferAmountDisplay, setTransferAmountDisplay] = useState('');
   const [amountError, setAmountError] = useState(false);
   const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0, loading: false });
+  const [feeFundsBalances, setFeeFundsBalances] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -337,6 +338,38 @@ const SantTab = ({ user, registries, showMsg }) => {
   useEffect(() => {
     if (isSendOpen) computeFeePreview();
   }, [isSendOpen, computeFeePreview]);
+
+  // MetaMask-style upfront check — zero balance in every fee-payable token
+  // means the send cannot go through, warn before the user even tries.
+  useEffect(() => {
+    if (!isSendOpen || !user?.safeAddress) return;
+    let cancelled = false;
+    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled) {
+          setFeeFundsBalances({
+            ngns: parseFloat(d.ngnsBalance || 0),
+            cngn: parseFloat(d.cNgnBalance || 0),
+            usdt: parseFloat(d.usdtBalance || 0),
+            usdc: parseFloat(d.usdcBalance || 0),
+          });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFeeFundsBalances(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isSendOpen, user?.safeAddress]);
+
+  const hasNoFeeFunds =
+    feeFundsBalances &&
+    feeFundsBalances.ngns <= 0 &&
+    feeFundsBalances.cngn <= 0 &&
+    feeFundsBalances.usdt <= 0 &&
+    feeFundsBalances.usdc <= 0;
 
   // ── Recipient input — identical detection logic to Dashboard Send ──────────
   const handleRecipientChange = (val) => {
@@ -789,6 +822,15 @@ const SantTab = ({ user, registries, showMsg }) => {
                       Paid automatically in NGNs, cNGN, USDT, or USDC — whichever you hold
                     </p>
                   </div>
+                  {hasNoFeeFunds && (
+                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+                      <span className="text-yellow-400 text-xs flex-shrink-0">⚠️</span>
+                      <p className="text-[10px] text-yellow-400/90 font-bold leading-snug">
+                        This transaction may not go through — you have no NGNs, cNGN, USDT, or USDC
+                        to cover the network fee.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 <button
                   disabled={loading || amountError || !recipientInput}
