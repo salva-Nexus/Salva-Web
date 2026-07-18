@@ -3,7 +3,7 @@ require('dotenv').config({
   path: require('path').resolve(__dirname, '../.env'),
 });
 // Initialize L1 DB connection early so it's ready when pool routes are loaded
-setTimeout(() => require('./services/l1db'), 3000);
+require('./services/l1db'); // connect immediately, same as main DB
 
 
 function cleanEnvAddr(raw) {
@@ -1578,6 +1578,18 @@ const poolRoutes = require('./routes/pool');
 app.use('/api/pool', poolRoutes);
 
 const bnbRoutes = require('./routes/bnb');
+// in index.js, before app.use('/api/bnb', bnbRoutes);
+const l1db = require('./services/l1db');
+app.use('/api/bnb', async (req, res, next) => {
+  if (l1db.readyState !== 1) {
+    const ok = await l1db.waitUntilReady(12000);
+    if (!ok) {
+      return res.status(503).json({ message: 'BNB service temporarily unavailable. Please retry.', retryable: true });
+    }
+  }
+  next();
+});
+app.use('/api/bnb', bnbRoutes);
 app.use('/api/bnb', bnbRoutes);
 
 const santRoutes = require('./routes/sant');
