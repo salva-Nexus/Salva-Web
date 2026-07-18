@@ -65,10 +65,13 @@ function _buildMultiSend(calls) {
   ]);
 }
 
-// Get pool operation fee (both NGN and USD) with fallback
-async function _getPoolFee(chain) {
+// Get pool operation fee (both NGN and USD) with fallback.
+// legs = number of calls bundled in this operation's MultiSend — pass the
+// real count from the caller (2 for most ops, 3 for approve+swap+fee or
+// dual-rate/dual-min updates). Defaults to 2 for all the simple 2-leg ops.
+async function _getPoolFee(chain, legs = 2) {
   try {
-    return await estimatePoolFee(chain);
+    return await estimatePoolFee(chain, legs);
   } catch (err) {
     console.error(`❌ [pool fee] estimatePoolFee failed, using fallback:`, err.message);
     const isBNB = chain === 'bnb';
@@ -565,8 +568,15 @@ router.post('/update-rates', async (req, res) => {
     const encodeRate = (humanRate) => ethers.parseUnits(parseFloat(humanRate).toFixed(6), 6);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: rFeeNGN, feeUSD: rFeeUSD, feeWeiNGN: rFeeWeiNGN, feeWeiUSD: rFeeWeiUSD } =
-      await _getPoolFee('base');
+    // Dual-rate update bundles 3 calls (buyRate + sellRate + fee); single-rate
+    // bundles 2 (one rate + fee).
+    const rateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
+    const {
+      feeNGN: rFeeNGN,
+      feeUSD: rFeeUSD,
+      feeWeiNGN: rFeeWeiNGN,
+      feeWeiUSD: rFeeWeiUSD,
+    } = await _getPoolFee('base', rateLegs);
     const rFeeToken = await _resolveFeeToken('base', cleanOwner, rFeeNGN, rFeeUSD, rFeeWeiNGN, rFeeWeiUSD);
     if (!rFeeToken) return res.status(400).json({ message: _feeErrorMsg(rFeeNGN, rFeeUSD) });
     const rFeeTx = { to: ethers.getAddress(rFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), rFeeToken.feeWei]) };
@@ -1167,12 +1177,16 @@ router.post('/swap', async (req, res) => {
     );
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
+    // Untrusted swap bundles 3 calls (approve + swap + fee); trusted bundles 2
+    // (swap + fee). Charging both the same 2-leg estimate undercharges the
+    // untrusted path's extra approve() gas — this is the fix for that.
+    const swapLegs = trusted ? 2 : 3;
     const {
       feeNGN: swFeeNGN,
       feeUSD: swFeeUSD,
       feeWeiNGN: swFeeWeiNGN,
       feeWeiUSD: swFeeWeiUSD,
-    } = await _getPoolFee('base');
+    } = await _getPoolFee('base', swapLegs);
     const swFeeToken = await _resolveFeeToken(
       'base',
       cleanUser,
@@ -1617,31 +1631,67 @@ router.post('/set-mins', async (req, res) => {
       'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
 
-    const { feeNGN: smFN, feeUSD: smFU, feeWeiNGN: smFWN, feeWeiUSD: smFWU } = await _getPoolFee('base');
+    // Dual-min update bundles 3 calls (minNgn + minToken + fee); single-min bundles 2.
+    const minsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
+    const {
+      feeNGN: smFN,
+      feeUSD: smFU,
+      feeWeiNGN: smFWN,
+      feeWeiUSD: smFWU,
+    } = await _getPoolFee('base', minsLegs);
     const smFT = await _resolveFeeToken('base', cleanOwner, smFN, smFU, smFWN, smFWU);
     if (!smFT) return res.status(400).json({ message: _feeErrorMsg(smFN, smFU) });
-    const smFeeTx = { to: ethers.getAddress(smFT.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), smFT.feeWei]) };
+    const smFeeTx = {
+      to: ethers.getAddress(smFT.tokenAddress),
+      data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+        ethers.getAddress(_treasury(false)),
+        smFT.feeWei,
+      ]),
+    };
 
     let result;
 
     if (minNgnAmount && minTokenAmount) {
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ethers.parseUnits(String(minNgnAmount), 6)]) },
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [
+              ethers.parseUnits(String(minNgnAmount), 6),
+            ]),
+          },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [
+              ethers.parseUnits(String(minTokenAmount), 6),
+            ]),
+          },
           smFeeTx,
-        ]), 1
+        ]),
+        1
       );
     } else {
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: minNgnAmount
-              ? POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ethers.parseUnits(String(minNgnAmount), 6)])
-              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [ethers.parseUnits(String(minTokenAmount), 6)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: minNgnAmount
+              ? POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [
+                  ethers.parseUnits(String(minNgnAmount), 6),
+                ])
+              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [
+                  ethers.parseUnits(String(minTokenAmount), 6),
+                ]),
+          },
           smFeeTx,
-        ]), 1
+        ]),
+        1
       );
     }
 
@@ -2293,12 +2343,13 @@ router.post('/l1/swap', async (req, res) => {
       : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
+    const l1SwapLegs = trusted ? 2 : 3;
     const {
       feeNGN: lswFeeNGN,
       feeUSD: lswFeeUSD,
       feeWeiNGN: lswFeeWeiNGN,
       feeWeiUSD: lswFeeWeiUSD,
-    } = await _getPoolFee('bnb');
+    } = await _getPoolFee('bnb', l1SwapLegs);
     const lswFeeToken = await _resolveFeeToken(
       'bnb',
       cleanUser,
@@ -2677,8 +2728,13 @@ router.post('/l1/update-rates', async (req, res) => {
     const encodeRate = (r) => ethers.parseUnits(parseFloat(r).toFixed(6), 6);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: lurFeeNGN, feeUSD: lurFeeUSD, feeWeiNGN: lurFeeWeiNGN, feeWeiUSD: lurFeeWeiUSD } =
-      await _getPoolFee('bnb');
+    const l1RateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
+    const {
+      feeNGN: lurFeeNGN,
+      feeUSD: lurFeeUSD,
+      feeWeiNGN: lurFeeWeiNGN,
+      feeWeiUSD: lurFeeWeiUSD,
+    } = await _getPoolFee('bnb', l1RateLegs);
     const lurFeeToken = await _resolveFeeToken('bnb', cleanOwner, lurFeeNGN, lurFeeUSD, lurFeeWeiNGN, lurFeeWeiUSD);
     if (!lurFeeToken) return res.status(400).json({ message: _feeErrorMsg(lurFeeNGN, lurFeeUSD) });
     const lurFeeTx = { to: ethers.getAddress(lurFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lurFeeToken.feeWei]) };
@@ -2771,7 +2827,8 @@ router.post('/l1/toggle-pause', async (req, res) => {
 // ── L1: Set minimums ──────────────────────────────────────────────────────────
 router.post('/l1/set-mins', async (req, res) => {
   try {
-    const { ownerSafeAddress, ownerPrivateKey, poolAddress, minNgnAmount, minTokenAmount } = req.body;
+    const { ownerSafeAddress, ownerPrivateKey, poolAddress, minNgnAmount, minTokenAmount } =
+      req.body;
     const { executeViaSafeBNB } = require('../services/relayServiceBNB');
     const cleanOwner = cleanAddr(ownerSafeAddress);
     const cleanPool = cleanAddr(poolAddress);
@@ -2787,11 +2844,29 @@ router.post('/l1/set-mins', async (req, res) => {
     const MULTISEND = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: lsmFeeNGN, feeUSD: lsmFeeUSD, feeWeiNGN: lsmFeeWeiNGN, feeWeiUSD: lsmFeeWeiUSD } =
-      await _getPoolFee('bnb');
-    const lsmFeeToken = await _resolveFeeToken('bnb', cleanOwner, lsmFeeNGN, lsmFeeUSD, lsmFeeWeiNGN, lsmFeeWeiUSD);
+    const l1MinsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
+    const {
+      feeNGN: lsmFeeNGN,
+      feeUSD: lsmFeeUSD,
+      feeWeiNGN: lsmFeeWeiNGN,
+      feeWeiUSD: lsmFeeWeiUSD,
+    } = await _getPoolFee('bnb', l1MinsLegs);
+    const lsmFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanOwner,
+      lsmFeeNGN,
+      lsmFeeUSD,
+      lsmFeeWeiNGN,
+      lsmFeeWeiUSD
+    );
     if (!lsmFeeToken) return res.status(400).json({ message: _feeErrorMsg(lsmFeeNGN, lsmFeeUSD) });
-    const lsmFeeTx = { to: ethers.getAddress(lsmFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lsmFeeToken.feeWei]) };
+    const lsmFeeTx = {
+      to: ethers.getAddress(lsmFeeToken.tokenAddress),
+      data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+        ethers.getAddress(_treasury(true)),
+        lsmFeeToken.feeWei,
+      ]),
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     // Mins are always stored as 6-decimal fixed-point on the pool contract
@@ -2819,23 +2894,31 @@ router.post('/l1/set-mins', async (req, res) => {
       );
     } else {
       result = await executeViaSafeBNB(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: ngnWei
+          {
+            to: ethers.getAddress(cleanPool),
+            data: ngnWei
               ? POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [ngnWei])
-              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [tokenWei]) },
+              : POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [tokenWei]),
+          },
           lsmFeeTx,
-        ]), 1
+        ]),
+        1
       );
     }
 
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Transaction failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Transaction failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Transaction reverted' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Transaction reverted' });
 
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
