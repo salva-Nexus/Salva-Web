@@ -69,9 +69,9 @@ function _buildMultiSend(calls) {
 // legs = number of calls bundled in this operation's MultiSend — pass the
 // real count from the caller (2 for most ops, 3 for approve+swap+fee or
 // dual-rate/dual-min updates). Defaults to 2 for all the simple 2-leg ops.
-async function _getPoolFee(chain, legs = 2) {
+async function _getPoolFee(chain, legs = 2, actionCalls = null) {
   try {
-    return await estimatePoolFee(chain, legs);
+    return await estimatePoolFee(chain, legs, actionCalls);
   } catch (err) {
     console.error(`❌ [pool fee] estimatePoolFee failed, using fallback:`, err.message);
     const isBNB = chain === 'bnb';
@@ -82,8 +82,12 @@ async function _getPoolFee(chain, legs = 2) {
     if (isBNB) {
       try {
         const isProd = process.env.NODE_ENV === 'production';
-        const ngnAddr = isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
-        const usdAddr = isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
+        const ngnAddr = isProd
+          ? process.env.L1_NGN_TOKEN_ADDRESS
+          : process.env.L1_BSC_NGN_TOKEN_ADDRESS;
+        const usdAddr = isProd
+          ? process.env.L1_USDT_CONTRACT_ADDRESS
+          : process.env.L1_BSC_USDT_CONTRACT_ADDRESS;
         if (ngnAddr) ngnDecimals = await getL1TokenDecimals(ethers.getAddress(ngnAddr));
         if (usdAddr) usdDecimals = await getL1TokenDecimals(ethers.getAddress(usdAddr));
       } catch {
@@ -355,21 +359,53 @@ router.post('/deploy', async (req, res) => {
     if (!factoryAddr)
       return res.status(500).json({ message: 'POOL_FACTORY_ADDRESS not configured in .env' });
 
+    // ── Real deployPool() calldata — simulated as-is, not approximated ──────
+    const FACTORY_IFACE_LOCAL = new ethers.Interface([
+      'function deployPool() external returns (address pool)',
+    ]);
+    const deployCalldata = FACTORY_IFACE_LOCAL.encodeFunctionData('deployPool', []);
+    const deployActionCalls = [
+      {
+        to: ethers.getAddress(factoryAddr),
+        data: deployCalldata,
+        from: ethers.getAddress(cleanOwner),
+      },
+    ];
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: dFeeNGN, feeUSD: dFeeUSD, feeWeiNGN: dFeeWeiNGN, feeWeiUSD: dFeeWeiUSD } =
-      await _getPoolFee('base');
-    const dFeeToken = await _resolveFeeToken('base', cleanOwner, dFeeNGN, dFeeUSD, dFeeWeiNGN, dFeeWeiUSD);
+    const {
+      feeNGN: dFeeNGN,
+      feeUSD: dFeeUSD,
+      feeWeiNGN: dFeeWeiNGN,
+      feeWeiUSD: dFeeWeiUSD,
+    } = await _getPoolFee('base', 2, deployActionCalls);
+    const dFeeToken = await _resolveFeeToken(
+      'base',
+      cleanOwner,
+      dFeeNGN,
+      dFeeUSD,
+      dFeeWeiNGN,
+      dFeeWeiUSD
+    );
     if (!dFeeToken) return res.status(400).json({ message: _feeErrorMsg(dFeeNGN, dFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     // Deploy pool + collect fee in single Safe tx via MultiSend
-    const FACTORY_IFACE_LOCAL = new ethers.Interface(['function deployPool() external returns (address pool)']);
     const result = await relay._executeViaSafeBase(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
-        { to: ethers.getAddress(factoryAddr), data: FACTORY_IFACE_LOCAL.encodeFunctionData('deployPool', []) },
-        { to: ethers.getAddress(dFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), dFeeToken.feeWei]) },
-      ]), 1
+        { to: ethers.getAddress(factoryAddr), data: deployCalldata },
+        {
+          to: ethers.getAddress(dFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(false)),
+            dFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
 
     if (!result || !result.txHash)

@@ -329,7 +329,13 @@ function _encodeMultiSendTx(to, data) {
  *
  * Throws on any failure — callers must catch and fall back to hardcoded units.
  */
-async function _simulateMultiSendGasUnits(chain, tokenAddress, treasuryAddress, legs = 2) {
+async function _simulateMultiSendGasUnits(
+  chain,
+  tokenAddress,
+  treasuryAddress,
+  legs = 2,
+  actionCalls = null
+) {
   if (!tokenAddress) throw new Error('No token address resolved for simulation');
   if (!treasuryAddress) throw new Error('No treasury address resolved for simulation');
 
@@ -337,17 +343,60 @@ async function _simulateMultiSendGasUnits(chain, tokenAddress, treasuryAddress, 
   const provider = await _getWorkingProvider(isBNB);
 
   const dummyRecipient = '0x000000000000000000000000000000000000dEaD';
-
-  // MultiSend enforces delegatecall-only execution (reverts with
-  // "MultiSend should only be called via delegatecall" on a plain call),
-  // and eth_estimateGas cannot fake a delegatecall context. So instead of
-  // simulating the bundled MultiSend call itself, sum the estimateGas of
-  // each individual leg as a standalone call from treasury, then add a
-  // fixed per-leg overhead to approximate MultiSend's decode+delegatecall
-  // loop cost (empirically ~3-5k gas per leg on top of the inner call).
   const MULTISEND_LOOP_OVERHEAD_PER_LEG = 4000n;
-  const numLegs = Math.max(1, legs);
 
+  // ── Real-calldata path ──────────────────────────────────────────────────
+  // actionCalls, when provided, is an array of { to, data, from? } describing
+  // the ACTUAL on-chain calls this operation will make (deployPool(), swap
+  // fn, updateBuyRate(), pause(), removeLiquidity(), etc.) — everything
+  // except the final fee-transfer leg, which we always append ourselves
+  // since it's genuinely always a plain ERC20 transfer to treasury.
+  //
+  // This replaces the old approach of pretending every leg is a token
+  // transfer — a swap costs far more gas than a transfer, a pool deploy
+  // (CREATE-based) costs vastly more, and updateBuyRate/pause are simple
+  // storage writes roughly transfer-sized. Simulating the real calldata is
+  // the only way to get a number that isn't wrong by an order of magnitude
+  // for the non-transfer operations.
+  if (actionCalls && actionCalls.length > 0) {
+    let total = 0n;
+    for (const call of actionCalls) {
+      const from = call.from ? ethers.getAddress(call.from) : ethers.getAddress(treasuryAddress);
+      try {
+        const legGas = await provider.estimateGas({
+          from,
+          to: ethers.getAddress(call.to),
+          data: call.data,
+        });
+        total += legGas + MULTISEND_LOOP_OVERHEAD_PER_LEG;
+      } catch (simErr) {
+        // A single leg failing to simulate (e.g. deployPool() reverts when
+        // simulated from an address without the right on-chain state) must
+        // not silently produce a garbage total — bail out entirely so the
+        // caller falls back to the hardcoded path, which is honest about
+        // being an estimate rather than quietly wrong.
+        throw new Error(`Action leg simulation failed (to=${call.to}): ${simErr.message}`);
+      }
+    }
+    // Always append the real fee-transfer leg too, for an accurate total.
+    const feeData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+      ethers.getAddress(treasuryAddress),
+      1n,
+    ]);
+    const feeLegGas = await provider.estimateGas({
+      from: ethers.getAddress(treasuryAddress),
+      to: ethers.getAddress(tokenAddress),
+      data: feeData,
+    });
+    total += feeLegGas + MULTISEND_LOOP_OVERHEAD_PER_LEG;
+    return total;
+  }
+
+  // ── Fallback path (no real calldata supplied) — old generic-transfer
+  // approximation. Kept for callers that haven't been updated yet, and as
+  // the fallback within _resolveGasUnitsAndBuffer if actionCalls simulation
+  // throws.
+  const numLegs = Math.max(1, legs);
   let total = 0n;
   for (let i = 0; i < numLegs; i++) {
     const dest = i === numLegs - 1 ? ethers.getAddress(treasuryAddress) : dummyRecipient;
@@ -359,8 +408,7 @@ async function _simulateMultiSendGasUnits(chain, tokenAddress, treasuryAddress, 
     });
     total += legGas + MULTISEND_LOOP_OVERHEAD_PER_LEG;
   }
-
-  return total; // bigint
+  return total;
 }
 
 /**
@@ -371,7 +419,7 @@ async function _simulateMultiSendGasUnits(chain, tokenAddress, treasuryAddress, 
  *
  * Returns { gasUnits: bigint, bufferMultiplier: number, simulated: boolean }
  */
-async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2) {
+async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2, actionCalls = null) {
   const isBNB = chain === 'bnb';
   const isProd = process.env.NODE_ENV === 'production';
 
@@ -379,9 +427,15 @@ async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2) {
     try {
       const tokenAddr = _resolveTokenAddress(chain, coin);
       const treasuryAddr = _resolveTreasuryAddress(chain);
-      const simulatedUnits = await _simulateMultiSendGasUnits(chain, tokenAddr, treasuryAddr, legs);
+      const simulatedUnits = await _simulateMultiSendGasUnits(
+        chain,
+        tokenAddr,
+        treasuryAddr,
+        legs,
+        actionCalls
+      );
       console.log(
-        `🔬 [GasOracle] Simulated gas units (chain=${chain} coin=${coin}): ${simulatedUnits}`
+        `🔬 [GasOracle] Simulated gas units (chain=${chain} coin=${coin} realCalldata=${!!actionCalls}): ${simulatedUnits}`
       );
       const simBuffer = isBNB ? SIM_BUFFER_BNB : SIM_BUFFER_BASE;
       return { gasUnits: simulatedUnits, bufferMultiplier: simBuffer, simulated: true };
@@ -405,7 +459,7 @@ async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2) {
 //
 // Returns: { feeUSD, feeNGN, feeWei, decimals }
 // ─────────────────────────────────────────────────────────────────────────────
-async function estimateTransferFee(chain, coin) {
+async function estimateTransferFee(chain, coin, actionCalls = null) {
   const isNGN = coin === 'NGN' || coin === 'CNGN';
   const isBNB = chain === 'bnb';
 
@@ -417,7 +471,12 @@ async function estimateTransferFee(chain, coin) {
     _fetchUSDtoNGN(),
   ]);
 
-  const { gasUnits, bufferMultiplier, simulated } = await _resolveGasUnitsAndBuffer(chain, coin, 2);
+  const { gasUnits, bufferMultiplier, simulated } = await _resolveGasUnitsAndBuffer(
+    chain,
+    coin,
+    2,
+    actionCalls
+  );
 
   const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);
   const gasCostNativeToken = parseFloat(ethers.formatEther(gasCostWei));
@@ -511,7 +570,7 @@ async function warmCache() {
 // single-rate update (rate + fee = 2) vs a dual-rate update (buy + sell +
 // fee = 3). Defaulting silently to 2 for everything was the original bug —
 // it undercharged every 3-leg operation.
-async function estimatePoolFee(chain, legs = 2) {
+async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
   const isBNB = chain === 'bnb';
   const isProd = process.env.NODE_ENV === 'production';
   const priceSymbol = isBNB ? 'BNBUSDT' : 'ETHUSDT';
@@ -522,12 +581,14 @@ async function estimatePoolFee(chain, legs = 2) {
     _fetchUSDtoNGN(),
   ]);
 
-  // Pool ops simulate against the NGN token leg by default — representative
-  // of the dominant real-world pool operation (NGN swap leg + fee leg).
+  // actionCalls, when passed, contains the REAL calldata for this specific
+  // pool operation (swap/deploy/updateBuyRate/pause/etc) — simulated as-is
+  // instead of approximated as generic token transfers.
   const { gasUnits, bufferMultiplier, simulated } = await _resolveGasUnitsAndBuffer(
     chain,
     'NGN',
-    legs
+    legs,
+    actionCalls
   );
 
   const gasCostWei = BigInt(gasUnits) * BigInt(gasPrice);
