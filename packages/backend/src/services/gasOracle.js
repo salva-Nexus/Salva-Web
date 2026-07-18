@@ -337,31 +337,29 @@ async function _simulateMultiSendGasUnits(chain, tokenAddress, treasuryAddress, 
 
   const dummyRecipient = '0x000000000000000000000000000000000000dEaD';
 
-  // Build `legs` dummy transfer calls generically — this covers 1, 2, 3+ leg
-  // transactions (e.g. approve+swap+fee = 3 legs, dual-rate-update+fee = 3 legs)
-  // rather than only ever simulating a fixed 1 or 2-call shape. All legs use
-  // 1-wei ERC20 transfers as a stand-in — close enough for a gas-unit estimate
-  // since each leg is a single warm SSTORE + external call regardless of which
-  // real function it represents.
+  // MultiSend enforces delegatecall-only execution (reverts with
+  // "MultiSend should only be called via delegatecall" on a plain call),
+  // and eth_estimateGas cannot fake a delegatecall context. So instead of
+  // simulating the bundled MultiSend call itself, sum the estimateGas of
+  // each individual leg as a standalone call from treasury, then add a
+  // fixed per-leg overhead to approximate MultiSend's decode+delegatecall
+  // loop cost (empirically ~3-5k gas per leg on top of the inner call).
+  const MULTISEND_LOOP_OVERHEAD_PER_LEG = 4000n;
   const numLegs = Math.max(1, legs);
-  const calls = [];
+
+  let total = 0n;
   for (let i = 0; i < numLegs; i++) {
-    // Alternate destination between dummy recipient and treasury so at least
-    // one leg resembles the real "pay the fee to treasury" pattern.
     const dest = i === numLegs - 1 ? ethers.getAddress(treasuryAddress) : dummyRecipient;
     const txData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [dest, 1n]);
-    calls.push(_encodeMultiSendTx(tokenAddress, txData));
+    const legGas = await provider.estimateGas({
+      from: ethers.getAddress(treasuryAddress),
+      to: ethers.getAddress(tokenAddress),
+      data: txData,
+    });
+    total += legGas + MULTISEND_LOOP_OVERHEAD_PER_LEG;
   }
 
-  const msData = MULTISEND_IFACE.encodeFunctionData('multiSend', [ethers.concat(calls)]);
-
-  const gasEstimate = await provider.estimateGas({
-    from: ethers.getAddress(treasuryAddress),
-    to: MULTISEND_ADDRESS,
-    data: msData,
-  });
-
-  return gasEstimate; // bigint
+  return total; // bigint
 }
 
 /**
