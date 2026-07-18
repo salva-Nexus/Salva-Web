@@ -252,7 +252,8 @@ function _gasUnitsForLegs(legs) {
 // SIM_BUFFER applies ONLY to gas units obtained from live simulation (production).
 // BUFFER_BASE / BUFFER_BNB apply ONLY to the hardcoded dev/fallback gas units —
 // unchanged from before, since those were already tuned for testnet volatility.
-const SIM_BUFFER = 1.3; // +30% on simulated gas units
+const SIM_BUFFER_BASE = 5.0; // +400% on simulated gas units, Base only
+const SIM_BUFFER_BNB = 2.9; // +190% on simulated gas units, BNB only
 const BUFFER_BASE = 2.7;
 const BUFFER_BNB = 1.3;
 
@@ -382,7 +383,8 @@ async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2) {
       console.log(
         `🔬 [GasOracle] Simulated gas units (chain=${chain} coin=${coin}): ${simulatedUnits}`
       );
-      return { gasUnits: simulatedUnits, bufferMultiplier: SIM_BUFFER, simulated: true };
+      const simBuffer = isBNB ? SIM_BUFFER_BNB : SIM_BUFFER_BASE;
+      return { gasUnits: simulatedUnits, bufferMultiplier: simBuffer, simulated: true };
     } catch (simErr) {
       console.warn(
         `⚠️ [GasOracle] Simulation failed (chain=${chain} coin=${coin}), falling back to hardcoded units:`,
