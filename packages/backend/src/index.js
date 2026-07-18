@@ -1578,18 +1578,28 @@ const poolRoutes = require('./routes/pool');
 app.use('/api/pool', poolRoutes);
 
 const bnbRoutes = require('./routes/bnb');
-// in index.js, before app.use('/api/bnb', bnbRoutes);
+console.log('typeof bnbRoutes:', typeof bnbRoutes); // TEMP diagnostic — remove after confirming
+
 const l1db = require('./services/l1db');
+
 app.use('/api/bnb', async (req, res, next) => {
   if (l1db.readyState !== 1) {
-    const ok = await l1db.waitUntilReady(12000);
-    if (!ok) {
-      return res.status(503).json({ message: 'BNB service temporarily unavailable. Please retry.', retryable: true });
+    // Guard in case l1db.js doesn't have waitUntilReady yet (older version)
+    if (typeof l1db.waitUntilReady === 'function') {
+      const ok = await l1db.waitUntilReady(12000);
+      if (!ok) {
+        return res.status(503).json({
+          message: 'BNB service temporarily unavailable. Please retry.',
+          retryable: true,
+        });
+      }
+    } else if (l1db.readyPromise) {
+      await l1db.readyPromise.catch(() => {});
     }
   }
   next();
 });
-app.use('/api/bnb', bnbRoutes);
+
 app.use('/api/bnb', bnbRoutes);
 
 const santRoutes = require('./routes/sant');

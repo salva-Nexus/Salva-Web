@@ -3087,11 +3087,21 @@ router.post('/l1/deploy', async (req, res) => {
     ]);
     const calldata = FACTORY_IFACE.encodeFunctionData('deployPool', []);
 
+    // ── Real deployPool() calldata — simulated as-is, matching the Base route ──
+    const deployActionCalls = [
+      {
+        to: ethers.getAddress(factoryAddr),
+        data: calldata,
+        from: ethers.getAddress(cleanOwner),
+      },
+    ];
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const { feeNGN: ld1FeeNGN, feeUSD: ld1FeeUSD, feeWeiNGN: ld1FeeWeiNGN, feeWeiUSD: ld1FeeWeiUSD } =
-      await _getPoolFee('bnb');
+      await _getPoolFee('bnb', 2, deployActionCalls);
     const ld1FeeToken = await _resolveFeeToken('bnb', cleanOwner, ld1FeeNGN, ld1FeeUSD, ld1FeeWeiNGN, ld1FeeWeiUSD);
     if (!ld1FeeToken) return res.status(400).json({ message: _feeErrorMsg(ld1FeeNGN, ld1FeeUSD) });
+    // ─────────────────────────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
