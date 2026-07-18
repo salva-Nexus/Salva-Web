@@ -2332,7 +2332,8 @@ app.post('/api/transfer', async (req, res) => {
 
     if (feeHuman > 0) {
       if (balanceNum >= amountNum + feeHuman) {
-        // Same-coin surplus covers the fee too — single token, no extra leg.
+        // Case 1 — Same-coin surplus covers the fee too. Full amount sent,
+        // fee paid from the leftover balance. No extra leg needed.
         actualFeeWei = feeWei;
       } else {
         // Same-coin balance covers the amount but not amount+fee — check the
@@ -2345,15 +2346,30 @@ app.post('/api/transfer', async (req, res) => {
           feeNGN,
           feeUsd
         );
-        if (!altFee) {
+        if (altFee) {
+          // Case 2 — Alt-family token covers the fee. Full amount still
+          // sent; fee comes from the other family member as a second leg.
+          actualFeeWei = altFee.feeWei;
+          feeTokenAddress = altFee.tokenAddress;
+          feeTokenDecimals = altFee.decimals;
+          feeCoinUsed = altFee.symbol;
+        } else if (feeHuman < amountNum) {
+          // Case 3 — Neither same-coin surplus nor the family-alt token can
+          // cover the fee (e.g. user is sending their exact MAX balance and
+          // has zero left in either currency-family member). Fall back to
+          // deducting the fee FROM the amount itself — same coin, single
+          // leg. recipientReceives = amountNum - feeHuman.
+          recipientReceives = amountNum - feeHuman;
+          actualAmountWei = ethers.parseUnits(recipientReceives.toFixed(decimals), decimals);
+          actualFeeWei = feeWei;
+          // feeTokenAddress stays = tokenAddress (same coin) — feeCoinUsed stays = coin.
+        } else {
+          // Case 4 — Fee is >= the amount itself. Nothing useful to send —
+          // block here, this is the warning case you described.
           return res.status(400).json({
-            message: `Insufficient balance for network fee. Need ${familyLabel} to cover the fee — top up and try again.`,
+            message: `Amount too small to cover the network fee. Fee is ${feeHuman} — increase your amount, or top up ${familyLabel} to cover it separately.`,
           });
         }
-        actualFeeWei = altFee.feeWei;
-        feeTokenAddress = altFee.tokenAddress;
-        feeTokenDecimals = altFee.decimals;
-        feeCoinUsed = altFee.symbol;
       }
     }
 
