@@ -220,7 +220,7 @@ const RegistryDropdown = ({
 };
 
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
+const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo }) => {
   const [pin, setPin] = useState('');
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center px-3 sm:px-4">
@@ -244,7 +244,9 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             <span className="text-base sm:text-2xl">🔐</span>
           </div>
           <h3 className="text-sm sm:text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">{subtitle}</p>
+          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">
+            {subtitle}
+          </p>
           <input
             type="password"
             inputMode="numeric"
@@ -255,6 +257,20 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             autoFocus
             className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
           />
+          {feeInfo && (
+            <div className="-mt-2 mb-4 sm:-mt-3 sm:mb-6 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-[9px] sm:text-xs">
+              <span className="uppercase tracking-widest text-white/60 font-black">
+                Network Fee
+              </span>
+              {feeInfo.loading ? (
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white/20 border-t-salvaGold rounded-full animate-spin inline-block" />
+              ) : feeInfo.feeNGN != null ? (
+                <span className="text-red-400 font-black">₦{feeInfo.feeNGN.toFixed(2)}</span>
+              ) : (
+                <span className="text-white/30">—</span>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 sm:gap-3">
             <button
               onClick={onCancel}
@@ -1146,7 +1162,6 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 
 // ─── Main DeployPool ──────────────────────────────────────────────────────────
 const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
-    // eslint-disable-next-line no-unused-vars
   const [poolFee, setPoolFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
   const poolFeeCache = useRef({});
   const [refreshing, setRefreshing] = useState(false);
@@ -1308,7 +1323,10 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || 'Subscription failed');
       showMsg(
-        `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}`
+        `Pool published! Expires ${new Date(data.subscriptionExpiresAt).toLocaleDateString(
+          'en-US',
+          { day: 'numeric', month: 'short', year: 'numeric' }
+        )}`
       );
       await fetchMyPools();
     } catch (err) {
@@ -1393,7 +1411,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       try {
         const feeRes = await fetch(`${SALVA_API_URL}/api/registry-fee`);
         const feeData = await feeRes.json();
-        setRenameFee(feeRes.ok ? (feeData.fee ?? 0) : 0);
+        setRenameFee(feeRes.ok ? feeData.fee ?? 0 : 0);
       } catch {
         setRenameFee(0);
       } finally {
@@ -1510,11 +1528,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3.5 sm:space-y-5 relative">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-3.5 sm:space-y-5 relative"
+    >
       {/* Header + Deploy Button */}
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0">
-          <h2 className="text-sm sm:text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
+          <h2 className="text-sm sm:text-lg font-black tracking-tight whitespace-nowrap">
+            My Pools
+          </h2>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
           <a
@@ -1558,7 +1582,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
 
       {/* Info card */}
       <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-[9px] sm:text-xs font-black text-salvaGold mb-0.5 sm:mb-1">How it works</p>
+        <p className="text-[9px] sm:text-xs font-black text-salvaGold mb-0.5 sm:mb-1">
+          How it works
+        </p>
         <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
           Deploy your pool, add liquidity, set rates, then publish it. A subscription of{' '}
           <span className="font-black text-salvaGold">
@@ -1582,7 +1608,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
             <span className="text-base sm:text-2xl">🏊</span>
           </div>
-          <p className="font-black text-white/60 text-[10px] sm:text-sm mb-0.5 sm:mb-1">No pools yet</p>
+          <p className="font-black text-white/60 text-[10px] sm:text-sm mb-0.5 sm:mb-1">
+            No pools yet
+          </p>
           <p className="text-[8px] sm:text-[11px] text-white/60">
             Deploy your first pool to start earning as an LP
           </p>
@@ -1684,11 +1712,19 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     <button
                       key={tier.months}
                       onClick={() => setSubTier(tier.months)}
-                      className={`w-full flex items-center justify-between p-2.5 sm:p-4 rounded-xl border transition-all ${subTier === tier.months ? 'border-salvaGold bg-salvaGold/10' : 'border-white/10 bg-white/5 hover:border-salvaGold/30'}`}
+                      className={`w-full flex items-center justify-between p-2.5 sm:p-4 rounded-xl border transition-all ${
+                        subTier === tier.months
+                          ? 'border-salvaGold bg-salvaGold/10'
+                          : 'border-white/10 bg-white/5 hover:border-salvaGold/30'
+                      }`}
                     >
-                      <span className="font-black text-[10px] sm:text-sm text-white">{tier.label}</span>
+                      <span className="font-black text-[10px] sm:text-sm text-white">
+                        {tier.label}
+                      </span>
                       <span
-                        className={`font-black text-[10px] sm:text-sm ${subTier === tier.months ? 'text-salvaGold' : 'text-white/60'}`}
+                        className={`font-black text-[10px] sm:text-sm ${
+                          subTier === tier.months ? 'text-salvaGold' : 'text-white/60'
+                        }`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
@@ -1744,7 +1780,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <span className="text-base sm:text-2xl">🏷️</span>
                 </div>
-                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Name Your Pool?</h3>
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">
+                  Name Your Pool?
+                </h3>
                 <p className="text-[9px] sm:text-xs text-white/60 mb-1.5 sm:mb-2 leading-relaxed">
                   Give it a human-readable identity like{' '}
                   <span className="text-salvaGold font-black">mypool@salva</span>
@@ -1800,7 +1838,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <span className="text-base sm:text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Delete Pool?</h3>
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">
+                  Delete Pool?
+                </h3>
                 <p className="text-[9px] sm:text-xs text-white/60 mb-1 leading-relaxed">
                   Removes from registry. Contract stays on-chain.
                 </p>
@@ -1952,7 +1992,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {renameError && (
                       <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">⚠</span>
-                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">
+                          {renameError}
+                        </p>
                       </div>
                     )}
                     <button
@@ -2001,8 +2043,12 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       </div>
                     ) : renameFee === 0 ? (
                       <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-                        <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">✦</span>
-                        <p className="text-[9px] sm:text-xs font-black text-green-400">Free Registration</p>
+                        <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">
+                          ✦
+                        </span>
+                        <p className="text-[9px] sm:text-xs font-black text-green-400">
+                          Free Registration
+                        </p>
                       </div>
                     ) : null}
                     {renamingPool.poolName && (
@@ -2026,7 +2072,9 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {renameError && (
                       <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-[10px] sm:text-xs">⚠</span>
-                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">
+                          {renameError}
+                        </p>
                       </div>
                     )}
                     <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
@@ -2084,16 +2132,17 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               pinAction === 'deploy'
                 ? 'Sign pool deployment via your Safe'
                 : pinAction === 'subscribe'
-                  ? 'Authorize subscription payment from your Safe'
-                  : pinAction === 'delete'
-                    ? 'Authorize pool deletion via your Safe'
-                    : pinAction === 'rename'
-                      ? 'Sign rename — unlink old, link new'
-                      : 'Enter your PIN'
+                ? 'Authorize subscription payment from your Safe'
+                : pinAction === 'delete'
+                ? 'Authorize pool deletion via your Safe'
+                : pinAction === 'rename'
+                ? 'Sign rename — unlink old, link new'
+                : 'Enter your PIN'
             }
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
+            feeInfo={pinAction === 'deploy' ? poolFee : undefined}
           />
         )}
       </AnimatePresence>

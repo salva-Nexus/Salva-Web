@@ -43,7 +43,7 @@ const compactFmt = (n) => {
 };
 
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
+const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo }) => {
   const [pin, setPin] = useState('');
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center px-3 sm:px-4">
@@ -67,7 +67,9 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             <span className="text-base sm:text-2xl">🔐</span>
           </div>
           <h3 className="text-sm sm:text-xl font-black mb-1 text-white">{title}</h3>
-          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">{subtitle}</p>
+          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">
+            {subtitle}
+          </p>
           <input
             type="password"
             inputMode="numeric"
@@ -78,6 +80,20 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             autoFocus
             className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-blue-500 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
           />
+          {feeInfo && (
+            <div className="-mt-2 mb-4 sm:-mt-3 sm:mb-6 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-[9px] sm:text-xs">
+              <span className="uppercase tracking-widest text-white/60 font-black">
+                Network Fee
+              </span>
+              {feeInfo.loading ? (
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-blue-500/30 border-t-blue-400 rounded-full animate-spin inline-block" />
+              ) : feeInfo.feeNGN != null ? (
+                <span className="text-red-400 font-black">₦{feeInfo.feeNGN.toFixed(2)}</span>
+              ) : (
+                <span className="text-white/30">—</span>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 sm:gap-3">
             <button
               onClick={onCancel}
@@ -1475,10 +1491,16 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   };
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3.5 sm:space-y-5 relative">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-3.5 sm:space-y-5 relative"
+    >
       <div className="flex items-center justify-between gap-2 sm:gap-3">
         <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-          <h2 className="text-sm sm:text-lg font-black tracking-tight whitespace-nowrap">My Pools</h2>
+          <h2 className="text-sm sm:text-lg font-black tracking-tight whitespace-nowrap">
+            My Pools
+          </h2>
         </div>
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
           <a
@@ -1524,7 +1546,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
       </div>
 
       <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-        <p className="text-[9px] sm:text-xs font-black text-blue-400 mb-0.5 sm:mb-1">How it works</p>
+        <p className="text-[9px] sm:text-xs font-black text-blue-400 mb-0.5 sm:mb-1">
+          How it works
+        </p>
         <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
           Deploy your pool, add liquidity, set rates, then publish it. A subscription of{' '}
           <span className="font-black text-blue-400">
@@ -1547,7 +1571,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
             <span className="text-base sm:text-2xl">🏊</span>
           </div>
-          <p className="font-black text-white/60 text-[10px] sm:text-sm mb-0.5 sm:mb-1">No pools yet</p>
+          <p className="font-black text-white/60 text-[10px] sm:text-sm mb-0.5 sm:mb-1">
+            No pools yet
+          </p>
           <p className="text-[8px] sm:text-[11px] text-white/60">
             Deploy your first pool to start earning as an LP
           </p>
@@ -1649,11 +1675,19 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     <button
                       key={tier.months}
                       onClick={() => setSubTier(tier.months)}
-                      className={`w-full flex items-center justify-between p-2.5 sm:p-4 rounded-xl border transition-all ${subTier === tier.months ? 'border-blue-500 bg-blue-500/10' : 'border-white/10 bg-white/5 hover:border-blue-500/30'}`}
+                      className={`w-full flex items-center justify-between p-2.5 sm:p-4 rounded-xl border transition-all ${
+                        subTier === tier.months
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'border-white/10 bg-white/5 hover:border-blue-500/30'
+                      }`}
                     >
-                      <span className="font-black text-[10px] sm:text-sm text-white">{tier.label}</span>
+                      <span className="font-black text-[10px] sm:text-sm text-white">
+                        {tier.label}
+                      </span>
                       <span
-                        className={`font-black text-[10px] sm:text-sm ${subTier === tier.months ? 'text-blue-400' : 'text-white/60'}`}
+                        className={`font-black text-[10px] sm:text-sm ${
+                          subTier === tier.months ? 'text-blue-400' : 'text-white/60'
+                        }`}
                       >
                         {tier.total.toLocaleString()} NGNs
                       </span>
@@ -1709,7 +1743,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-blue-500/10 border border-blue-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <span className="text-base sm:text-2xl">🏷️</span>
                 </div>
-                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Name Your Pool?</h3>
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">
+                  Name Your Pool?
+                </h3>
                 <p className="text-[9px] sm:text-xs text-white/60 mb-1.5 sm:mb-2 leading-relaxed">
                   Give it a human-readable identity like{' '}
                   <span className="text-blue-400 font-black">mypool@salva</span>
@@ -1765,7 +1801,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 <div className="w-10 h-10 sm:w-14 sm:h-14 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
                   <span className="text-base sm:text-2xl">⚠️</span>
                 </div>
-                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">Delete Pool?</h3>
+                <h3 className="text-sm sm:text-xl font-black mb-1.5 sm:mb-2 text-white">
+                  Delete Pool?
+                </h3>
                 <p className="text-[9px] sm:text-xs text-white/60 mb-1 leading-relaxed">
                   Removes from registry. Contract stays on-chain.
                 </p>
@@ -1902,7 +1940,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {renameError && (
                       <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">⚠</span>
-                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">
+                          {renameError}
+                        </p>
                       </div>
                     )}
                     <button
@@ -1950,8 +1990,12 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                       </div>
                     ) : renameFee === 0 ? (
                       <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-                        <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">✦</span>
-                        <p className="text-[9px] sm:text-xs font-black text-green-400">Free Registration</p>
+                        <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">
+                          ✦
+                        </span>
+                        <p className="text-[9px] sm:text-xs font-black text-green-400">
+                          Free Registration
+                        </p>
                       </div>
                     ) : null}
                     {renamingPool.poolName && (
@@ -1975,7 +2019,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                     {renameError && (
                       <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
                         <span className="text-red-400 text-[10px] sm:text-xs">⚠</span>
-                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">{renameError}</p>
+                        <p className="text-[9px] sm:text-xs text-red-400 font-bold">
+                          {renameError}
+                        </p>
                       </div>
                     )}
                     <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
@@ -2053,18 +2099,19 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               pinAction === 'deploy'
                 ? 'Sign pool deployment via your BNB Safe'
                 : pinAction === 'subscribe'
-                  ? 'Authorize subscription payment'
-                  : pinAction === 'delete'
-                    ? deletingPool?.poolName
-                      ? 'Enter Base PIN to unlink pool name and delete'
-                      : 'Authorize pool deletion'
-                    : pinAction === 'rename'
-                      ? 'Sign rename — unlink old, link new'
-                      : 'Enter your PIN'
+                ? 'Authorize subscription payment'
+                : pinAction === 'delete'
+                ? deletingPool?.poolName
+                  ? 'Enter Base PIN to unlink pool name and delete'
+                  : 'Authorize pool deletion'
+                : pinAction === 'rename'
+                ? 'Sign rename — unlink old, link new'
+                : 'Enter your PIN'
             }
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
+            feeInfo={pinAction === 'deploy' ? poolFee : undefined}
           />
         )}
       </AnimatePresence>

@@ -502,18 +502,45 @@ router.post('/provide-liquidity', async (req, res) => {
     ]);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: plFeeNGN, feeUSD: plFeeUSD, feeWeiNGN: plFeeWeiNGN, feeWeiUSD: plFeeWeiUSD } =
-      await _getPoolFee('base');
-    const plFeeToken = await _resolveFeeToken('base', cleanOwner, plFeeNGN, plFeeUSD, plFeeWeiNGN, plFeeWeiUSD);
+    const plActionCalls = [
+      {
+        to: ethers.getAddress(tokenAddr),
+        data: transferCalldata,
+        from: ethers.getAddress(cleanOwner),
+      },
+    ];
+    const {
+      feeNGN: plFeeNGN,
+      feeUSD: plFeeUSD,
+      feeWeiNGN: plFeeWeiNGN,
+      feeWeiUSD: plFeeWeiUSD,
+    } = await _getPoolFee('base', 2, plActionCalls);
+    const plFeeToken = await _resolveFeeToken(
+      'base',
+      cleanOwner,
+      plFeeNGN,
+      plFeeUSD,
+      plFeeWeiNGN,
+      plFeeWeiUSD
+    );
     if (!plFeeToken) return res.status(400).json({ message: _feeErrorMsg(plFeeNGN, plFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(tokenAddr), data: transferCalldata },
-        { to: ethers.getAddress(plFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), plFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(plFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(false)),
+            plFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
 
     if (!result || !result.txHash)
@@ -559,18 +586,41 @@ router.post('/remove-liquidity', async (req, res) => {
     ]);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: rlFeeNGN, feeUSD: rlFeeUSD, feeWeiNGN: rlFeeWeiNGN, feeWeiUSD: rlFeeWeiUSD } =
-      await _getPoolFee('base');
-    const rlFeeToken = await _resolveFeeToken('base', cleanOwner, rlFeeNGN, rlFeeUSD, rlFeeWeiNGN, rlFeeWeiUSD);
+    const rlActionCalls = [
+      { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
+    ];
+    const {
+      feeNGN: rlFeeNGN,
+      feeUSD: rlFeeUSD,
+      feeWeiNGN: rlFeeWeiNGN,
+      feeWeiUSD: rlFeeWeiUSD,
+    } = await _getPoolFee('base', 2, rlActionCalls);
+    const rlFeeToken = await _resolveFeeToken(
+      'base',
+      cleanOwner,
+      rlFeeNGN,
+      rlFeeUSD,
+      rlFeeWeiNGN,
+      rlFeeWeiUSD
+    );
     if (!rlFeeToken) return res.status(400).json({ message: _feeErrorMsg(rlFeeNGN, rlFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(cleanPool), data: calldata },
-        { to: ethers.getAddress(rlFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), rlFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(rlFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(false)),
+            rlFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
 
     if (!result || !result.txHash)
@@ -607,37 +657,81 @@ router.post('/update-rates', async (req, res) => {
     // Dual-rate update bundles 3 calls (buyRate + sellRate + fee); single-rate
     // bundles 2 (one rate + fee).
     const rateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
+    const rActionCalls = [];
+    if (buyRate !== undefined) {
+      rActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
+    if (sellRate !== undefined) {
+      rActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
     const {
       feeNGN: rFeeNGN,
       feeUSD: rFeeUSD,
       feeWeiNGN: rFeeWeiNGN,
       feeWeiUSD: rFeeWeiUSD,
-    } = await _getPoolFee('base', rateLegs);
-    const rFeeToken = await _resolveFeeToken('base', cleanOwner, rFeeNGN, rFeeUSD, rFeeWeiNGN, rFeeWeiUSD);
+    } = await _getPoolFee('base', rateLegs, rActionCalls);
+    const rFeeToken = await _resolveFeeToken(
+      'base',
+      cleanOwner,
+      rFeeNGN,
+      rFeeUSD,
+      rFeeWeiNGN,
+      rFeeWeiUSD
+    );
     if (!rFeeToken) return res.status(400).json({ message: _feeErrorMsg(rFeeNGN, rFeeUSD) });
-    const rFeeTx = { to: ethers.getAddress(rFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), rFeeToken.feeWei]) };
+    const rFeeTx = {
+      to: ethers.getAddress(rFeeToken.tokenAddress),
+      data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+        ethers.getAddress(_treasury(false)),
+        rFeeToken.feeWei,
+      ]),
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     let result;
 
     if (buyRate !== undefined && sellRate !== undefined) {
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]) },
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]),
+          },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+          },
           rFeeTx,
-        ]), 1
+        ]),
+        1
       );
     } else {
       result = await relay._executeViaSafeBase(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: buyRate !== undefined
-              ? POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)])
-              : POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data:
+              buyRate !== undefined
+                ? POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)])
+                : POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+          },
           rFeeTx,
-        ]), 1
+        ]),
+        1
       );
     }
 
@@ -671,18 +765,41 @@ router.post('/toggle-pause', async (req, res) => {
       : POOL_IFACE.encodeFunctionData('unpause', []);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: tpFeeNGN, feeUSD: tpFeeUSD, feeWeiNGN: tpFeeWeiNGN, feeWeiUSD: tpFeeWeiUSD } =
-      await _getPoolFee('base');
-    const tpFeeToken = await _resolveFeeToken('base', cleanOwner, tpFeeNGN, tpFeeUSD, tpFeeWeiNGN, tpFeeWeiUSD);
+    const tpActionCalls = [
+      { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
+    ];
+    const {
+      feeNGN: tpFeeNGN,
+      feeUSD: tpFeeUSD,
+      feeWeiNGN: tpFeeWeiNGN,
+      feeWeiUSD: tpFeeWeiUSD,
+    } = await _getPoolFee('base', 2, tpActionCalls);
+    const tpFeeToken = await _resolveFeeToken(
+      'base',
+      cleanOwner,
+      tpFeeNGN,
+      tpFeeUSD,
+      tpFeeWeiNGN,
+      tpFeeWeiUSD
+    );
     if (!tpFeeToken) return res.status(400).json({ message: _feeErrorMsg(tpFeeNGN, tpFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(cleanPool), data: calldata },
-        { to: ethers.getAddress(tpFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(false)), tpFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(tpFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(false)),
+            tpFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
 
     if (!result || !result.txHash)
@@ -1216,13 +1333,34 @@ router.post('/swap', async (req, res) => {
     // Untrusted swap bundles 3 calls (approve + swap + fee); trusted bundles 2
     // (swap + fee). Charging both the same 2-leg estimate undercharges the
     // untrusted path's extra approve() gas — this is the fix for that.
+    // NOTE: untrusted path approve leg simulation may fall back to hardcoded
+    // units if allowance doesn't exist on-chain yet — safe, no crash.
     const swapLegs = trusted ? 2 : 3;
+    const swActionCalls = [];
+    if (!trusted) {
+      const ERC20_APPROVE_IFACE_SIM = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
+      swActionCalls.push({
+        to: ethers.getAddress(cleanTokenIn),
+        data: ERC20_APPROVE_IFACE_SIM.encodeFunctionData('approve', [
+          ethers.getAddress(cleanPool),
+          approveBn,
+        ]),
+        from: ethers.getAddress(cleanUser),
+      });
+    }
+    swActionCalls.push({
+      to: ethers.getAddress(cleanPool),
+      data: swapCalldata,
+      from: ethers.getAddress(cleanUser),
+    });
     const {
       feeNGN: swFeeNGN,
       feeUSD: swFeeUSD,
       feeWeiNGN: swFeeWeiNGN,
       feeWeiUSD: swFeeWeiUSD,
-    } = await _getPoolFee('base', swapLegs);
+    } = await _getPoolFee('base', swapLegs, swActionCalls);
     const swFeeToken = await _resolveFeeToken(
       'base',
       cleanUser,
@@ -1669,12 +1807,31 @@ router.post('/set-mins', async (req, res) => {
 
     // Dual-min update bundles 3 calls (minNgn + minToken + fee); single-min bundles 2.
     const minsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
+    const smActionCalls = [];
+    if (minNgnAmount) {
+      smActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [
+          ethers.parseUnits(String(minNgnAmount), 6),
+        ]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
+    if (minTokenAmount) {
+      smActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [
+          ethers.parseUnits(String(minTokenAmount), 6),
+        ]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
     const {
       feeNGN: smFN,
       feeUSD: smFU,
       feeWeiNGN: smFWN,
       feeWeiUSD: smFWU,
-    } = await _getPoolFee('base', minsLegs);
+    } = await _getPoolFee('base', minsLegs, smActionCalls);
     const smFT = await _resolveFeeToken('base', cleanOwner, smFN, smFU, smFWN, smFWU);
     if (!smFT) return res.status(400).json({ message: _feeErrorMsg(smFN, smFU) });
     const smFeeTx = {
@@ -2379,13 +2536,34 @@ router.post('/l1/swap', async (req, res) => {
       : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
+    // NOTE: untrusted path approve leg simulation may fall back to hardcoded
+    // units if allowance doesn't exist on-chain yet — safe, no crash.
     const l1SwapLegs = trusted ? 2 : 3;
+    const lswActionCalls = [];
+    if (!trusted) {
+      const ERC20_APPROVE_IFACE_L1SIM = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
+      lswActionCalls.push({
+        to: ethers.getAddress(cleanTokenIn),
+        data: ERC20_APPROVE_IFACE_L1SIM.encodeFunctionData('approve', [
+          ethers.getAddress(cleanPool),
+          approveBn,
+        ]),
+        from: ethers.getAddress(cleanUser),
+      });
+    }
+    lswActionCalls.push({
+      to: ethers.getAddress(cleanPool),
+      data: swapCalldata,
+      from: ethers.getAddress(cleanUser),
+    });
     const {
       feeNGN: lswFeeNGN,
       feeUSD: lswFeeUSD,
       feeWeiNGN: lswFeeWeiNGN,
       feeWeiUSD: lswFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1SwapLegs);
+    } = await _getPoolFee('bnb', l1SwapLegs, lswActionCalls);
     const lswFeeToken = await _resolveFeeToken(
       'bnb',
       cleanUser,
@@ -2638,11 +2816,25 @@ router.post('/l1/provide-liquidity', async (req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
     function resolveL1Token(sym) {
       switch (sym.toUpperCase()) {
-        case 'NGNS': case 'NGN': return cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
-        case 'CNGN': return cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS);
-        case 'USDT': return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS);
-        case 'USDC': return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS);
-        default: return null;
+        case 'NGNS':
+        case 'NGN':
+          return cleanAddr(
+            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+          );
+        case 'CNGN':
+          return cleanAddr(
+            isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
+          );
+        case 'USDT':
+          return cleanAddr(
+            isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
+          );
+        case 'USDC':
+          return cleanAddr(
+            isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
+          );
+        default:
+          return null;
       }
     }
 
@@ -2652,30 +2844,60 @@ router.post('/l1/provide-liquidity', async (req, res) => {
     const decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddr)).catch(() => 18);
     const amountWei = ethers.parseUnits(String(amount), decimals);
 
-    const ERC20_IFACE = new ethers.Interface(['function transfer(address to, uint256 amount) returns (bool)']);
-    const calldata = ERC20_IFACE.encodeFunctionData('transfer', [ethers.getAddress(cleanPool), amountWei]);
+    const ERC20_IFACE = new ethers.Interface([
+      'function transfer(address to, uint256 amount) returns (bool)',
+    ]);
+    const calldata = ERC20_IFACE.encodeFunctionData('transfer', [
+      ethers.getAddress(cleanPool),
+      amountWei,
+    ]);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: lplFeeNGN, feeUSD: lplFeeUSD, feeWeiNGN: lplFeeWeiNGN, feeWeiUSD: lplFeeWeiUSD } =
-      await _getPoolFee('bnb');
-    const lplFeeToken = await _resolveFeeToken('bnb', cleanOwner, lplFeeNGN, lplFeeUSD, lplFeeWeiNGN, lplFeeWeiUSD);
+    const lplActionCalls = [
+      { to: ethers.getAddress(tokenAddr), data: calldata, from: ethers.getAddress(cleanOwner) },
+    ];
+    const {
+      feeNGN: lplFeeNGN,
+      feeUSD: lplFeeUSD,
+      feeWeiNGN: lplFeeWeiNGN,
+      feeWeiUSD: lplFeeWeiUSD,
+    } = await _getPoolFee('bnb', 2, lplActionCalls);
+    const lplFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanOwner,
+      lplFeeNGN,
+      lplFeeUSD,
+      lplFeeWeiNGN,
+      lplFeeWeiUSD
+    );
     if (!lplFeeToken) return res.status(400).json({ message: _feeErrorMsg(lplFeeNGN, lplFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(tokenAddr), data: calldata },
-        { to: ethers.getAddress(lplFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lplFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(lplFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(true)),
+            lplFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Transfer failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Transfer failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Transfer reverted on-chain' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Transfer reverted on-chain' });
 
     console.log(`✅ L1 LP provided ${amount} ${asset} to pool ${cleanPool} (tx: ${result.txHash})`);
     res.json({ success: true, txHash: result.txHash, amount, asset });
@@ -2698,11 +2920,25 @@ router.post('/l1/remove-liquidity', async (req, res) => {
     const isProd = process.env.NODE_ENV === 'production';
     function resolveL1Token(sym) {
       switch (sym.toUpperCase()) {
-        case 'NGNS': case 'NGN': return cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
-        case 'CNGN': return cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS);
-        case 'USDT': return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS);
-        case 'USDC': return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS);
-        default: return null;
+        case 'NGNS':
+        case 'NGN':
+          return cleanAddr(
+            isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS
+          );
+        case 'CNGN':
+          return cleanAddr(
+            isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS
+          );
+        case 'USDT':
+          return cleanAddr(
+            isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS
+          );
+        case 'USDC':
+          return cleanAddr(
+            isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS
+          );
+        default:
+          return null;
       }
     }
 
@@ -2712,32 +2948,64 @@ router.post('/l1/remove-liquidity', async (req, res) => {
     const decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddr)).catch(() => 18);
     const amountWei = ethers.parseUnits(String(amount), decimals);
 
-    const POOL_IFACE = new ethers.Interface(['function removeLiquidity(address asset, uint256 amount) external returns (bool)']);
-    const calldata = POOL_IFACE.encodeFunctionData('removeLiquidity', [ethers.getAddress(tokenAddr), amountWei]);
+    const POOL_IFACE = new ethers.Interface([
+      'function removeLiquidity(address asset, uint256 amount) external returns (bool)',
+    ]);
+    const calldata = POOL_IFACE.encodeFunctionData('removeLiquidity', [
+      ethers.getAddress(tokenAddr),
+      amountWei,
+    ]);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: lrlFeeNGN, feeUSD: lrlFeeUSD, feeWeiNGN: lrlFeeWeiNGN, feeWeiUSD: lrlFeeWeiUSD } =
-      await _getPoolFee('bnb');
-    const lrlFeeToken = await _resolveFeeToken('bnb', cleanOwner, lrlFeeNGN, lrlFeeUSD, lrlFeeWeiNGN, lrlFeeWeiUSD);
+    const lrlActionCalls = [
+      { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
+    ];
+    const {
+      feeNGN: lrlFeeNGN,
+      feeUSD: lrlFeeUSD,
+      feeWeiNGN: lrlFeeWeiNGN,
+      feeWeiUSD: lrlFeeWeiUSD,
+    } = await _getPoolFee('bnb', 2, lrlActionCalls);
+    const lrlFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanOwner,
+      lrlFeeNGN,
+      lrlFeeUSD,
+      lrlFeeWeiNGN,
+      lrlFeeWeiUSD
+    );
     if (!lrlFeeToken) return res.status(400).json({ message: _feeErrorMsg(lrlFeeNGN, lrlFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(cleanPool), data: calldata },
-        { to: ethers.getAddress(lrlFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lrlFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(lrlFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(true)),
+            lrlFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Remove liquidity failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Remove liquidity failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Remove liquidity reverted' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Remove liquidity reverted' });
 
-    console.log(`✅ L1 LP removed ${amount} ${asset} from pool ${cleanPool} (tx: ${result.txHash})`);
+    console.log(
+      `✅ L1 LP removed ${amount} ${asset} from pool ${cleanPool} (tx: ${result.txHash})`
+    );
     res.json({ success: true, txHash: result.txHash, amount, asset });
   } catch (err) {
     console.error('❌ /pool/l1/remove-liquidity:', err.message);
@@ -2765,46 +3033,92 @@ router.post('/l1/update-rates', async (req, res) => {
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const l1RateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
+    const lurActionCalls = [];
+    if (buyRate !== undefined) {
+      lurActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
+    if (sellRate !== undefined) {
+      lurActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
     const {
       feeNGN: lurFeeNGN,
       feeUSD: lurFeeUSD,
       feeWeiNGN: lurFeeWeiNGN,
       feeWeiUSD: lurFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1RateLegs);
-    const lurFeeToken = await _resolveFeeToken('bnb', cleanOwner, lurFeeNGN, lurFeeUSD, lurFeeWeiNGN, lurFeeWeiUSD);
+    } = await _getPoolFee('bnb', l1RateLegs, lurActionCalls);
+    const lurFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanOwner,
+      lurFeeNGN,
+      lurFeeUSD,
+      lurFeeWeiNGN,
+      lurFeeWeiUSD
+    );
     if (!lurFeeToken) return res.status(400).json({ message: _feeErrorMsg(lurFeeNGN, lurFeeUSD) });
-    const lurFeeTx = { to: ethers.getAddress(lurFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), lurFeeToken.feeWei]) };
+    const lurFeeTx = {
+      to: ethers.getAddress(lurFeeToken.tokenAddress),
+      data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+        ethers.getAddress(_treasury(true)),
+        lurFeeToken.feeWei,
+      ]),
+    };
     // ─────────────────────────────────────────────────────────────────────────
 
     let result;
     if (buyRate !== undefined && sellRate !== undefined) {
       result = await executeViaSafeBNB(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]) },
-          { to: ethers.getAddress(cleanPool), data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]),
+          },
+          {
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+          },
           lurFeeTx,
-        ]), 1
+        ]),
+        1
       );
     } else {
       result = await executeViaSafeBNB(
-        ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+        ethers.getAddress(cleanOwner),
+        ownerPrivateKey,
+        MULTISEND_ADDR,
         _buildMultiSend([
-          { to: ethers.getAddress(cleanPool), data: buyRate !== undefined
-              ? POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)])
-              : POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]) },
+          {
+            to: ethers.getAddress(cleanPool),
+            data:
+              buyRate !== undefined
+                ? POOL_IFACE.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)])
+                : POOL_IFACE.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+          },
           lurFeeTx,
-        ]), 1
+        ]),
+        1
       );
     }
 
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Rate update failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Rate update failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Rate update reverted' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Rate update reverted' });
 
     res.json({ success: true, txHash: result.txHash });
   } catch (err) {
@@ -2832,26 +3146,51 @@ router.post('/l1/toggle-pause', async (req, res) => {
       : POOL_IFACE.encodeFunctionData('unpause', []);
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: ltpFeeNGN, feeUSD: ltpFeeUSD, feeWeiNGN: ltpFeeWeiNGN, feeWeiUSD: ltpFeeWeiUSD } =
-      await _getPoolFee('bnb');
-    const ltpFeeToken = await _resolveFeeToken('bnb', cleanOwner, ltpFeeNGN, ltpFeeUSD, ltpFeeWeiNGN, ltpFeeWeiUSD);
+    const ltpActionCalls = [
+      { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
+    ];
+    const {
+      feeNGN: ltpFeeNGN,
+      feeUSD: ltpFeeUSD,
+      feeWeiNGN: ltpFeeWeiNGN,
+      feeWeiUSD: ltpFeeWeiUSD,
+    } = await _getPoolFee('bnb', 2, ltpActionCalls);
+    const ltpFeeToken = await _resolveFeeToken(
+      'bnb',
+      cleanOwner,
+      ltpFeeNGN,
+      ltpFeeUSD,
+      ltpFeeWeiNGN,
+      ltpFeeWeiUSD
+    );
     if (!ltpFeeToken) return res.status(400).json({ message: _feeErrorMsg(ltpFeeNGN, ltpFeeUSD) });
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
-      ethers.getAddress(cleanOwner), ownerPrivateKey, MULTISEND_ADDR,
+      ethers.getAddress(cleanOwner),
+      ownerPrivateKey,
+      MULTISEND_ADDR,
       _buildMultiSend([
         { to: ethers.getAddress(cleanPool), data: calldata },
-        { to: ethers.getAddress(ltpFeeToken.tokenAddress), data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [ethers.getAddress(_treasury(true)), ltpFeeToken.feeWei]) },
-      ]), 1
+        {
+          to: ethers.getAddress(ltpFeeToken.tokenAddress),
+          data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+            ethers.getAddress(_treasury(true)),
+            ltpFeeToken.feeWei,
+          ]),
+        },
+      ]),
+      1
     );
-    if (!result || !result.txHash) return res.status(500).json({ message: 'Toggle pause failed to broadcast' });
+    if (!result || !result.txHash)
+      return res.status(500).json({ message: 'Toggle pause failed to broadcast' });
 
     const isProdEnv = process.env.NODE_ENV === 'production';
     const l1Rpc = isProdEnv ? process.env.BNB_MAINNET_RPC_URL : process.env.BNB_TESTNET_RPC_URL;
     const l1Provider = new ethers.JsonRpcProvider(l1Rpc);
     const receipt = await l1Provider.waitForTransaction(result.txHash, 1, 120_000);
-    if (!receipt || receipt.status !== 1) return res.status(400).json({ message: 'Toggle pause reverted' });
+    if (!receipt || receipt.status !== 1)
+      return res.status(400).json({ message: 'Toggle pause reverted' });
 
     res.json({ success: true, txHash: result.txHash, paused: pause });
   } catch (err) {
@@ -2881,12 +3220,31 @@ router.post('/l1/set-mins', async (req, res) => {
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const l1MinsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
+    const lsmActionCalls = [];
+    if (minNgnAmount) {
+      lsmActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('setMinimumNgnAmount', [
+          ethers.parseUnits(String(minNgnAmount), 6),
+        ]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
+    if (minTokenAmount) {
+      lsmActionCalls.push({
+        to: ethers.getAddress(cleanPool),
+        data: POOL_IFACE.encodeFunctionData('setMinimumUsdAmount', [
+          ethers.parseUnits(String(minTokenAmount), 6),
+        ]),
+        from: ethers.getAddress(cleanOwner),
+      });
+    }
     const {
       feeNGN: lsmFeeNGN,
       feeUSD: lsmFeeUSD,
       feeWeiNGN: lsmFeeWeiNGN,
       feeWeiUSD: lsmFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1MinsLegs);
+    } = await _getPoolFee('bnb', l1MinsLegs, lsmActionCalls);
     const lsmFeeToken = await _resolveFeeToken(
       'bnb',
       cleanOwner,
