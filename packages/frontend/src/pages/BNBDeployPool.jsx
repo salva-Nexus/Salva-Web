@@ -402,21 +402,23 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   // known the moment amount+asset+mode are picked.
 
 
-  // ── Fee-funds check — MetaMask-style pre-warning, shared across all tabs ──
+  // ── Fee-funds check — ONLY runs when a signed action is triggered via
+  // triggerPin below, never eagerly when the Manage panel opens.
   const [manageFeeFunds, setManageFeeFunds] = useState(null);
-  useEffect(() => {
+  const fetchManageFeeFunds = useCallback(async () => {
     if (!user?.safeAddress) return;
-    fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setManageFeeFunds({
-          ngns: parseFloat(d.ngnsBalance || 0),
-          cngn: parseFloat(d.cNgnBalance || 0),
-          usdt: parseFloat(d.usdtBalance || 0),
-          usdc: parseFloat(d.usdcBalance || 0),
-        });
-      })
-      .catch(() => setManageFeeFunds(null));
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`);
+      const d = await res.json();
+      setManageFeeFunds({
+        ngns: parseFloat(d.ngnsBalance || 0),
+        cngn: parseFloat(d.cNgnBalance || 0),
+        usdt: parseFloat(d.usdtBalance || 0),
+        usdc: parseFloat(d.usdcBalance || 0),
+      });
+    } catch {
+      setManageFeeFunds(null);
+    }
   }, [user?.safeAddress]);
 
   const hasNoManageFeeFunds =
@@ -718,6 +720,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
     setPinAction(action);
     setPinVisible(true);
     fetchPanelFeeForPin();
+    fetchManageFeeFunds();
   };
   const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
   const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity);
@@ -1280,21 +1283,23 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const pendingAction = useRef(null);
   const { isDismissed } = useNetworkReminder();
 
-  // ── Fee-funds check — MetaMask-style pre-warning ─────────────────────────
+  // ── Fee-funds check — ONLY runs when the Deploy button is actually
+  // clicked (PIN modal opening). NEVER eagerly on tab mount.
   const [deployFeeFunds, setDeployFeeFunds] = useState(null);
-  useEffect(() => {
+  const fetchDeployFeeFunds = useCallback(async () => {
     if (!user?.safeAddress) return;
-    fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setDeployFeeFunds({
-          ngns: parseFloat(d.ngnsBalance || 0),
-          cngn: parseFloat(d.cNgnBalance || 0),
-          usdt: parseFloat(d.usdtBalance || 0),
-          usdc: parseFloat(d.usdcBalance || 0),
-        });
-      })
-      .catch(() => setDeployFeeFunds(null));
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`);
+      const d = await res.json();
+      setDeployFeeFunds({
+        ngns: parseFloat(d.ngnsBalance || 0),
+        cngn: parseFloat(d.cNgnBalance || 0),
+        usdt: parseFloat(d.usdtBalance || 0),
+        usdc: parseFloat(d.usdcBalance || 0),
+      });
+    } catch {
+      setDeployFeeFunds(null);
+    }
   }, [user?.safeAddress]);
 
   const hasNoDeployFeeFunds =
@@ -1658,6 +1663,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 setPinAction('deploy');
                 setPinVisible(true);
                 fetchPoolFeeForPin();
+                fetchDeployFeeFunds();
               };
               setShowNetworkReminder(true);
             }}
@@ -1671,16 +1677,6 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
           </button>
         </div>
       </div>
-
-      {hasNoDeployFeeFunds && (
-        <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-          <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
-          <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
-            This may not go through — you have no NGNs, cNGN, USDT, or USDC to cover the network
-            fee.
-          </p>
-        </div>
-      )}
 
       <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
         <p className="text-[9px] sm:text-xs font-black text-blue-400 mb-0.5 sm:mb-1">

@@ -181,13 +181,29 @@ async function _fetchUSDtoNGN() {
 // ── RPC endpoint lists (no API keys, chain operator's own public nodes) ──────
 function _rpcListFor(isBNB) {
   const isProd = process.env.NODE_ENV === 'production';
-  return isBNB
+
+  // Always try the project's OWN configured RPC (Alchemy, from .env) FIRST —
+  // it has a real dedicated rate-limit budget. Public RPCs are kept ONLY as
+  // a last-resort fallback chain, since they 429 or require auth under load
+  // (rpc.ankr.com now requires an API key; mainnet.base.org rate-limits fast).
+  const envRpc = isBNB
     ? isProd
-      ? ['https://rpc.ankr.com/bsc', 'https://bsc.publicnode.com', 'https://binance.llamarpc.com']
+      ? process.env.BNB_MAINNET_RPC_URL
+      : process.env.BNB_TESTNET_RPC_URL
+    : isProd
+      ? process.env.BASE_MAINNET_RPC_URL
+      : process.env.BASE_SEPOLIA_RPC_URL;
+
+  const publicFallbacks = isBNB
+    ? isProd
+      ? ['https://bsc.publicnode.com', 'https://binance.llamarpc.com', 'https://bsc-dataseed.bnbchain.org']
       : ['https://bsc-testnet-rpc.publicnode.com']
     : isProd
-      ? ['https://mainnet.base.org', 'https://base.llamarpc.com']
+      ? ['https://base.llamarpc.com', 'https://base-rpc.publicnode.com']
       : ['https://sepolia.base.org'];
+
+  if (!envRpc) return publicFallbacks;
+  return [envRpc, ...publicFallbacks.filter((u) => u !== envRpc)];
 }
 
 // ── Gas price from chain operator's own public nodes ──────────────────────────
@@ -379,15 +395,13 @@ async function hasAnyFeeTokenBalance(chain, safeAddress) {
         process.env.USDC_CONTRACT_ADDRESS,
       ];
 
-  const rpcUrl = isBNB
-    ? isProd
-      ? 'https://bsc-dataseed.bnbchain.org'
-      : 'https://bsc-testnet-rpc.publicnode.com'
-    : isProd
-      ? 'https://mainnet.base.org'
-      : 'https://sepolia.base.org';
-
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  let provider;
+  try {
+    provider = await _getWorkingProvider(isBNB);
+  } catch (e) {
+    console.warn(`⚠️ [GasOracle] No working RPC for fee-balance check (${chain}):`, e.message);
+    return false;
+  }
   const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
 
   for (const addr of addrs) {
@@ -788,11 +802,6 @@ async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
 async function _getTokenBalance(chain, tokenAddress, safeAddress) {
   if (!tokenAddress) return { balance: 0, decimals: 6 };
   const isBNB = chain === 'bnb';
-  const isProd = process.env.NODE_ENV === 'production';
-  const rpcUrl = isBNB
-    ? (isProd ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com')
-    : (isProd ? 'https://mainnet.base.org' : 'https://sepolia.base.org');
-  const balProvider = new ethers.JsonRpcProvider(rpcUrl);
   const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
   let decimals = 6;
   if (isBNB) {
@@ -803,6 +812,9 @@ async function _getTokenBalance(chain, tokenAddress, safeAddress) {
     }
   }
   try {
+    // Uses the same env-first, public-fallback provider resolution as every
+    // other RPC call in this file — never a single hardcoded public endpoint.
+    const balProvider = await _getWorkingProvider(isBNB);
     const contract = new ethers.Contract(ethers.getAddress(tokenAddress), BAL_ABI, balProvider);
     const wei = await contract.balanceOf(ethers.getAddress(safeAddress));
     return { balance: parseFloat(ethers.formatUnits(wei, decimals)), decimals };
