@@ -3453,6 +3453,206 @@ router.post('/l1/deploy', async (req, res) => {
   }
 });
 
-module.exports = router;
+// ══════════════════════════════════════════════════════════════════════════════
+// UNIFIED FEE PREVIEW — mirrors the EXACT actionCalls each execute-* route
+// builds, for both Base and BNB. This is the single source of truth for
+// "what will this cost" — the PIN modal calls this, and it is guaranteed to
+// return the same number the execute route will actually charge, because
+// both build identical calldata and both go through resolveGasFee().
+// ══════════════════════════════════════════════════════════════════════════════
+router.post('/estimate-fee', async (req, res) => {
+  try {
+    const {
+      chain,
+      action,
+      ownerSafeAddress,
+      poolAddress,
+      asset,
+      amount,
+      buyRate,
+      sellRate,
+      minNgnAmount,
+      minTokenAmount,
+      pause,
+    } = req.body;
 
-// This is the new one
+    const cleanChain = chain === 'bnb' ? 'bnb' : 'base';
+    const isBNB = cleanChain === 'bnb';
+    const isProd = process.env.NODE_ENV === 'production';
+    const cleanOwner = cleanAddr(ownerSafeAddress);
+    if (!cleanOwner) return res.status(400).json({ message: 'Missing ownerSafeAddress' });
+
+    function resolveTokenForChain(sym) {
+      if (!isBNB) return resolveTokenSymbol(sym);
+      switch ((sym || '').toUpperCase()) {
+        case 'NGNS':
+        case 'NGN':
+          return cleanAddr(isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS);
+        case 'CNGN':
+          return cleanAddr(isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS);
+        case 'USDT':
+          return cleanAddr(isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS);
+        case 'USDC':
+          return cleanAddr(isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS);
+        default:
+          return null;
+      }
+    }
+
+    let actionCalls = null;
+    let legs = 2;
+
+    switch (action) {
+      case 'deploy': {
+        const factoryAddr = isBNB
+          ? cleanAddr(isProd ? process.env.L1_POOL_FACTORY_ADDRESS : process.env.L1_BSC_POOL_FACTORY_ADDRESS)
+          : cleanAddr(process.env.POOL_FACTORY_ADDRESS);
+        if (!factoryAddr) return res.status(500).json({ message: 'Pool factory not configured' });
+        const FACTORY_IFACE_PREVIEW = new ethers.Interface([
+          'function deployPool() external returns (address pool)',
+        ]);
+        actionCalls = [
+          {
+            to: ethers.getAddress(factoryAddr),
+            data: FACTORY_IFACE_PREVIEW.encodeFunctionData('deployPool', []),
+            from: ethers.getAddress(cleanOwner),
+          },
+        ];
+        legs = 2;
+        break;
+      }
+      case 'provide':
+      case 'remove': {
+        if (!poolAddress || !asset || !amount)
+          return res.status(400).json({ message: 'Missing poolAddress, asset, or amount' });
+        const cleanPool = cleanAddr(poolAddress);
+        const tokenAddr = resolveTokenForChain(asset);
+        if (!tokenAddr) return res.status(400).json({ message: `Unknown asset: ${asset}` });
+        let decimals = 6;
+        if (isBNB) decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddr)).catch(() => 18);
+        const amountWei = ethers.parseUnits(String(amount), decimals);
+        if (action === 'provide') {
+          const ERC20_IFACE_PREVIEW = new ethers.Interface([
+            'function transfer(address to, uint256 amount) returns (bool)',
+          ]);
+          actionCalls = [
+            {
+              to: ethers.getAddress(tokenAddr),
+              data: ERC20_IFACE_PREVIEW.encodeFunctionData('transfer', [ethers.getAddress(cleanPool), amountWei]),
+              from: ethers.getAddress(cleanOwner),
+            },
+          ];
+        } else {
+          const POOL_IFACE_PREVIEW = new ethers.Interface([
+            'function removeLiquidity(address asset, uint256 amount) external returns (bool)',
+          ]);
+          actionCalls = [
+            {
+              to: ethers.getAddress(cleanPool),
+              data: POOL_IFACE_PREVIEW.encodeFunctionData('removeLiquidity', [
+                ethers.getAddress(tokenAddr),
+                amountWei,
+              ]),
+              from: ethers.getAddress(cleanOwner),
+            },
+          ];
+        }
+        legs = 2;
+        break;
+      }
+      case 'rates': {
+        if (!poolAddress) return res.status(400).json({ message: 'Missing poolAddress' });
+        const cleanPool = cleanAddr(poolAddress);
+        const POOL_IFACE_PREVIEW = new ethers.Interface([
+          'function updateBuyRate(uint256 _exRate) external returns (bool)',
+          'function updateSellRate(uint256 _exRate) external returns (bool)',
+        ]);
+        const encodeRate = (r) => ethers.parseUnits(parseFloat(r).toFixed(6), 6);
+        actionCalls = [];
+        if (buyRate !== undefined && buyRate !== null && buyRate !== '') {
+          actionCalls.push({
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE_PREVIEW.encodeFunctionData('updateBuyRate', [encodeRate(buyRate)]),
+            from: ethers.getAddress(cleanOwner),
+          });
+        }
+        if (sellRate !== undefined && sellRate !== null && sellRate !== '') {
+          actionCalls.push({
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE_PREVIEW.encodeFunctionData('updateSellRate', [encodeRate(sellRate)]),
+            from: ethers.getAddress(cleanOwner),
+          });
+        }
+        if (actionCalls.length === 0)
+          return res.status(400).json({ message: 'At least one of buyRate or sellRate required' });
+        legs = actionCalls.length === 2 ? 3 : 2;
+        break;
+      }
+      case 'pause': {
+        if (!poolAddress || pause === undefined)
+          return res.status(400).json({ message: 'Missing poolAddress or pause flag' });
+        const cleanPool = cleanAddr(poolAddress);
+        const POOL_IFACE_PREVIEW = new ethers.Interface([
+          'function pause() external returns (bool)',
+          'function unpause() external returns (bool)',
+        ]);
+        const calldata = pause
+          ? POOL_IFACE_PREVIEW.encodeFunctionData('pause', [])
+          : POOL_IFACE_PREVIEW.encodeFunctionData('unpause', []);
+        actionCalls = [{ to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) }];
+        legs = 2;
+        break;
+      }
+      case 'mins': {
+        if (!poolAddress) return res.status(400).json({ message: 'Missing poolAddress' });
+        const cleanPool = cleanAddr(poolAddress);
+        const POOL_IFACE_PREVIEW = new ethers.Interface([
+          'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
+          'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
+        ]);
+        actionCalls = [];
+        if (minNgnAmount) {
+          actionCalls.push({
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE_PREVIEW.encodeFunctionData('setMinimumNgnAmount', [
+              ethers.parseUnits(String(minNgnAmount), 6),
+            ]),
+            from: ethers.getAddress(cleanOwner),
+          });
+        }
+        if (minTokenAmount) {
+          actionCalls.push({
+            to: ethers.getAddress(cleanPool),
+            data: POOL_IFACE_PREVIEW.encodeFunctionData('setMinimumUsdAmount', [
+              ethers.parseUnits(String(minTokenAmount), 6),
+            ]),
+            from: ethers.getAddress(cleanOwner),
+          });
+        }
+        if (actionCalls.length === 0)
+          return res.status(400).json({ message: 'At least one min amount required' });
+        legs = actionCalls.length === 2 ? 3 : 2;
+        break;
+      }
+      default:
+        return res.status(400).json({ message: `Unknown action: ${action}` });
+    }
+
+    const resolved = await resolveGasFee(cleanChain, cleanOwner, legs, () => actionCalls);
+    if (resolved.noBalance) return res.json({ noBalance: true, feeNGN: null, feeUSD: null });
+    if (resolved.insufficientFee)
+      return res.json({ insufficientFee: true, feeNGN: resolved.feeNGN, feeUSD: resolved.feeUSD });
+
+    res.json({
+      feeNGN: resolved.feeNGN,
+      feeUSD: resolved.feeUSD,
+      currency: resolved.currency,
+      feeToken: resolved.payToken.symbol,
+    });
+  } catch (err) {
+    console.error('❌ /pool/estimate-fee:', err.message);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+module.exports = router;

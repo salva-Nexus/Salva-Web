@@ -372,85 +372,16 @@ const RegistryDropdown = ({
 // ─── Pool Manage Panel ────────────────────────────────────────────────────────
 const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [activeSection, setActiveSection] = useState('liquidity');
-  const [panelFee, setPanelFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
-  const panelFeeCache = useRef({});
-  // Simulated ONLY when the user actually triggers a signed action (via
-  // triggerPin below) — never eagerly when the Manage panel opens.
-  const fetchPanelFeeForPin = useCallback(() => {
-    const key = 'bnb_pool';
-    const cached = panelFeeCache.current[key];
-    if (cached && Date.now() - cached.at < 30_000) {
-      setPanelFee({ ...cached.data, loading: false });
-      return;
-    }
-    setPanelFee({ feeNGN: null, feeUSD: null, loading: true });
-    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
-      .then((r) => r.json())
-      .then((d) => {
-        const fee = { feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false };
-        panelFeeCache.current[key] = { data: fee, at: Date.now() };
-        setPanelFee(fee);
-      })
-      .catch(() => setPanelFee({ feeNGN: null, feeUSD: null, loading: false }));
-  }, []);
-
-  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
-  // it's already known by the time they reach the PIN step. Deploy/Rates/
-  // Controls intentionally keep fetching at the PIN step instead (see
-  // triggerPin below) — those actions can't know their real calldata
-  // until the exact button is pressed, but liquidity's calldata is fully
-  // known the moment amount+asset+mode are picked.
-
-
-  // ── Fee-funds check — ONLY runs when a signed action is triggered via
-  // triggerPin below, never eagerly when the Manage panel opens.
-  const [manageFeeFunds, setManageFeeFunds] = useState(null);
-  const fetchManageFeeFunds = useCallback(async () => {
-    if (!user?.safeAddress) return;
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`);
-      const d = await res.json();
-      setManageFeeFunds({
-        ngns: parseFloat(d.ngnsBalance || 0),
-        cngn: parseFloat(d.cNgnBalance || 0),
-        usdt: parseFloat(d.usdtBalance || 0),
-        usdc: parseFloat(d.usdcBalance || 0),
-      });
-    } catch {
-      setManageFeeFunds(null);
-    }
-  }, [user?.safeAddress]);
-
-  const hasNoManageFeeFunds =
-    manageFeeFunds &&
-    manageFeeFunds.ngns <= 0 &&
-    manageFeeFunds.cngn <= 0 &&
-    manageFeeFunds.usdt <= 0 &&
-    manageFeeFunds.usdc <= 0;
-
-  const FeeFundsBanner = () =>
-    hasNoManageFeeFunds ? (
-      <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-        <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
-        <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
-          This may not go through — you have no NGNs, cNGN, USDT, or USDC to cover the network fee.
-        </p>
-      </div>
-    ) : null;
-
+  const [panelFee, setPanelFee] = useState({
+    feeNGN: null,
+    feeUSD: null,
+    loading: false,
+    noBalance: false,
+    insufficientFee: false,
+  });
   const [liqAsset, setLiqAsset] = useState('NGNS');
   const [liqAmount, setLiqAmount] = useState('');
   const [liqMode, setLiqMode] = useState('provide');
-
-  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
-  // it's already known by the time they reach the PIN step.
-  const liqFeeDebounce = useRef(null);
-  useEffect(() => {
-    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
-    clearTimeout(liqFeeDebounce.current);
-    liqFeeDebounce.current = setTimeout(fetchPanelFeeForPin, 400);
-    return () => clearTimeout(liqFeeDebounce.current);
-  }, [liqAmount, activeSection, fetchPanelFeeForPin]);
   const [buyRate, setBuyRate] = useState(toNum(pool.buyRate).toString());
   const [sellRate, setSellRate] = useState(toNum(pool.sellRate).toString());
   const [minNgn, setMinNgn] = useState('');
@@ -460,6 +391,84 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [pinLoading, setPinLoading] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
   const assets = ['NGNS', 'CNGN', 'USDT', 'USDC'];
+
+  // Simulated when the user triggers a signed action (triggerPin below), or
+  // as they type a liquidity amount. Calls the ACTION-SPECIFIC estimate-fee
+  // endpoint — real calldata for whichever BNB operation this is — so the
+  // fee shown always matches what the corresponding /api/pool/l1/* route
+  // will actually charge.
+  const fetchPanelFeeForPin = useCallback(
+    (actionOverride) => {
+      const action = actionOverride || pinAction || (activeSection === 'liquidity' ? liqMode : null);
+      if (!action || !user?.safeAddress) return;
+
+      const body = { chain: 'bnb', ownerSafeAddress: user.safeAddress, poolAddress: pool.poolAddress };
+
+      if (action === 'provide' || action === 'remove') {
+        if (!liqAmount || parseFloat(liqAmount) <= 0) return;
+        body.action = action;
+        body.asset = liqAsset;
+        body.amount = liqAmount;
+      } else if (action === 'buyRate' || action === 'sellRate') {
+        body.action = 'rates';
+        if (action === 'buyRate') body.buyRate = buyRate;
+        else body.sellRate = sellRate;
+      } else if (action === 'pause' || action === 'unpause') {
+        body.action = 'pause';
+        body.pause = action === 'pause';
+      } else if (action === 'minNgn' || action === 'minToken') {
+        body.action = 'mins';
+        if (action === 'minNgn') body.minNgnAmount = minNgn;
+        else body.minTokenAmount = minToken;
+      } else {
+        return;
+      }
+
+      setPanelFee({ feeNGN: null, feeUSD: null, loading: true, noBalance: false, insufficientFee: false });
+      fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          setPanelFee({
+            feeNGN: d.feeNGN ?? null,
+            feeUSD: d.feeUSD ?? null,
+            loading: false,
+            noBalance: !!d.noBalance,
+            insufficientFee: !!d.insufficientFee,
+          });
+        })
+        .catch(() =>
+          setPanelFee({ feeNGN: null, feeUSD: null, loading: false, noBalance: false, insufficientFee: false })
+        );
+    },
+    [pinAction, activeSection, liqMode, liqAsset, liqAmount, buyRate, sellRate, minNgn, minToken, user?.safeAddress, pool.poolAddress]
+  );
+
+  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
+  // it's already known by the time they reach the PIN step.
+  const liqFeeDebounce = useRef(null);
+  useEffect(() => {
+    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
+    clearTimeout(liqFeeDebounce.current);
+    liqFeeDebounce.current = setTimeout(() => fetchPanelFeeForPin(liqMode), 400);
+    return () => clearTimeout(liqFeeDebounce.current);
+  }, [liqAmount, liqMode, activeSection, fetchPanelFeeForPin]);
+
+  // hasNoManageFeeFunds now comes directly from the fee-estimate response.
+  const hasNoManageFeeFunds = panelFee.noBalance || panelFee.insufficientFee;
+
+  const FeeFundsBanner = () =>
+    hasNoManageFeeFunds ? (
+      <div className="flex items-center gap-2 sm:gap-2.5 px-3 py-2 sm:px-4 sm:py-2.5 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
+        <span className="text-yellow-400 text-xs sm:text-sm flex-shrink-0">⚠️</span>
+        <p className="text-[8px] sm:text-[11px] text-yellow-400/90 font-bold leading-snug">
+          This may not go through — you have no balance to cover the network fee.
+        </p>
+      </div>
+    ) : null;
 
   const rawBalanceForAsset = (asset) => {
     if (asset === 'NGNS') return toNum(pool.ngnsLiquidity);
@@ -719,8 +728,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const triggerPin = (action) => {
     setPinAction(action);
     setPinVisible(true);
-    fetchPanelFeeForPin();
-    fetchManageFeeFunds();
+    fetchPanelFeeForPin(action);
   };
   const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
   const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity);
@@ -1283,31 +1291,9 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const pendingAction = useRef(null);
   const { isDismissed } = useNetworkReminder();
 
-  // ── Fee-funds check — ONLY runs when the Deploy button is actually
-  // clicked (PIN modal opening). NEVER eagerly on tab mount.
-  const [deployFeeFunds, setDeployFeeFunds] = useState(null);
-  const fetchDeployFeeFunds = useCallback(async () => {
-    if (!user?.safeAddress) return;
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/l1-balance/${user.safeAddress}`);
-      const d = await res.json();
-      setDeployFeeFunds({
-        ngns: parseFloat(d.ngnsBalance || 0),
-        cngn: parseFloat(d.cNgnBalance || 0),
-        usdt: parseFloat(d.usdtBalance || 0),
-        usdc: parseFloat(d.usdcBalance || 0),
-      });
-    } catch {
-      setDeployFeeFunds(null);
-    }
-  }, [user?.safeAddress]);
-
-  const hasNoDeployFeeFunds =
-    deployFeeFunds &&
-    deployFeeFunds.ngns <= 0 &&
-    deployFeeFunds.cngn <= 0 &&
-    deployFeeFunds.usdt <= 0 &&
-    deployFeeFunds.usdc <= 0;
+  // hasNoDeployFeeFunds now comes directly from the /api/pool/estimate-fee
+  // response (poolFee.noBalance / poolFee.insufficientFee).
+  const hasNoDeployFeeFunds = poolFee.noBalance || poolFee.insufficientFee;
 
   const resetRenameModal = () => {
     setRenameInput('');
@@ -1452,24 +1438,31 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   }, []);
 
   // Simulated ONLY when the user actually clicks Deploy — never eagerly on
-  // tab load. See the Deploy button's onClick below.
+  // tab load. Calls the ACTION-SPECIFIC estimate-fee endpoint — same real
+  // deployPool() calldata /api/pool/l1/deploy will use — so the number
+  // shown here always matches what actually gets charged.
   const fetchPoolFeeForPin = useCallback(() => {
-    const key = 'bnb_pool';
-    const cached = poolFeeCache.current[key];
-    if (cached && Date.now() - cached.at < 30_000) {
-      setPoolFee({ ...cached.data, loading: false });
-      return;
-    }
-    setPoolFee({ feeNGN: null, feeUSD: null, loading: true });
-    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
+    if (!user?.safeAddress) return;
+    setPoolFee({ feeNGN: null, feeUSD: null, loading: true, noBalance: false, insufficientFee: false });
+    fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chain: 'bnb', action: 'deploy', ownerSafeAddress: user.safeAddress }),
+    })
       .then((r) => r.json())
       .then((d) => {
-        const fee = { feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false };
-        poolFeeCache.current[key] = { data: fee, at: Date.now() };
-        setPoolFee(fee);
+        setPoolFee({
+          feeNGN: d.feeNGN ?? null,
+          feeUSD: d.feeUSD ?? null,
+          loading: false,
+          noBalance: !!d.noBalance,
+          insufficientFee: !!d.insufficientFee,
+        });
       })
-      .catch(() => setPoolFee({ feeNGN: null, feeUSD: null, loading: false }));
-  }, []);
+      .catch(() =>
+        setPoolFee({ feeNGN: null, feeUSD: null, loading: false, noBalance: false, insufficientFee: false })
+      );
+  }, [user?.safeAddress]);
 
   useEffect(() => {
     fetchMyPools();
@@ -1663,7 +1656,6 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
                 setPinAction('deploy');
                 setPinVisible(true);
                 fetchPoolFeeForPin();
-                fetchDeployFeeFunds();
               };
               setShowNetworkReminder(true);
             }}
