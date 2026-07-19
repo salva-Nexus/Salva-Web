@@ -104,13 +104,13 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo }) =>
             </button>
             <button
               onClick={() => onConfirm(pin)}
-              disabled={loading || pin.length !== 4}
+              disabled={loading || pin.length !== 4 || feeInfo?.loading}
               className="flex-1 py-2.5 sm:py-3.5 rounded-2xl bg-blue-500 text-white font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20 transition-all"
             >
-              {loading && (
+              {(loading || feeInfo?.loading) && (
                 <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
               )}
-              {loading ? 'Verifying…' : 'Confirm'}
+              {loading ? 'Verifying…' : feeInfo?.loading ? 'Calculating fee…' : 'Confirm'}
             </button>
           </div>
         </div>
@@ -366,16 +366,18 @@ const RegistryDropdown = ({
 // ─── Pool Manage Panel ────────────────────────────────────────────────────────
 const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [activeSection, setActiveSection] = useState('liquidity');
-  const [panelFee, setPanelFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
+  const [panelFee, setPanelFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
   const panelFeeCache = useRef({});
-  useEffect(() => {
+  // Simulated ONLY when the user actually triggers a signed action (via
+  // triggerPin below) — never eagerly when the Manage panel opens.
+  const fetchPanelFeeForPin = useCallback(() => {
     const key = 'bnb_pool';
     const cached = panelFeeCache.current[key];
     if (cached && Date.now() - cached.at < 30_000) {
       setPanelFee({ ...cached.data, loading: false });
       return;
     }
-    setPanelFee((p) => ({ ...p, loading: true }));
+    setPanelFee({ feeNGN: null, feeUSD: null, loading: true });
     fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
       .then((r) => r.json())
       .then((d) => {
@@ -691,6 +693,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const triggerPin = (action) => {
     setPinAction(action);
     setPinVisible(true);
+    fetchPanelFeeForPin();
   };
   const totalNgn = toNum(pool.ngnsLiquidity) + toNum(pool.cNgnLiquidity);
   const totalUsd = toNum(pool.usdtLiquidity) + toNum(pool.usdcLiquidity);
@@ -849,19 +852,6 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     {liqAsset}
                   </span>
                 </div>
-              </div>
-
-              <div className="mb-1.5 sm:mb-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] flex justify-between items-center text-[7px] sm:text-[10px]">
-                <span className="uppercase tracking-widest text-white/60 font-black">
-                  Network Fee
-                </span>
-                {panelFee.loading ? (
-                  <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
-                ) : panelFee.feeNGN !== null ? (
-                  <span className="text-red-400 font-black">₦{panelFee.feeNGN.toFixed(2)}</span>
-                ) : (
-                  <span className="text-white/30">—</span>
-                )}
               </div>
 
               <button
@@ -1085,6 +1075,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               onConfirm={verifyPin}
               onCancel={() => setPinVisible(false)}
               loading={pinLoading}
+              feeInfo={panelFee}
             />
           )}
         </AnimatePresence>
@@ -1210,7 +1201,7 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [poolFee, setPoolFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
+  const [poolFee, setPoolFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
   const poolFeeCache = useRef({});
   const [refreshing, setRefreshing] = useState(false);
   const [subFees, setSubFees] = useState(null);
@@ -1412,15 +1403,16 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
     } catch {}
   }, []);
 
-  // Fetch pool operation fee once on mount, cache 30s
-  useEffect(() => {
+  // Simulated ONLY when the user actually clicks Deploy — never eagerly on
+  // tab load. See the Deploy button's onClick below.
+  const fetchPoolFeeForPin = useCallback(() => {
     const key = 'bnb_pool';
     const cached = poolFeeCache.current[key];
     if (cached && Date.now() - cached.at < 30_000) {
       setPoolFee({ ...cached.data, loading: false });
       return;
     }
-    setPoolFee((p) => ({ ...p, loading: true }));
+    setPoolFee({ feeNGN: null, feeUSD: null, loading: true });
     fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
       .then((r) => r.json())
       .then((d) => {
@@ -1622,6 +1614,7 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
               pendingAction.current = () => {
                 setPinAction('deploy');
                 setPinVisible(true);
+                fetchPoolFeeForPin();
               };
               setShowNetworkReminder(true);
             }}
