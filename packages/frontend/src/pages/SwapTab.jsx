@@ -229,13 +229,25 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     section === 'buy' ? parseFloat(pool.buyRate || 0) : parseFloat(pool.sellRate || 0);
   const accentColor = section === 'buy' ? '#D4AF37' : '#22c55e';
 
-  const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
+  // Fee is simulated ONLY once the user has entered an amount — never
+  // eagerly the instant the modal opens. Debounced alongside the quote.
+  const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
+  const swapFeeTimer = useRef(null);
   useEffect(() => {
-    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=base`)
-      .then((r) => r.json())
-      .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
-      .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
-  }, []);
+    if (amountRaw <= 0) {
+      setSwapFee({ feeNGN: null, feeUSD: null, loading: false });
+      return;
+    }
+    clearTimeout(swapFeeTimer.current);
+    setSwapFee((prev) => ({ ...prev, loading: true }));
+    swapFeeTimer.current = setTimeout(() => {
+      fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=base`)
+        .then((r) => r.json())
+        .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
+        .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
+    }, 500);
+    return () => clearTimeout(swapFeeTimer.current);
+  }, [amountRaw]);
 
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);
@@ -1172,6 +1184,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   disabled={
                     amountRaw <= 0 ||
                     !trustChecked ||
+                    swapFee.loading ||
                     isBelowMin ||
                     userCantAfford ||
                     poolCantCover ||
@@ -1190,7 +1203,11 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     boxShadow: `0 8px 24px ${accentColor}33`,
                   }}
                 >
-                  {!trustChecked ? 'Checking…' : 'Continue →'}
+                  {!trustChecked
+                    ? 'Checking…'
+                    : swapFee.loading
+                    ? 'Calculating fee…'
+                    : 'Continue →'}
                 </button>
               </div>
             </div>

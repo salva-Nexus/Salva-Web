@@ -6,7 +6,7 @@ const relay = require('../services/relayService');
 
 const Pool = require('../models/Pool');
 const { getL1TokenDecimals } = require('../utils/l1Decimals');
-const { estimatePoolFee } = require('../services/gasOracle');
+const { estimatePoolFee, hasAnyFeeTokenBalance } = require('../services/gasOracle');
 const PoolSubscription = require('../models/PoolSubscription');
 const TrustedPool = require('../models/TrustedPool');
 const FeeConfig = require('../models/FeeConfig');
@@ -63,6 +63,22 @@ function _buildMultiSend(calls) {
   return MULTISEND_IFACE.encodeFunctionData('multiSend', [
     ethers.concat(calls.map((c) => _encodeMultiSendTx(c.to, c.data))),
   ]);
+}
+
+// ── Hard block for genuinely zero fee-token balance ───────────────────────
+// Pool/swap operations only. If the Safe holds ZERO across NGNs/cNGN/USDT/
+// USDC, no gas-simulation retry or hardcoded fallback can save this
+// transaction — return an honest, immediate block instead.
+async function _blockIfNoFeeFunds(chain, safeAddress) {
+  try {
+    const hasAny = await hasAnyFeeTokenBalance(chain, safeAddress);
+    if (!hasAny) {
+      return 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.';
+    }
+  } catch (e) {
+    console.warn('⚠️ [pool] hasAnyFeeTokenBalance check failed (non-blocking):', e.message);
+  }
+  return null;
 }
 
 // Get pool operation fee (both NGN and USD) with fallback.
@@ -372,6 +388,10 @@ router.post('/deploy', async (req, res) => {
       },
     ];
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const dBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (dBlockMsg) return res.status(400).json({ message: dBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const {
       feeNGN: dFeeNGN,
@@ -501,6 +521,10 @@ router.post('/provide-liquidity', async (req, res) => {
       amountWei,
     ]);
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const plBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (plBlockMsg) return res.status(400).json({ message: plBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const plActionCalls = [
       {
@@ -585,6 +609,10 @@ router.post('/remove-liquidity', async (req, res) => {
       amountWei,
     ]);
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const rlBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (rlBlockMsg) return res.status(400).json({ message: rlBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const rlActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
@@ -652,6 +680,10 @@ router.post('/update-rates', async (req, res) => {
     const POOL_IFACE = new ethers.Interface(POOL_WRITE_ABI);
 
     const encodeRate = (humanRate) => ethers.parseUnits(parseFloat(humanRate).toFixed(6), 6);
+
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const rBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (rBlockMsg) return res.status(400).json({ message: rBlockMsg });
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     // Dual-rate update bundles 3 calls (buyRate + sellRate + fee); single-rate
@@ -763,6 +795,10 @@ router.post('/toggle-pause', async (req, res) => {
     const calldata = pause
       ? POOL_IFACE.encodeFunctionData('pause', [])
       : POOL_IFACE.encodeFunctionData('unpause', []);
+
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const tpBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (tpBlockMsg) return res.status(400).json({ message: tpBlockMsg });
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const tpActionCalls = [
@@ -1329,6 +1365,10 @@ router.post('/swap', async (req, res) => {
       amountBn
     );
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const swBlockMsg = await _blockIfNoFeeFunds('base', cleanUser);
+    if (swBlockMsg) return res.status(400).json({ message: swBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     // Untrusted swap bundles 3 calls (approve + swap + fee); trusted bundles 2
     // (swap + fee). Charging both the same 2-leg estimate undercharges the
@@ -1804,6 +1844,10 @@ router.post('/set-mins', async (req, res) => {
       'function setMinimumNgnAmount(uint256 amount) external returns (bool)',
       'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
+
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const smBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
+    if (smBlockMsg) return res.status(400).json({ message: smBlockMsg });
 
     // Dual-min update bundles 3 calls (minNgn + minToken + fee); single-min bundles 2.
     const minsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
@@ -2535,6 +2579,10 @@ router.post('/l1/swap', async (req, res) => {
       ? BigInt(approveAmountWei)
       : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const lswBlockMsg = await _blockIfNoFeeFunds('bnb', cleanUser);
+    if (lswBlockMsg) return res.status(400).json({ message: lswBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     // NOTE: untrusted path approve leg simulation may fall back to hardcoded
     // units if allowance doesn't exist on-chain yet — safe, no crash.
@@ -2852,6 +2900,10 @@ router.post('/l1/provide-liquidity', async (req, res) => {
       amountWei,
     ]);
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const lplBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
+    if (lplBlockMsg) return res.status(400).json({ message: lplBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const lplActionCalls = [
       { to: ethers.getAddress(tokenAddr), data: calldata, from: ethers.getAddress(cleanOwner) },
@@ -3031,6 +3083,10 @@ router.post('/l1/update-rates', async (req, res) => {
     ]);
     const encodeRate = (r) => ethers.parseUnits(parseFloat(r).toFixed(6), 6);
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const lurBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
+    if (lurBlockMsg) return res.status(400).json({ message: lurBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const l1RateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
     const lurActionCalls = [];
@@ -3145,6 +3201,10 @@ router.post('/l1/toggle-pause', async (req, res) => {
       ? POOL_IFACE.encodeFunctionData('pause', [])
       : POOL_IFACE.encodeFunctionData('unpause', []);
 
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const ltpBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
+    if (ltpBlockMsg) return res.status(400).json({ message: ltpBlockMsg });
+
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const ltpActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
@@ -3217,6 +3277,10 @@ router.post('/l1/set-mins', async (req, res) => {
       'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
     const MULTISEND = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
+
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const lsmBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
+    if (lsmBlockMsg) return res.status(400).json({ message: lsmBlockMsg });
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const l1MinsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
@@ -3453,6 +3517,10 @@ router.post('/l1/deploy', async (req, res) => {
         from: ethers.getAddress(cleanOwner),
       },
     ];
+
+    // ── Hard block: zero balance across every fee-payable token ────────────
+    const ld1BlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
+    if (ld1BlockMsg) return res.status(400).json({ message: ld1BlockMsg });
 
     // ── Pool fee ─────────────────────────────────────────────────────────────
     const { feeNGN: ld1FeeNGN, feeUSD: ld1FeeUSD, feeWeiNGN: ld1FeeWeiNGN, feeWeiUSD: ld1FeeWeiUSD } =

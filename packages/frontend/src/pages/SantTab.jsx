@@ -70,6 +70,19 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
 const darkInput =
   'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
 
+// ── Mobile-only content scale for the Send card — shrinks font/padding/gaps
+// by 30% under 640px ONLY. The modal container itself is untouched; only
+// the content inside scales. Desktop (sm and up) stays at 100%.
+const sendPx = (n) => `calc(${n}px * var(--send-scale, 1))`;
+const sendPxs = (...vals) => vals.map((v) => (typeof v === 'number' ? sendPx(v) : v)).join(' ');
+const SendCardScaleStyle = () => (
+  <style>{`
+    .send-card-scale { --send-scale: 1; }
+    @media (max-width: 639px) {
+      .send-card-scale { --send-scale: 0.7; }
+    }
+  `}</style>
+);
 // ── Searchable Registry Dropdown — identical pattern used on Dashboard ──────
 const RegistryDropdown = ({
   registries,
@@ -693,10 +706,11 @@ const SantTab = ({ user, registries, showMsg }) => {
         </div>
       ) : null}
 
-      {/* ── Send Modal — mirrors Dashboard Send exactly ── */}
+      {/* ── Send Modal — mirrors Dashboard Send exactly, content scaled 30% on mobile only ── */}
       <AnimatePresence>
         {isSendOpen && (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <SendCardScaleStyle />
             <motion.div
               onClick={() => !loading && setIsSendOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
@@ -705,18 +719,30 @@ const SantTab = ({ user, registries, showMsg }) => {
               exit={{ opacity: 0 }}
             />
             <motion.div
-              className="relative bg-zinc-950 border border-white/10 p-6 sm:p-10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
+              className="send-card-scale relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
+              style={{ padding: sendPxs(24, 40) }}
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
             >
-              <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
-              <h3 className="text-2xl sm:text-3xl font-black text-white mb-1">Send SANT</h3>
-              <p className="text-[10px] text-salvaGold/60 uppercase tracking-[0.35em] font-black mb-6">
+              <div
+                className="bg-white/10 rounded-full mx-auto sm:hidden"
+                style={{ width: sendPx(40), height: sendPx(4), marginBottom: sendPx(24) }}
+              />
+              <h3
+                className="font-black text-white"
+                style={{ fontSize: sendPx(24), marginBottom: sendPx(4) }}
+              >
+                Send SANT
+              </h3>
+              <p
+                className="text-salvaGold/60 uppercase tracking-[0.35em] font-black"
+                style={{ fontSize: sendPx(10), marginBottom: sendPx(24) }}
+              >
                 Salva Secure Transfer
               </p>
-              <p className="text-[10px] text-white/60 mb-5">
+              <p className="text-white/60" style={{ fontSize: sendPx(10), marginBottom: sendPx(20) }}>
                 Balance: {balanceLoading ? '…' : fmtSant(santBalance)} SANT
               </p>
               <form
@@ -724,10 +750,13 @@ const SantTab = ({ user, registries, showMsg }) => {
                   e.preventDefault();
                   resolveAndConfirm();
                 }}
-                className="space-y-4"
+                style={{ display: 'flex', flexDirection: 'column', gap: sendPx(16) }}
               >
-                <div className="space-y-2">
-                  <label className="text-[10px] uppercase text-white/60 font-bold block">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: sendPx(8) }}>
+                  <label
+                    className="uppercase text-white/60 font-bold block"
+                    style={{ fontSize: sendPx(10) }}
+                  >
                     Recipient
                   </label>
                   <input
@@ -736,10 +765,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                     placeholder="Name alias or 0x address"
                     value={recipientInput}
                     onChange={(e) => handleRecipientChange(e.target.value)}
-                    className={darkInput}
+                    className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-white placeholder:text-white/60 transition-all"
+                    style={{ padding: sendPx(16), fontSize: sendPx(14) }}
                   />
                   {inputType !== 'empty' && (
-                    <p className="text-[10px] text-white/60 font-bold ml-1">
+                    <p
+                      className="text-white/60 font-bold"
+                      style={{ fontSize: sendPx(10), marginLeft: sendPx(4) }}
+                    >
                       {inputType === 'address'
                         ? '✓ Wallet address — sending directly'
                         : inputType === 'fullname'
@@ -749,7 +782,10 @@ const SantTab = ({ user, registries, showMsg }) => {
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
-                      <label className="text-[10px] uppercase text-white/60 font-bold block mb-2">
+                      <label
+                        className="uppercase text-white/60 font-bold block"
+                        style={{ fontSize: sendPx(10), marginBottom: sendPx(8) }}
+                      >
                         Select Wallet Service
                       </label>
                       <RegistryDropdown
@@ -761,8 +797,11 @@ const SantTab = ({ user, registries, showMsg }) => {
                   )}
                 </div>
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] uppercase text-white/60 font-bold">
+                  <div
+                    className="flex items-center justify-between"
+                    style={{ marginBottom: sendPx(8) }}
+                  >
+                    <label className="uppercase text-white/60 font-bold" style={{ fontSize: sendPx(10) }}>
                       Amount (SANT)
                     </label>
                     <button
@@ -778,7 +817,8 @@ const SantTab = ({ user, registries, showMsg }) => {
                         setTransferAmountDisplay(exact);
                         setTransferAmount(exact);
                       }}
-                      className="text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
+                      className="font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
+                      style={{ fontSize: sendPx(10), padding: sendPxs(2, 8) }}
                     >
                       Max
                     </button>
@@ -794,24 +834,44 @@ const SantTab = ({ user, registries, showMsg }) => {
                         setTransferAmountDisplay(v);
                         setTransferAmount(v);
                       }}
-                      className={`${darkInput} text-lg pr-16 ${
-                        amountError ? 'border-red-500' : ''
+                      className={`w-full rounded-xl bg-white/5 border outline-none font-bold text-white transition-all ${
+                        amountError ? 'border-red-500' : 'border-white/10 focus:border-salvaGold'
                       }`}
+                      style={{ padding: sendPx(16), fontSize: sendPx(18), paddingRight: sendPx(64) }}
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-sm">
+                    <span
+                      className="absolute top-1/2 -translate-y-1/2 text-salvaGold font-black"
+                      style={{ right: sendPx(16), fontSize: sendPx(14) }}
+                    >
                       SANT
                     </span>
                   </div>
                   {amountError && (
-                    <p className="text-[10px] text-red-400 mt-1 font-bold animate-pulse">
+                    <p
+                      className="text-red-400 font-bold animate-pulse"
+                      style={{ fontSize: sendPx(10), marginTop: sendPx(4) }}
+                    >
                       ⚠️ Insufficient balance
                     </p>
                   )}
-                  <div className="mt-2 p-3 rounded-xl text-[10px] space-y-1 border bg-white/[0.03] border-white/[0.06]">
+                  <div
+                    className="rounded-xl border bg-white/[0.03] border-white/[0.06]"
+                    style={{
+                      marginTop: sendPx(8),
+                      padding: sendPx(12),
+                      fontSize: sendPx(10),
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: sendPx(4),
+                    }}
+                  >
                     <div className="flex justify-between items-center">
                       <span className="text-white/60 uppercase font-bold">Network Fee</span>
                       {feePreview.loading ? (
-                        <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                        <span
+                          className="border border-white/20 border-t-white/60 rounded-full animate-spin inline-block"
+                          style={{ width: sendPx(12), height: sendPx(12) }}
+                        />
                       ) : (
                         <span className="text-red-400 font-black">
                           ~₦{formatNumber(feePreview.feeNGN)} or ${feePreview.feeUsd?.toFixed(4)}
@@ -823,9 +883,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                     </p>
                   </div>
                   {hasNoFeeFunds && (
-                    <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-                      <span className="text-yellow-400 text-xs flex-shrink-0">⚠️</span>
-                      <p className="text-[10px] text-yellow-400/90 font-bold leading-snug">
+                    <div
+                      className="flex items-center gap-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20"
+                      style={{ marginTop: sendPx(8), padding: sendPxs(8, 12) }}
+                    >
+                      <span className="text-yellow-400 flex-shrink-0" style={{ fontSize: sendPx(14) }}>
+                        ⚠️
+                      </span>
+                      <p className="text-yellow-400/90 font-bold leading-snug" style={{ fontSize: sendPx(10) }}>
                         This transaction may not go through — you have no NGNs, cNGN, USDT, or USDC
                         to cover the network fee.
                       </p>
@@ -835,14 +900,18 @@ const SantTab = ({ user, registries, showMsg }) => {
                 <button
                   disabled={loading || amountError || !recipientInput}
                   type="submit"
-                  className={`w-full py-4 rounded-2xl font-black transition-all text-sm uppercase tracking-widest flex items-center justify-center gap-2 ${
+                  className={`w-full rounded-2xl font-black transition-all uppercase tracking-widest flex items-center justify-center ${
                     loading || amountError || !recipientInput
                       ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
                       : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                   }`}
+                  style={{ padding: sendPx(16), fontSize: sendPx(14), gap: sendPx(8) }}
                 >
                   {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    <span
+                      className="border-2 border-black/30 border-t-black rounded-full animate-spin"
+                      style={{ width: sendPx(16), height: sendPx(16) }}
+                    />
                   )}
                   {loading ? 'Processing…' : 'Review & Send'}
                 </button>

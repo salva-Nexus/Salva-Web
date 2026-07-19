@@ -389,6 +389,20 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
       .catch(() => setPanelFee({ feeNGN: null, feeUSD: null, loading: false }));
   }, []);
 
+  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
+  // it's already known by the time they reach the PIN step. Deploy/Rates/
+  // Controls intentionally keep fetching at the PIN step instead (see
+  // triggerPin below) — those actions can't know their real calldata
+  // until the exact button is pressed, but liquidity's calldata is fully
+  // known the moment amount+asset+mode are picked.
+  const liqFeeDebounce = useRef(null);
+  useEffect(() => {
+    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
+    clearTimeout(liqFeeDebounce.current);
+    liqFeeDebounce.current = setTimeout(fetchPanelFeeForPin, 400);
+    return () => clearTimeout(liqFeeDebounce.current);
+  }, [liqAmount, activeSection, fetchPanelFeeForPin]);
+
   // ── Fee-funds check — MetaMask-style pre-warning, shared across all tabs ──
   const [manageFeeFunds, setManageFeeFunds] = useState(null);
   useEffect(() => {
@@ -847,22 +861,40 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
                     Tokens sent from your Safe wallet directly to the pool contract.
                   </p>
                 )}
+                {liqAmount && parseFloat(liqAmount) > 0 && (
+                  <div className="mt-1.5 sm:mt-2 flex items-center justify-between px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                    <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
+                      Network Fee
+                    </span>
+                    {panelFee.loading ? (
+                      <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block" />
+                    ) : panelFee.feeNGN != null ? (
+                      <span className="text-red-400 font-black text-[9px] sm:text-xs">
+                        ₦{panelFee.feeNGN.toFixed(2)}
+                      </span>
+                    ) : (
+                      <span className="text-white/30 text-[9px] sm:text-xs">—</span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <button
                 onClick={() => triggerPin(liqMode)}
-                disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading}
+                disabled={!liqAmount || parseFloat(liqAmount) <= 0 || txLoading || panelFee.loading}
                 className={`w-full py-2 sm:py-3 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 active:scale-[0.98] shadow-lg ${
                   liqMode === 'provide'
                     ? 'bg-salvaGold text-black shadow-salvaGold/20'
                     : 'bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500 hover:text-white'
                 }`}
               >
-                {txLoading && (
+                {(txLoading || panelFee.loading) && (
                   <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-current/30 border-t-current rounded-full animate-spin" />
                 )}
                 {txLoading
                   ? 'Processing…'
+                  : panelFee.loading
+                  ? 'Calculating fee…'
                   : liqMode === 'provide'
                   ? `Add ${liqAsset}`
                   : `Remove ${liqAsset}`}

@@ -16,6 +16,7 @@
 'use strict';
 
 const { ethers } = require('ethers');
+const { getL1TokenDecimals } = require('../utils/l1Decimals');
 
 // ── Chainlink price feed plumbing (production only) ──────────────────────────
 const CHAINLINK_AGGREGATOR_ABI = [
@@ -296,6 +297,91 @@ function _resolveTreasuryAddress(chain) {
   return process.env.TREASURY_CONTRACT_ADDRESS;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// _simFeeLegAmountWei(chain, coin, tokenAddress)
+//
+// Realistic simulated amount for the treasury fee-transfer leg — NOT a
+// "1 wei" placeholder. Rule: 1 whole unit for NGN-family tokens (NGNs/
+// cNGN), 0.01 whole unit for USD-family tokens (USDT/USDC), scaled to the
+// token's REAL decimals — hardcoded 6 on Base (always), live
+// PoolFactory.tokenDecimal() on BNB.
+// ─────────────────────────────────────────────────────────────────────────────
+async function _simFeeLegAmountWei(chain, coin, tokenAddress) {
+  const isBNB = chain === 'bnb';
+  const isNGNFamily = coin === 'NGN' || coin === 'CNGN' || coin === 'NGNS';
+  let decimals = 6; // Base — hardcoded 6 for every token, always.
+
+  if (isBNB) {
+    try {
+      decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress));
+    } catch (e) {
+      decimals = isNGNFamily ? 6 : 18;
+      console.warn(
+        `⚠️ [GasOracle] Could not fetch live decimals for fee-leg sim (${coin}), using fallback ${decimals}:`,
+        e.message
+      );
+    }
+  }
+
+  const humanAmount = isNGNFamily ? 1 : 0.01;
+  return ethers.parseUnits(humanAmount.toFixed(decimals), decimals);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// hasAnyFeeTokenBalance(chain, safeAddress)
+//
+// Used ONLY by pool and swap routes (never plain transfer/SANT — those have
+// their own same-coin/alt-family deduction logic and don't need this). If
+// the Safe genuinely holds ZERO across all four fee-payable tokens, no gas
+// simulation retry or hardcoded-fee fallback can save the transaction — it
+// is going to fail on-chain regardless. Callers use this to give an honest,
+// immediate block instead of quietly trying (and failing) the fallback
+// path. If the Safe holds SOME balance in at least one token, a simulation
+// failure is treated as ordinary RPC/estimation noise and the existing
+// hardcoded-fallback path proceeds as before.
+// ─────────────────────────────────────────────────────────────────────────────
+async function hasAnyFeeTokenBalance(chain, safeAddress) {
+  const isBNB = chain === 'bnb';
+  const isProd = process.env.NODE_ENV === 'production';
+
+  const addrs = isBNB
+    ? [
+        isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS,
+        isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS,
+        isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS,
+        isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS,
+      ]
+    : [
+        process.env.NGN_TOKEN_ADDRESS,
+        process.env.CNGN_CONTRACT_ADDRESS,
+        process.env.USDT_CONTRACT_ADDRESS,
+        process.env.USDC_CONTRACT_ADDRESS,
+      ];
+
+  const rpcUrl = isBNB
+    ? isProd
+      ? 'https://bsc-dataseed.bnbchain.org'
+      : 'https://bsc-testnet-rpc.publicnode.com'
+    : isProd
+      ? 'https://mainnet.base.org'
+      : 'https://sepolia.base.org';
+
+  const provider = new ethers.JsonRpcProvider(rpcUrl);
+  const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+
+  for (const addr of addrs) {
+    if (!addr) continue;
+    try {
+      const contract = new ethers.Contract(ethers.getAddress(addr), BAL_ABI, provider);
+      const bal = await contract.balanceOf(ethers.getAddress(safeAddress));
+      if (bal > 0n) return true;
+    } catch (e) {
+      console.warn(`⚠️ [GasOracle] balance check failed for ${addr}:`, e.message);
+    }
+  }
+  return false;
+}
+
 // ── MultiSend simulation plumbing ─────────────────────────────────────────────
 const MULTISEND_ADDRESS = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
 const ERC20_TRANSFER_IFACE = new ethers.Interface([
@@ -334,7 +420,8 @@ async function _simulateMultiSendGasUnits(
   tokenAddress,
   treasuryAddress,
   legs = 2,
-  actionCalls = null
+  actionCalls = null,
+  coin = 'NGN'
 ) {
   if (!tokenAddress) throw new Error('No token address resolved for simulation');
   if (!treasuryAddress) throw new Error('No treasury address resolved for simulation');
@@ -390,9 +477,13 @@ async function _simulateMultiSendGasUnits(
     const feeLegFrom = actionCalls[0]?.from
       ? ethers.getAddress(actionCalls[0].from)
       : ethers.getAddress(treasuryAddress);
+    // Realistic simulated fee amount — 1 unit NGN-family / 0.01 unit
+    // USD-family, scaled to real decimals (see _simFeeLegAmountWei). This
+    // replaces the old "1 wei" placeholder.
+    const feeLegAmountWei = await _simFeeLegAmountWei(chain, coin, tokenAddress);
     const feeData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
       ethers.getAddress(treasuryAddress),
-      1n,
+      feeLegAmountWei,
     ]);
     const feeLegGas = await provider.estimateGas({
       from: feeLegFrom,
@@ -408,10 +499,11 @@ async function _simulateMultiSendGasUnits(
   // the fallback within _resolveGasUnitsAndBuffer if actionCalls simulation
   // throws.
   const numLegs = Math.max(1, legs);
+  const genericAmountWei = await _simFeeLegAmountWei(chain, coin, tokenAddress);
   let total = 0n;
   for (let i = 0; i < numLegs; i++) {
     const dest = i === numLegs - 1 ? ethers.getAddress(treasuryAddress) : dummyRecipient;
-    const txData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [dest, 1n]);
+    const txData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [dest, genericAmountWei]);
     const legGas = await provider.estimateGas({
       from: ethers.getAddress(treasuryAddress),
       to: ethers.getAddress(tokenAddress),
@@ -443,7 +535,8 @@ async function _resolveGasUnitsAndBuffer(chain, coin, legs = 2, actionCalls = nu
         tokenAddr,
         treasuryAddr,
         legs,
-        actionCalls
+        actionCalls,
+        coin
       );
       console.log(
         `🔬 [GasOracle] Simulated gas units (chain=${chain} coin=${coin} realCalldata=${!!actionCalls}): ${simulatedUnits}`
@@ -667,4 +760,4 @@ async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
   return { feeNGN, feeUSD, feeWeiNGN, feeWeiUSD, ngnDecimals, usdDecimals };
 }
 
-module.exports = { estimateTransferFee, estimatePoolFee, warmCache };
+module.exports = { estimateTransferFee, estimatePoolFee, warmCache, hasAnyFeeTokenBalance };
