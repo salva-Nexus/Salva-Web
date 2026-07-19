@@ -1374,62 +1374,56 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 {registryFee?.toLocaleString()} <span className="text-salvaGold text-[8px] sm:text-xs">NGNs</span>
               </p>
             </div>
-          const handleExecuteLink = async () => {
-    if (pinInput.length !== 4) return;
-    setPinLoading(true);
-    try {
-      const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, pin: pinInput }),
-      });
-      const pinData = await pinRes.json();
-      if (!pinRes.ok) {
-        showMsg(pinData.message || 'Invalid PIN', 'error');
-        setPinLoading(false);
-        return;
-      }
-      setLinkStep('linking');
-      const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          safeAddress: user.safeAddress,
-          name: nameInput,
-          walletToLink: walletInput,
-          registryAddress: selectedRegistry.registryAddress,
-        }),
-      });
-      const prepData = await prepRes.json();
-      if (prepData.reserved) {
-        setLinkStep('reserved');
-        return;
-      }
-      if (prepData.lowBalance) {
-        showMsg(prepData.message || 'Insufficient NGNs', 'error');
-        setTimeout(() => onSwitchToBuy?.(), 1500);
-        setLinkStep('form');
-        return;
-      }
-      if (!prepRes.ok) {
-        showMsg(prepData.message || 'Preparation failed', 'error');
-        setLinkStep('confirm');
-        return;
-      }
-      const execRes = await fetch(`${SALVA_API_URL}/api/alias/execute-link`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          safeAddress: user.safeAddress,
-          pureName: prepData.pureName,
-          weldedName: prepData.weldedName,
-          walletToLink: prepData.walletToLink,
-          registryAddress: prepData.registryAddress,
-          signature: prepData.signature,
-          feeWei: prepData.feeWei,
-          userPrivateKey: pinData.privateKey,
-        }),
-      });
+          ) : (
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
+              <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">✦</span>
+              <p className="text-[9px] sm:text-xs font-black text-green-400">
+                Free Registration — no fee required
+              </p>
+            </div>
+          )}
+
+          {/* ── Gas-reimbursement fee — separate from registry fee above ── */}
+          {linkFeeLoading ? (
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+              <p className="text-[9px] sm:text-xs text-white/60 font-bold">Calculating network fee…</p>
+            </div>
+          ) : linkFeeInfo ? (
+            <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-red-400 block" />
+                <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
+                  Network Fee
+                </p>
+              </div>
+              <p className="font-black text-white text-[10px] sm:text-sm">
+                ₦{linkFeeInfo.feeNGN?.toFixed(2)}{' '}
+                <span className="text-salvaGold text-[8px] sm:text-xs">({linkFeeInfo.feeToken})</span>
+              </p>
+            </div>
+          ) : null}
+
+          <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
+            <button
+              onClick={resetLinkForm}
+              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+            >
+              Back
+            </button>
+            <button
+              onClick={() => {
+                setLinkStep('pin');
+                setPinInput('');
+              }}
+              disabled={feeLoading || linkFeeLoading || !preparedLinkData}
+              className="flex-2 flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
+            >
+              Continue →
+            </button>
+          </div>
+        </motion.div>
+      )}
 
       {/* ── PIN ── */}
       {linkStep === 'pin' && (

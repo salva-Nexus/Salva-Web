@@ -710,14 +710,55 @@ async function resolveAltFamilyFeeToken(chain, coin, safeAddress, feeNGN, feeUsd
       );
       return { symbol: altSymbol, tokenAddress: altAddr, decimals, feeWei };
     }
-    console.log(
-      `⏭️ [transfer fee] Alt-family ${altSymbol} balance=${balNum.toFixed(4)} < fee=${feeAmount}`
+    console.log(`⏭️ [transfer fee] Alt-family ${altSymbol} balance=${balNum.toFixed(4)} < fee=${feeAmount}`
     );
   } catch (e) {
     console.warn(`⚠️ [transfer fee] alt-family balance check failed for ${altSymbol}:`, e.message);
   }
   return null;
 }
+
+// ── Alias (name link/unlink) gas-fee waterfall ───────────────────────────────
+async function _resolveAliasFeeToken(safeAddress, feeNGN, feeUSD) {
+  const candidates = [
+    { symbol: 'NGNs', address: process.env.NGN_TOKEN_ADDRESS, feeAmount: feeNGN },
+    { symbol: 'cNGN', address: process.env.CNGN_CONTRACT_ADDRESS, feeAmount: feeNGN },
+    { symbol: 'USDT', address: process.env.USDT_CONTRACT_ADDRESS, feeAmount: feeUSD },
+    { symbol: 'USDC', address: process.env.USDC_CONTRACT_ADDRESS, feeAmount: feeUSD },
+  ];
+  const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+  for (const c of candidates) {
+    if (!c.address) continue;
+    try {
+      const contract = new ethers.Contract(ethers.getAddress(c.address), BAL_ABI, provider);
+      const balWei = await contract.balanceOf(ethers.getAddress(safeAddress));
+      const balNum = parseFloat(ethers.formatUnits(balWei, 6));
+      if (balNum >= c.feeAmount) {
+        const feeWei = ethers.parseUnits(c.feeAmount.toFixed(6), 6);
+        console.log(`✅ [alias fee] Using ${c.symbol} — balance=${balNum.toFixed(4)} fee=${c.feeAmount}`);
+        return { symbol: c.symbol, tokenAddress: c.address, feeWei, decimals: 6 };
+      }
+      console.log(`⏭️ [alias fee] Skip ${c.symbol}: balance=${balNum.toFixed(4)} < fee=${c.feeAmount}`);
+    } catch (e) {
+      console.warn(`⚠️ [alias fee] Balance check failed for ${c.symbol}:`, e.message);
+    }
+  }
+  return null;
+}
+
+async function _estimateAliasFee(actionCalls) {
+  try {
+    const { estimatePoolFee } = require('./services/gasOracle');
+    const result = await estimatePoolFee('base', 1, actionCalls);
+    return { feeNGN: result.feeNGN, feeUSD: result.feeUSD };
+  } catch (e) {
+    console.error('❌ [alias fee] estimatePoolFee failed, using fallback:', e.message);
+    return { feeNGN: 5, feeUSD: 0.004 };
+  }
+}
+
+// ===============================================
+// ESTIMATE POOL OPERATION FEE — GET /api/estimate-pool-fee?chain=base|bnb
 
 // Returns BOTH NGN and USD fee values so frontend can display either.
 // Frontend fetches this once on mount, caches 30s.
@@ -1362,6 +1403,36 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
     console.log(`✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`);
     console.log(`   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`);
 
+    let linkActionCalls = null;
+    try {
+      const REGISTRY_LINK_IFACE_SIM = new ethers.Interface([
+        'function link(bytes calldata _name, address _wallet, bytes calldata _signature) external returns (bool)',
+      ]);
+      const simCalldata = REGISTRY_LINK_IFACE_SIM.encodeFunctionData('link', [
+        nameBytes,
+        walletAddress,
+        signature,
+      ]);
+      linkActionCalls = [
+        { to: ethers.getAddress(registryAddress), data: simCalldata, from: ethers.getAddress(safeAddress) },
+      ];
+    } catch (simBuildErr) {
+      console.warn('⚠️ [alias fee] Could not build link() sim calldata:', simBuildErr.message);
+      linkActionCalls = null;
+    }
+
+    const { feeNGN: aliasFeeNGN, feeUSD: aliasFeeUSD } = await _estimateAliasFee(linkActionCalls);
+    const aliasFeeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
+
+    if (!aliasFeeToken) {
+      return res.status(200).json({
+        lowFeeBalance: true,
+        message: `Insufficient balance for network fee. Need ₦${aliasFeeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasFeeUSD.toFixed(4)} in USDT/USDC.`,
+        feeNGN: aliasFeeNGN,
+        feeUSD: aliasFeeUSD,
+      });
+    }
+
     return res.json({
       prepared: true,
       pureName,
@@ -1370,7 +1441,10 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
       registryAddress,
       namespace,
       signature,
-      feeWei: feeWei.toString(), // pass to execute-link so relay knows whether to approve
+      feeWei: feeWei.toString(),
+      feeNGN: aliasFeeNGN,
+      feeUSD: aliasFeeUSD,
+      feeToken: aliasFeeToken.symbol,
     });
   } catch (error) {
     console.error('❌ link-name prepare error:', error);
