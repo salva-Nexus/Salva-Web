@@ -87,8 +87,14 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo, noFu
               </span>
               {feeInfo.loading ? (
                 <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-blue-500/30 border-t-blue-400 rounded-full animate-spin inline-block" />
+              ) : feeInfo.currency === 'USD' && feeInfo.feeUSD != null ? (
+                <span className="text-red-400 font-black">
+                  ${feeInfo.feeUSD.toFixed(4)}{feeInfo.feeToken ? ` (${feeInfo.feeToken})` : ''}
+                </span>
               ) : feeInfo.feeNGN != null ? (
-                <span className="text-red-400 font-black">₦{feeInfo.feeNGN.toFixed(2)}</span>
+                <span className="text-red-400 font-black">
+                  ₦{feeInfo.feeNGN.toFixed(2)}{feeInfo.feeToken ? ` (${feeInfo.feeToken})` : ''}
+                </span>
               ) : (
                 <span className="text-white/30">—</span>
               )}
@@ -375,6 +381,8 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [panelFee, setPanelFee] = useState({
     feeNGN: null,
     feeUSD: null,
+    currency: null,
+    feeToken: null,
     loading: false,
     noBalance: false,
     insufficientFee: false,
@@ -424,7 +432,15 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
         return;
       }
 
-      setPanelFee({ feeNGN: null, feeUSD: null, loading: true, noBalance: false, insufficientFee: false });
+      setPanelFee({
+        feeNGN: null,
+        feeUSD: null,
+        currency: null,
+        feeToken: null,
+        loading: true,
+        noBalance: false,
+        insufficientFee: false,
+      });
       fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -435,13 +451,23 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
           setPanelFee({
             feeNGN: d.feeNGN ?? null,
             feeUSD: d.feeUSD ?? null,
+            currency: d.currency ?? null,
+            feeToken: d.feeToken ?? null,
             loading: false,
             noBalance: !!d.noBalance,
             insufficientFee: !!d.insufficientFee,
           });
         })
         .catch(() =>
-          setPanelFee({ feeNGN: null, feeUSD: null, loading: false, noBalance: false, insufficientFee: false })
+          setPanelFee({
+            feeNGN: null,
+            feeUSD: null,
+            currency: null,
+            feeToken: null,
+            loading: false,
+            noBalance: false,
+            insufficientFee: false,
+          })
         );
     },
     [pinAction, activeSection, liqMode, liqAsset, liqAmount, buyRate, sellRate, minNgn, minToken, user?.safeAddress, pool.poolAddress]
@@ -1227,7 +1253,13 @@ const PoolCard = ({ pool, index, onManage, onPublish, onRename, onDelete }) => {
 const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   const [pools, setPools] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [poolFee, setPoolFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
+  const [poolFee, setPoolFee] = useState({
+    feeNGN: null,
+    feeUSD: null,
+    currency: null,
+    feeToken: null,
+    loading: false,
+  });
   const poolFeeCache = useRef({});
   const [refreshing, setRefreshing] = useState(false);
   const [subFees, setSubFees] = useState(null);
@@ -1415,7 +1447,15 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
   // shown here always matches what actually gets charged.
   const fetchPoolFeeForPin = useCallback(() => {
     if (!user?.safeAddress) return;
-    setPoolFee({ feeNGN: null, feeUSD: null, loading: true, noBalance: false, insufficientFee: false });
+    setPoolFee({
+      feeNGN: null,
+      feeUSD: null,
+      currency: null,
+      feeToken: null,
+      loading: true,
+      noBalance: false,
+      insufficientFee: false,
+    });
     fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1426,13 +1466,23 @@ const BNBDeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
         setPoolFee({
           feeNGN: d.feeNGN ?? null,
           feeUSD: d.feeUSD ?? null,
+          currency: d.currency ?? null,
+          feeToken: d.feeToken ?? null,
           loading: false,
           noBalance: !!d.noBalance,
           insufficientFee: !!d.insufficientFee,
         });
       })
       .catch(() =>
-        setPoolFee({ feeNGN: null, feeUSD: null, loading: false, noBalance: false, insufficientFee: false })
+        setPoolFee({
+          feeNGN: null,
+          feeUSD: null,
+          currency: null,
+          feeToken: null,
+          loading: false,
+          noBalance: false,
+          insufficientFee: false,
+        })
       );
   }, [user?.safeAddress]);
 
