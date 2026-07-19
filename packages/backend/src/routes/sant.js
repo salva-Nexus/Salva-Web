@@ -123,6 +123,65 @@ router.get('/balance/:address', async (req, res) => {
   }
 });
 
+// ── GET /api/sant/estimate-fee/:safeAddress ───────────────────────────────────
+// Preview-only — resolves the SAME single fee token the real /transfer will use
+// (NGNs → cNGN → USDT → USDC waterfall via resolveGasFee), so the UI shows one
+// real number and one real token instead of the generic "~₦X or $Y" pair.
+// Never executes anything on-chain.
+router.get('/estimate-fee/:safeAddress', async (req, res) => {
+  try {
+    const { safeAddress } = req.params;
+    if (!safeAddress || !ethers.isAddress(safeAddress)) {
+      return res.status(400).json({ message: 'Invalid safe address' });
+    }
+
+    const santAddress = getSantAddress();
+    const dummyRecipient = '0x000000000000000000000000000000000000dEaD';
+    const santActionCalls = [
+      {
+        to: santAddress,
+        data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [dummyRecipient, 1n]),
+        from: ethers.getAddress(safeAddress),
+      },
+    ];
+
+    const resolved = await resolveGasFee('base', safeAddress, 1, () => santActionCalls);
+
+    if (resolved.noBalance) {
+      return res.json({
+        noBalance: true,
+        insufficientFee: false,
+        feeNGN: 0,
+        feeUSD: 0,
+        feeToken: null,
+        currency: null,
+      });
+    }
+    if (resolved.insufficientFee) {
+      return res.json({
+        noBalance: false,
+        insufficientFee: true,
+        feeNGN: resolved.feeNGN,
+        feeUSD: resolved.feeUSD,
+        feeToken: null,
+        currency: null,
+      });
+    }
+
+    res.json({
+      noBalance: false,
+      insufficientFee: false,
+      feeNGN: resolved.feeNGN,
+      feeUSD: resolved.feeUSD,
+      feeToken: resolved.payToken.symbol,
+      currency: resolved.currency,
+    });
+  } catch (err) {
+    console.error('❌ /sant/estimate-fee:', err.message);
+    res.status(500).json({ message: 'Failed to estimate fee' });
+  }
+});
+
 // ── POST /api/sant/transfer ────────────────────────────────────────────────────
 // Sends SANT (no fee on the SANT leg itself) bundled with a network-fee leg
 // paid in whatever token the user actually holds — NGNs → cNGN → USDT → USDC,

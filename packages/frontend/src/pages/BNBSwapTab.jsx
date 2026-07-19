@@ -1203,6 +1203,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                     poolCantCover ||
                     poolEmpty ||
                     userBalLoading ||
+                    hasNoFeeFunds ||
                     !!receiverError ||
                     receiverResolving ||
                     (receiverInputType === 'fullname' && !receiverResolved) ||
@@ -1211,7 +1212,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
                   }
                   className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-blue-500 text-white font-black text-xs sm:text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98] shadow-lg shadow-blue-500/20"
                 >
-                  {!trustChecked ? 'Checking…' : 'Continue →'}
+                  {!trustChecked ? 'Checking…' : hasNoFeeFunds ? 'No fee balance' : 'Continue →'}
                 </button>
               </div>
             </div>

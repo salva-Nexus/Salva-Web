@@ -220,7 +220,7 @@ const RegistryDropdown = ({
 };
 
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo }) => {
+const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo, noFundsBlocked }) => {
   const [pin, setPin] = useState('');
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center px-3 sm:px-4">
@@ -281,13 +281,19 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo }) =>
             </button>
             <button
               onClick={() => onConfirm(pin)}
-              disabled={loading || pin.length !== 4 || feeInfo?.loading}
+              disabled={loading || pin.length !== 4 || feeInfo?.loading || noFundsBlocked}
               className="flex-1 py-2.5 sm:py-3.5 rounded-2xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 transition-all"
             >
               {(loading || feeInfo?.loading) && (
                 <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               )}
-              {loading ? 'Verifying…' : feeInfo?.loading ? 'Calculating fee…' : 'Confirm'}
+              {loading
+                ? 'Verifying…'
+                : feeInfo?.loading
+                ? 'Calculating fee…'
+                : noFundsBlocked
+                ? 'No fee balance'
+                : 'Confirm'}
             </button>
           </div>
         </div>
@@ -1115,6 +1121,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
               onCancel={() => setPinVisible(false)}
               loading={pinLoading}
               feeInfo={panelFee}
+              noFundsBlocked={hasNoManageFeeFunds}
             />
           )}
         </AnimatePresence>
@@ -2257,6 +2264,7 @@ const DeployPool = ({ user, showMsg, onSwitchToLinkName }) => {
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
             feeInfo={pinAction === 'deploy' ? poolFee : undefined}
+            noFundsBlocked={pinAction === 'deploy' ? hasNoDeployFeeFunds : false}
           />
         )}
       </AnimatePresence>

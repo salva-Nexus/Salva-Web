@@ -1190,6 +1190,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     poolCantCover ||
                     poolEmpty ||
                     userBalLoading ||
+                    hasNoFeeFunds ||
                     !!receiverError ||
                     receiverResolving ||
                     (receiverInputType === 'fullname' && !receiverResolved) ||
@@ -1207,6 +1208,8 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     ? 'Checking…'
                     : swapFee.loading
                     ? 'Calculating fee…'
+                    : hasNoFeeFunds
+                    ? 'No fee balance'
                     : 'Continue →'}
                 </button>
               </div>

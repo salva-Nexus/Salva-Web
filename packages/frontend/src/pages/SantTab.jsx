@@ -271,7 +271,15 @@ const SantTab = ({ user, registries, showMsg }) => {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferAmountDisplay, setTransferAmountDisplay] = useState('');
   const [amountError, setAmountError] = useState(false);
-  const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0, loading: false });
+  const [feePreview, setFeePreview] = useState({
+    feeNGN: 0,
+    feeUsd: 0,
+    feeToken: null,
+    currency: null,
+    noBalance: false,
+    insufficientFee: false,
+    loading: false,
+  });
   const [feeFundsBalances, setFeeFundsBalances] = useState(null);
   const [loading, setLoading] = useState(false);
 
@@ -331,6 +339,7 @@ const SantTab = ({ user, registries, showMsg }) => {
   // ── Fee preview — real gas-oracle fee, same endpoint everything else uses ──
   const feeEstimateCache = useRef(null);
   const computeFeePreview = useCallback(async () => {
+    if (!user?.safeAddress) return;
     const cached = feeEstimateCache.current;
     if (cached && Date.now() - cached.fetchedAt < 30_000) {
       setFeePreview({ ...cached.data, loading: false });
@@ -338,15 +347,31 @@ const SantTab = ({ user, registries, showMsg }) => {
     }
     setFeePreview((p) => ({ ...p, loading: true }));
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/estimate-fee?chain=base&coin=NGN`);
+      const res = await fetch(`${SALVA_API_URL}/api/sant/estimate-fee/${user.safeAddress}`);
       const data = await res.json();
-      const preview = { feeNGN: data.feeNGN ?? 0, feeUsd: data.feeUsd ?? 0, loading: false };
+      const preview = {
+        feeNGN: data.feeNGN ?? 0,
+        feeUsd: data.feeUSD ?? 0,
+        feeToken: data.feeToken ?? null,
+        currency: data.currency ?? null,
+        noBalance: !!data.noBalance,
+        insufficientFee: !!data.insufficientFee,
+        loading: false,
+      };
       feeEstimateCache.current = { data: preview, fetchedAt: Date.now() };
       setFeePreview(preview);
     } catch {
-      setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
+      setFeePreview({
+        feeNGN: 0,
+        feeUsd: 0,
+        feeToken: null,
+        currency: null,
+        noBalance: false,
+        insufficientFee: false,
+        loading: false,
+      });
     }
-  }, []);
+  }, [user?.safeAddress]);
 
   useEffect(() => {
     if (isSendOpen) computeFeePreview();
@@ -377,12 +402,7 @@ const SantTab = ({ user, registries, showMsg }) => {
     };
   }, [isSendOpen, user?.safeAddress]);
 
-  const hasNoFeeFunds =
-    feeFundsBalances &&
-    feeFundsBalances.ngns <= 0 &&
-    feeFundsBalances.cngn <= 0 &&
-    feeFundsBalances.usdt <= 0 &&
-    feeFundsBalances.usdc <= 0;
+  const hasNoFeeFunds = feePreview.noBalance;
 
   // ── Recipient input — identical detection logic to Dashboard Send ──────────
   const handleRecipientChange = (val) => {
@@ -429,8 +449,16 @@ const SantTab = ({ user, registries, showMsg }) => {
   };
 
   // ── Resolve recipient exactly like Dashboard Send, then show confirm card ──
-  const resolveAndConfirm = async () => {
+ const resolveAndConfirm = async () => {
     if (!recipientInput || !transferAmount) return showMsg('Fill all fields', 'error');
+    if (feePreview.noBalance)
+      return showMsg('You have no NGNs, cNGN, USDT, or USDC to cover the network fee.', 'error');
+    if (feePreview.insufficientFee)
+      return showMsg('Insufficient balance to cover the network fee.', 'error');
+    if (feePreview.noBalance)
+      return showMsg('You have no NGNs, cNGN, USDT, or USDC to cover the network fee.', 'error');
+    if (feePreview.insufficientFee)
+      return showMsg('Insufficient balance to cover the network fee.', 'error');
     const type = detectInputType(recipientInput);
     if (type === 'name' && !selectedRegistry) return showMsg('Select a wallet service', 'error');
     if (type === 'fullname') {
@@ -481,6 +509,8 @@ const SantTab = ({ user, registries, showMsg }) => {
         walletName: selectedRegistry?.name || null,
         feeNGN: feePreview.feeNGN,
         feeUsd: feePreview.feeUsd,
+        feeToken: feePreview.feeToken,
+        feeCurrency: feePreview.currency,
       });
       setIsSendOpen(false);
       setIsConfirmModalOpen(true);
@@ -872,14 +902,23 @@ const SantTab = ({ user, registries, showMsg }) => {
                           className="border border-white/20 border-t-white/60 rounded-full animate-spin inline-block"
                           style={{ width: sendPx(12), height: sendPx(12) }}
                         />
-                      ) : (
+                      ) : feePreview.noBalance ? (
+                        <span className="text-red-400 font-black">No balance to cover fee</span>
+                      ) : feePreview.insufficientFee ? (
+                        <span className="text-red-400 font-black">Insufficient fee balance</span>
+                      ) : feePreview.feeToken ? (
                         <span className="text-red-400 font-black">
-                          ~₦{formatNumber(feePreview.feeNGN)} or ${feePreview.feeUsd?.toFixed(4)}
+                          {feePreview.currency === 'USD'
+                            ? `$${feePreview.feeUsd?.toFixed(4)}`
+                            : `₦${formatNumber(feePreview.feeNGN)}`}{' '}
+                          ({feePreview.feeToken})
                         </span>
+                      ) : (
+                        <span className="text-white/30">—</span>
                       )}
                     </div>
                     <p className="text-white/30 font-medium">
-                      Paid automatically in NGNs, cNGN, USDT, or USDC — whichever you hold
+                      Paid automatically in whichever of NGNs, cNGN, USDT, or USDC covers the fee
                     </p>
                   </div>
                   {hasNoFeeFunds && (
@@ -898,7 +937,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                   )}
                 </div>
                 <button
-                  disabled={loading || amountError || !recipientInput}
+                  disabled={
+                    loading ||
+                    amountError ||
+                    !recipientInput ||
+                    feePreview.loading ||
+                    feePreview.noBalance ||
+                    feePreview.insufficientFee
+                  }
                   type="submit"
                   className={`w-full rounded-2xl font-black transition-all uppercase tracking-widest flex items-center justify-center ${
                     loading || amountError || !recipientInput
@@ -973,11 +1019,10 @@ const SantTab = ({ user, registries, showMsg }) => {
                 <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
                   <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
                   <p className="font-black text-base text-red-400">
-                    ~₦{formatNumber(confirmationData.feeNGN)} or $
-                    {confirmationData.feeUsd?.toFixed(4)}
-                  </p>
-                  <p className="text-[10px] text-white/30 mt-1">
-                    Paid automatically in whichever token you hold
+                    {confirmationData.feeCurrency === 'USD'
+                      ? `$${confirmationData.feeUsd?.toFixed(4)}`
+                      : `₦${formatNumber(confirmationData.feeNGN)}`}{' '}
+                    <span className="text-salvaGold">({confirmationData.feeToken})</span>
                   </p>
                 </div>
               </div>
