@@ -1506,70 +1506,114 @@ app.post('/api/alias/execute-link', async (req, res) => {
       `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || '0'}`
     );
 
-    const result = await sponsorLinkNameBase(
-      safeAddress,
-      userPrivateKey,
-      registryAddress,
+    // ── Build ONE atomic Safe transaction: link() [+ registry-fee approve if
+    // any] + gas-reimbursement fee transfer — same pattern as unlink-name.
+    // Re-resolve the fee token here (not at prepare-time) in case balances
+    // shifted between the availability check and this confirm step.
+    let feeToken = null;
+    if (typeof aliasFeeNGN === 'number' && typeof aliasFeeUSD === 'number') {
+      feeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
+      if (!feeToken) {
+        return res.status(400).json({
+          message: `Insufficient balance for network fee. Need ₦${aliasFeeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasFeeUSD.toFixed(4)} in USDT/USDC.`,
+        });
+      }
+    }
+
+    const cleanRegistry = ethers.getAddress(registryAddress);
+    const registryIface = new ethers.Interface([
+      'function link(bytes calldata _name, address _wallet, bytes calldata signature) external returns (bool)',
+    ]);
+    const linkCalldata = registryIface.encodeFunctionData('link', [
       nameBytes,
       walletAddress,
-      BigInt(feeWei || '0'),
-      signature
+      signature,
+    ]);
+
+    const safeTxLegs = [
+      { to: cleanRegistry, data: linkCalldata, value: '0', operation: 0 },
+    ];
+
+    // Registry's own singleton fee — currently free (feeWei = 0), but if it
+    // is ever non-zero again, approve it in the SAME bundle rather than a
+    // separate tx.
+    const registryFeeWei = BigInt(feeWei || '0');
+    if (registryFeeWei > 0n) {
+      const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
+      if (!ngnAddr) return res.status(500).json({ message: 'NGN_TOKEN_ADDRESS not configured' });
+      const approveIface = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
+      const approveCalldata = approveIface.encodeFunctionData('approve', [
+        cleanRegistry,
+        registryFeeWei,
+      ]);
+      safeTxLegs.push({ to: ngnAddr, data: approveCalldata, value: '0', operation: 0 });
+    }
+
+    if (feeToken) {
+      const treasuryAddr = process.env.TREASURY_CONTRACT_ADDRESS;
+      const transferIface = new ethers.Interface([
+        'function transfer(address to, uint256 amount) returns (bool)',
+      ]);
+      const feeCalldata = transferIface.encodeFunctionData('transfer', [
+        ethers.getAddress(treasuryAddr),
+        feeToken.feeWei,
+      ]);
+      safeTxLegs.push({
+        to: ethers.getAddress(feeToken.tokenAddress),
+        data: feeCalldata,
+        value: '0',
+        operation: 0,
+      });
+    }
+
+    const Safe = require('@safe-global/protocol-kit').default;
+    const linkRpcUrl =
+      process.env.NODE_ENV === 'production'
+        ? process.env.BASE_MAINNET_RPC_URL
+        : process.env.BASE_SEPOLIA_RPC_URL;
+
+    const linkProtocolKit = await Safe.init({
+      provider: linkRpcUrl,
+      signer: userPrivateKey,
+      safeAddress: safeAddress,
+    });
+
+    const linkSafeTransaction = await linkProtocolKit.createTransaction({
+      transactions: safeTxLegs,
+    });
+    const linkSignedTx = await linkProtocolKit.signTransaction(linkSafeTransaction);
+
+    const LINK_SAFE_ABI = [
+      'function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)',
+    ];
+    const linkSafeContract = new ethers.Contract(safeAddress, LINK_SAFE_ABI, wallet);
+
+    const linkTx = await linkSafeContract.execTransaction(
+      linkSignedTx.data.to,
+      BigInt(linkSignedTx.data.value || '0'),
+      linkSignedTx.data.data,
+      Number(linkSignedTx.data.operation || 0),
+      BigInt(linkSignedTx.data.safeTxGas || '0'),
+      BigInt(linkSignedTx.data.baseGas || '0'),
+      BigInt(linkSignedTx.data.gasPrice || '0'),
+      linkSignedTx.data.gasToken || ethers.ZeroAddress,
+      linkSignedTx.data.refundReceiver || ethers.ZeroAddress,
+      linkSignedTx.encodedSignatures(),
+      { gasLimit: 800_000 }
     );
 
-    if (!result || !result.txHash)
-      return res.status(400).json({ message: 'Link transaction failed to broadcast' });
-
-    const taskStatus = await waitForTxReceipt(result.txHash);
+    const taskStatus = await waitForTxReceipt(linkTx.hash);
 
     if (!taskStatus.success)
       return res.status(400).json({
         message: taskStatus.reason || 'Link transaction reverted on-chain',
       });
 
-    // ── Collect the gas-reimbursement fee — best-effort, non-fatal ──────────
-    // The link itself already succeeded above, so a fee-collection failure
-    // must NEVER undo or block the user's name link. sponsorLinkNameBase is
-    // an opaque single-purpose relay call (not a MultiSend builder like
-    // pool.js), so this runs as a second, separate Safe transaction right
-    // after — same non-atomic, best-effort pattern this codebase already
-    // uses for deployment-loan repayment. Fee amount was computed and shown
-    // to the user back in /api/alias/link-name; we just re-resolve which
-    // token to pull it from here in case balances shifted in between.
-    let feeCollected = false;
-    let feeSymbolUsed = null;
-    if (typeof aliasFeeNGN === 'number' && typeof aliasFeeUSD === 'number') {
-      try {
-        const feeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
-        if (feeToken) {
-          const { _executeViaSafeBase } = require('./services/relayService');
-          const treasuryAddr = process.env.TREASURY_CONTRACT_ADDRESS;
-          const ERC20_TRANSFER_IFACE_FEE = new ethers.Interface([
-            'function transfer(address to, uint256 amount) returns (bool)',
-          ]);
-          const feeCalldata = ERC20_TRANSFER_IFACE_FEE.encodeFunctionData('transfer', [
-            ethers.getAddress(treasuryAddr),
-            feeToken.feeWei,
-          ]);
-          const feeResult = await _executeViaSafeBase(
-            ethers.getAddress(safeAddress),
-            userPrivateKey,
-            ethers.getAddress(feeToken.tokenAddress),
-            feeCalldata,
-            0
-          );
-          if (feeResult && feeResult.txHash) {
-            await waitForTxReceipt(feeResult.txHash).catch(() => {});
-            feeCollected = true;
-            feeSymbolUsed = feeToken.symbol;
-            console.log(`✅ [alias fee] Collected ${feeToken.symbol} for link (tx: ${feeResult.txHash})`);
-          }
-        } else {
-          console.warn('⚠️ [alias fee] No token available to collect link fee — skipping, non-fatal');
-        }
-      } catch (feeErr) {
-        console.error('⚠️ [alias fee] Fee collection failed (non-fatal, link already succeeded):', feeErr.message);
-      }
-    }
+    const result = { txHash: linkTx.hash };
+    const feeCollected = !!feeToken;
+    const feeSymbolUsed = feeToken ? feeToken.symbol : null;
 
     // ── Save to DB ──────────────────────────────────────────────────────────
     const aliasEntry = {
