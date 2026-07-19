@@ -394,29 +394,7 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   // triggerPin below) — those actions can't know their real calldata
   // until the exact button is pressed, but liquidity's calldata is fully
   // known the moment amount+asset+mode are picked.
-  const liqFeeDebounce = useRef(null);
-  useEffect(() => {
-    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
-    clearTimeout(liqFeeDebounce.current);
-    liqFeeDebounce.current = setTimeout(fetchPanelFeeForPin, 400);
-    return () => clearTimeout(liqFeeDebounce.current);
-  }, [liqAmount, activeSection, fetchPanelFeeForPin]);
 
-  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
-  // it's already known by the time they reach the PIN step. Deploy/Rates/
-  // Controls intentionally keep fetching at the PIN step instead (see
-  // triggerPin) — those actions genuinely can't know their real calldata
-  // until the exact button is pressed (which rate, pause vs unpause, etc.),
-  // but liquidity's calldata is fully known the moment amount+asset+mode
-  // are picked, so there's no reason to make the user wait for the PIN
-  // screen to see the cost.
-  const liqFeeDebounce = useRef(null);
-  useEffect(() => {
-    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
-    clearTimeout(liqFeeDebounce.current);
-    liqFeeDebounce.current = setTimeout(fetchPanelFeeForPin, 400);
-    return () => clearTimeout(liqFeeDebounce.current);
-  }, [liqAmount, activeSection, fetchPanelFeeForPin]);
 
   // ── Fee-funds check — MetaMask-style pre-warning, shared across all tabs ──
   const [manageFeeFunds, setManageFeeFunds] = useState(null);
@@ -455,6 +433,16 @@ const PoolManagePanel = ({ pool, user, showMsg, onClose, onRefresh }) => {
   const [liqAsset, setLiqAsset] = useState('NGNS');
   const [liqAmount, setLiqAmount] = useState('');
   const [liqMode, setLiqMode] = useState('provide');
+
+  // Liquidity tab ONLY: simulate the fee as the user TYPES the amount, so
+  // it's already known by the time they reach the PIN step.
+  const liqFeeDebounce = useRef(null);
+  useEffect(() => {
+    if (activeSection !== 'liquidity' || !liqAmount || parseFloat(liqAmount) <= 0) return;
+    clearTimeout(liqFeeDebounce.current);
+    liqFeeDebounce.current = setTimeout(fetchPanelFeeForPin, 400);
+    return () => clearTimeout(liqFeeDebounce.current);
+  }, [liqAmount, activeSection, fetchPanelFeeForPin]);
   const [buyRate, setBuyRate] = useState(toNum(pool.buyRate).toString());
   const [sellRate, setSellRate] = useState(toNum(pool.sellRate).toString());
   const [minNgn, setMinNgn] = useState('');
