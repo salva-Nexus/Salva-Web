@@ -1506,20 +1506,13 @@ app.post('/api/alias/execute-link', async (req, res) => {
       `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || '0'}`
     );
 
-    // ── Build ONE atomic Safe transaction: link() [+ registry-fee approve if
-    // any] + gas-reimbursement fee transfer — same pattern as unlink-name.
-    // Re-resolve the fee token here (not at prepare-time) in case balances
-    // shifted between the availability check and this confirm step.
-    let feeToken = null;
-    if (typeof aliasFeeNGN === 'number' && typeof aliasFeeUSD === 'number') {
-      feeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
-      if (!feeToken) {
-        return res.status(400).json({
-          message: `Insufficient balance for network fee. Need ₦${aliasFeeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasFeeUSD.toFixed(4)} in USDT/USDC.`,
-        });
-      }
-    }
-
+    // ── Re-simulate the fee server-side, from the REAL link() calldata,
+    // right now — never trust the aliasFeeNGN/aliasFeeUSD numbers the
+    // client sent back from the earlier /link-name prepare step. Prices
+    // and gas can shift in the time between prepare and confirm (user
+    // types a name, thinks, enters PIN), and a client-supplied number is
+    // not a trustworthy basis for what to actually charge. This mirrors
+    // exactly what unlink-name already does.
     const cleanRegistry = ethers.getAddress(registryAddress);
     const registryIface = new ethers.Interface([
       'function link(bytes calldata _name, address _wallet, bytes calldata signature) external returns (bool)',
@@ -1529,6 +1522,19 @@ app.post('/api/alias/execute-link', async (req, res) => {
       walletAddress,
       signature,
     ]);
+
+    const linkActionCallsForFee = [
+      { to: cleanRegistry, data: linkCalldata, from: ethers.getAddress(safeAddress) },
+    ];
+    const { feeNGN: freshFeeNGN, feeUSD: freshFeeUSD } = await _estimateAliasFee(
+      linkActionCallsForFee
+    );
+    const feeToken = await _resolveAliasFeeToken(safeAddress, freshFeeNGN, freshFeeUSD);
+    if (!feeToken) {
+      return res.status(400).json({
+        message: `Insufficient balance for network fee. Need ₦${freshFeeNGN.toFixed(2)} in NGNs/cNGN, or $${freshFeeUSD.toFixed(4)} in USDT/USDC.`,
+      });
+    }
 
     const safeTxLegs = [
       { to: cleanRegistry, data: linkCalldata, value: '0', operation: 0 },
@@ -1551,7 +1557,7 @@ app.post('/api/alias/execute-link', async (req, res) => {
       safeTxLegs.push({ to: ngnAddr, data: approveCalldata, value: '0', operation: 0 });
     }
 
-    if (feeToken) {
+    {
       const treasuryAddr = process.env.TREASURY_CONTRACT_ADDRESS;
       const transferIface = new ethers.Interface([
         'function transfer(address to, uint256 amount) returns (bool)',
@@ -1589,8 +1595,8 @@ app.post('/api/alias/execute-link', async (req, res) => {
       });
 
     const result = { txHash: linkTxHash };
-    const feeCollected = !!feeToken;
-    const feeSymbolUsed = feeToken ? feeToken.symbol : null;
+    const feeCollected = true;
+    const feeSymbolUsed = feeToken.symbol;
 
     // ── Save to DB ──────────────────────────────────────────────────────────
     const aliasEntry = {
