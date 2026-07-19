@@ -719,59 +719,6 @@ async function resolveAltFamilyFeeToken(chain, coin, safeAddress, feeNGN, feeUsd
   return null;
 }
 
-console.log(`✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`);
-    console.log(`   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`);
-
-    // ── Gas-fee estimation — best-effort real simulation of the link() call ──
-    // The exact link() ABI lives inside sponsorLinkNameBase/BaseRegistry and
-    // isn't available to us here, so we simulate our best reasonable guess
-    // of its shape purely for gas-cost estimation. If it doesn't match the
-    // real selector the simulation throws and estimatePoolFee's own
-    // hardcoded-unit fallback kicks in automatically — either way we always
-    // get a safe, honest fee number, never a crash.
-    let linkActionCalls = null;
-    try {
-      const REGISTRY_LINK_IFACE_SIM = new ethers.Interface([
-        'function link(bytes calldata _name, address _wallet, bytes calldata _signature) external returns (bool)',
-      ]);
-      const simCalldata = REGISTRY_LINK_IFACE_SIM.encodeFunctionData('link', [
-        nameBytes,
-        walletAddress,
-        signature,
-      ]);
-      linkActionCalls = [
-        { to: ethers.getAddress(registryAddress), data: simCalldata, from: ethers.getAddress(safeAddress) },
-      ];
-    } catch (simBuildErr) {
-      console.warn('⚠️ [alias fee] Could not build link() sim calldata:', simBuildErr.message);
-      linkActionCalls = null;
-    }
-
-    const { feeNGN: aliasFeeNGN, feeUSD: aliasFeeUSD } = await _estimateAliasFee(linkActionCalls);
-    const aliasFeeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
-
-    if (!aliasFeeToken) {
-      return res.status(200).json({
-        lowFeeBalance: true,
-        message: `Insufficient balance for network fee. Need ₦${aliasFeeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasFeeUSD.toFixed(4)} in USDT/USDC.`,
-        feeNGN: aliasFeeNGN,
-        feeUSD: aliasFeeUSD,
-      });
-    }
-
-    return res.json({
-      prepared: true,
-      pureName,
-      weldedName,
-      walletToLink: walletAddress,
-      registryAddress,
-      namespace,
-      signature,
-      feeWei: feeWei.toString(), // pass to execute-link so relay knows whether to approve
-      feeNGN: aliasFeeNGN,
-      feeUSD: aliasFeeUSD,
-      feeToken: aliasFeeToken.symbol,
-    });
 // Returns BOTH NGN and USD fee values so frontend can display either.
 // Frontend fetches this once on mount, caches 30s.
 // ===============================================
