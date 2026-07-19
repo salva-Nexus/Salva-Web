@@ -1568,50 +1568,27 @@ app.post('/api/alias/execute-link', async (req, res) => {
       });
     }
 
-    const Safe = require('@safe-global/protocol-kit').default;
-    const linkRpcUrl =
-      process.env.NODE_ENV === 'production'
-        ? process.env.BASE_MAINNET_RPC_URL
-        : process.env.BASE_SEPOLIA_RPC_URL;
+    const { _executeMultiLegSafeTx } = require('./services/relayService');
 
-    const linkProtocolKit = await Safe.init({
-      provider: linkRpcUrl,
-      signer: userPrivateKey,
-      safeAddress: safeAddress,
-    });
+    let linkTxHash;
+    try {
+      const { txHash } = await _executeMultiLegSafeTx(safeAddress, userPrivateKey, safeTxLegs);
+      linkTxHash = txHash;
+    } catch (broadcastErr) {
+      console.error('❌ [execute-link] Multi-leg broadcast failed:', broadcastErr.message);
+      return res.status(400).json({
+        message: 'Link transaction failed to broadcast',
+      });
+    }
 
-    const linkSafeTransaction = await linkProtocolKit.createTransaction({
-      transactions: safeTxLegs,
-    });
-    const linkSignedTx = await linkProtocolKit.signTransaction(linkSafeTransaction);
-
-    const LINK_SAFE_ABI = [
-      'function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)',
-    ];
-    const linkSafeContract = new ethers.Contract(safeAddress, LINK_SAFE_ABI, wallet);
-
-    const linkTx = await linkSafeContract.execTransaction(
-      linkSignedTx.data.to,
-      BigInt(linkSignedTx.data.value || '0'),
-      linkSignedTx.data.data,
-      Number(linkSignedTx.data.operation || 0),
-      BigInt(linkSignedTx.data.safeTxGas || '0'),
-      BigInt(linkSignedTx.data.baseGas || '0'),
-      BigInt(linkSignedTx.data.gasPrice || '0'),
-      linkSignedTx.data.gasToken || ethers.ZeroAddress,
-      linkSignedTx.data.refundReceiver || ethers.ZeroAddress,
-      linkSignedTx.encodedSignatures(),
-      { gasLimit: 800_000 }
-    );
-
-    const taskStatus = await waitForTxReceipt(linkTx.hash);
+    const taskStatus = await waitForTxReceipt(linkTxHash);
 
     if (!taskStatus.success)
       return res.status(400).json({
         message: taskStatus.reason || 'Link transaction reverted on-chain',
       });
 
-    const result = { txHash: linkTx.hash };
+    const result = { txHash: linkTxHash };
     const feeCollected = !!feeToken;
     const feeSymbolUsed = feeToken ? feeToken.symbol : null;
 
@@ -1820,22 +1797,15 @@ app.post('/api/alias/unlink-name', async (req, res) => {
       unlinkFeeToken.feeWei,
     ]);
 
-    // Execute via the user's Safe — Safe is msg.sender on the registry
+    // Execute via the user's Safe — Safe is msg.sender on the registry.
     // Backend wallet pays gas; the fee leg reimburses that gas cost.
-    const Safe = require('@safe-global/protocol-kit').default;
-    const rpcUrl =
-      process.env.NODE_ENV === 'production'
-        ? process.env.BASE_MAINNET_RPC_URL
-        : process.env.BASE_SEPOLIA_RPC_URL;
+    // Bundled atomically via the shared multi-leg helper — same pattern
+    // execute-link now uses.
+    const { _executeMultiLegSafeTx } = require('./services/relayService');
 
-    const protocolKit = await Safe.init({
-      provider: rpcUrl,
-      signer: userPrivateKey,
-      safeAddress: safeAddress,
-    });
-
-    const safeTransaction = await protocolKit.createTransaction({
-      transactions: [
+    let tx;
+    try {
+      const unlinkLegs = [
         {
           to: ethers.getAddress(targetRegistryAddress),
           data: unlinkCalldata,
@@ -1848,35 +1818,24 @@ app.post('/api/alias/unlink-name', async (req, res) => {
           value: '0',
           operation: 0,
         },
-      ],
-    });
-
-    const signedTx = await protocolKit.signTransaction(safeTransaction);
-
-    const SAFE_ABI = [
-      'function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)',
-    ];
-    const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
-
-    const tx = await safeContract.execTransaction(
-      signedTx.data.to,
-      BigInt(signedTx.data.value || '0'),
-      signedTx.data.data,
-      Number(signedTx.data.operation || 0),
-      BigInt(signedTx.data.safeTxGas || '0'),
-      BigInt(signedTx.data.baseGas || '0'),
-      BigInt(signedTx.data.gasPrice || '0'),
-      signedTx.data.gasToken || ethers.ZeroAddress,
-      signedTx.data.refundReceiver || ethers.ZeroAddress,
-      signedTx.encodedSignatures(),
-      { gasLimit: 300_000 }
-    );
+      ];
+      const { txHash } = await _executeMultiLegSafeTx(
+        safeAddress,
+        userPrivateKey,
+        unlinkLegs,
+        300_000
+      );
+      tx = { hash: txHash };
+    } catch (broadcastErr) {
+      console.error('❌ [unlink-name] Multi-leg broadcast failed:', broadcastErr.message);
+      return res.status(400).json({ message: 'On-chain unlink failed.' });
+    }
 
     console.log(`⏳ Unlink TX submitted: ${tx.hash}`);
-    const receipt = await tx.wait();
+    const receipt = await waitForTxReceipt(tx.hash);
 
-    if (!receipt || receipt.status === 0)
-      return res.status(400).json({ message: 'On-chain unlink failed.' });
+    if (!receipt.success)
+      return res.status(400).json({ message: receipt.reason || 'On-chain unlink failed.' });
 
     // Remove from DB
     dbUser.nameAliases.splice(aliasIndex, 1);

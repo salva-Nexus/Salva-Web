@@ -188,6 +188,80 @@ async function _executeViaSafeBase(safeAddress, ownerKey, target, data, operatio
   return { taskId: tx.hash, txHash: tx.hash, receipt };
 }
 
+// ─── Multi-leg Safe transaction executor ─────────────────────────────────────
+// Bundles an arbitrary array of Safe-transaction legs (e.g. link() + fee
+// transfer, or unlink() + fee transfer) into ONE atomic execTransaction via
+// the Safe Protocol Kit's automatic MultiSend wrapping. This is the single
+// shared implementation for any caller that needs "do action X + collect
+// fee Y in the same on-chain transaction" — currently used by name link and
+// name unlink, but written generically so any future multi-leg action
+// (e.g. rename, batch operations) can reuse it instead of duplicating the
+// Safe.init/createTransaction/signTransaction/execTransaction boilerplate.
+//
+// legs: array of { to, data, value?, operation? }
+//   - to: contract address for this leg
+//   - data: encoded calldata (hex string)
+//   - value: wei value to send with this leg (defaults to '0')
+//   - operation: 0 = call, 1 = delegatecall (defaults to 0)
+//
+// Returns: { txHash, receipt }
+// Throws on any failure (broadcast error, revert) — caller must catch.
+async function _executeMultiLegSafeTx(safeAddress, ownerKey, legs, gasLimit = 800_000) {
+  if (!Array.isArray(legs) || legs.length === 0) {
+    throw new Error('_executeMultiLegSafeTx: legs must be a non-empty array');
+  }
+
+  const cleanSafe = ethers.getAddress(cleanEnvAddr(safeAddress) || safeAddress);
+  const rpcUrl =
+    process.env.NODE_ENV === 'production'
+      ? process.env.BASE_MAINNET_RPC_URL
+      : process.env.BASE_SEPOLIA_RPC_URL;
+
+  const normalizedLegs = legs.map((leg) => ({
+    to: ethers.getAddress(cleanEnvAddr(leg.to) || leg.to),
+    data: typeof leg.data === 'string' ? leg.data : ethers.hexlify(leg.data),
+    value: leg.value !== undefined ? leg.value.toString() : '0',
+    operation: leg.operation !== undefined ? leg.operation : 0,
+  }));
+
+  console.log(
+    `🔗 [multiLegSafeTx] Safe=${cleanSafe} | ${normalizedLegs.length} leg(s): ${normalizedLegs
+      .map((l) => l.to)
+      .join(' → ')}`
+  );
+
+  const protocolKit = await Safe.init({
+    provider: rpcUrl,
+    signer: ownerKey,
+    safeAddress: cleanSafe,
+  });
+
+  const safeTransaction = await protocolKit.createTransaction({
+    transactions: normalizedLegs,
+  });
+
+  const signedTx = await protocolKit.signTransaction(safeTransaction);
+  const safeContract = new ethers.Contract(cleanSafe, SAFE_ABI, wallet);
+
+  const tx = await safeContract.execTransaction(
+    signedTx.data.to,
+    BigInt(signedTx.data.value || '0'),
+    signedTx.data.data,
+    Number(signedTx.data.operation || 0),
+    BigInt(signedTx.data.safeTxGas || '0'),
+    BigInt(signedTx.data.baseGas || '0'),
+    BigInt(signedTx.data.gasPrice || '0'),
+    signedTx.data.gasToken || ethers.ZeroAddress,
+    signedTx.data.refundReceiver || ethers.ZeroAddress,
+    signedTx.encodedSignatures(),
+    { gasLimit }
+  );
+
+  const receipt = await tx.wait();
+  console.log(`✅ [multiLegSafeTx] Confirmed: ${tx.hash}`);
+  return { txHash: tx.hash, receipt };
+}
+
 // ─── Encoding helpers ─────────────────────────────────────────────────────────
 
 function _encode(functionName, args) {
@@ -423,6 +497,7 @@ function _buildSwapCalldata(fnName, receiver, tokenA, tokenB, amountBn) {
 module.exports = {
   _executeViaSafeBase,
   _executeViaSafe,
+  _executeMultiLegSafeTx,
 
   // ── Transfers (existing)
   sponsorSafeTransfer: (s, k, r, a, f, t) =>
