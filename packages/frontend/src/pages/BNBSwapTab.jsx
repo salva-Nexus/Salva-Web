@@ -219,13 +219,23 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     section === 'buy' ? parseFloat(pool.buyRate || 0) : parseFloat(pool.sellRate || 0);
   const accentColor = section === 'buy' ? '#3b82f6' : '#22c55e';
 
-  const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: true });
+  const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
+  const swapFeeTimer = useRef(null);
   useEffect(() => {
-    fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
-      .then((r) => r.json())
-      .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
-      .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
-  }, []);
+    if (amountRaw <= 0) {
+      setSwapFee({ feeNGN: null, feeUSD: null, loading: false });
+      return;
+    }
+    clearTimeout(swapFeeTimer.current);
+    setSwapFee((prev) => ({ ...prev, loading: true }));
+    swapFeeTimer.current = setTimeout(() => {
+      fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=bnb`)
+        .then((r) => r.json())
+        .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
+        .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
+    }, 500);
+    return () => clearTimeout(swapFeeTimer.current);
+  }, [amountRaw]);
 
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);

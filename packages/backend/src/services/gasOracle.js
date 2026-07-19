@@ -306,25 +306,46 @@ function _resolveTreasuryAddress(chain) {
 // token's REAL decimals — hardcoded 6 on Base (always), live
 // PoolFactory.tokenDecimal() on BNB.
 // ─────────────────────────────────────────────────────────────────────────────
-async function _simFeeLegAmountWei(chain, coin, tokenAddress) {
+// Simulates the fee-transfer leg using the REAL on-chain balanceOf(safeAddress)
+// for that token — never a fabricated placeholder. If the balance is 0 (should
+// never happen here since callers only reach this after confirming balance > 0
+// via resolveGasFee's pre-check), falls back to 1 wei as an absolute last
+// resort so simulation doesn't throw on a literal zero-amount transfer.
+async function _simFeeLegAmountWei(chain, tokenAddress, safeAddress) {
   const isBNB = chain === 'bnb';
-  const isNGNFamily = coin === 'NGN' || coin === 'CNGN' || coin === 'NGNS';
   let decimals = 6; // Base — hardcoded 6 for every token, always.
 
   if (isBNB) {
     try {
       decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress));
     } catch (e) {
-      decimals = isNGNFamily ? 6 : 18;
+      decimals = 6;
       console.warn(
-        `⚠️ [GasOracle] Could not fetch live decimals for fee-leg sim (${coin}), using fallback ${decimals}:`,
+        `⚠️ [GasOracle] Could not fetch live decimals for fee-leg sim, using fallback ${decimals}:`,
         e.message
       );
     }
   }
 
-  const humanAmount = isNGNFamily ? 1 : 0.01;
-  return ethers.parseUnits(humanAmount.toFixed(decimals), decimals);
+  try {
+    const isProd = process.env.NODE_ENV === 'production';
+    const rpcUrl = isBNB
+      ? (isProd ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com')
+      : (isProd ? 'https://mainnet.base.org' : 'https://sepolia.base.org');
+    const balProvider = new ethers.JsonRpcProvider(rpcUrl);
+    const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+    const contract = new ethers.Contract(ethers.getAddress(tokenAddress), BAL_ABI, balProvider);
+    const balWei = await contract.balanceOf(ethers.getAddress(safeAddress));
+    if (balWei > 0n) {
+      console.log(`🔬 [GasOracle] Using REAL balanceOf(${safeAddress}) for sim amount: ${ethers.formatUnits(balWei, decimals)} (token=${tokenAddress})`);
+      return balWei;
+    }
+  } catch (e) {
+    console.warn(`⚠️ [GasOracle] balanceOf() read failed for sim amount, using 1 wei fallback:`, e.message);
+  }
+  // Absolute last resort — should not normally be reached since resolveGasFee
+  // already confirmed balance > 0 before calling into simulation.
+  return 1n;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -480,7 +501,7 @@ async function _simulateMultiSendGasUnits(
     // Realistic simulated fee amount — 1 unit NGN-family / 0.01 unit
     // USD-family, scaled to real decimals (see _simFeeLegAmountWei). This
     // replaces the old "1 wei" placeholder.
-    const feeLegAmountWei = await _simFeeLegAmountWei(chain, coin, tokenAddress);
+    const feeLegAmountWei = await _simFeeLegAmountWei(chain, tokenAddress, feeLegFrom);
     const feeData = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
       ethers.getAddress(treasuryAddress),
       feeLegAmountWei,
@@ -499,7 +520,7 @@ async function _simulateMultiSendGasUnits(
   // the fallback within _resolveGasUnitsAndBuffer if actionCalls simulation
   // throws.
   const numLegs = Math.max(1, legs);
-  const genericAmountWei = await _simFeeLegAmountWei(chain, coin, tokenAddress);
+  const genericAmountWei = await _simFeeLegAmountWei(chain, tokenAddress, treasuryAddress);
   let total = 0n;
   for (let i = 0; i < numLegs; i++) {
     const dest = i === numLegs - 1 ? ethers.getAddress(treasuryAddress) : dummyRecipient;
@@ -760,4 +781,128 @@ async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
   return { feeNGN, feeUSD, feeWeiNGN, feeWeiUSD, ngnDecimals, usdDecimals };
 }
 
-module.exports = { estimateTransferFee, estimatePoolFee, warmCache, hasAnyFeeTokenBalance };
+// ─────────────────────────────────────────────────────────────────────────────
+// _getTokenBalance(chain, tokenAddress, safeAddress) → { balance: number, decimals: number }
+// Balance-check helper, chain-aware decimals (Base=hardcoded 6, BNB=live factory read).
+// ─────────────────────────────────────────────────────────────────────────────
+async function _getTokenBalance(chain, tokenAddress, safeAddress) {
+  if (!tokenAddress) return { balance: 0, decimals: 6 };
+  const isBNB = chain === 'bnb';
+  const isProd = process.env.NODE_ENV === 'production';
+  const rpcUrl = isBNB
+    ? (isProd ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com')
+    : (isProd ? 'https://mainnet.base.org' : 'https://sepolia.base.org');
+  const balProvider = new ethers.JsonRpcProvider(rpcUrl);
+  const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+  let decimals = 6;
+  if (isBNB) {
+    try {
+      decimals = await getL1TokenDecimals(ethers.getAddress(tokenAddress));
+    } catch {
+      decimals = 6; // caller supplies fallback context if needed
+    }
+  }
+  try {
+    const contract = new ethers.Contract(ethers.getAddress(tokenAddress), BAL_ABI, balProvider);
+    const wei = await contract.balanceOf(ethers.getAddress(safeAddress));
+    return { balance: parseFloat(ethers.formatUnits(wei, decimals)), decimals };
+  } catch (e) {
+    console.warn(`⚠️ [GasOracle] balance read failed for ${tokenAddress}:`, e.message);
+    return { balance: 0, decimals };
+  }
+}
+
+// Ordered candidate list — NGNs → cNGN → USDT → USDC — resolved per chain.
+function _feeCandidates(chain) {
+  const isBNB = chain === 'bnb';
+  const isProd = process.env.NODE_ENV === 'production';
+  if (isBNB) {
+    return [
+      { symbol: 'NGNs', family: 'NGN', address: isProd ? process.env.L1_NGN_TOKEN_ADDRESS : process.env.L1_BSC_NGN_TOKEN_ADDRESS },
+      { symbol: 'cNGN', family: 'NGN', address: isProd ? process.env.L1_CNGN_CONTRACT_ADDRESS : process.env.L1_BSC_CNGN_CONTRACT_ADDRESS },
+      { symbol: 'USDT', family: 'USD', address: isProd ? process.env.L1_USDT_CONTRACT_ADDRESS : process.env.L1_BSC_USDT_CONTRACT_ADDRESS },
+      { symbol: 'USDC', family: 'USD', address: isProd ? process.env.L1_USDC_CONTRACT_ADDRESS : process.env.L1_BSC_USDC_CONTRACT_ADDRESS },
+    ];
+  }
+  return [
+    { symbol: 'NGNs', family: 'NGN', address: process.env.NGN_TOKEN_ADDRESS },
+    { symbol: 'cNGN', family: 'NGN', address: process.env.CNGN_CONTRACT_ADDRESS },
+    { symbol: 'USDT', family: 'USD', address: process.env.USDT_CONTRACT_ADDRESS },
+    { symbol: 'USDC', family: 'USD', address: process.env.USDC_CONTRACT_ADDRESS },
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// resolveGasFee(chain, safeAddress, legs, actionCallsBuilder)
+//
+// Implements the full spec:
+//   1. Balance-check NGNs → cNGN → USDT → USDC in order. First one with
+//      balance > 0 is used ONLY to make the gas simulation realistic
+//      (doesn't mean it pays the fee).
+//   2. If ALL four are genuinely zero → return { noBalance: true } and
+//      STOP. No fallback, no simulation, no guessing. Caller must block
+//      the action entirely.
+//   3. Simulate real gas cost using that token (via actionCallsBuilder,
+//      which receives the chosen token address and must return the real
+//      action calldata array — since some ops need a token address baked
+//      into the calldata, e.g. approve()).
+//   4. Convert simulated gas to feeUSD/feeNGN.
+//   5. Re-check balances against the COMPUTED fee: NGN family first
+//      (NGNs, then cNGN) — first one >= feeNGN wins. Else USD family
+//      (USDT, then USDC) — first one >= feeUSD wins.
+//   6. If nothing can cover the computed fee → return { insufficientFee: true, feeNGN, feeUSD }.
+//   7. Otherwise return the resolved payer + which currency the UI should show.
+//
+// Returns one of:
+//   { noBalance: true }
+//   { insufficientFee: true, feeNGN, feeUSD }
+//   { feeNGN, feeUSD, currency: 'NGN'|'USD', payToken: { symbol, address, decimals, feeWei } }
+// ─────────────────────────────────────────────────────────────────────────────
+async function resolveGasFee(chain, safeAddress, legs = 2, actionCallsBuilder = null) {
+  const candidates = _feeCandidates(chain);
+
+  // ── Step 1/2: find first token with real balance > 0, for simulation only ──
+  let simToken = null;
+  for (const c of candidates) {
+    if (!c.address) continue;
+    const { balance } = await _getTokenBalance(chain, c.address, safeAddress);
+    if (balance > 0) {
+      simToken = c;
+      break;
+    }
+  }
+  if (!simToken) {
+    console.log(`🚫 [GasOracle] ${safeAddress} has ZERO balance across all 4 fee tokens on ${chain} — no fallback, blocking.`);
+    return { noBalance: true };
+  }
+
+  // ── Step 3/4: simulate + convert using the balance-checked sim token ────────
+  const actionCalls = actionCallsBuilder ? actionCallsBuilder(simToken.address) : null;
+  const result = actionCalls
+    ? await estimatePoolFee(chain, legs, actionCalls)
+    : await estimatePoolFee(chain, legs, null);
+
+  const { feeNGN, feeUSD } = result;
+
+  // ── Step 5/6: re-check balances against the COMPUTED fee ────────────────────
+  for (const c of candidates.filter((x) => x.family === 'NGN')) {
+    if (!c.address) continue;
+    const { balance, decimals } = await _getTokenBalance(chain, c.address, safeAddress);
+    if (balance >= feeNGN) {
+      const feeWei = ethers.parseUnits(feeNGN.toFixed(decimals), decimals);
+      return { feeNGN, feeUSD, currency: 'NGN', payToken: { symbol: c.symbol, tokenAddress: c.address, decimals, feeWei } };
+    }
+  }
+  for (const c of candidates.filter((x) => x.family === 'USD')) {
+    if (!c.address) continue;
+    const { balance, decimals } = await _getTokenBalance(chain, c.address, safeAddress);
+    if (balance >= feeUSD) {
+      const feeWei = ethers.parseUnits(feeUSD.toFixed(decimals), decimals);
+      return { feeNGN, feeUSD, currency: 'USD', payToken: { symbol: c.symbol, tokenAddress: c.address, decimals, feeWei } };
+    }
+  }
+
+  return { insufficientFee: true, feeNGN, feeUSD };
+}
+
+module.exports = { estimateTransferFee, estimatePoolFee, warmCache, hasAnyFeeTokenBalance, resolveGasFee };

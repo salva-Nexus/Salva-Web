@@ -1398,7 +1398,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                 </p>
               </div>
               <p className="font-black text-white text-[10px] sm:text-sm">
-                ₦{linkFeeInfo.feeNGN?.toFixed(2)}{' '}
+                {linkFeeInfo.feeCurrency === 'USD'
+                  ? `$${linkFeeInfo.feeUSD?.toFixed(4)}`
+                  : `₦${linkFeeInfo.feeNGN?.toFixed(2)}`}{' '}
                 <span className="text-salvaGold text-[8px] sm:text-xs">({linkFeeInfo.feeToken})</span>
               </p>
             </div>

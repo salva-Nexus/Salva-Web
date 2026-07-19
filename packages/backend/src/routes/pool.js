@@ -6,7 +6,7 @@ const relay = require('../services/relayService');
 
 const Pool = require('../models/Pool');
 const { getL1TokenDecimals } = require('../utils/l1Decimals');
-const { estimatePoolFee, hasAnyFeeTokenBalance } = require('../services/gasOracle');
+const { estimatePoolFee, hasAnyFeeTokenBalance, resolveGasFee } = require('../services/gasOracle');
 const PoolSubscription = require('../models/PoolSubscription');
 const TrustedPool = require('../models/TrustedPool');
 const FeeConfig = require('../models/FeeConfig');
@@ -388,26 +388,22 @@ router.post('/deploy', async (req, res) => {
       },
     ];
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const dBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (dBlockMsg) return res.status(400).json({ message: dBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
-    const {
-      feeNGN: dFeeNGN,
-      feeUSD: dFeeUSD,
-      feeWeiNGN: dFeeWeiNGN,
-      feeWeiUSD: dFeeWeiUSD,
-    } = await _getPoolFee('base', 2, deployActionCalls);
-    const dFeeToken = await _resolveFeeToken(
-      'base',
-      cleanOwner,
-      dFeeNGN,
-      dFeeUSD,
-      dFeeWeiNGN,
-      dFeeWeiUSD
-    );
-    if (!dFeeToken) return res.status(400).json({ message: _feeErrorMsg(dFeeNGN, dFeeUSD) });
+    // ── Balance-aware fee resolution: sim token picked by real balance,
+    // payer token picked against the computed fee. No fallback unless
+    // every fee-payable token is genuinely zero.
+    const dResolved = await resolveGasFee('base', cleanOwner, 2, () => deployActionCalls);
+    if (dResolved.noBalance) {
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    }
+    if (dResolved.insufficientFee) {
+      return res.status(400).json({ message: _feeErrorMsg(dResolved.feeNGN, dResolved.feeUSD) });
+    }
+    const dFeeToken = dResolved.payToken;
+    const dFeeNGN = dResolved.feeNGN;
+    const dFeeUSD = dResolved.feeUSD;
+    const dCurrency = dResolved.currency; // 'NGN' | 'USD' — send this to frontend
     // ─────────────────────────────────────────────────────────────────────────
 
     // Deploy pool + collect fee in single Safe tx via MultiSend
@@ -521,33 +517,18 @@ router.post('/provide-liquidity', async (req, res) => {
       amountWei,
     ]);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const plBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (plBlockMsg) return res.status(400).json({ message: plBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const plActionCalls = [
-      {
-        to: ethers.getAddress(tokenAddr),
-        data: transferCalldata,
-        from: ethers.getAddress(cleanOwner),
-      },
+      { to: ethers.getAddress(tokenAddr), data: transferCalldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: plFeeNGN,
-      feeUSD: plFeeUSD,
-      feeWeiNGN: plFeeWeiNGN,
-      feeWeiUSD: plFeeWeiUSD,
-    } = await _getPoolFee('base', 2, plActionCalls);
-    const plFeeToken = await _resolveFeeToken(
-      'base',
-      cleanOwner,
-      plFeeNGN,
-      plFeeUSD,
-      plFeeWeiNGN,
-      plFeeWeiUSD
-    );
-    if (!plFeeToken) return res.status(400).json({ message: _feeErrorMsg(plFeeNGN, plFeeUSD) });
+    const plResolved = await resolveGasFee('base', cleanOwner, 2, () => plActionCalls);
+    if (plResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (plResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(plResolved.feeNGN, plResolved.feeUSD) });
+    const plFeeToken = plResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
@@ -609,29 +590,18 @@ router.post('/remove-liquidity', async (req, res) => {
       amountWei,
     ]);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const rlBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (rlBlockMsg) return res.status(400).json({ message: rlBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const rlActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: rlFeeNGN,
-      feeUSD: rlFeeUSD,
-      feeWeiNGN: rlFeeWeiNGN,
-      feeWeiUSD: rlFeeWeiUSD,
-    } = await _getPoolFee('base', 2, rlActionCalls);
-    const rlFeeToken = await _resolveFeeToken(
-      'base',
-      cleanOwner,
-      rlFeeNGN,
-      rlFeeUSD,
-      rlFeeWeiNGN,
-      rlFeeWeiUSD
-    );
-    if (!rlFeeToken) return res.status(400).json({ message: _feeErrorMsg(rlFeeNGN, rlFeeUSD) });
+    const rlResolved = await resolveGasFee('base', cleanOwner, 2, () => rlActionCalls);
+    if (rlResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (rlResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(rlResolved.feeNGN, rlResolved.feeUSD) });
+    const rlFeeToken = rlResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
@@ -681,13 +651,7 @@ router.post('/update-rates', async (req, res) => {
 
     const encodeRate = (humanRate) => ethers.parseUnits(parseFloat(humanRate).toFixed(6), 6);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const rBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (rBlockMsg) return res.status(400).json({ message: rBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
-    // Dual-rate update bundles 3 calls (buyRate + sellRate + fee); single-rate
-    // bundles 2 (one rate + fee).
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const rateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
     const rActionCalls = [];
     if (buyRate !== undefined) {
@@ -704,21 +668,14 @@ router.post('/update-rates', async (req, res) => {
         from: ethers.getAddress(cleanOwner),
       });
     }
-    const {
-      feeNGN: rFeeNGN,
-      feeUSD: rFeeUSD,
-      feeWeiNGN: rFeeWeiNGN,
-      feeWeiUSD: rFeeWeiUSD,
-    } = await _getPoolFee('base', rateLegs, rActionCalls);
-    const rFeeToken = await _resolveFeeToken(
-      'base',
-      cleanOwner,
-      rFeeNGN,
-      rFeeUSD,
-      rFeeWeiNGN,
-      rFeeWeiUSD
-    );
-    if (!rFeeToken) return res.status(400).json({ message: _feeErrorMsg(rFeeNGN, rFeeUSD) });
+    const rResolved = await resolveGasFee('base', cleanOwner, rateLegs, () => rActionCalls);
+    if (rResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (rResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(rResolved.feeNGN, rResolved.feeUSD) });
+    const rFeeToken = rResolved.payToken;
     const rFeeTx = {
       to: ethers.getAddress(rFeeToken.tokenAddress),
       data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
@@ -796,29 +753,18 @@ router.post('/toggle-pause', async (req, res) => {
       ? POOL_IFACE.encodeFunctionData('pause', [])
       : POOL_IFACE.encodeFunctionData('unpause', []);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const tpBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (tpBlockMsg) return res.status(400).json({ message: tpBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const tpActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: tpFeeNGN,
-      feeUSD: tpFeeUSD,
-      feeWeiNGN: tpFeeWeiNGN,
-      feeWeiUSD: tpFeeWeiUSD,
-    } = await _getPoolFee('base', 2, tpActionCalls);
-    const tpFeeToken = await _resolveFeeToken(
-      'base',
-      cleanOwner,
-      tpFeeNGN,
-      tpFeeUSD,
-      tpFeeWeiNGN,
-      tpFeeWeiUSD
-    );
-    if (!tpFeeToken) return res.status(400).json({ message: _feeErrorMsg(tpFeeNGN, tpFeeUSD) });
+    const tpResolved = await resolveGasFee('base', cleanOwner, 2, () => tpActionCalls);
+    if (tpResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (tpResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(tpResolved.feeNGN, tpResolved.feeUSD) });
+    const tpFeeToken = tpResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await relay._executeViaSafeBase(
@@ -1365,16 +1311,7 @@ router.post('/swap', async (req, res) => {
       amountBn
     );
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const swBlockMsg = await _blockIfNoFeeFunds('base', cleanUser);
-    if (swBlockMsg) return res.status(400).json({ message: swBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
-    // Untrusted swap bundles 3 calls (approve + swap + fee); trusted bundles 2
-    // (swap + fee). Charging both the same 2-leg estimate undercharges the
-    // untrusted path's extra approve() gas — this is the fix for that.
-    // NOTE: untrusted path approve leg simulation may fall back to hardcoded
-    // units if allowance doesn't exist on-chain yet — safe, no crash.
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const swapLegs = trusted ? 2 : 3;
     const swActionCalls = [];
     if (!trusted) {
@@ -1395,21 +1332,14 @@ router.post('/swap', async (req, res) => {
       data: swapCalldata,
       from: ethers.getAddress(cleanUser),
     });
-    const {
-      feeNGN: swFeeNGN,
-      feeUSD: swFeeUSD,
-      feeWeiNGN: swFeeWeiNGN,
-      feeWeiUSD: swFeeWeiUSD,
-    } = await _getPoolFee('base', swapLegs, swActionCalls);
-    const swFeeToken = await _resolveFeeToken(
-      'base',
-      cleanUser,
-      swFeeNGN,
-      swFeeUSD,
-      swFeeWeiNGN,
-      swFeeWeiUSD
-    );
-    if (!swFeeToken) return res.status(400).json({ message: _feeErrorMsg(swFeeNGN, swFeeUSD) });
+    const swResolved = await resolveGasFee('base', cleanUser, swapLegs, () => swActionCalls);
+    if (swResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (swResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(swResolved.feeNGN, swResolved.feeUSD) });
+    const swFeeToken = swResolved.payToken;
     const swFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
       ethers.getAddress(_treasury(false)),
       swFeeToken.feeWei,
@@ -1845,11 +1775,7 @@ router.post('/set-mins', async (req, res) => {
       'function setMinimumUsdAmount(uint256 amount) external returns (bool)',
     ]);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const smBlockMsg = await _blockIfNoFeeFunds('base', cleanOwner);
-    if (smBlockMsg) return res.status(400).json({ message: smBlockMsg });
-
-    // Dual-min update bundles 3 calls (minNgn + minToken + fee); single-min bundles 2.
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const minsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
     const smActionCalls = [];
     if (minNgnAmount) {
@@ -1870,14 +1796,14 @@ router.post('/set-mins', async (req, res) => {
         from: ethers.getAddress(cleanOwner),
       });
     }
-    const {
-      feeNGN: smFN,
-      feeUSD: smFU,
-      feeWeiNGN: smFWN,
-      feeWeiUSD: smFWU,
-    } = await _getPoolFee('base', minsLegs, smActionCalls);
-    const smFT = await _resolveFeeToken('base', cleanOwner, smFN, smFU, smFWN, smFWU);
-    if (!smFT) return res.status(400).json({ message: _feeErrorMsg(smFN, smFU) });
+    const smResolved = await resolveGasFee('base', cleanOwner, minsLegs, () => smActionCalls);
+    if (smResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (smResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(smResolved.feeNGN, smResolved.feeUSD) });
+    const smFT = smResolved.payToken;
     const smFeeTx = {
       to: ethers.getAddress(smFT.tokenAddress),
       data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
@@ -2579,13 +2505,7 @@ router.post('/l1/swap', async (req, res) => {
       ? BigInt(approveAmountWei)
       : BigInt('115792089237316195423570985008687907853269984665640564039457584007913129639935');
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const lswBlockMsg = await _blockIfNoFeeFunds('bnb', cleanUser);
-    if (lswBlockMsg) return res.status(400).json({ message: lswBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
-    // NOTE: untrusted path approve leg simulation may fall back to hardcoded
-    // units if allowance doesn't exist on-chain yet — safe, no crash.
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const l1SwapLegs = trusted ? 2 : 3;
     const lswActionCalls = [];
     if (!trusted) {
@@ -2606,21 +2526,14 @@ router.post('/l1/swap', async (req, res) => {
       data: swapCalldata,
       from: ethers.getAddress(cleanUser),
     });
-    const {
-      feeNGN: lswFeeNGN,
-      feeUSD: lswFeeUSD,
-      feeWeiNGN: lswFeeWeiNGN,
-      feeWeiUSD: lswFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1SwapLegs, lswActionCalls);
-    const lswFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanUser,
-      lswFeeNGN,
-      lswFeeUSD,
-      lswFeeWeiNGN,
-      lswFeeWeiUSD
-    );
-    if (!lswFeeToken) return res.status(400).json({ message: _feeErrorMsg(lswFeeNGN, lswFeeUSD) });
+    const lswResolved = await resolveGasFee('bnb', cleanUser, l1SwapLegs, () => lswActionCalls);
+    if (lswResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (lswResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(lswResolved.feeNGN, lswResolved.feeUSD) });
+    const lswFeeToken = lswResolved.payToken;
     const lswFeeCalldata = ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
       ethers.getAddress(_treasury(true)),
       lswFeeToken.feeWei,
@@ -2900,29 +2813,18 @@ router.post('/l1/provide-liquidity', async (req, res) => {
       amountWei,
     ]);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const lplBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
-    if (lplBlockMsg) return res.status(400).json({ message: lplBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const lplActionCalls = [
       { to: ethers.getAddress(tokenAddr), data: calldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: lplFeeNGN,
-      feeUSD: lplFeeUSD,
-      feeWeiNGN: lplFeeWeiNGN,
-      feeWeiUSD: lplFeeWeiUSD,
-    } = await _getPoolFee('bnb', 2, lplActionCalls);
-    const lplFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanOwner,
-      lplFeeNGN,
-      lplFeeUSD,
-      lplFeeWeiNGN,
-      lplFeeWeiUSD
-    );
-    if (!lplFeeToken) return res.status(400).json({ message: _feeErrorMsg(lplFeeNGN, lplFeeUSD) });
+    const lplResolved = await resolveGasFee('bnb', cleanOwner, 2, () => lplActionCalls);
+    if (lplResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (lplResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(lplResolved.feeNGN, lplResolved.feeUSD) });
+    const lplFeeToken = lplResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
@@ -3008,25 +2910,18 @@ router.post('/l1/remove-liquidity', async (req, res) => {
       amountWei,
     ]);
 
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const lrlActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: lrlFeeNGN,
-      feeUSD: lrlFeeUSD,
-      feeWeiNGN: lrlFeeWeiNGN,
-      feeWeiUSD: lrlFeeWeiUSD,
-    } = await _getPoolFee('bnb', 2, lrlActionCalls);
-    const lrlFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanOwner,
-      lrlFeeNGN,
-      lrlFeeUSD,
-      lrlFeeWeiNGN,
-      lrlFeeWeiUSD
-    );
-    if (!lrlFeeToken) return res.status(400).json({ message: _feeErrorMsg(lrlFeeNGN, lrlFeeUSD) });
+    const lrlResolved = await resolveGasFee('bnb', cleanOwner, 2, () => lrlActionCalls);
+    if (lrlResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (lrlResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(lrlResolved.feeNGN, lrlResolved.feeUSD) });
+    const lrlFeeToken = lrlResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
@@ -3083,11 +2978,7 @@ router.post('/l1/update-rates', async (req, res) => {
     ]);
     const encodeRate = (r) => ethers.parseUnits(parseFloat(r).toFixed(6), 6);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const lurBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
-    if (lurBlockMsg) return res.status(400).json({ message: lurBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const l1RateLegs = buyRate !== undefined && sellRate !== undefined ? 3 : 2;
     const lurActionCalls = [];
     if (buyRate !== undefined) {
@@ -3104,21 +2995,14 @@ router.post('/l1/update-rates', async (req, res) => {
         from: ethers.getAddress(cleanOwner),
       });
     }
-    const {
-      feeNGN: lurFeeNGN,
-      feeUSD: lurFeeUSD,
-      feeWeiNGN: lurFeeWeiNGN,
-      feeWeiUSD: lurFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1RateLegs, lurActionCalls);
-    const lurFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanOwner,
-      lurFeeNGN,
-      lurFeeUSD,
-      lurFeeWeiNGN,
-      lurFeeWeiUSD
-    );
-    if (!lurFeeToken) return res.status(400).json({ message: _feeErrorMsg(lurFeeNGN, lurFeeUSD) });
+    const lurResolved = await resolveGasFee('bnb', cleanOwner, l1RateLegs, () => lurActionCalls);
+    if (lurResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (lurResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(lurResolved.feeNGN, lurResolved.feeUSD) });
+    const lurFeeToken = lurResolved.payToken;
     const lurFeeTx = {
       to: ethers.getAddress(lurFeeToken.tokenAddress),
       data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
@@ -3201,29 +3085,18 @@ router.post('/l1/toggle-pause', async (req, res) => {
       ? POOL_IFACE.encodeFunctionData('pause', [])
       : POOL_IFACE.encodeFunctionData('unpause', []);
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const ltpBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
-    if (ltpBlockMsg) return res.status(400).json({ message: ltpBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const ltpActionCalls = [
       { to: ethers.getAddress(cleanPool), data: calldata, from: ethers.getAddress(cleanOwner) },
     ];
-    const {
-      feeNGN: ltpFeeNGN,
-      feeUSD: ltpFeeUSD,
-      feeWeiNGN: ltpFeeWeiNGN,
-      feeWeiUSD: ltpFeeWeiUSD,
-    } = await _getPoolFee('bnb', 2, ltpActionCalls);
-    const ltpFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanOwner,
-      ltpFeeNGN,
-      ltpFeeUSD,
-      ltpFeeWeiNGN,
-      ltpFeeWeiUSD
-    );
-    if (!ltpFeeToken) return res.status(400).json({ message: _feeErrorMsg(ltpFeeNGN, ltpFeeUSD) });
+    const ltpResolved = await resolveGasFee('bnb', cleanOwner, 2, () => ltpActionCalls);
+    if (ltpResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (ltpResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(ltpResolved.feeNGN, ltpResolved.feeUSD) });
+    const ltpFeeToken = ltpResolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(
@@ -3278,11 +3151,7 @@ router.post('/l1/set-mins', async (req, res) => {
     ]);
     const MULTISEND = '0x38869bf66a61cF6bDB996A6aE40D5853Fd43B526';
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const lsmBlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
-    if (lsmBlockMsg) return res.status(400).json({ message: lsmBlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
     const l1MinsLegs = minNgnAmount && minTokenAmount ? 3 : 2;
     const lsmActionCalls = [];
     if (minNgnAmount) {
@@ -3303,21 +3172,14 @@ router.post('/l1/set-mins', async (req, res) => {
         from: ethers.getAddress(cleanOwner),
       });
     }
-    const {
-      feeNGN: lsmFeeNGN,
-      feeUSD: lsmFeeUSD,
-      feeWeiNGN: lsmFeeWeiNGN,
-      feeWeiUSD: lsmFeeWeiUSD,
-    } = await _getPoolFee('bnb', l1MinsLegs, lsmActionCalls);
-    const lsmFeeToken = await _resolveFeeToken(
-      'bnb',
-      cleanOwner,
-      lsmFeeNGN,
-      lsmFeeUSD,
-      lsmFeeWeiNGN,
-      lsmFeeWeiUSD
-    );
-    if (!lsmFeeToken) return res.status(400).json({ message: _feeErrorMsg(lsmFeeNGN, lsmFeeUSD) });
+    const lsmResolved = await resolveGasFee('bnb', cleanOwner, l1MinsLegs, () => lsmActionCalls);
+    if (lsmResolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (lsmResolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(lsmResolved.feeNGN, lsmResolved.feeUSD) });
+    const lsmFeeToken = lsmResolved.payToken;
     const lsmFeeTx = {
       to: ethers.getAddress(lsmFeeToken.tokenAddress),
       data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
@@ -3518,16 +3380,15 @@ router.post('/l1/deploy', async (req, res) => {
       },
     ];
 
-    // ── Hard block: zero balance across every fee-payable token ────────────
-    const ld1BlockMsg = await _blockIfNoFeeFunds('bnb', cleanOwner);
-    if (ld1BlockMsg) return res.status(400).json({ message: ld1BlockMsg });
-
-    // ── Pool fee ─────────────────────────────────────────────────────────────
-    const { feeNGN: ld1FeeNGN, feeUSD: ld1FeeUSD, feeWeiNGN: ld1FeeWeiNGN, feeWeiUSD: ld1FeeWeiUSD } =
-      await _getPoolFee('bnb', 2, deployActionCalls);
-    const ld1FeeToken = await _resolveFeeToken('bnb', cleanOwner, ld1FeeNGN, ld1FeeUSD, ld1FeeWeiNGN, ld1FeeWeiUSD);
-    if (!ld1FeeToken) return res.status(400).json({ message: _feeErrorMsg(ld1FeeNGN, ld1FeeUSD) });
-    // ─────────────────────────────────────────────────────────────────────────
+    // ── Balance-aware fee resolution ────────────────────────────────────────
+    const ld1Resolved = await resolveGasFee('bnb', cleanOwner, 2, () => deployActionCalls);
+    if (ld1Resolved.noBalance)
+      return res.status(400).json({
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    if (ld1Resolved.insufficientFee)
+      return res.status(400).json({ message: _feeErrorMsg(ld1Resolved.feeNGN, ld1Resolved.feeUSD) });
+    const ld1FeeToken = ld1Resolved.payToken;
     // ─────────────────────────────────────────────────────────────────────────
 
     const result = await executeViaSafeBNB(

@@ -10,7 +10,7 @@ const { getClaimVisibility } = require('../services/pointsService');
 const { ethers } = require('ethers');
 const { provider } = require('../services/walletSigner');
 const { _executeViaSafeBase } = require('../services/relayService');
-const { estimateTransferFee } = require('../services/gasOracle');
+const { resolveGasFee } = require('../services/gasOracle');
 const {
   sendTransactionEmailToSender,
   sendTransactionEmailToReceiver,
@@ -155,31 +155,33 @@ router.post('/transfer', async (req, res) => {
 
     const amountWei = ethers.parseUnits(amount.toString(), SANT_DECIMALS);
 
-    // ── Live network fee, same gas oracle used everywhere else ──────────────
-    // Mirrors the exact fallback pattern in index.js's getFeeForTransfer:
-    // if the gas oracle fails (RPC timeout, CoinGecko down, missing
-    // EXCHANGE_RATE_API_KEY, etc.), fall back to a safe hardcoded NGN fee
-    // rather than throwing and giving the user a vague 500.
-    let feeNGN, feeUSD;
-    try {
-      // Simulated from the sender's own Safe address, not a treasury placeholder.
-      const result = await estimateTransferFee('base', 'NGN', safeAddress);
-      feeNGN = result.feeNGN;
-      feeUSD = result.feeUSD;
-    } catch (oracleErr) {
-      console.error('❌ [sant/transfer] Gas oracle failed, using fallback:', oracleErr.message);
-      // Base fallback — matches getFeeForTransfer's NGN/base branch in index.js
-      feeNGN = 12;
-      feeUSD = 0.0075;
-    }
-
-    // ── Resolve which token pays it — NGNs → cNGN → USDT → USDC ─────────────
-    const feeToken = await _resolveFeeTokenBase(safeAddress, feeNGN, feeUSD);
-    if (!feeToken) {
+    // ── Balance-aware fee resolution — simulates using whichever token has
+    // real balance, never a fabricated amount, and blocks outright if the
+    // Safe genuinely holds zero across all four fee-payable tokens.
+    const santActionCalls = [
+      {
+        to: santAddress,
+        data: ERC20_TRANSFER_IFACE.encodeFunctionData('transfer', [
+          ethers.getAddress(recipientAddress),
+          amountWei,
+        ]),
+        from: ethers.getAddress(safeAddress),
+      },
+    ];
+    const santResolved = await resolveGasFee('base', safeAddress, 1, () => santActionCalls);
+    if (santResolved.noBalance) {
       return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${feeNGN.toFixed(2)} in NGNs/cNGN, or $${feeUSD.toFixed(4)} in USDT/USDC.`,
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
       });
     }
+    if (santResolved.insufficientFee) {
+      return res.status(400).json({
+        message: `Insufficient balance for network fee. Need ₦${santResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${santResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
+      });
+    }
+    const feeToken = santResolved.payToken;
+    const feeNGN = santResolved.feeNGN;
+    const feeUSD = santResolved.feeUSD;
 
     const treasuryAddress = process.env.TREASURY_CONTRACT_ADDRESS;
     if (!treasuryAddress) return res.status(500).json({ message: 'Treasury not configured' });

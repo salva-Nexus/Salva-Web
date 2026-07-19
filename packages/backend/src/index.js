@@ -390,7 +390,7 @@ warmL1DecimalsCache().catch((e) =>
 );
 
 // Pre-warm gas oracle price cache on startup
-const { estimateTransferFee, estimatePoolFee, warmCache: warmGasOracleCache } = require('./services/gasOracle');
+const { estimateTransferFee, estimatePoolFee, resolveGasFee, warmCache: warmGasOracleCache } = require('./services/gasOracle');
 warmGasOracleCache().catch((e) =>
   console.warn('⚠️ Gas oracle cache warm failed (non-fatal):', e.message)
 );
@@ -1421,15 +1421,19 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
       linkActionCalls = null;
     }
 
-    const { feeNGN: aliasFeeNGN, feeUSD: aliasFeeUSD } = await _estimateAliasFee(linkActionCalls);
-    const aliasFeeToken = await _resolveAliasFeeToken(safeAddress, aliasFeeNGN, aliasFeeUSD);
-
-    if (!aliasFeeToken) {
+    const aliasResolved = await resolveGasFee('base', safeAddress, 1, () => linkActionCalls);
+    if (aliasResolved.noBalance) {
       return res.status(200).json({
         lowFeeBalance: true,
-        message: `Insufficient balance for network fee. Need ₦${aliasFeeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasFeeUSD.toFixed(4)} in USDT/USDC.`,
-        feeNGN: aliasFeeNGN,
-        feeUSD: aliasFeeUSD,
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    }
+    if (aliasResolved.insufficientFee) {
+      return res.status(200).json({
+        lowFeeBalance: true,
+        message: `Insufficient balance for network fee. Need ₦${aliasResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
+        feeNGN: aliasResolved.feeNGN,
+        feeUSD: aliasResolved.feeUSD,
       });
     }
 
@@ -1442,9 +1446,10 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
       namespace,
       signature,
       feeWei: feeWei.toString(),
-      feeNGN: aliasFeeNGN,
-      feeUSD: aliasFeeUSD,
-      feeToken: aliasFeeToken.symbol,
+      feeNGN: aliasResolved.feeNGN,
+      feeUSD: aliasResolved.feeUSD,
+      feeCurrency: aliasResolved.currency,
+      feeToken: aliasResolved.payToken.symbol,
     });
   } catch (error) {
     console.error('❌ link-name prepare error:', error);
@@ -1526,15 +1531,18 @@ app.post('/api/alias/execute-link', async (req, res) => {
     const linkActionCallsForFee = [
       { to: cleanRegistry, data: linkCalldata, from: ethers.getAddress(safeAddress) },
     ];
-    const { feeNGN: freshFeeNGN, feeUSD: freshFeeUSD } = await _estimateAliasFee(
-      linkActionCallsForFee
-    );
-    const feeToken = await _resolveAliasFeeToken(safeAddress, freshFeeNGN, freshFeeUSD);
-    if (!feeToken) {
+    const linkResolved = await resolveGasFee('base', safeAddress, 1, () => linkActionCallsForFee);
+    if (linkResolved.noBalance) {
       return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${freshFeeNGN.toFixed(2)} in NGNs/cNGN, or $${freshFeeUSD.toFixed(4)} in USDT/USDC.`,
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
       });
     }
+    if (linkResolved.insufficientFee) {
+      return res.status(400).json({
+        message: `Insufficient balance for network fee. Need ₦${linkResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${linkResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
+      });
+    }
+    const feeToken = linkResolved.payToken;
 
     const safeTxLegs = [
       { to: cleanRegistry, data: linkCalldata, value: '0', operation: 0 },
@@ -1682,14 +1690,24 @@ app.get('/api/alias/estimate-unlink-fee', async (req, res) => {
       },
     ];
 
-    const { feeNGN, feeUSD } = await _estimateAliasFee(unlinkActionCalls);
-    const feeToken = await _resolveAliasFeeToken(safeAddress, feeNGN, feeUSD);
-
+    const euResolved = await resolveGasFee('base', safeAddress, 1, () => unlinkActionCalls);
+    if (euResolved.noBalance) {
+      return res.json({ feeNGN: 0, feeUSD: 0, feeToken: null, lowFeeBalance: true, noBalance: true });
+    }
+    if (euResolved.insufficientFee) {
+      return res.json({
+        feeNGN: euResolved.feeNGN,
+        feeUSD: euResolved.feeUSD,
+        feeToken: null,
+        lowFeeBalance: true,
+      });
+    }
     res.json({
-      feeNGN,
-      feeUSD,
-      feeToken: feeToken ? feeToken.symbol : null,
-      lowFeeBalance: !feeToken,
+      feeNGN: euResolved.feeNGN,
+      feeUSD: euResolved.feeUSD,
+      feeCurrency: euResolved.currency,
+      feeToken: euResolved.payToken.symbol,
+      lowFeeBalance: false,
     });
   } catch (error) {
     console.error('❌ estimate-unlink-fee error:', error.message);
@@ -1786,15 +1804,18 @@ app.post('/api/alias/unlink-name', async (req, res) => {
         from: ethers.getAddress(safeAddress),
       },
     ];
-    const { feeNGN: unlinkFeeNGN, feeUSD: unlinkFeeUSD } = await _estimateAliasFee(
-      unlinkActionCallsForFee
-    );
-    const unlinkFeeToken = await _resolveAliasFeeToken(safeAddress, unlinkFeeNGN, unlinkFeeUSD);
-    if (!unlinkFeeToken) {
+    const unResolved = await resolveGasFee('base', safeAddress, 1, () => unlinkActionCallsForFee);
+    if (unResolved.noBalance) {
       return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${unlinkFeeNGN.toFixed(2)} in NGNs/cNGN, or $${unlinkFeeUSD.toFixed(4)} in USDT/USDC.`,
+        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
       });
     }
+    if (unResolved.insufficientFee) {
+      return res.status(400).json({
+        message: `Insufficient balance for network fee. Need ₦${unResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${unResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
+      });
+    }
+    const unlinkFeeToken = unResolved.payToken;
     const ERC20_TRANSFER_IFACE_UNLINK_FEE = new ethers.Interface([
       'function transfer(address to, uint256 amount) returns (bool)',
     ]);
