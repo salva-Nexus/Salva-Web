@@ -25,7 +25,7 @@ const fmtInput = (raw) => {
 };
 
 // ─── PIN Modal ────────────────────────────────────────────────────────────────
-const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
+const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo, noFundsBlocked }) => {
   const [pin, setPin] = useState('');
   return (
     <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
@@ -60,6 +60,26 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             autoFocus
             className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
           />
+          {feeInfo && (
+            <div className="-mt-2 mb-4 sm:-mt-3 sm:mb-6 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-[9px] sm:text-xs">
+              <span className="uppercase tracking-widest text-white/60 font-black">
+                Network Fee
+              </span>
+              {feeInfo.loading ? (
+                <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white/20 border-t-salvaGold rounded-full animate-spin inline-block" />
+              ) : feeInfo.currency === 'USD' && feeInfo.feeUSD != null ? (
+                <span className="text-red-400 font-black">
+                  ${feeInfo.feeUSD.toFixed(4)}{feeInfo.feeToken ? ` (${feeInfo.feeToken})` : ''}
+                </span>
+              ) : feeInfo.feeNGN != null ? (
+                <span className="text-red-400 font-black">
+                  ₦{feeInfo.feeNGN.toFixed(2)}{feeInfo.feeToken ? ` (${feeInfo.feeToken})` : ''}
+                </span>
+              ) : (
+                <span className="text-white/30">—</span>
+              )}
+            </div>
+          )}
           <div className="flex gap-2 sm:gap-3">
             <button
               onClick={onCancel}
@@ -70,13 +90,19 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading }) => {
             </button>
             <button
               onClick={() => onConfirm(pin)}
-              disabled={loading || pin.length !== 4}
+              disabled={loading || pin.length !== 4 || feeInfo?.loading || noFundsBlocked}
               className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-salvaGold/20 transition-all"
             >
-              {loading && (
+              {(loading || feeInfo?.loading) && (
                 <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
               )}
-              {loading ? 'Verifying…' : 'Confirm'}
+              {loading
+                ? 'Verifying…'
+                : feeInfo?.loading
+                ? 'Calculating fee…'
+                : noFundsBlocked
+                ? 'No fee balance'
+                : 'Confirm'}
             </button>
           </div>
         </div>
@@ -359,63 +385,60 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
     noBalance: false,
     insufficientFee: false,
   });
-  const swapFeeTimer = useRef(null);
-  useEffect(() => {
-    if (amountRaw <= 0 || !user?.safeAddress) {
-      setSwapFee({
-        feeNGN: null,
-        feeUSD: null,
-        currency: null,
-        feeToken: null,
-        loading: false,
-        noBalance: false,
-        insufficientFee: false,
-      });
-      return;
-    }
-    clearTimeout(swapFeeTimer.current);
-    setSwapFee((prev) => ({ ...prev, loading: true }));
-    swapFeeTimer.current = setTimeout(() => {
-      fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chain: 'base',
-          action: 'swap',
-          ownerSafeAddress: user.safeAddress,
-          poolAddress: pool.poolAddress,
-          stableToken,
-          ngnToken,
-          swapFn,
-          trusted: isTrusted,
-        }),
+  // Fee is simulated ONLY when the PIN modal opens (mirrors DeployPool's
+  // fetchPoolFeeForPin) — never eagerly while the user is still typing an
+  // amount. Calls the ACTION-SPECIFIC estimate-fee endpoint with real
+  // approve+swap+fee calldata so currency/token shown always matches what
+  // /api/pool/swap will actually charge.
+  const fetchSwapFeeForPin = useCallback(() => {
+    if (!user?.safeAddress) return;
+    setSwapFee({
+      feeNGN: null,
+      feeUSD: null,
+      currency: null,
+      feeToken: null,
+      loading: true,
+      noBalance: false,
+      insufficientFee: false,
+    });
+    fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chain: 'base',
+        action: 'swap',
+        ownerSafeAddress: user.safeAddress,
+        poolAddress: pool.poolAddress,
+        stableToken,
+        ngnToken,
+        swapFn,
+        trusted: isTrusted,
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        setSwapFee({
+          feeNGN: d.feeNGN ?? null,
+          feeUSD: d.feeUSD ?? null,
+          currency: d.currency ?? null,
+          feeToken: d.feeToken ?? null,
+          loading: false,
+          noBalance: !!d.noBalance,
+          insufficientFee: !!d.insufficientFee,
+        });
       })
-        .then((r) => r.json())
-        .then((d) => {
-          setSwapFee({
-            feeNGN: d.feeNGN ?? null,
-            feeUSD: d.feeUSD ?? null,
-            currency: d.currency ?? null,
-            feeToken: d.feeToken ?? null,
-            loading: false,
-            noBalance: !!d.noBalance,
-            insufficientFee: !!d.insufficientFee,
-          });
+      .catch(() =>
+        setSwapFee({
+          feeNGN: null,
+          feeUSD: null,
+          currency: null,
+          feeToken: null,
+          loading: false,
+          noBalance: false,
+          insufficientFee: false,
         })
-        .catch(() =>
-          setSwapFee({
-            feeNGN: null,
-            feeUSD: null,
-            currency: null,
-            feeToken: null,
-            loading: false,
-            noBalance: false,
-            insufficientFee: false,
-          })
-        );
-    }, 500);
-    return () => clearTimeout(swapFeeTimer.current);
-  }, [amountRaw, user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
+      );
+  }, [user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
 
   useEffect(() => {
     if (amountRaw <= 0) {
@@ -557,6 +580,7 @@ const handleReceiverChange = (val) => {
       return;
     }
     pendingTrustRef.current = false;
+    fetchSwapFeeForPin();
     setPinVisible(true);
   };
 
@@ -1004,29 +1028,6 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </span>
                 </div>
 
-                {/* Network Fee — shows the currency of whichever token the balance
-                    waterfall actually picked, never forced to NGN */}
-                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
-                    Network Fee
-                  </span>
-                  {swapFee.loading ? (
-                    <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
-                  ) : swapFee.currency === 'USD' && swapFee.feeUSD !== null ? (
-                    <span className="text-red-400 font-black text-sm">
-                      ${swapFee.feeUSD.toFixed(4)}
-                      {swapFee.feeToken ? <span className="text-white/50 font-normal text-xs"> ({swapFee.feeToken})</span> : null}
-                    </span>
-                  ) : swapFee.feeNGN !== null ? (
-                    <span className="text-red-400 font-black text-sm">
-                      ₦{swapFee.feeNGN.toFixed(2)}
-                      {swapFee.feeToken ? <span className="text-white/50 font-normal text-xs"> ({swapFee.feeToken})</span> : null}
-                    </span>
-                  ) : (
-                    <span className="text-white/30 text-sm">—</span>
-                  )}
-                </div>
-
                 {/* ── Receiver ── */}
                 <div>
                   <div className="flex items-center justify-between mb-1.5 sm:mb-2">
@@ -1250,14 +1251,11 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   disabled={
                     amountRaw <= 0 ||
                     !trustChecked ||
-                    swapFee.loading ||
                     isBelowMin ||
                     userCantAfford ||
                     poolCantCover ||
                     poolEmpty ||
                     userBalLoading ||
-                    swapFee.noBalance ||
-                    swapFee.insufficientFee ||
                     hasNoFeeFunds ||
                     !!receiverError ||
                     receiverResolving ||
@@ -1272,13 +1270,7 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     boxShadow: `0 8px 24px ${accentColor}33`,
                   }}
                 >
-                  {!trustChecked
-                    ? 'Checking…'
-                    : swapFee.loading
-                    ? 'Calculating fee…'
-                    : hasNoFeeFunds
-                    ? 'No fee balance'
-                    : 'Continue →'}
+                  {!trustChecked ? 'Checking…' : hasNoFeeFunds ? 'No fee balance' : 'Continue →'}
                 </button>
               </div>
             </div>
@@ -1368,11 +1360,13 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
             onTrust={() => {
               pendingTrustRef.current = true;
               setShowTrust(false);
+              fetchSwapFeeForPin();
               setPinVisible(true);
             }}
             onSkip={() => {
               pendingTrustRef.current = false;
               setShowTrust(false);
+              fetchSwapFeeForPin();
               setPinVisible(true);
             }}
             onCancel={() => setShowTrust(false)}
@@ -1387,6 +1381,8 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
             onConfirm={handlePinConfirm}
             onCancel={() => setPinVisible(false)}
             loading={pinLoading}
+            feeInfo={swapFee}
+            noFundsBlocked={swapFee.noBalance || swapFee.insufficientFee}
           />
         )}
       </AnimatePresence>

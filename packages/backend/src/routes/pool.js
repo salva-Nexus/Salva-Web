@@ -3608,16 +3608,28 @@ router.post('/estimate-fee', async (req, res) => {
         if (!swapPool || !stableToken || !ngnToken || !swapFn)
           return res.status(400).json({ message: 'Missing poolAddress, stableToken, ngnToken, or swapFn' });
         const cleanPool = cleanAddr(swapPool);
-        const tokenInSym = swapFn.toLowerCase().includes('sell') ? stableToken : ngnToken;
-        const tokenInAddr = resolveTokenForChain(tokenInSym);
-        if (!tokenInAddr) return res.status(400).json({ message: `Unknown token: ${tokenInSym}` });
 
+        // swapFn names never contain "sell" — the old check always fell through
+        // to ngnToken, which was wrong for the two USD-input functions.
+        const isNgnInput = swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount';
+        const tokenInSym = isNgnInput ? ngnToken : stableToken;
+        const tokenInAddr = resolveTokenForChain(tokenInSym);
+        const stableAddr = resolveTokenForChain(stableToken);
+        const ngnAddr = resolveTokenForChain(ngnToken);
+        if (!tokenInAddr || !stableAddr || !ngnAddr)
+          return res.status(400).json({ message: `Unknown token(s) for swap preview` });
+
+        // Real 4-param pool ABI — matches relay.buildSwapCalldata exactly.
+        // The old preview encoded `function ${swapFn}(uint256 amount)`, a
+        // signature that doesn't exist on-chain, so eth_estimateGas always
+        // reverted (selector mismatch) and every swap preview silently fell
+        // back to the hardcoded gas-unit path.
         const POOL_SWAP_IFACE_PREVIEW = new ethers.Interface([
-          `function ${swapFn}(uint256 amount) external returns (uint256)`,
+          'function swapExactNGNAmountForUSD(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _ngnAmountIn) external returns (bool)',
+          'function swapExactUSDAmountForNGN(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _usdAmountIn) external returns (bool)',
+          'function swapForExactUSDAmount(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _usdAmountOut) external returns (bool)',
+          'function swapForExactNGNAmount(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
         ]);
-        // 1 unit of the input token as a placeholder sim amount — matches the
-        // same convention _simFeeLegAmountWei uses elsewhere (real balanceOf
-        // still drives the actual fee-leg simulation inside resolveGasFee).
         let previewDecimals = 6;
         if (isBNB) previewDecimals = await getL1TokenDecimals(ethers.getAddress(tokenInAddr)).catch(() => 18);
         const previewAmountWei = ethers.parseUnits('1', previewDecimals);
@@ -3638,7 +3650,12 @@ router.post('/estimate-fee', async (req, res) => {
         }
         actionCalls.push({
           to: ethers.getAddress(cleanPool),
-          data: POOL_SWAP_IFACE_PREVIEW.encodeFunctionData(swapFn, [previewAmountWei]),
+          data: POOL_SWAP_IFACE_PREVIEW.encodeFunctionData(swapFn, [
+            ethers.getAddress(cleanOwner),
+            ethers.getAddress(stableAddr),
+            ethers.getAddress(ngnAddr),
+            previewAmountWei,
+          ]),
           from: ethers.getAddress(cleanOwner),
         });
         legs = actionCalls.length === 2 ? 3 : 2;
