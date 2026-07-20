@@ -72,6 +72,8 @@ const PinModal = ({ title, subtitle, onConfirm, onCancel, loading, feeInfo, noFu
               </span>
               {feeInfo.loading ? (
                 <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-blue-500/30 border-t-blue-400 rounded-full animate-spin inline-block" />
+              ) : feeInfo.noBalance || feeInfo.insufficientFee ? (
+                <span className="text-red-400 font-black">Insufficient balance</span>
               ) : feeInfo.currency === 'USD' && feeInfo.feeUSD != null ? (
                 <span className="text-red-400 font-black">
                   ${feeInfo.feeUSD.toFixed(4)}{feeInfo.feeToken ? ` (${feeInfo.feeToken})` : ''}
