@@ -412,7 +412,9 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
         stableToken,
         ngnToken,
         swapFn,
-        trusted: isTrusted,
+        swapAmount: amountRaw,
+        swapMode: swapType,
+        quoteHuman: quote !== null ? quote : null,
       }),
     })
       .then((r) => r.json())
