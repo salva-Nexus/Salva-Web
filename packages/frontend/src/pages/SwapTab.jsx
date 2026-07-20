@@ -231,23 +231,76 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
 
   // Fee is simulated ONLY once the user has entered an amount — never
   // eagerly the instant the modal opens. Debounced alongside the quote.
-  const [swapFee, setSwapFee] = useState({ feeNGN: null, feeUSD: null, loading: false });
+  // Calls the ACTION-SPECIFIC estimate-fee endpoint (real approve+swap
+  // calldata, balance-waterfall-aware) so the currency/token shown always
+  // matches what actually gets charged — no more forced-NGN display when
+  // the account only holds a USD-family token.
+  const [swapFee, setSwapFee] = useState({
+    feeNGN: null,
+    feeUSD: null,
+    currency: null,
+    feeToken: null,
+    loading: false,
+    noBalance: false,
+    insufficientFee: false,
+  });
   const swapFeeTimer = useRef(null);
   useEffect(() => {
-    if (amountRaw <= 0) {
-      setSwapFee({ feeNGN: null, feeUSD: null, loading: false });
+    if (amountRaw <= 0 || !user?.safeAddress) {
+      setSwapFee({
+        feeNGN: null,
+        feeUSD: null,
+        currency: null,
+        feeToken: null,
+        loading: false,
+        noBalance: false,
+        insufficientFee: false,
+      });
       return;
     }
     clearTimeout(swapFeeTimer.current);
     setSwapFee((prev) => ({ ...prev, loading: true }));
     swapFeeTimer.current = setTimeout(() => {
-      fetch(`${SALVA_API_URL}/api/estimate-pool-fee?chain=base`)
+      fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chain: 'base',
+          action: 'swap',
+          ownerSafeAddress: user.safeAddress,
+          poolAddress: pool.poolAddress,
+          stableToken,
+          ngnToken,
+          swapFn,
+          trusted: isTrusted,
+        }),
+      })
         .then((r) => r.json())
-        .then((d) => setSwapFee({ feeNGN: d.feeNGN, feeUSD: d.feeUSD, loading: false }))
-        .catch(() => setSwapFee({ feeNGN: null, feeUSD: null, loading: false }));
+        .then((d) => {
+          setSwapFee({
+            feeNGN: d.feeNGN ?? null,
+            feeUSD: d.feeUSD ?? null,
+            currency: d.currency ?? null,
+            feeToken: d.feeToken ?? null,
+            loading: false,
+            noBalance: !!d.noBalance,
+            insufficientFee: !!d.insufficientFee,
+          });
+        })
+        .catch(() =>
+          setSwapFee({
+            feeNGN: null,
+            feeUSD: null,
+            currency: null,
+            feeToken: null,
+            loading: false,
+            noBalance: false,
+            insufficientFee: false,
+          })
+        );
     }, 500);
     return () => clearTimeout(swapFeeTimer.current);
-  }, [amountRaw]);
+  }, [amountRaw, user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
 
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);
@@ -945,19 +998,26 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                   </span>
                 </div>
 
-                {/* Network Fee */}
-                <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
+                {/* Network Fee — shows the currency of whichever token the balance
+                    waterfall actually picked, never forced to NGN */}
+                <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06]">
+                  <span className="text-[10px] uppercase tracking-widest text-white/60 font-black">
                     Network Fee
                   </span>
                   {swapFee.loading ? (
-                    <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                    <span className="w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
+                  ) : swapFee.currency === 'USD' && swapFee.feeUSD !== null ? (
+                    <span className="text-red-400 font-black text-sm">
+                      ${swapFee.feeUSD.toFixed(4)}
+                      {swapFee.feeToken ? <span className="text-white/50 font-normal text-xs"> ({swapFee.feeToken})</span> : null}
+                    </span>
                   ) : swapFee.feeNGN !== null ? (
-                    <span className="text-red-400 font-black text-[7px] sm:text-[10px]">
-                      ₦{swapFee.feeNGN?.toFixed(2)}
+                    <span className="text-red-400 font-black text-sm">
+                      ₦{swapFee.feeNGN.toFixed(2)}
+                      {swapFee.feeToken ? <span className="text-white/50 font-normal text-xs"> ({swapFee.feeToken})</span> : null}
                     </span>
                   ) : (
-                    <span className="text-white/30 text-[7px] sm:text-[10px]">—</span>
+                    <span className="text-white/30 text-sm">—</span>
                   )}
                 </div>
 
@@ -1190,6 +1250,8 @@ const executeSwap = async (privateKey, doApproveMax = false) => {
                     poolCantCover ||
                     poolEmpty ||
                     userBalLoading ||
+                    swapFee.noBalance ||
+                    swapFee.insufficientFee ||
                     hasNoFeeFunds ||
                     !!receiverError ||
                     receiverResolving ||

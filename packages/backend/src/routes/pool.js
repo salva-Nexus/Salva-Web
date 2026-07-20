@@ -3603,6 +3603,47 @@ router.post('/estimate-fee', async (req, res) => {
         legs = 2;
         break;
       }
+      case 'swap': {
+        const { poolAddress: swapPool, stableToken, ngnToken, swapFn, trusted } = req.body;
+        if (!swapPool || !stableToken || !ngnToken || !swapFn)
+          return res.status(400).json({ message: 'Missing poolAddress, stableToken, ngnToken, or swapFn' });
+        const cleanPool = cleanAddr(swapPool);
+        const tokenInSym = swapFn.toLowerCase().includes('sell') ? stableToken : ngnToken;
+        const tokenInAddr = resolveTokenForChain(tokenInSym);
+        if (!tokenInAddr) return res.status(400).json({ message: `Unknown token: ${tokenInSym}` });
+
+        const POOL_SWAP_IFACE_PREVIEW = new ethers.Interface([
+          `function ${swapFn}(uint256 amount) external returns (uint256)`,
+        ]);
+        // 1 unit of the input token as a placeholder sim amount — matches the
+        // same convention _simFeeLegAmountWei uses elsewhere (real balanceOf
+        // still drives the actual fee-leg simulation inside resolveGasFee).
+        let previewDecimals = 6;
+        if (isBNB) previewDecimals = await getL1TokenDecimals(ethers.getAddress(tokenInAddr)).catch(() => 18);
+        const previewAmountWei = ethers.parseUnits('1', previewDecimals);
+
+        actionCalls = [];
+        if (!trusted) {
+          const ERC20_APPROVE_IFACE_PREVIEW = new ethers.Interface([
+            'function approve(address spender, uint256 amount) returns (bool)',
+          ]);
+          actionCalls.push({
+            to: ethers.getAddress(tokenInAddr),
+            data: ERC20_APPROVE_IFACE_PREVIEW.encodeFunctionData('approve', [
+              ethers.getAddress(cleanPool),
+              previewAmountWei,
+            ]),
+            from: ethers.getAddress(cleanOwner),
+          });
+        }
+        actionCalls.push({
+          to: ethers.getAddress(cleanPool),
+          data: POOL_SWAP_IFACE_PREVIEW.encodeFunctionData(swapFn, [previewAmountWei]),
+          from: ethers.getAddress(cleanOwner),
+        });
+        legs = actionCalls.length === 2 ? 3 : 2;
+        break;
+      }
       case 'mins': {
         if (!poolAddress) return res.status(400).json({ message: 'Missing poolAddress' });
         const cleanPool = cleanAddr(poolAddress);
