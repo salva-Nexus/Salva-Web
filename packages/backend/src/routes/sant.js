@@ -46,43 +46,6 @@ function _buildMultiSend(calls) {
   ]);
 }
 
-/**
- * Resolves which token the user pays the network fee in, in priority order:
- * NGNs → cNGN → USDT → USDC. All Base tokens are hardcoded 6 decimals.
- * feeNGN and feeUSD are the SAME underlying gas cost, just denominated in
- * each currency's terms via the live buffered exchange rate — exactly what
- * estimateTransferFee already computes.
- */
-async function _resolveFeeTokenBase(safeAddress, feeNGN, feeUSD) {
-  const candidates = [
-    { symbol: 'NGNs', address: process.env.NGN_TOKEN_ADDRESS, feeAmount: feeNGN },
-    { symbol: 'cNGN', address: process.env.CNGN_CONTRACT_ADDRESS, feeAmount: feeNGN },
-    { symbol: 'USDT', address: process.env.USDT_CONTRACT_ADDRESS, feeAmount: feeUSD },
-    { symbol: 'USDC', address: process.env.USDC_CONTRACT_ADDRESS, feeAmount: feeUSD },
-  ];
-  for (const c of candidates) {
-    if (!c.address) continue;
-    try {
-      const contract = new ethers.Contract(ethers.getAddress(c.address), ERC20_BAL_ABI, provider);
-      const balWei = await contract.balanceOf(ethers.getAddress(safeAddress));
-      const balNum = parseFloat(ethers.formatUnits(balWei, 6)); // Base: all tokens hardcoded 6
-      if (balNum >= c.feeAmount) {
-        const feeWei = ethers.parseUnits(c.feeAmount.toFixed(6), 6);
-        console.log(
-          `✅ [SANT fee] Using ${c.symbol} — balance=${balNum.toFixed(4)} fee=${c.feeAmount}`
-        );
-        return { tokenAddress: c.address, symbol: c.symbol, feeWei };
-      }
-      console.log(
-        `⏭️ [SANT fee] Skip ${c.symbol}: balance=${balNum.toFixed(4)} < fee=${c.feeAmount}`
-      );
-    } catch (e) {
-      console.warn(`⚠️ [SANT fee] Balance check failed for ${c.symbol}:`, e.message);
-    }
-  }
-  return null;
-}
-
 function sanitizeEmail(email) {
   const validator = require('validator');
   if (typeof email !== 'string') throw new Error('Invalid email');
@@ -145,7 +108,7 @@ router.get('/estimate-fee/:safeAddress', async (req, res) => {
       },
     ];
 
-    const resolved = await resolveGasFee('base', safeAddress, 1, () => santActionCalls);
+    const resolved = await resolveGasFee('base', safeAddress, 2, () => santActionCalls);
 
     if (resolved.noBalance) {
       return res.json({
@@ -227,15 +190,15 @@ router.post('/transfer', async (req, res) => {
         from: ethers.getAddress(safeAddress),
       },
     ];
-    const santResolved = await resolveGasFee('base', safeAddress, 1, () => santActionCalls);
+    const santResolved = await resolveGasFee('base', safeAddress, 2, () => santActionCalls);
     if (santResolved.noBalance) {
       return res.status(400).json({
-        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+        message: 'CANNOT PROCEED: no balance available in NGN or USD to cover the network fee.',
       });
     }
     if (santResolved.insufficientFee) {
       return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${santResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${santResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
+        message: `Insufficient balance for network fee. Need ₦${santResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${santResolved.feeUSD.toFixed(4)} in USDC/USDT.`,
       });
     }
     const feeToken = santResolved.payToken;

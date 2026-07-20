@@ -734,7 +734,7 @@ async function warmCache() {
 // single-rate update (rate + fee = 2) vs a dual-rate update (buy + sell +
 // fee = 3). Defaulting silently to 2 for everything was the original bug —
 // it undercharged every 3-leg operation.
-async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
+async function estimatePoolFee(chain, legs = 2, actionCalls = null, coin = 'NGN') {
   const isBNB = chain === 'bnb';
   const isProd = process.env.NODE_ENV === 'production';
   const priceSymbol = isBNB ? 'BNBUSDT' : 'ETHUSDT';
@@ -748,9 +748,17 @@ async function estimatePoolFee(chain, legs = 2, actionCalls = null) {
   // actionCalls, when passed, contains the REAL calldata for this specific
   // pool operation (swap/deploy/updateBuyRate/pause/etc) — simulated as-is
   // instead of approximated as generic token transfers.
+  //
+  // `coin` MUST reflect whichever token the caller already confirmed has a
+  // real on-chain balance (see resolveGasFee's simToken) — NOT a hardcoded
+  // 'NGN'. Hardcoding it here was a bug: the appended fee-transfer leg would
+  // always try to balanceOf()/simulate against the NGN contract even when
+  // the user's actual balance (and thus the token they'll really pay the fee
+  // in) was cNGN, USDC, or USDT — silently producing an inaccurate (or
+  // 1-wei-fallback) simulation for every non-NGN payer.
   const { gasUnits, bufferMultiplier, simulated } = await _resolveGasUnitsAndBuffer(
     chain,
-    'NGN',
+    coin,
     legs,
     actionCalls
   );
@@ -888,11 +896,19 @@ async function resolveGasFee(chain, safeAddress, legs = 2, actionCallsBuilder = 
     return { noBalance: true };
   }
 
-  // ── Step 3/4: simulate + convert using the balance-checked sim token ────────
+ // ── Step 3/4: simulate + convert using the balance-checked sim token ────────
+  // Map the balance-verified sim token's symbol to the coin key
+  // _resolveTokenAddress / _resolveGasUnitsAndBuffer expects, so the
+  // appended fee-transfer leg is simulated using the EXACT SAME token that
+  // was just confirmed to hold a real balance — never silently defaulting
+  // back to NGN regardless of what the user actually holds.
+  const SYMBOL_TO_COIN_KEY = { NGNs: 'NGN', cNGN: 'CNGN', USDC: 'USDC', USDT: 'USDT' };
+  const simCoinKey = SYMBOL_TO_COIN_KEY[simToken.symbol] || 'NGN';
+
   const actionCalls = actionCallsBuilder ? actionCallsBuilder(simToken.address) : null;
   const result = actionCalls
-    ? await estimatePoolFee(chain, legs, actionCalls)
-    : await estimatePoolFee(chain, legs, null);
+    ? await estimatePoolFee(chain, legs, actionCalls, simCoinKey)
+    : await estimatePoolFee(chain, legs, null, simCoinKey);
 
   const { feeNGN, feeUSD } = result;
 

@@ -177,6 +177,34 @@ async function _resolveFeeToken(chain, safeAddress, feeNGN, feeUSD, feeWeiNGN, f
   return null; // no token has enough
 }
 
+// ── Real on-chain balance fetch — used ONLY to size simulation calldata ──────
+// NEVER use a hardcoded/placeholder amount when simulating an approve() or
+// swap() leg. The user is guaranteed to hold a non-zero balance of tokenIn
+// by the time they reach the PIN modal (the swap card blocks Continue
+// otherwise), so their real balanceOf() is always a safe, realistic amount
+// to simulate with — and it's the ONLY way gas estimation reflects reality
+// (a 0-value or 1-wei approve/swap can behave differently gas-wise than a
+// real-sized one on some token implementations).
+async function _getRealBalanceForSim(chain, tokenAddress, ownerAddress) {
+  const isBNB = chain === 'bnb';
+  const isProd = process.env.NODE_ENV === 'production';
+  const rpcUrl = isBNB
+    ? (isProd ? 'https://bsc-dataseed.bnbchain.org' : 'https://bsc-testnet-rpc.publicnode.com')
+    : (isProd ? 'https://mainnet.base.org' : 'https://sepolia.base.org');
+  try {
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
+    const contract = new ethers.Contract(ethers.getAddress(tokenAddress), BAL_ABI, provider);
+    return await contract.balanceOf(ethers.getAddress(ownerAddress));
+  } catch (e) {
+    console.warn(
+      `⚠️ [estimate-fee] Real balance fetch failed for sim (token=${tokenAddress}, owner=${ownerAddress}):`,
+      e.message
+    );
+    return 0n;
+  }
+}
+
 function _feeErrorMsg(feeNGN, feeUSD) {
   return `Insufficient balance for network fee. Need ₦${feeNGN} NGNs, ₦${feeNGN} cNGN, $${feeUSD} USDT, or $${feeUSD} USDC in your wallet.`;
 }
@@ -3632,7 +3660,21 @@ router.post('/estimate-fee', async (req, res) => {
         ]);
         let previewDecimals = 6;
         if (isBNB) previewDecimals = await getL1TokenDecimals(ethers.getAddress(tokenInAddr)).catch(() => 18);
-        const previewAmountWei = ethers.parseUnits('1', previewDecimals);
+
+        // ── Real balance — NEVER hardcoded/guessed. This is the exact amount
+        // used to size both the approve() and swap() simulation calldata, so
+        // the gas estimate reflects what will actually happen on-chain, not
+        // an arbitrary "1 unit" placeholder that under- or over-estimates gas.
+        let previewAmountWei = await _getRealBalanceForSim(cleanChain, tokenInAddr, cleanOwner);
+        if (previewAmountWei <= 0n) {
+          // Defensive fallback only — should be unreachable in practice,
+          // since the swap card already enforces a non-zero tokenIn balance
+          // before the user can reach the PIN modal.
+          console.warn(
+            `⚠️ [estimate-fee] tokenIn balance is 0 for ${cleanOwner} (token=${tokenInAddr}) — using nominal fallback for simulation only`
+          );
+          previewAmountWei = ethers.parseUnits('1', previewDecimals);
+        }
 
         actionCalls = [];
         if (!trusted) {

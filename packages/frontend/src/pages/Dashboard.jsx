@@ -3331,11 +3331,12 @@ const Dashboard = () => {
                     amountError ||
                     feeExceedsAmount ||
                     !recipientInput ||
-                    recipientNameError
+                    recipientNameError ||
+                    feePreview.loading
                   }
                   type="submit"
                   className={`w-full py-2.5 sm:py-4 rounded-2xl font-black transition-all text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-1.5 sm:gap-2 ${
-                    loading || amountError || !recipientInput
+                    loading || amountError || !recipientInput || feePreview.loading
                       ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
                       : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                   }`}

@@ -83,6 +83,18 @@ const SendCardScaleStyle = () => (
     }
   `}</style>
 );
+
+// ── Same 30%-on-mobile-only scaling pattern, for the Confirm & PIN modals ──
+const scalePx = (n) => `calc(${n}px * var(--modal-scale, 1))`;
+const scalePxs = (...vals) => vals.map((v) => (typeof v === 'number' ? scalePx(v) : v)).join(' ');
+const ModalScaleStyle = () => (
+  <style>{`
+    .modal-card-scale { --modal-scale: 1; }
+    @media (max-width: 639px) {
+      .modal-card-scale { --modal-scale: 0.7; }
+    }
+  `}</style>
+);
 // ── Searchable Registry Dropdown — identical pattern used on Dashboard ──────
 const RegistryDropdown = ({
   registries,
@@ -452,13 +464,11 @@ const SantTab = ({ user, registries, showMsg }) => {
  const resolveAndConfirm = async () => {
     if (!recipientInput || !transferAmount) return showMsg('Fill all fields', 'error');
     if (feePreview.noBalance)
-      return showMsg('You have no NGNs, cNGN, USDT, or USDC to cover the network fee.', 'error');
+      return showMsg('No balance available to cover the network fee.', 'error');
     if (feePreview.insufficientFee)
       return showMsg('Insufficient balance to cover the network fee.', 'error');
-    if (feePreview.noBalance)
-      return showMsg('You have no NGNs, cNGN, USDT, or USDC to cover the network fee.', 'error');
-    if (feePreview.insufficientFee)
-      return showMsg('Insufficient balance to cover the network fee.', 'error');
+    if (!feePreview.feeToken)
+      return showMsg('Network fee is still being calculated. Please wait.', 'error');
     const type = detectInputType(recipientInput);
     if (type === 'name' && !selectedRegistry) return showMsg('Select a wallet service', 'error');
     if (type === 'fullname') {
@@ -941,13 +951,24 @@ const SantTab = ({ user, registries, showMsg }) => {
                     loading ||
                     amountError ||
                     !recipientInput ||
+                    !transferAmount ||
+                    parseFloat(transferAmount) <= 0 ||
                     feePreview.loading ||
                     feePreview.noBalance ||
-                    feePreview.insufficientFee
+                    feePreview.insufficientFee ||
+                    !feePreview.feeToken
                   }
                   type="submit"
                   className={`w-full rounded-2xl font-black transition-all uppercase tracking-widest flex items-center justify-center ${
-                    loading || amountError || !recipientInput
+                    loading ||
+                    amountError ||
+                    !recipientInput ||
+                    !transferAmount ||
+                    parseFloat(transferAmount) <= 0 ||
+                    feePreview.loading ||
+                    feePreview.noBalance ||
+                    feePreview.insufficientFee ||
+                    !feePreview.feeToken
                       ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
                       : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
                   }`}
@@ -967,10 +988,11 @@ const SantTab = ({ user, registries, showMsg }) => {
         )}
       </AnimatePresence>
 
-      {/* ── Confirm Modal ── */}
+      {/* ── Confirm Modal — content scaled 30% on mobile only, desktop untouched ── */}
       <AnimatePresence>
         {isConfirmModalOpen && confirmationData && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
+            <ModalScaleStyle />
             <motion.div
               onClick={() => setIsConfirmModalOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
@@ -980,45 +1002,85 @@ const SantTab = ({ user, registries, showMsg }) => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-lg shadow-2xl"
+              className="modal-card-scale relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-lg shadow-2xl"
+              style={{ padding: scalePx(32) }}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">⚠️</span>
+              <div className="text-center" style={{ marginBottom: scalePx(24) }}>
+                <div
+                  className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto"
+                  style={{ width: scalePx(56), height: scalePx(56), marginBottom: scalePx(16) }}
+                >
+                  <span style={{ fontSize: scalePx(24) }}>⚠️</span>
                 </div>
-                <h3 className="text-xl font-black mb-1 text-white">Verify Recipient</h3>
-                <p className="text-sm text-white/60">
+                <h3
+                  className="font-black text-white"
+                  style={{ fontSize: scalePx(20), marginBottom: scalePx(4) }}
+                >
+                  Verify Recipient
+                </h3>
+                <p className="text-white/60" style={{ fontSize: scalePx(14) }}>
                   Double-check before sending. Blockchain transactions are irreversible.
                 </p>
               </div>
-              <div className="space-y-3 mb-6">
-                <div className="p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/15">
-                  <p className="text-[10px] text-white/60 mb-1">Sending To</p>
-                  <p className="font-black text-sm text-salvaGold break-all leading-snug">
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: scalePx(12),
+                  marginBottom: scalePx(24),
+                }}
+              >
+                <div
+                  className="rounded-2xl bg-salvaGold/5 border border-salvaGold/15"
+                  style={{ padding: scalePx(16) }}
+                >
+                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                    Sending To
+                  </p>
+                  <p
+                    className="font-black text-salvaGold break-all leading-snug"
+                    style={{ fontSize: scalePx(14) }}
+                  >
                     {confirmationData.displayIdentifier}
                   </p>
-                  <p className="font-mono text-[10px] text-white/60 mt-1 break-all">
+                  <p
+                    className="font-mono text-white/60 break-all"
+                    style={{ fontSize: scalePx(10), marginTop: scalePx(4) }}
+                  >
                     {confirmationData.resolvedAddress}
                   </p>
                   {confirmationData.walletName && (
-                    <p className="text-[10px] text-white/60 mt-1 font-bold">
+                    <p
+                      className="text-white/60 font-bold"
+                      style={{ fontSize: scalePx(10), marginTop: scalePx(4) }}
+                    >
                       to {confirmationData.walletName}
                     </p>
                   )}
                 </div>
-                <div className="p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                  <p className="text-[10px] text-white/60 mb-1">You Send</p>
-                  <p className="font-black text-xl text-white">
+                <div
+                  className="rounded-2xl bg-white/[0.03] border border-white/[0.06]"
+                  style={{ padding: scalePx(16) }}
+                >
+                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                    You Send
+                  </p>
+                  <p className="font-black text-white" style={{ fontSize: scalePx(20) }}>
                     {formatNumber(confirmationData.amount, { minDecimals: 0, maxDecimals: 6 })}{' '}
                     <span className="text-salvaGold">SANT</span>
                   </p>
                 </div>
-                <div className="p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
-                  <p className="text-[10px] text-white/60 mb-1">Network Fee</p>
-                  <p className="font-black text-base text-red-400">
+                <div
+                  className="rounded-2xl bg-red-500/5 border border-red-500/10"
+                  style={{ padding: scalePx(16) }}
+                >
+                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                    Network Fee
+                  </p>
+                  <p className="font-black text-red-400" style={{ fontSize: scalePx(16) }}>
                     {confirmationData.feeCurrency === 'USD'
                       ? `$${confirmationData.feeUsd?.toFixed(4)}`
                       : `₦${formatNumber(confirmationData.feeNGN)}`}{' '}
@@ -1026,10 +1088,11 @@ const SantTab = ({ user, registries, showMsg }) => {
                   </p>
                 </div>
               </div>
-              <div className="flex gap-3">
+              <div style={{ display: 'flex', gap: scalePx(12) }}>
                 <button
                   onClick={() => setIsConfirmModalOpen(false)}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  className="flex-1 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  style={{ padding: scalePxs(12, 0), fontSize: scalePx(14) }}
                 >
                   Go Back
                 </button>
@@ -1040,7 +1103,8 @@ const SantTab = ({ user, registries, showMsg }) => {
                     setTransactionPin('');
                     setPinAttempts(0);
                   }}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
+                  className="flex-1 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
+                  style={{ padding: scalePxs(12, 0), fontSize: scalePx(14) }}
                 >
                   Confirm & Sign
                 </button>
@@ -1050,10 +1114,11 @@ const SantTab = ({ user, registries, showMsg }) => {
         )}
       </AnimatePresence>
 
-      {/* ── PIN Modal ── */}
+      {/* ── PIN Modal — content scaled 30% on mobile only, desktop untouched ── */}
       <AnimatePresence>
         {isPinModalOpen && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
+            <ModalScaleStyle />
             <motion.div
               onClick={() => !loading && setIsPinModalOpen(false)}
               className="absolute inset-0 bg-black/95 backdrop-blur-md"
@@ -1063,17 +1128,28 @@ const SantTab = ({ user, registries, showMsg }) => {
             />
             <motion.div
               onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-8 rounded-3xl w-full max-w-md shadow-2xl"
+              className="modal-card-scale relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-md shadow-2xl"
+              style={{ padding: scalePx(32) }}
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center mb-6">
-                <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                  <span className="text-2xl">🔐</span>
+              <div className="text-center" style={{ marginBottom: scalePx(24) }}>
+                <div
+                  className="bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto"
+                  style={{ width: scalePx(56), height: scalePx(56), marginBottom: scalePx(16) }}
+                >
+                  <span style={{ fontSize: scalePx(24) }}>🔐</span>
                 </div>
-                <h3 className="text-2xl font-black mb-1 text-white">Transaction PIN</h3>
-                <p className="text-sm text-white/60">Verify identity to proceed</p>
+                <h3
+                  className="font-black text-white"
+                  style={{ fontSize: scalePx(24), marginBottom: scalePx(4) }}
+                >
+                  Transaction PIN
+                </h3>
+                <p className="text-white/60" style={{ fontSize: scalePx(14) }}>
+                  Verify identity to proceed
+                </p>
               </div>
               <input
                 type="password"
@@ -1084,28 +1160,42 @@ const SantTab = ({ user, registries, showMsg }) => {
                 onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ''))}
                 placeholder="••••"
                 autoFocus
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
+                className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center font-black text-white"
+                style={{
+                  padding: scalePx(16),
+                  fontSize: scalePx(30),
+                  letterSpacing: '1em',
+                  marginBottom: scalePx(20),
+                }}
               />
               {pinAttempts > 0 && (
-                <p className="text-xs text-red-400 text-center mb-4 font-bold">
+                <p
+                  className="text-red-400 text-center font-bold"
+                  style={{ fontSize: scalePx(12), marginBottom: scalePx(16) }}
+                >
                   ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? 's' : ''} remaining
                 </p>
               )}
-              <div className="flex gap-3">
+              <div style={{ display: 'flex', gap: scalePx(12) }}>
                 <button
                   onClick={() => setIsPinModalOpen(false)}
                   disabled={loading}
-                  className="flex-1 py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  className="flex-1 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
+                  style={{ padding: scalePxs(12, 0), fontSize: scalePx(14) }}
                 >
                   Cancel
                 </button>
                 <button
                   onClick={verifyPinAndProceed}
                   disabled={loading || transactionPin.length !== 4}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center"
+                  style={{ padding: scalePxs(12, 0), fontSize: scalePx(14), gap: scalePx(8) }}
                 >
                   {loading && (
-                    <span className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    <span
+                      className="border-2 border-black/30 border-t-black rounded-full animate-spin"
+                      style={{ width: scalePx(16), height: scalePx(16) }}
+                    />
                   )}
                   {loading ? 'Verifying…' : 'Verify'}
                 </button>
