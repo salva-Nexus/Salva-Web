@@ -2148,7 +2148,7 @@ const RewardsBar = ({ user, showMsg, refreshKey }) => {
       )}
     </div>
   );
-};;
+};
 
 // ══════════════════════════════════════════════════════════════════════════════
 // DASHBOARD — Main Component
@@ -3844,6 +3844,6 @@ const Dashboard = () => {
       {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}
     </div>
   );
-};
+};;;;;;;
 
 export default Dashboard;

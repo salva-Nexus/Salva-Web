@@ -244,7 +244,7 @@ const SplitBalance = ({ value, isusd = false, inline = false }) => {
       {formattedInt}.<span style={{ opacity: inline ? 0.6 : 1 }}>{decPart}</span>
     </span>
   );
-};;
+};
 
 // ── Searchable Registry Dropdown ───────────────────────────────────────────
 const RegistryDropdown = ({
