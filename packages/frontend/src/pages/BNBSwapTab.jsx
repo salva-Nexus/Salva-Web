@@ -225,7 +225,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   // calldata, balance-waterfall-aware) so the currency/token shown always
   // matches what actually gets charged — no more forced-NGN display when
   // the account only holds a USD-family token.
-const [trustChecked, setTrustChecked] = useState(false);
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);
   const [showTrust, setShowTrust] = useState(false);
