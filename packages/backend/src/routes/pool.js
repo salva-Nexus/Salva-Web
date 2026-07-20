@@ -3598,7 +3598,7 @@ router.post('/estimate-fee', async (req, res) => {
           swapFn,
           swapAmount, // real human amount the user typed
           swapMode, // 'exact_in' | 'exact_out'
-          quoteHuman, // for exact_out: required input amount
+          quoteHuman, // counterpart amount — required input (exact_out) or expected output (exact_in)
         } = req.body;
         if (!swapPool || !stableToken || !ngnToken || !swapFn)
           return res.status(400).json({ message: 'Missing poolAddress, stableToken, ngnToken, or swapFn' });
@@ -3607,41 +3607,46 @@ router.post('/estimate-fee', async (req, res) => {
         const isNgnInput = swapFn === 'swapExactNGNAmountForUSD' || swapFn === 'swapForExactUSDAmount';
         const tokenInSym = isNgnInput ? ngnToken : stableToken;
         const tokenInAddr = resolveTokenForChain(tokenInSym);
-        const stableAddr = resolveTokenForChain(stableToken);
-        const ngnAddr = resolveTokenForChain(ngnToken);
-        if (!tokenInAddr || !stableAddr || !ngnAddr)
+        const tokenOutAddr = isNgnInput
+          ? resolveTokenForChain(stableToken)
+          : resolveTokenForChain(ngnToken);
+        if (!tokenInAddr || !tokenOutAddr)
           return res.status(400).json({ message: `Unknown token(s) for swap preview` });
 
-        // Real 4-param pool ABI — matches relay.buildSwapCalldata exactly.
-        const POOL_SWAP_IFACE_PREVIEW = new ethers.Interface([
-          'function swapExactNGNAmountForUSD(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _ngnAmountIn) external returns (bool)',
-          'function swapExactUSDAmountForNGN(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _usdAmountIn) external returns (bool)',
-          'function swapForExactUSDAmount(address _receiver, address _usdTokenOut, address _ngnTokenIn, uint256 _usdAmountOut) external returns (bool)',
-          'function swapForExactNGNAmount(address _receiver, address _usdTokenIn, address _ngnTokenOut, uint256 _ngnAmountOut) external returns (bool)',
-        ]);
         let previewDecimals = 6; // tokenIn decimals
         if (isBNB) previewDecimals = await getL1TokenDecimals(ethers.getAddress(tokenInAddr)).catch(() => 18);
 
+        let outputDecimals = 6; // tokenOut decimals
+        if (isBNB) outputDecimals = await getL1TokenDecimals(ethers.getAddress(tokenOutAddr)).catch(() => 18);
+
         const isExactOut = swapMode === 'exact_out';
 
-        // ── NO GUESSING. NO "trusted" branching. Every swap ALWAYS simulates
-        // approve() + swap() using the REAL amount the user typed, scaled with
-        // the correct token's decimals — never the user's full wallet balance,
-        // never a placeholder "1 unit". This is the amount that will really be
-        // approved and swapped on-chain.
-        let previewAmountWei;
-        let previewApproveAmountWei;
+        // ── NO GUESSING. Every swap ALWAYS simulates the REAL amounts the
+        // user typed (or the matching quoted counterpart), scaled with each
+        // token's correct decimals — never the user's full wallet balance,
+        // never a placeholder "1 unit".
+        //
+        // IMPORTANT: we do NOT simulate the actual swapXxx() function here.
+        // eth_estimateGas carries NO state between separate calls, so an
+        // approve() simulated in one call is invisible to a swap() call
+        // simulated in the next — the swap call always reverts with
+        // "ERC20: transfer amount exceeds allowance" even though the real
+        // on-chain sequence (executed atomically inside one MultiSend)
+        // would work perfectly. Instead, we simulate the two plain ERC20
+        // transfers a swap actually performs internally — pulling tokenIn
+        // from the user, and pushing tokenOut from the pool — which have
+        // the same gas shape as the real swap's internal token movements,
+        // and neither one needs any prior on-chain approval state to
+        // simulate successfully: a transfer() only checks the sender's
+        // real balance, never an allowance.
+        let previewAmountWei; // tokenIn amount pulled from the user
+        let previewApproveAmountWei; // approve() amount — same as tokenIn amount
+        let outputAmountWei; // tokenOut amount pushed from the pool
 
         if (swapAmount !== undefined && swapAmount !== null && parseFloat(swapAmount) > 0) {
           if (isExactOut) {
-            const outputTokenAddr = swapFn === 'swapForExactUSDAmount' ? stableAddr : ngnAddr;
-            let outputDecimals = previewDecimals;
-            if (isBNB) {
-              outputDecimals = await getL1TokenDecimals(ethers.getAddress(outputTokenAddr)).catch(
-                () => previewDecimals
-              );
-            }
-            previewAmountWei = ethers.parseUnits(
+            // swapAmount IS the desired output — scale with tokenOut decimals
+            outputAmountWei = ethers.parseUnits(
               parseFloat(swapAmount).toFixed(outputDecimals),
               outputDecimals
             );
@@ -3650,14 +3655,34 @@ router.post('/estimate-fee', async (req, res) => {
                 Math.ceil(parseFloat(quoteHuman) * 10 ** previewDecimals)
               );
             } else {
-              previewApproveAmountWei = previewAmountWei;
+              // Defensive fallback only — quoteHuman should always be present
+              // by the time the PIN modal calls this.
+              previewApproveAmountWei = ethers.parseUnits(
+                parseFloat(swapAmount).toFixed(previewDecimals),
+                previewDecimals
+              );
             }
+            previewAmountWei = previewApproveAmountWei;
           } else {
+            // swapAmount IS the input — scale with tokenIn decimals
             previewAmountWei = ethers.parseUnits(
               parseFloat(swapAmount).toFixed(previewDecimals),
               previewDecimals
             );
             previewApproveAmountWei = previewAmountWei;
+            if (quoteHuman !== undefined && quoteHuman !== null && parseFloat(quoteHuman) > 0) {
+              outputAmountWei = ethers.parseUnits(
+                parseFloat(quoteHuman).toFixed(outputDecimals),
+                outputDecimals
+              );
+            } else {
+              // Defensive fallback only — the frontend always sends the live
+              // quote alongside swapAmount by the time this is called.
+              outputAmountWei = ethers.parseUnits(
+                parseFloat(swapAmount).toFixed(outputDecimals),
+                outputDecimals
+              );
+            }
           }
         } else {
           // Defensive fallback only — should be unreachable since the frontend
@@ -3667,11 +3692,26 @@ router.post('/estimate-fee', async (req, res) => {
           );
           previewAmountWei = ethers.parseUnits('1', previewDecimals);
           previewApproveAmountWei = previewAmountWei;
+          outputAmountWei = ethers.parseUnits('1', outputDecimals);
         }
 
-        // ALWAYS 3 legs: approve + swap + fee (no trusted-based skip).
+        // ── ALWAYS 4 legs: approve + transfer-in + transfer-out + fee ─────
+        // approve()    : tokenIn.approve(pool, previewApproveAmountWei) — from user
+        // transfer-in  : tokenIn.transfer(pool, previewAmountWei)       — from user
+        //                (models the pool pulling tokenIn from the user via
+        //                transferFrom on the real swap; a plain transfer()
+        //                only needs the user's real balance — never an
+        //                allowance — so it always simulates cleanly)
+        // transfer-out : tokenOut.transfer(user, outputAmountWei)       — from pool
+        //                (models the pool paying out tokenOut; the pool
+        //                address genuinely holds this liquidity on-chain,
+        //                so this also simulates cleanly with real state)
+        // fee-transfer : appended automatically by resolveGasFee/_simulateMultiSendGasUnits
         const ERC20_APPROVE_IFACE_PREVIEW = new ethers.Interface([
           'function approve(address spender, uint256 amount) returns (bool)',
+        ]);
+        const ERC20_TRANSFER_IFACE_PREVIEW = new ethers.Interface([
+          'function transfer(address to, uint256 amount) returns (bool)',
         ]);
         actionCalls = [
           {
@@ -3683,17 +3723,23 @@ router.post('/estimate-fee', async (req, res) => {
             from: ethers.getAddress(cleanOwner),
           },
           {
-            to: ethers.getAddress(cleanPool),
-            data: POOL_SWAP_IFACE_PREVIEW.encodeFunctionData(swapFn, [
-              ethers.getAddress(cleanOwner),
-              ethers.getAddress(stableAddr),
-              ethers.getAddress(ngnAddr),
+            to: ethers.getAddress(tokenInAddr),
+            data: ERC20_TRANSFER_IFACE_PREVIEW.encodeFunctionData('transfer', [
+              ethers.getAddress(cleanPool),
               previewAmountWei,
             ]),
             from: ethers.getAddress(cleanOwner),
           },
+          {
+            to: ethers.getAddress(tokenOutAddr),
+            data: ERC20_TRANSFER_IFACE_PREVIEW.encodeFunctionData('transfer', [
+              ethers.getAddress(cleanOwner),
+              outputAmountWei,
+            ]),
+            from: ethers.getAddress(cleanPool),
+          },
         ];
-        legs = 3;
+        legs = 4;
         break;
       }
       case 'mins': {
