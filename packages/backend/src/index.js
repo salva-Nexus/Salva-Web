@@ -390,7 +390,7 @@ warmL1DecimalsCache().catch((e) =>
 );
 
 // Pre-warm gas oracle price cache on startup
-const { estimateTransferFee, estimatePoolFee, resolveGasFee, warmCache: warmGasOracleCache } = require('./services/gasOracle');
+const { estimateTransferFee, estimatePoolFee, warmCache: warmGasOracleCache } = require('./services/gasOracle');
 warmGasOracleCache().catch((e) =>
   console.warn('⚠️ Gas oracle cache warm failed (non-fatal):', e.message)
 );
@@ -710,7 +710,8 @@ async function resolveAltFamilyFeeToken(chain, coin, safeAddress, feeNGN, feeUsd
       );
       return { symbol: altSymbol, tokenAddress: altAddr, decimals, feeWei };
     }
-    console.log(`⏭️ [transfer fee] Alt-family ${altSymbol} balance=${balNum.toFixed(4)} < fee=${feeAmount}`
+    console.log(
+      `⏭️ [transfer fee] Alt-family ${altSymbol} balance=${balNum.toFixed(4)} < fee=${feeAmount}`
     );
   } catch (e) {
     console.warn(`⚠️ [transfer fee] alt-family balance check failed for ${altSymbol}:`, e.message);
@@ -718,48 +719,8 @@ async function resolveAltFamilyFeeToken(chain, coin, safeAddress, feeNGN, feeUsd
   return null;
 }
 
-// ── Alias (name link/unlink) gas-fee waterfall ───────────────────────────────
-async function _resolveAliasFeeToken(safeAddress, feeNGN, feeUSD) {
-  const candidates = [
-    { symbol: 'NGNs', address: process.env.NGN_TOKEN_ADDRESS, feeAmount: feeNGN },
-    { symbol: 'cNGN', address: process.env.CNGN_CONTRACT_ADDRESS, feeAmount: feeNGN },
-    { symbol: 'USDT', address: process.env.USDT_CONTRACT_ADDRESS, feeAmount: feeUSD },
-    { symbol: 'USDC', address: process.env.USDC_CONTRACT_ADDRESS, feeAmount: feeUSD },
-  ];
-  const BAL_ABI = ['function balanceOf(address) view returns (uint256)'];
-  for (const c of candidates) {
-    if (!c.address) continue;
-    try {
-      const contract = new ethers.Contract(ethers.getAddress(c.address), BAL_ABI, provider);
-      const balWei = await contract.balanceOf(ethers.getAddress(safeAddress));
-      const balNum = parseFloat(ethers.formatUnits(balWei, 6));
-      if (balNum >= c.feeAmount) {
-        const feeWei = ethers.parseUnits(c.feeAmount.toFixed(6), 6);
-        console.log(`✅ [alias fee] Using ${c.symbol} — balance=${balNum.toFixed(4)} fee=${c.feeAmount}`);
-        return { symbol: c.symbol, tokenAddress: c.address, feeWei, decimals: 6 };
-      }
-      console.log(`⏭️ [alias fee] Skip ${c.symbol}: balance=${balNum.toFixed(4)} < fee=${c.feeAmount}`);
-    } catch (e) {
-      console.warn(`⚠️ [alias fee] Balance check failed for ${c.symbol}:`, e.message);
-    }
-  }
-  return null;
-}
-
-async function _estimateAliasFee(actionCalls) {
-  try {
-    const { estimatePoolFee } = require('./services/gasOracle');
-    const result = await estimatePoolFee('base', 1, actionCalls);
-    return { feeNGN: result.feeNGN, feeUSD: result.feeUSD };
-  } catch (e) {
-    console.error('❌ [alias fee] estimatePoolFee failed, using fallback:', e.message);
-    return { feeNGN: 5, feeUSD: 0.004 };
-  }
-}
-
 // ===============================================
 // ESTIMATE POOL OPERATION FEE — GET /api/estimate-pool-fee?chain=base|bnb
-
 // Returns BOTH NGN and USD fee values so frontend can display either.
 // Frontend fetches this once on mount, caches 30s.
 // ===============================================
@@ -1403,9 +1364,6 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
     console.log(`✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`);
     console.log(`   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`);
 
-    // ── NOTE: network gas fee is intentionally NOT computed here anymore.
-    // It is fetched ONLY when the PIN modal opens, via /api/alias/estimate-link-fee.
-    // This route now just validates + signs — nothing else.
     return res.json({
       prepared: true,
       pureName,
@@ -1414,111 +1372,11 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
       registryAddress,
       namespace,
       signature,
-      feeWei: feeWei.toString(),
+      feeWei: feeWei.toString(), // pass to execute-link so relay knows whether to approve
     });
   } catch (error) {
     console.error('❌ link-name prepare error:', error);
     return handleError(error, res, 'Failed to prepare name link');
-  }
-});
-
-// ================================================================
-// ALIAS: ESTIMATE LINK FEE — display-only, called right when the PIN
-// modal opens for a LINK NAME action. Never executes anything on-chain.
-//
-// Simulates the REAL legs individually (never bundled through MultiSend,
-// which would revert during a dry-run simulation) and sums the gas:
-//   - Singleton fee == 0  → 2 legs: link()  +  fee-transfer-to-treasury
-//   - Singleton fee  > 0  → 3 legs: approve() + link()  +  fee-transfer-to-treasury
-// Buffer/pricing/NGN-conversion/balance-waterfall all reuse resolveGasFee,
-// the exact same helper Deploy Pool and Swap already rely on.
-// ================================================================
-app.post('/api/alias/estimate-link-fee', async (req, res) => {
-  try {
-    const { safeAddress, pureName, walletToLink, registryAddress, signature, feeWei } = req.body;
-
-    if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: 'Invalid safe address' });
-    if (!pureName || !walletToLink || !registryAddress || !signature)
-      return res.status(400).json({ message: 'Missing prepared link data' });
-    if (!ethers.isAddress(walletToLink) || !ethers.isAddress(registryAddress))
-      return res.status(400).json({ message: 'Invalid wallet or registry address' });
-
-    const nameBytes = ethers.toUtf8Bytes(pureName);
-    const walletAddress = ethers.getAddress(walletToLink);
-    const cleanRegistry = ethers.getAddress(registryAddress);
-    const registryFeeWei = BigInt(feeWei || '0');
-
-    const registryIface = new ethers.Interface([
-      'function link(bytes calldata _name, address _wallet, bytes calldata signature) external returns (bool)',
-    ]);
-    const linkCalldata = registryIface.encodeFunctionData('link', [
-      nameBytes,
-      walletAddress,
-      signature,
-    ]);
-
-    // Builds the ACTION legs only (never the fee-transfer leg — resolveGasFee
-    // appends that one itself using the caller's real balanceOf()).
-    const actionCallsBuilder = () => {
-      const calls = [];
-      if (registryFeeWei > 0n) {
-        const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
-        const approveIface = new ethers.Interface([
-          'function approve(address spender, uint256 amount) returns (bool)',
-        ]);
-        const approveCalldata = approveIface.encodeFunctionData('approve', [
-          cleanRegistry,
-          registryFeeWei,
-        ]);
-        calls.push({
-          to: ethers.getAddress(ngnAddr),
-          data: approveCalldata,
-          from: ethers.getAddress(safeAddress),
-        });
-      }
-      calls.push({
-        to: cleanRegistry,
-        data: linkCalldata,
-        from: ethers.getAddress(safeAddress),
-      });
-      return calls;
-    };
-
-    // 2 legs (link + fee) when singleton is free, 3 legs (approve + link + fee) when it charges
-    const legs = registryFeeWei > 0n ? 3 : 2;
-    const resolved = await resolveGasFee('base', safeAddress, legs, actionCallsBuilder);
-
-    if (resolved.noBalance) {
-      return res.json({
-        feeNGN: 0,
-        feeUSD: 0,
-        feeToken: null,
-        cannotProceed: true,
-        message: 'Cannot continue transaction — no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
-      });
-    }
-    if (resolved.insufficientFee) {
-      return res.json({
-        feeNGN: resolved.feeNGN,
-        feeUSD: resolved.feeUSD,
-        feeToken: null,
-        insufficientFee: true,
-        message: 'Not enough balance for fee.',
-      });
-    }
-
-    return res.json({
-      feeNGN: resolved.feeNGN,
-      feeUSD: resolved.feeUSD,
-      feeCurrency: resolved.currency,
-      feeToken: resolved.payToken.symbol,
-      cannotProceed: false,
-      insufficientFee: false,
-    });
-  } catch (error) {
-    console.error('❌ estimate-link-fee error:', error);
-    return handleError(error, res, 'Failed to estimate link fee');
   }
 });
 
@@ -1537,8 +1395,6 @@ app.post('/api/alias/execute-link', async (req, res) => {
       registryAddress,
       signature,
       feeWei,
-      feeNGN: aliasFeeNGN,
-      feeUSD: aliasFeeUSD,
       userPrivateKey,
     } = req.body;
 
@@ -1576,124 +1432,25 @@ app.post('/api/alias/execute-link', async (req, res) => {
       `   Safe: ${safeAddress} | Registry: ${registryAddress} | FeeWei: ${feeWei || '0'}`
     );
 
-    // ── Re-simulate the fee server-side, from the REAL link() calldata,
-    // right now — never trust the aliasFeeNGN/aliasFeeUSD numbers the
-    // client sent back from the earlier /link-name prepare step. Prices
-    // and gas can shift in the time between prepare and confirm (user
-    // types a name, thinks, enters PIN), and a client-supplied number is
-    // not a trustworthy basis for what to actually charge. This mirrors
-    // exactly what unlink-name already does.
-    const cleanRegistry = ethers.getAddress(registryAddress);
-    const registryIface = new ethers.Interface([
-      'function link(bytes calldata _name, address _wallet, bytes calldata signature) external returns (bool)',
-    ]);
-    const linkCalldata = registryIface.encodeFunctionData('link', [
+    const result = await sponsorLinkNameBase(
+      safeAddress,
+      userPrivateKey,
+      registryAddress,
       nameBytes,
       walletAddress,
-      signature,
-    ]);
+      BigInt(feeWei || '0'),
+      signature
+    );
 
-    // BUG FIX: previously only simulated link() — if the singleton charges a
-    // fee, approve() must ALSO be simulated as its own leg, or the gas
-    // estimate silently undercounts by a full ERC20 approve() call.
-    const registryFeeWeiForSim = BigInt(feeWei || '0');
-    const linkActionCallsForFee = [];
-    if (registryFeeWeiForSim > 0n) {
-      const ngnAddrForSim = process.env.NGN_TOKEN_ADDRESS;
-      const approveIfaceForSim = new ethers.Interface([
-        'function approve(address spender, uint256 amount) returns (bool)',
-      ]);
-      const approveCalldataForSim = approveIfaceForSim.encodeFunctionData('approve', [
-        cleanRegistry,
-        registryFeeWeiForSim,
-      ]);
-      linkActionCallsForFee.push({
-        to: ethers.getAddress(ngnAddrForSim),
-        data: approveCalldataForSim,
-        from: ethers.getAddress(safeAddress),
-      });
-    }
-    linkActionCallsForFee.push({
-      to: cleanRegistry,
-      data: linkCalldata,
-      from: ethers.getAddress(safeAddress),
-    });
+    if (!result || !result.txHash)
+      return res.status(400).json({ message: 'Link transaction failed to broadcast' });
 
-    const linkLegs = registryFeeWeiForSim > 0n ? 3 : 2;
-    const linkResolved = await resolveGasFee('base', safeAddress, linkLegs, () => linkActionCallsForFee);
-    if (linkResolved.noBalance) {
-      return res.status(400).json({
-        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
-      });
-    }
-    if (linkResolved.insufficientFee) {
-      return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${linkResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${linkResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
-      });
-    }
-    const feeToken = linkResolved.payToken;
-
-    const safeTxLegs = [
-      { to: cleanRegistry, data: linkCalldata, value: '0', operation: 0 },
-    ];
-
-    // Registry's own singleton fee — currently free (feeWei = 0), but if it
-    // is ever non-zero again, approve it in the SAME bundle rather than a
-    // separate tx.
-    const registryFeeWei = BigInt(feeWei || '0');
-    if (registryFeeWei > 0n) {
-      const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
-      if (!ngnAddr) return res.status(500).json({ message: 'NGN_TOKEN_ADDRESS not configured' });
-      const approveIface = new ethers.Interface([
-        'function approve(address spender, uint256 amount) returns (bool)',
-      ]);
-      const approveCalldata = approveIface.encodeFunctionData('approve', [
-        cleanRegistry,
-        registryFeeWei,
-      ]);
-      safeTxLegs.push({ to: ngnAddr, data: approveCalldata, value: '0', operation: 0 });
-    }
-
-    {
-      const treasuryAddr = process.env.TREASURY_CONTRACT_ADDRESS;
-      const transferIface = new ethers.Interface([
-        'function transfer(address to, uint256 amount) returns (bool)',
-      ]);
-      const feeCalldata = transferIface.encodeFunctionData('transfer', [
-        ethers.getAddress(treasuryAddr),
-        feeToken.feeWei,
-      ]);
-      safeTxLegs.push({
-        to: ethers.getAddress(feeToken.tokenAddress),
-        data: feeCalldata,
-        value: '0',
-        operation: 0,
-      });
-    }
-
-    const { _executeMultiLegSafeTx } = require('./services/relayService');
-
-    let linkTxHash;
-    try {
-      const { txHash } = await _executeMultiLegSafeTx(safeAddress, userPrivateKey, safeTxLegs);
-      linkTxHash = txHash;
-    } catch (broadcastErr) {
-      console.error('❌ [execute-link] Multi-leg broadcast failed:', broadcastErr.message);
-      return res.status(400).json({
-        message: 'Link transaction failed to broadcast',
-      });
-    }
-
-    const taskStatus = await waitForTxReceipt(linkTxHash);
+    const taskStatus = await waitForTxReceipt(result.txHash);
 
     if (!taskStatus.success)
       return res.status(400).json({
         message: taskStatus.reason || 'Link transaction reverted on-chain',
       });
-
-    const result = { txHash: linkTxHash };
-    const feeCollected = true;
-    const feeSymbolUsed = feeToken.symbol;
 
     // ── Save to DB ──────────────────────────────────────────────────────────
     const aliasEntry = {
@@ -1734,73 +1491,10 @@ app.post('/api/alias/execute-link', async (req, res) => {
       success: true,
       txHash: result.txHash,
       alias: aliasEntry,
-      feeCollected,
-      feeSymbolUsed,
     });
   } catch (error) {
     console.error('❌ execute-link error:', error);
     return handleError(error, res, 'Failed to execute name link');
-  }
-});
-
-// ================================================================
-// ALIAS: ESTIMATE UNLINK FEE — display-only, called right when the PIN
-// modal opens for an unlink, so the fee is known before the user confirms.
-// Never executes anything on-chain.
-// ================================================================
-app.get('/api/alias/estimate-unlink-fee', async (req, res) => {
-  try {
-    const { safeAddress, weldedName, registryAddress } = req.query;
-    if (!safeAddress || !ethers.isAddress(safeAddress))
-      return res.status(400).json({ message: 'Invalid safe address' });
-    if (!weldedName || typeof weldedName !== 'string')
-      return res.status(400).json({ message: 'weldedName is required' });
-
-    const targetRegistryAddress = registryAddress || process.env.REGISTRY_CONTRACT_ADDRESS;
-    if (!targetRegistryAddress || !ethers.isAddress(targetRegistryAddress))
-      return res.status(400).json({ message: 'Could not resolve registry address' });
-
-    const pureName = weldedName.includes('@')
-      ? weldedName.substring(0, weldedName.indexOf('@'))
-      : weldedName;
-    const nameBytesHex = ethers.hexlify(ethers.toUtf8Bytes(pureName));
-
-    // unlink()'s ABI is known exactly (unlike link()), so this is a real,
-    // accurate simulation — not a best-effort guess.
-    const REGISTRY_UNLINK_IFACE_SIM = new ethers.Interface([
-      'function unlink(bytes calldata _name) external returns (bool)',
-    ]);
-    const unlinkCalldata = REGISTRY_UNLINK_IFACE_SIM.encodeFunctionData('unlink', [nameBytesHex]);
-    const unlinkActionCalls = [
-      {
-        to: ethers.getAddress(targetRegistryAddress),
-        data: unlinkCalldata,
-        from: ethers.getAddress(safeAddress),
-      },
-    ];
-
-    const euResolved = await resolveGasFee('base', safeAddress, 1, () => unlinkActionCalls);
-    if (euResolved.noBalance) {
-      return res.json({ feeNGN: 0, feeUSD: 0, feeToken: null, lowFeeBalance: true, noBalance: true });
-    }
-    if (euResolved.insufficientFee) {
-      return res.json({
-        feeNGN: euResolved.feeNGN,
-        feeUSD: euResolved.feeUSD,
-        feeToken: null,
-        lowFeeBalance: true,
-      });
-    }
-    res.json({
-      feeNGN: euResolved.feeNGN,
-      feeUSD: euResolved.feeUSD,
-      feeCurrency: euResolved.currency,
-      feeToken: euResolved.payToken.symbol,
-      lowFeeBalance: false,
-    });
-  } catch (error) {
-    console.error('❌ estimate-unlink-fee error:', error.message);
-    res.status(500).json({ message: 'Failed to estimate unlink fee' });
   }
 });
 
@@ -1880,78 +1574,57 @@ app.post('/api/alias/unlink-name', async (req, res) => {
     const registryIface = new ethers.Interface(REGISTRY_ABI);
     const unlinkCalldata = registryIface.encodeFunctionData('unlink', [nameBytesHex]);
 
-    // ── Gas-reimbursement fee — bundled atomically via the Safe SDK's own
-    // MultiSend batching (createTransaction automatically wraps multiple
-    // entries in `transactions` into one MultiSend call). unlink()'s ABI is
-    // exact, so this is a real simulation, not an approximation. If no
-    // token can cover the fee, block here rather than let unlink go through
-    // for free — same "add fee" requirement as link.
-    const unlinkActionCallsForFee = [
-      {
-        to: ethers.getAddress(targetRegistryAddress),
-        data: unlinkCalldata,
-        from: ethers.getAddress(safeAddress),
-      },
-    ];
-    const unResolved = await resolveGasFee('base', safeAddress, 1, () => unlinkActionCallsForFee);
-    if (unResolved.noBalance) {
-      return res.status(400).json({
-        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
-      });
-    }
-    if (unResolved.insufficientFee) {
-      return res.status(400).json({
-        message: `Insufficient balance for network fee. Need ₦${unResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${unResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
-      });
-    }
-    const unlinkFeeToken = unResolved.payToken;
-    const ERC20_TRANSFER_IFACE_UNLINK_FEE = new ethers.Interface([
-      'function transfer(address to, uint256 amount) returns (bool)',
-    ]);
-    const unlinkFeeCalldata = ERC20_TRANSFER_IFACE_UNLINK_FEE.encodeFunctionData('transfer', [
-      ethers.getAddress(process.env.TREASURY_CONTRACT_ADDRESS),
-      unlinkFeeToken.feeWei,
-    ]);
+    // Execute via the user's Safe — Safe is msg.sender on the registry
+    // Backend wallet pays gas. No fee charged to the user.
+    const Safe = require('@safe-global/protocol-kit').default;
+    const rpcUrl =
+      process.env.NODE_ENV === 'production'
+        ? process.env.BASE_MAINNET_RPC_URL
+        : process.env.BASE_SEPOLIA_RPC_URL;
 
-    // Execute via the user's Safe — Safe is msg.sender on the registry.
-    // Backend wallet pays gas; the fee leg reimburses that gas cost.
-    // Bundled atomically via the shared multi-leg helper — same pattern
-    // execute-link now uses.
-    const { _executeMultiLegSafeTx } = require('./services/relayService');
+    const protocolKit = await Safe.init({
+      provider: rpcUrl,
+      signer: userPrivateKey,
+      safeAddress: safeAddress,
+    });
 
-    let tx;
-    try {
-      const unlinkLegs = [
+    const safeTransaction = await protocolKit.createTransaction({
+      transactions: [
         {
           to: ethers.getAddress(targetRegistryAddress),
           data: unlinkCalldata,
           value: '0',
           operation: 0, // regular call — msg.sender = Safe
         },
-        {
-          to: ethers.getAddress(unlinkFeeToken.tokenAddress),
-          data: unlinkFeeCalldata,
-          value: '0',
-          operation: 0,
-        },
-      ];
-      const { txHash } = await _executeMultiLegSafeTx(
-        safeAddress,
-        userPrivateKey,
-        unlinkLegs,
-        300_000
-      );
-      tx = { hash: txHash };
-    } catch (broadcastErr) {
-      console.error('❌ [unlink-name] Multi-leg broadcast failed:', broadcastErr.message);
-      return res.status(400).json({ message: 'On-chain unlink failed.' });
-    }
+      ],
+    });
+
+    const signedTx = await protocolKit.signTransaction(safeTransaction);
+
+    const SAFE_ABI = [
+      'function execTransaction(address to,uint256 value,bytes calldata data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address payable refundReceiver,bytes memory signatures) public payable returns (bool success)',
+    ];
+    const safeContract = new ethers.Contract(safeAddress, SAFE_ABI, wallet);
+
+    const tx = await safeContract.execTransaction(
+      signedTx.data.to,
+      BigInt(signedTx.data.value || '0'),
+      signedTx.data.data,
+      Number(signedTx.data.operation || 0),
+      BigInt(signedTx.data.safeTxGas || '0'),
+      BigInt(signedTx.data.baseGas || '0'),
+      BigInt(signedTx.data.gasPrice || '0'),
+      signedTx.data.gasToken || ethers.ZeroAddress,
+      signedTx.data.refundReceiver || ethers.ZeroAddress,
+      signedTx.encodedSignatures(),
+      { gasLimit: 300_000 }
+    );
 
     console.log(`⏳ Unlink TX submitted: ${tx.hash}`);
-    const receipt = await waitForTxReceipt(tx.hash);
+    const receipt = await tx.wait();
 
-    if (!receipt.success)
-      return res.status(400).json({ message: receipt.reason || 'On-chain unlink failed.' });
+    if (!receipt || receipt.status === 0)
+      return res.status(400).json({ message: 'On-chain unlink failed.' });
 
     // Remove from DB
     dbUser.nameAliases.splice(aliasIndex, 1);
@@ -1981,15 +1654,8 @@ app.post('/api/alias/unlink-name', async (req, res) => {
       console.error('⚠️ L1 pool name clear skipped:', e.message);
     }
 
-   console.log(
-      `✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash}, fee=${unlinkFeeToken.symbol})`
-    );
-    res.json({
-      success: true,
-      txHash: tx.hash,
-      removedAlias: weldedName,
-      feeSymbolUsed: unlinkFeeToken.symbol,
-    });
+    console.log(`✅ "${weldedName}" unlinked from ${safeAddress} (tx: ${tx.hash})`);
+    res.json({ success: true, txHash: tx.hash, removedAlias: weldedName });
   } catch (error) {
     console.error('❌ unlink-name error:', error);
     return handleError(error, res, 'Failed to unlink name');
