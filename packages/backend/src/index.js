@@ -1403,40 +1403,9 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
     console.log(`✅ Signed name link: pureName="${pureName}" wallet=${walletAddress}`);
     console.log(`   Welded: ${weldedName} | Signature: ${signature.slice(0, 20)}…`);
 
-    let linkActionCalls = null;
-    try {
-      const REGISTRY_LINK_IFACE_SIM = new ethers.Interface([
-        'function link(bytes calldata _name, address _wallet, bytes calldata _signature) external returns (bool)',
-      ]);
-      const simCalldata = REGISTRY_LINK_IFACE_SIM.encodeFunctionData('link', [
-        nameBytes,
-        walletAddress,
-        signature,
-      ]);
-      linkActionCalls = [
-        { to: ethers.getAddress(registryAddress), data: simCalldata, from: ethers.getAddress(safeAddress) },
-      ];
-    } catch (simBuildErr) {
-      console.warn('⚠️ [alias fee] Could not build link() sim calldata:', simBuildErr.message);
-      linkActionCalls = null;
-    }
-
-    const aliasResolved = await resolveGasFee('base', safeAddress, 1, () => linkActionCalls);
-    if (aliasResolved.noBalance) {
-      return res.status(200).json({
-        lowFeeBalance: true,
-        message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
-      });
-    }
-    if (aliasResolved.insufficientFee) {
-      return res.status(200).json({
-        lowFeeBalance: true,
-        message: `Insufficient balance for network fee. Need ₦${aliasResolved.feeNGN.toFixed(2)} in NGNs/cNGN, or $${aliasResolved.feeUSD.toFixed(4)} in USDT/USDC.`,
-        feeNGN: aliasResolved.feeNGN,
-        feeUSD: aliasResolved.feeUSD,
-      });
-    }
-
+    // ── NOTE: network gas fee is intentionally NOT computed here anymore.
+    // It is fetched ONLY when the PIN modal opens, via /api/alias/estimate-link-fee.
+    // This route now just validates + signs — nothing else.
     return res.json({
       prepared: true,
       pureName,
@@ -1446,14 +1415,110 @@ if (pureName.startsWith('.') || pureName.endsWith('.'))
       namespace,
       signature,
       feeWei: feeWei.toString(),
-      feeNGN: aliasResolved.feeNGN,
-      feeUSD: aliasResolved.feeUSD,
-      feeCurrency: aliasResolved.currency,
-      feeToken: aliasResolved.payToken.symbol,
     });
   } catch (error) {
     console.error('❌ link-name prepare error:', error);
     return handleError(error, res, 'Failed to prepare name link');
+  }
+});
+
+// ================================================================
+// ALIAS: ESTIMATE LINK FEE — display-only, called right when the PIN
+// modal opens for a LINK NAME action. Never executes anything on-chain.
+//
+// Simulates the REAL legs individually (never bundled through MultiSend,
+// which would revert during a dry-run simulation) and sums the gas:
+//   - Singleton fee == 0  → 2 legs: link()  +  fee-transfer-to-treasury
+//   - Singleton fee  > 0  → 3 legs: approve() + link()  +  fee-transfer-to-treasury
+// Buffer/pricing/NGN-conversion/balance-waterfall all reuse resolveGasFee,
+// the exact same helper Deploy Pool and Swap already rely on.
+// ================================================================
+app.post('/api/alias/estimate-link-fee', async (req, res) => {
+  try {
+    const { safeAddress, pureName, walletToLink, registryAddress, signature, feeWei } = req.body;
+
+    if (!safeAddress || !ethers.isAddress(safeAddress))
+      return res.status(400).json({ message: 'Invalid safe address' });
+    if (!pureName || !walletToLink || !registryAddress || !signature)
+      return res.status(400).json({ message: 'Missing prepared link data' });
+    if (!ethers.isAddress(walletToLink) || !ethers.isAddress(registryAddress))
+      return res.status(400).json({ message: 'Invalid wallet or registry address' });
+
+    const nameBytes = ethers.toUtf8Bytes(pureName);
+    const walletAddress = ethers.getAddress(walletToLink);
+    const cleanRegistry = ethers.getAddress(registryAddress);
+    const registryFeeWei = BigInt(feeWei || '0');
+
+    const registryIface = new ethers.Interface([
+      'function link(bytes calldata _name, address _wallet, bytes calldata signature) external returns (bool)',
+    ]);
+    const linkCalldata = registryIface.encodeFunctionData('link', [
+      nameBytes,
+      walletAddress,
+      signature,
+    ]);
+
+    // Builds the ACTION legs only (never the fee-transfer leg — resolveGasFee
+    // appends that one itself using the caller's real balanceOf()).
+    const actionCallsBuilder = () => {
+      const calls = [];
+      if (registryFeeWei > 0n) {
+        const ngnAddr = process.env.NGN_TOKEN_ADDRESS;
+        const approveIface = new ethers.Interface([
+          'function approve(address spender, uint256 amount) returns (bool)',
+        ]);
+        const approveCalldata = approveIface.encodeFunctionData('approve', [
+          cleanRegistry,
+          registryFeeWei,
+        ]);
+        calls.push({
+          to: ethers.getAddress(ngnAddr),
+          data: approveCalldata,
+          from: ethers.getAddress(safeAddress),
+        });
+      }
+      calls.push({
+        to: cleanRegistry,
+        data: linkCalldata,
+        from: ethers.getAddress(safeAddress),
+      });
+      return calls;
+    };
+
+    // 2 legs (link + fee) when singleton is free, 3 legs (approve + link + fee) when it charges
+    const legs = registryFeeWei > 0n ? 3 : 2;
+    const resolved = await resolveGasFee('base', safeAddress, legs, actionCallsBuilder);
+
+    if (resolved.noBalance) {
+      return res.json({
+        feeNGN: 0,
+        feeUSD: 0,
+        feeToken: null,
+        cannotProceed: true,
+        message: 'Cannot continue transaction — no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',
+      });
+    }
+    if (resolved.insufficientFee) {
+      return res.json({
+        feeNGN: resolved.feeNGN,
+        feeUSD: resolved.feeUSD,
+        feeToken: null,
+        insufficientFee: true,
+        message: 'Not enough balance for fee.',
+      });
+    }
+
+    return res.json({
+      feeNGN: resolved.feeNGN,
+      feeUSD: resolved.feeUSD,
+      feeCurrency: resolved.currency,
+      feeToken: resolved.payToken.symbol,
+      cannotProceed: false,
+      insufficientFee: false,
+    });
+  } catch (error) {
+    console.error('❌ estimate-link-fee error:', error);
+    return handleError(error, res, 'Failed to estimate link fee');
   }
 });
 
@@ -1528,10 +1593,34 @@ app.post('/api/alias/execute-link', async (req, res) => {
       signature,
     ]);
 
-    const linkActionCallsForFee = [
-      { to: cleanRegistry, data: linkCalldata, from: ethers.getAddress(safeAddress) },
-    ];
-    const linkResolved = await resolveGasFee('base', safeAddress, 1, () => linkActionCallsForFee);
+    // BUG FIX: previously only simulated link() — if the singleton charges a
+    // fee, approve() must ALSO be simulated as its own leg, or the gas
+    // estimate silently undercounts by a full ERC20 approve() call.
+    const registryFeeWeiForSim = BigInt(feeWei || '0');
+    const linkActionCallsForFee = [];
+    if (registryFeeWeiForSim > 0n) {
+      const ngnAddrForSim = process.env.NGN_TOKEN_ADDRESS;
+      const approveIfaceForSim = new ethers.Interface([
+        'function approve(address spender, uint256 amount) returns (bool)',
+      ]);
+      const approveCalldataForSim = approveIfaceForSim.encodeFunctionData('approve', [
+        cleanRegistry,
+        registryFeeWeiForSim,
+      ]);
+      linkActionCallsForFee.push({
+        to: ethers.getAddress(ngnAddrForSim),
+        data: approveCalldataForSim,
+        from: ethers.getAddress(safeAddress),
+      });
+    }
+    linkActionCallsForFee.push({
+      to: cleanRegistry,
+      data: linkCalldata,
+      from: ethers.getAddress(safeAddress),
+    });
+
+    const linkLegs = registryFeeWeiForSim > 0n ? 3 : 2;
+    const linkResolved = await resolveGasFee('base', safeAddress, linkLegs, () => linkActionCallsForFee);
     if (linkResolved.noBalance) {
       return res.status(400).json({
         message: 'CANNOT PROCEED: you have no NGNs, cNGN, USDT, or USDC balance to cover the network fee.',

@@ -235,73 +235,6 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
   // calldata, balance-waterfall-aware) so the currency/token shown always
   // matches what actually gets charged — no more forced-NGN display when
   // the account only holds a USD-family token.
-  const [swapFee, setSwapFee] = useState({
-    feeNGN: null,
-    feeUSD: null,
-    currency: null,
-    feeToken: null,
-    loading: false,
-    noBalance: false,
-    insufficientFee: false,
-  });
-  const swapFeeTimer = useRef(null);
-  useEffect(() => {
-    if (amountRaw <= 0 || !user?.safeAddress) {
-      setSwapFee({
-        feeNGN: null,
-        feeUSD: null,
-        currency: null,
-        feeToken: null,
-        loading: false,
-        noBalance: false,
-        insufficientFee: false,
-      });
-      return;
-    }
-    clearTimeout(swapFeeTimer.current);
-    setSwapFee((prev) => ({ ...prev, loading: true }));
-    swapFeeTimer.current = setTimeout(() => {
-      fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chain: 'base',
-          action: 'swap',
-          ownerSafeAddress: user.safeAddress,
-          poolAddress: pool.poolAddress,
-          stableToken,
-          ngnToken,
-          swapFn,
-          trusted: isTrusted,
-        }),
-      })
-        .then((r) => r.json())
-        .then((d) => {
-          setSwapFee({
-            feeNGN: d.feeNGN ?? null,
-            feeUSD: d.feeUSD ?? null,
-            currency: d.currency ?? null,
-            feeToken: d.feeToken ?? null,
-            loading: false,
-            noBalance: !!d.noBalance,
-            insufficientFee: !!d.insufficientFee,
-          });
-        })
-        .catch(() =>
-          setSwapFee({
-            feeNGN: null,
-            feeUSD: null,
-            currency: null,
-            feeToken: null,
-            loading: false,
-            noBalance: false,
-            insufficientFee: false,
-          })
-        );
-    }, 500);
-    return () => clearTimeout(swapFeeTimer.current);
-  }, [amountRaw, user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
-
   const [trustChecked, setTrustChecked] = useState(false);
   const [isTrusted, setIsTrusted] = useState(false);
   const [showTrust, setShowTrust] = useState(false);
@@ -410,6 +343,79 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
       return swapType === 'exact_in' ? 'swapExactNGNAmountForUSD' : 'swapForExactUSDAmount';
     return swapType === 'exact_in' ? 'swapExactUSDAmountForNGN' : 'swapForExactNGNAmount';
   })();
+
+  // ── Network fee — MOVED here (was previously declared above swapFn/isTrusted,
+  // which caused a ReferenceError/TDZ crash: the useEffect's dependency array
+  // referenced swapFn and isTrusted before they were declared with const/useState
+  // further down the component. That threw on first render of SwapModal with
+  // no error boundary to catch it, which is why the whole screen went blank
+  // right after picking a chain in the NetworkReminder modal.
+  const [swapFee, setSwapFee] = useState({
+    feeNGN: null,
+    feeUSD: null,
+    currency: null,
+    feeToken: null,
+    loading: false,
+    noBalance: false,
+    insufficientFee: false,
+  });
+  const swapFeeTimer = useRef(null);
+  useEffect(() => {
+    if (amountRaw <= 0 || !user?.safeAddress) {
+      setSwapFee({
+        feeNGN: null,
+        feeUSD: null,
+        currency: null,
+        feeToken: null,
+        loading: false,
+        noBalance: false,
+        insufficientFee: false,
+      });
+      return;
+    }
+    clearTimeout(swapFeeTimer.current);
+    setSwapFee((prev) => ({ ...prev, loading: true }));
+    swapFeeTimer.current = setTimeout(() => {
+      fetch(`${SALVA_API_URL}/api/pool/estimate-fee`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chain: 'base',
+          action: 'swap',
+          ownerSafeAddress: user.safeAddress,
+          poolAddress: pool.poolAddress,
+          stableToken,
+          ngnToken,
+          swapFn,
+          trusted: isTrusted,
+        }),
+      })
+        .then((r) => r.json())
+        .then((d) => {
+          setSwapFee({
+            feeNGN: d.feeNGN ?? null,
+            feeUSD: d.feeUSD ?? null,
+            currency: d.currency ?? null,
+            feeToken: d.feeToken ?? null,
+            loading: false,
+            noBalance: !!d.noBalance,
+            insufficientFee: !!d.insufficientFee,
+          });
+        })
+        .catch(() =>
+          setSwapFee({
+            feeNGN: null,
+            feeUSD: null,
+            currency: null,
+            feeToken: null,
+            loading: false,
+            noBalance: false,
+            insufficientFee: false,
+          })
+        );
+    }, 500);
+    return () => clearTimeout(swapFeeTimer.current);
+  }, [amountRaw, user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
 
   useEffect(() => {
     if (amountRaw <= 0) {

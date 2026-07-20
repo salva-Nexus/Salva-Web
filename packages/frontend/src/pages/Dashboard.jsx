@@ -776,8 +776,9 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   // for the backend's real gas cost broadcasting the link/unlink tx, and can
   // come from any of NGNs/cNGN/USDT/USDC — same waterfall pools/swaps use.
   const [preparedLinkData, setPreparedLinkData] = useState(null);
-  const [linkFeeInfo, setLinkFeeInfo] = useState(null); // { feeNGN, feeUSD, feeToken }
+  const [linkFeeInfo, setLinkFeeInfo] = useState(null); // { feeNGN, feeUSD, feeToken, feeCurrency }
   const [linkFeeLoading, setLinkFeeLoading] = useState(false);
+  const [linkFeeBlocked, setLinkFeeBlocked] = useState(null); // { message } — fee can't be paid
   const [unlinkFeeInfo, setUnlinkFeeInfo] = useState(null);
   const [unlinkFeeLoading, setUnlinkFeeLoading] = useState(false);
 
@@ -861,13 +862,11 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
         setFeeLoading(false);
       }
 
-      // ── Prepare the link now (signature + gas fee), so the gas fee is
-      // known and displayed on the SAME confirm card as the registry fee.
-      // Execute-link later reuses this prepared data directly — no need to
-      // call link-name a second time at the PIN step.
-      setLinkFeeLoading(true);
+      // ── Prepare the link now (signature only — no network fee here).
+      // Network gas fee is fetched later, only when the PIN modal opens.
       setPreparedLinkData(null);
       setLinkFeeInfo(null);
+      setLinkFeeBlocked(null);
       try {
         const prepRes = await fetch(`${SALVA_API_URL}/api/alias/link-name`, {
           method: 'POST',
@@ -890,26 +889,14 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
           setLinkStep('form');
           return;
         }
-        if (prepData.lowFeeBalance) {
-          setNameError(prepData.message || 'Insufficient balance for network fee.');
-          setLinkStep('form');
-          return;
-        }
         if (!prepRes.ok) {
           setNameError(prepData.message || 'Preparation failed');
           return;
         }
         setPreparedLinkData(prepData);
-        setLinkFeeInfo({
-          feeNGN: prepData.feeNGN,
-          feeUSD: prepData.feeUSD,
-          feeToken: prepData.feeToken,
-        });
       } catch {
-        setNameError('Network error preparing gas fee. Please try again.');
+        setNameError('Network error preparing name link. Please try again.');
         return;
-      } finally {
-        setLinkFeeLoading(false);
       }
 
       setLinkStep('confirm');
@@ -943,6 +930,24 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       setReservedSubmitting(false);
     }
   };
+
+  <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
+            <button
+              onClick={resetLinkForm}
+              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleProceedToPin}
+              disabled={feeLoading || !preparedLinkData}
+              className="flex-2 flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
+            >
+              Continue →
+            </button>
+          </div>
+        </motion.div>
+      )}
 
   const handleExecuteLink = async () => {
     if (pinInput.length !== 4) return;
@@ -1085,6 +1090,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
     setReservedEmail('');
     setPreparedLinkData(null);
     setLinkFeeInfo(null);
+    setLinkFeeBlocked(null);
   };
 
   const feeActive = registryFee !== null && registryFee > 0;
@@ -1441,6 +1447,35 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             <p className="font-black text-white text-sm sm:text-lg">Transaction PIN</p>
             <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">Authorise the on-chain name link</p>
           </div>
+
+          {/* ── Network fee — fetched only now, right as the PIN modal opens ── */}
+          {linkFeeLoading ? (
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-left">
+              <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
+              <p className="text-[9px] sm:text-xs text-white/60 font-bold">Calculating network fee…</p>
+            </div>
+          ) : linkFeeBlocked ? (
+            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-red-500/8 border border-red-500/20 text-left">
+              <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">⚠</span>
+              <p className="text-[9px] sm:text-xs text-red-400 font-bold">{linkFeeBlocked.message}</p>
+            </div>
+          ) : linkFeeInfo ? (
+            <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06] text-left">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-red-400 block" />
+                <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
+                  Network Fee
+                </p>
+              </div>
+              <p className="font-black text-white text-[10px] sm:text-sm">
+                {linkFeeInfo.feeCurrency === 'USD'
+                  ? `$${linkFeeInfo.feeUSD?.toFixed(4)}`
+                  : `₦${linkFeeInfo.feeNGN?.toFixed(2)}`}{' '}
+                <span className="text-salvaGold text-[8px] sm:text-xs">({linkFeeInfo.feeToken})</span>
+              </p>
+            </div>
+          ) : null}
+
           <input
             type="password"
             inputMode="numeric"
@@ -1462,7 +1497,7 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
             </button>
             <button
               onClick={handleExecuteLink}
-              disabled={pinLoading || pinInput.length !== 4}
+              disabled={pinLoading || pinInput.length !== 4 || linkFeeLoading || !!linkFeeBlocked}
               className="flex-1 py-2 sm:py-3 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
             >
               {pinLoading && (
