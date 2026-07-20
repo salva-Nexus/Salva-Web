@@ -440,7 +440,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           insufficientFee: false,
         })
       );
-  }, [user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
+  }, [user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted, amountRaw, quote, swapType]);
 
   useEffect(() => {
     if (amountRaw <= 0) {

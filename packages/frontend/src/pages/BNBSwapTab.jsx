@@ -513,7 +513,7 @@ const SwapModal = ({ pool, section, user, onClose, showMsg, onSwapComplete }) =>
           insufficientFee: false,
         })
       );
-  }, [user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted]);
+  }, [user?.safeAddress, pool.poolAddress, stableToken, ngnToken, swapFn, isTrusted, amountRaw, quote, swapType]);
 
   // Quote via shared /api/pool/quote with isL1: true
   useEffect(() => {
