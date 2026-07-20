@@ -3749,6 +3749,6 @@ const Dashboard = () => {
       {user.isSeller && activeTab === 'buy' && <SalvaSellerChat user={user} />}
     </div>
   );
-};;;;;;;;
+};
 
 export default Dashboard;
