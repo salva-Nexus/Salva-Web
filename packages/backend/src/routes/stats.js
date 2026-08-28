@@ -21,7 +21,6 @@ const ngnsBaseAddress = process.env.NGN_TOKEN_ADDRESS;
 const cngnBaseAddress = process.env.CNGN_CONTRACT_ADDRESS;
 const usdtBaseAddress = process.env.USDT_CONTRACT_ADDRESS;
 const usdcBaseAddress = process.env.USDC_CONTRACT_ADDRESS;
-const santAddress = process.env.SANT_BASE;
 
 const ngnsBnbAddress = process.env.BSC_NGN_TOKEN_ADDRESS;
 const cngnBnbAddress = process.env.BSC_CNGN_CONTRACT_ADDRESS;
