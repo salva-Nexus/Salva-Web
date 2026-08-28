@@ -9,6 +9,10 @@ const __dirname = path.dirname(__filename);
 // Anchored to this file's real disk location — works correctly no matter
 // which directory `node` is actually run from.
 dotenv.config({ path: path.join(__dirname, "../.env") });
+console.log('DEBUG env loaded:', {
+  base: !!process.env.MONGO_URI_BASE,
+  bnb: !!process.env.MONGO_URI_BNB,
+});
 
 const MONGO_URI_BASE = process.env.MONGO_URI_BASE;
 const MONGO_URI_BNB = process.env.MONGO_URI_BNB;
