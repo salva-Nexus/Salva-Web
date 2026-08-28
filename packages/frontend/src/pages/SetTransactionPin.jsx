@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import Stars from '../components/Stars';
 
+
 const SetTransactionPin = () => {
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');

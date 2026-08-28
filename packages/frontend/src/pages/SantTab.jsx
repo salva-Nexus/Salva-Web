@@ -4,17 +4,18 @@
 // card, PIN modal) — restricted to the SANT token only. Network fee is real:
 // paid automatically in whatever NGN/USD token the user holds, resolved
 // server-side, never hardcoded to zero.
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { SALVA_API_URL } from '../config';
-import { QRCodeSVG } from 'qrcode.react';
+import React, { useState, useEffect, useCallback, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { SALVA_API_URL } from "../config";
+import { QRCodeSVG } from "qrcode.react";
+
 
 function detectInputType(val) {
   const t = val.trim();
-  if (!t) return 'empty';
-  if (t.startsWith('0x')) return 'address';
-  if (t.includes('@')) return 'fullname';
-  return 'name';
+  if (!t) return "empty";
+  if (t.startsWith("0x")) return "address";
+  if (t.includes("@")) return "fullname";
+  return "name";
 }
 
 // SANT is not a stablecoin — no fixed 2-decimal display makes sense for
@@ -26,14 +27,14 @@ function detectInputType(val) {
 //   x >= 1             → TRUNCATED (never rounded) to exactly 2 decimals
 const fmtSant = (n) => {
   const num = parseFloat(n || 0);
-  if (!Number.isFinite(num) || num === 0) return '0.00';
-  if (num > 0 && num < 0.000001) return '<0.000001';
+  if (!Number.isFinite(num) || num === 0) return "0.00";
+  if (num > 0 && num < 0.000001) return "<0.000001";
 
   if (num >= 1) {
     // Truncate, don't round — e.g. 500001029.999999 → "500,001,029.99"
     // never "500,001,030.00".
     const truncated = Math.floor(num * 100) / 100;
-    return truncated.toLocaleString('en-US', {
+    return truncated.toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
@@ -46,35 +47,38 @@ const fmtSant = (n) => {
   // is never more than what the wallet actually holds.
   const truncated6 = Math.floor(num * 1_000_000) / 1_000_000;
   const fixed = truncated6.toFixed(6);
-  const [intPart, decPart] = fixed.split('.');
+  const [intPart, decPart] = fixed.split(".");
   let trimmed = decPart;
-  while (trimmed.length > 2 && trimmed.endsWith('0')) trimmed = trimmed.slice(0, -1);
+  while (trimmed.length > 2 && trimmed.endsWith("0"))
+    trimmed = trimmed.slice(0, -1);
 
-  const formattedInt = Number(intPart).toLocaleString('en-US');
+  const formattedInt = Number(intPart).toLocaleString("en-US");
   return `${formattedInt}.${trimmed}`;
 };
 
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
-  if (value === null || value === undefined || value === '') return '0';
+  if (value === null || value === undefined || value === "") return "0";
   const num = Number(value);
-  if (!Number.isFinite(num)) return '0';
-  if (num === 0) return '0';
+  if (!Number.isFinite(num)) return "0";
+  if (num === 0) return "0";
   const fixed = num.toFixed(maxDecimals);
-  const [intPart, decPart = ''] = fixed.split('.');
+  const [intPart, decPart = ""] = fixed.split(".");
   let trimmed = decPart;
-  while (trimmed.length > minDecimals && trimmed.endsWith('0')) trimmed = trimmed.slice(0, -1);
-  const formattedInt = Number(intPart).toLocaleString('en-US');
+  while (trimmed.length > minDecimals && trimmed.endsWith("0"))
+    trimmed = trimmed.slice(0, -1);
+  const formattedInt = Number(intPart).toLocaleString("en-US");
   return trimmed.length > 0 ? `${formattedInt}.${trimmed}` : formattedInt;
 };
 
 const darkInput =
-  'w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all';
+  "w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-sm text-white placeholder:text-white/60 transition-all";
 
 // ── Mobile-only content scale for the Send card — shrinks font/padding/gaps
 // by 30% under 640px ONLY. The modal container itself is untouched; only
 // the content inside scales. Desktop (sm and up) stays at 100%.
 const sendPx = (n) => `calc(${n}px * var(--send-scale, 1))`;
-const sendPxs = (...vals) => vals.map((v) => (typeof v === 'number' ? sendPx(v) : v)).join(' ');
+const sendPxs = (...vals) =>
+  vals.map((v) => (typeof v === "number" ? sendPx(v) : v)).join(" ");
 const SendCardScaleStyle = () => (
   <style>{`
     .send-card-scale { --send-scale: 1; }
@@ -86,7 +90,8 @@ const SendCardScaleStyle = () => (
 
 // ── Same 30%-on-mobile-only scaling pattern, for the Confirm & PIN modals ──
 const scalePx = (n) => `calc(${n}px * var(--modal-scale, 1))`;
-const scalePxs = (...vals) => vals.map((v) => (typeof v === 'number' ? scalePx(v) : v)).join(' ');
+const scalePxs = (...vals) =>
+  vals.map((v) => (typeof v === "number" ? scalePx(v) : v)).join(" ");
 const ModalScaleStyle = () => (
   <style>{`
     .modal-card-scale { --modal-scale: 1; }
@@ -100,28 +105,28 @@ const RegistryDropdown = ({
   registries,
   value,
   onChange,
-  placeholder = 'Search wallet service…',
+  placeholder = "Search wallet service…",
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
   const filtered = registries.filter(
     (r) =>
       r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || '').toLowerCase().includes(query.toLowerCase())
+      (r.nspace || "").toLowerCase().includes(query.toLowerCase()),
   );
 
   useEffect(() => {
     const handler = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setOpen(false);
-        setQuery('');
+        setQuery("");
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   return (
@@ -133,16 +138,16 @@ const RegistryDropdown = ({
             ? undefined
             : () => {
                 setOpen(true);
-                setQuery('');
+                setQuery("");
                 setTimeout(() => inputRef.current?.focus(), 50);
               }
         }
         className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left ${
           open
-            ? 'border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30'
+            ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
             : value
-              ? 'border-salvaGold/40 bg-salvaGold/5'
-              : 'border-white/10 bg-white/5 hover:border-salvaGold/40'
+              ? "border-salvaGold/40 bg-salvaGold/5"
+              : "border-white/10 bg-white/5 hover:border-salvaGold/40"
         }`}
       >
         {value ? (
@@ -153,8 +158,12 @@ const RegistryDropdown = ({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">{value.name}</p>
-              <p className="text-[10px] opacity-40 font-mono truncate">{value.nspace}</p>
+              <p className="font-black text-sm truncate text-white">
+                {value.name}
+              </p>
+              <p className="text-[10px] opacity-40 font-mono truncate">
+                {value.nspace}
+              </p>
             </div>
           </div>
         ) : (
@@ -167,20 +176,27 @@ const RegistryDropdown = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(null);
-                setQuery('');
+                setQuery("");
               }}
               className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
-              <span className="text-[10px] text-red-400 font-black leading-none">✕</span>
+              <span className="text-[10px] text-red-400 font-black leading-none">
+                ✕
+              </span>
             </button>
           )}
           <svg
-            className={`w-3 h-3 opacity-40 transition-transform ${open ? 'rotate-180' : ''}`}
+            className={`w-3 h-3 opacity-40 transition-transform ${open ? "rotate-180" : ""}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={3}
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </div>
       </button>
@@ -208,7 +224,9 @@ const RegistryDropdown = ({
             <div className="max-h-56 overflow-y-auto">
               {filtered.length === 0 ? (
                 <div className="px-4 py-6 text-center">
-                  <p className="text-xs opacity-40 font-bold">No wallet services found</p>
+                  <p className="text-xs opacity-40 font-bold">
+                    No wallet services found
+                  </p>
                 </div>
               ) : (
                 filtered.map((reg) => (
@@ -218,9 +236,9 @@ const RegistryDropdown = ({
                     onClick={() => {
                       onChange(reg);
                       setOpen(false);
-                      setQuery('');
+                      setQuery("");
                     }}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? 'bg-salvaGold/10' : ''}`}
+                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
                   >
                     <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
                       <span className="text-salvaGold text-sm font-black">
@@ -228,8 +246,12 @@ const RegistryDropdown = ({
                       </span>
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">{reg.name}</p>
-                      <p className="text-[10px] font-mono opacity-40">{reg.nspace}</p>
+                      <p className="font-black text-sm text-white">
+                        {reg.name}
+                      </p>
+                      <p className="text-[10px] font-mono opacity-40">
+                        {reg.nspace}
+                      </p>
                     </div>
                   </button>
                 ))
@@ -243,15 +265,15 @@ const RegistryDropdown = ({
 };
 
 const SantTab = ({ user, registries, showMsg }) => {
-  const [santBalance, setSantBalance] = useState('0.00');
+  const [santBalance, setSantBalance] = useState("0.00");
   const [balanceLoading, setBalanceLoading] = useState(true);
 
   // Shares the same localStorage key as the main Dashboard balance card —
   // toggling visibility here or there stays in sync everywhere.
   const [showBalance, setShowBalance] = useState(() => {
     try {
-      const saved = localStorage.getItem('salva_show_balance');
-      return saved === null ? true : saved === 'true';
+      const saved = localStorage.getItem("salva_show_balance");
+      return saved === null ? true : saved === "true";
     } catch {
       return true;
     }
@@ -261,7 +283,7 @@ const SantTab = ({ user, registries, showMsg }) => {
     setShowBalance((prev) => {
       const next = !prev;
       try {
-        localStorage.setItem('salva_show_balance', String(next));
+        localStorage.setItem("salva_show_balance", String(next));
       } catch {
         /* ignore */
       }
@@ -269,27 +291,24 @@ const SantTab = ({ user, registries, showMsg }) => {
     });
   }, []);
 
-  const [claim, setClaim] = useState({ totalPoints: 0, visible: true, active: false });
+  const [santPoints, setSantPoints] = useState(0);
+  const [canRedeem, setCanRedeem] = useState(false);
   const [claimLoading, setClaimLoading] = useState(true);
   const [claimPinModal, setClaimPinModal] = useState(false);
-  const [claimPin, setClaimPin] = useState('');
+  const [claimPin, setClaimPin] = useState("");
   const [claiming, setClaiming] = useState(false);
 
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
-  const [recipientInput, setRecipientInput] = useState('');
-  const [inputType, setInputType] = useState('empty');
+  const [recipientInput, setRecipientInput] = useState("");
+  const [inputType, setInputType] = useState("empty");
   const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [transferAmount, setTransferAmount] = useState('');
-  const [transferAmountDisplay, setTransferAmountDisplay] = useState('');
+  const [transferAmount, setTransferAmount] = useState("");
+  const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
   const [amountError, setAmountError] = useState(false);
   const [feePreview, setFeePreview] = useState({
     feeNGN: 0,
     feeUsd: 0,
-    feeToken: null,
-    currency: null,
-    noBalance: false,
-    insufficientFee: false,
     loading: false,
   });
   const [feeFundsBalances, setFeeFundsBalances] = useState(null);
@@ -298,16 +317,18 @@ const SantTab = ({ user, registries, showMsg }) => {
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [confirmationData, setConfirmationData] = useState(null);
   const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [transactionPin, setTransactionPin] = useState('');
+  const [transactionPin, setTransactionPin] = useState("");
   const [pinAttempts, setPinAttempts] = useState(0);
 
   const fetchBalance = useCallback(async () => {
     if (!user?.safeAddress) return;
     setBalanceLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/sant/balance/${user.safeAddress}`);
+      const res = await fetch(
+        `${SALVA_API_URL}/api/user/sant/base/balance/${user.safeAddress}`,
+      );
       const data = await res.json();
-      setSantBalance(data.santBalance ?? '0.00');
+      setSantBalance(data.santBalance ?? "0.00");
     } catch {
       /* keep existing */
     } finally {
@@ -319,11 +340,14 @@ const SantTab = ({ user, registries, showMsg }) => {
     if (!user?.email) return;
     setClaimLoading(true);
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/sant/claim-status/${encodeURIComponent(user.email)}`
-      );
-      const data = await res.json();
-      if (res.ok) setClaim(data);
+      const [userRes, recordRes] = await Promise.all([
+        fetch(`${SALVA_API_URL}/api/user/${encodeURIComponent(user.email)}`),
+        fetch(`${SALVA_API_URL}/api/sant/points-record`),
+      ]);
+      const userData = await userRes.json();
+      const recordData = await recordRes.json();
+      setSantPoints(userData.data?.[0]?.santPoints ?? 0);
+      setCanRedeem(recordData.data?.canRedeem === true);
     } catch {
       /* keep existing */
     } finally {
@@ -348,7 +372,8 @@ const SantTab = ({ user, registries, showMsg }) => {
     fetchClaimStatus();
   }, [fetchBalance, fetchClaimStatus]);
 
-  // ── Fee preview — real gas-oracle fee, same endpoint everything else uses ──
+  // ── Fee preview — same generic estimate endpoint Dashboard uses. SANT never
+  // pays the fee itself, so this is purely informational display data. ──
   const feeEstimateCache = useRef(null);
   const computeFeePreview = useCallback(async () => {
     if (!user?.safeAddress) return;
@@ -359,29 +384,19 @@ const SantTab = ({ user, registries, showMsg }) => {
     }
     setFeePreview((p) => ({ ...p, loading: true }));
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/sant/estimate-fee/${user.safeAddress}`);
+      const res = await fetch(
+        `${SALVA_API_URL}/api/user/transfer/estimate-fee?chain=base&coin=NGNS`,
+      );
       const data = await res.json();
       const preview = {
         feeNGN: data.feeNGN ?? 0,
-        feeUsd: data.feeUSD ?? 0,
-        feeToken: data.feeToken ?? null,
-        currency: data.currency ?? null,
-        noBalance: !!data.noBalance,
-        insufficientFee: !!data.insufficientFee,
+        feeUsd: data.feeUsd ?? 0,
         loading: false,
       };
       feeEstimateCache.current = { data: preview, fetchedAt: Date.now() };
       setFeePreview(preview);
     } catch {
-      setFeePreview({
-        feeNGN: 0,
-        feeUsd: 0,
-        feeToken: null,
-        currency: null,
-        noBalance: false,
-        insufficientFee: false,
-        loading: false,
-      });
+      setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
     }
   }, [user?.safeAddress]);
 
@@ -394,7 +409,7 @@ const SantTab = ({ user, registries, showMsg }) => {
   useEffect(() => {
     if (!isSendOpen || !user?.safeAddress) return;
     let cancelled = false;
-    fetch(`${SALVA_API_URL}/api/balance/${user.safeAddress}`)
+    fetch(`${SALVA_API_URL}/api/user/base/balance/${user.safeAddress}`)
       .then((r) => r.json())
       .then((d) => {
         if (!cancelled) {
@@ -414,103 +429,134 @@ const SantTab = ({ user, registries, showMsg }) => {
     };
   }, [isSendOpen, user?.safeAddress]);
 
-  const hasNoFeeFunds = feePreview.noBalance;
+  // Display-only coverage check across the four fee-payable tokens — backend
+  // does the authoritative check on submit.
+  const feeCoveredByNGN = feeFundsBalances
+    ? feeFundsBalances.ngns >= feePreview.feeNGN ||
+      feeFundsBalances.cngn >= feePreview.feeNGN
+    : null;
+  const feeCoveredByUSD = feeFundsBalances
+    ? feeFundsBalances.usdt >= feePreview.feeUsd ||
+      feeFundsBalances.usdc >= feePreview.feeUsd
+    : null;
+  const feeCovered = feeCoveredByNGN || feeCoveredByUSD;
+  const hasNoFeeFunds = feeFundsBalances
+    ? !(
+        feeFundsBalances.ngns > 0 ||
+        feeFundsBalances.cngn > 0 ||
+        feeFundsBalances.usdt > 0 ||
+        feeFundsBalances.usdc > 0
+      )
+    : false;
 
   // ── Recipient input — identical detection logic to Dashboard Send ──────────
   const handleRecipientChange = (val) => {
     let cleaned = val.toLowerCase();
-    if (cleaned.startsWith('0x') || val.startsWith('0x')) {
+    if (cleaned.startsWith("0x") || val.startsWith("0x")) {
       setRecipientInput(val);
-      setInputType('address');
+      setInputType("address");
       setSelectedRegistry(null);
       return;
     }
-    if (cleaned.includes('@')) {
-      cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
-      const atIndex = cleaned.indexOf('@');
+    if (cleaned.includes("@")) {
+      cleaned = cleaned.replace(/[^a-z2-9.@]/g, "");
+      const atIndex = cleaned.indexOf("@");
       if (atIndex !== -1)
-        cleaned = cleaned.slice(0, atIndex + 1) + cleaned.slice(atIndex + 1).replace(/@/g, '');
+        cleaned =
+          cleaned.slice(0, atIndex + 1) +
+          cleaned.slice(atIndex + 1).replace(/@/g, "");
       setRecipientInput(cleaned);
-      setInputType('fullname');
+      setInputType("fullname");
       setSelectedRegistry(null);
       return;
     }
-    cleaned = cleaned.replace(/[^a-z2-9.@]/g, '');
-    const firstDot = cleaned.indexOf('.');
+    cleaned = cleaned.replace(/[^a-z2-9.@]/g, "");
+    const firstDot = cleaned.indexOf(".");
     if (firstDot !== -1)
-      cleaned = cleaned.slice(0, firstDot + 1) + cleaned.slice(firstDot + 1).replace(/\./g, '');
+      cleaned =
+        cleaned.slice(0, firstDot + 1) +
+        cleaned.slice(firstDot + 1).replace(/\./g, "");
     setRecipientInput(cleaned);
     const type = detectInputType(cleaned);
     setInputType(type);
-    if (type === 'address') setSelectedRegistry(null);
-    else if (type === 'fullname') setSelectedRegistry(null);
-    else if (type === 'name' && registries.length === 1) setSelectedRegistry(registries[0]);
+    if (type === "address") setSelectedRegistry(null);
+    else if (type === "fullname") setSelectedRegistry(null);
+    else if (type === "name" && registries.length === 1)
+      setSelectedRegistry(registries[0]);
   };
 
   useEffect(() => {
     const amt = parseFloat(transferAmount);
-    setAmountError(!isNaN(amt) && amt > parseFloat(santBalance ?? '0'));
+    setAmountError(!isNaN(amt) && amt > parseFloat(santBalance ?? "0"));
   }, [transferAmount, santBalance]);
 
   const resetSendForm = () => {
-    setRecipientInput('');
-    setTransferAmount('');
-    setTransferAmountDisplay('');
+    setRecipientInput("");
+    setTransferAmount("");
+    setTransferAmountDisplay("");
     setSelectedRegistry(registries.length === 1 ? registries[0] : null);
-    setInputType('empty');
+    setInputType("empty");
   };
 
   // ── Resolve recipient exactly like Dashboard Send, then show confirm card ──
- const resolveAndConfirm = async () => {
-    if (!recipientInput || !transferAmount) return showMsg('Fill all fields', 'error');
-    if (feePreview.noBalance)
-      return showMsg('No balance available to cover the network fee.', 'error');
-    if (feePreview.insufficientFee)
-      return showMsg('Insufficient balance to cover the network fee.', 'error');
-    if (!feePreview.feeToken)
-      return showMsg('Network fee is still being calculated. Please wait.', 'error');
+  const resolveAndConfirm = async () => {
+    if (!recipientInput || !transferAmount)
+      return showMsg("Fill all fields", "error");
     const type = detectInputType(recipientInput);
-    if (type === 'name' && !selectedRegistry) return showMsg('Select a wallet service', 'error');
-    if (type === 'fullname') {
-      const parts = recipientInput.trim().split('@');
+    if (type === "name" && !selectedRegistry)
+      return showMsg("Select a wallet service", "error");
+    if (type === "fullname") {
+      const parts = recipientInput.trim().split("@");
       if (parts.length !== 2 || !parts[0] || !parts[1])
-        return showMsg('Invalid name format. Use name@wallet (e.g. charles@salva)', 'error');
+        return showMsg(
+          "Invalid name format. Use name@wallet (e.g. charles@salva)",
+          "error",
+        );
     }
     setLoading(true);
     try {
       let resolvedAddress = null;
       let displayIdentifier = recipientInput.trim();
-      if (type === 'address') {
+      if (type === "address") {
         resolvedAddress = recipientInput.trim().toLowerCase();
-      } else if (type === 'fullname') {
-        const res = await fetch(`${SALVA_API_URL}/api/resolve-full-name`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fullName: recipientInput.trim() }),
-        });
+      } else if (type === "fullname") {
+        const res = await fetch(
+          `${SALVA_API_URL}/api/name/isAvail/${recipientInput.trim()}/0x`,
+        );
         const data = await res.json();
-        if (!res.ok || !data.resolvedAddress) {
-          showMsg(data.message || 'Recipient not found. Check the name or address.', 'error');
+        if (!res.ok || !data.address) {
+          showMsg(
+            data.errorMsg || "Recipient not found. Check the name or address.",
+            "error",
+          );
           return;
         }
-        resolvedAddress = data.resolvedAddress.toLowerCase();
+        resolvedAddress = data.address.toLowerCase();
         displayIdentifier = recipientInput.trim();
       } else {
-        const res = await fetch(`${SALVA_API_URL}/api/resolve-recipient`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            input: recipientInput.trim(),
-            registryAddress: selectedRegistry.registryAddress,
-          }),
-        });
-        const data = await res.json();
-        if (!res.ok || !data.resolvedAddress) {
-          showMsg('Recipient not found. Check the name or address.', 'error');
+        const registryRes = await fetch(
+          `${SALVA_API_URL}/api/findByName/registry/${selectedRegistry.name}`,
+        );
+        const registryData = await registryRes.json();
+        if (!registryRes.ok || !registryData?.registryAddress) {
+          showMsg("Could not load wallet service. Try again.", "error");
           return;
         }
-        resolvedAddress = data.resolvedAddress.toLowerCase();
-        displayIdentifier = `${recipientInput.trim()}${selectedRegistry.nspace}`;
+        const welded = `${recipientInput.trim()}${registryData.nspace}`;
+        const isAvailRes = await fetch(
+          `${SALVA_API_URL}/api/name/isAvail/${welded}/${registryData.registryAddress}`,
+        );
+        const isAvailData = await isAvailRes.json();
+        if (!isAvailData.status || !isAvailData.address) {
+          showMsg(
+            isAvailData.errorMsg ||
+              "Recipient not found. Check the name or address.",
+            "error",
+          );
+          return;
+        }
+        resolvedAddress = isAvailData.address.toLowerCase();
+        displayIdentifier = welded;
       }
       setConfirmationData({
         resolvedAddress,
@@ -519,13 +565,14 @@ const SantTab = ({ user, registries, showMsg }) => {
         walletName: selectedRegistry?.name || null,
         feeNGN: feePreview.feeNGN,
         feeUsd: feePreview.feeUsd,
-        feeToken: feePreview.feeToken,
-        feeCurrency: feePreview.currency,
       });
       setIsSendOpen(false);
       setIsConfirmModalOpen(true);
     } catch {
-      showMsg('Could not find that recipient. Double-check and try again.', 'error');
+      showMsg(
+        "Could not find that recipient. Double-check and try again.",
+        "error",
+      );
     } finally {
       setLoading(false);
     }
@@ -535,43 +582,50 @@ const SantTab = ({ user, registries, showMsg }) => {
     setIsPinModalOpen(false);
     setIsConfirmModalOpen(false);
     resetSendForm();
-    showMsg('Sending SANT…', 'info');
+    showMsg("Sending…", "info");
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/sant/transfer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch(`${SALVA_API_URL}/api/user/transfer?coin=SANT`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          safeAddress: user.safeAddress,
+          email: user.email,
           userPrivateKey: privateKey,
-          recipientAddress: confirmationData.resolvedAddress,
+          safeAddress: user.safeAddress,
+          toAddress: confirmationData.resolvedAddress,
           amount: confirmationData.amount,
-          senderDisplayIdentifier: confirmationData.displayIdentifier,
+          chain: "base",
         }),
       });
       const data = await res.json();
-      if (res.ok) {
-        showMsg('✅ SANT sent successfully!');
+      if (res.ok && data.status && data.data?.txHash) {
+        showMsg("✅ Transfer Successful!");
         fetchBalance();
       } else {
-        showMsg(data.message || 'Transfer failed', 'error');
+        showMsg(
+          data.message ||
+            data.errorMsg ||
+            "Transaction failed. Please try again.",
+          "error",
+        );
       }
     } catch {
-      showMsg('Connection error. Check your network and try again.', 'error');
+      showMsg("Connection error. Check your network and try again.", "error");
     }
   };
 
   const verifyPinAndProceed = async () => {
-    if (transactionPin.length !== 4) return showMsg('PIN must be 4 digits', 'error');
+    if (transactionPin.length !== 4)
+      return showMsg("PIN must be 4 digits", "error");
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: transactionPin }),
       });
       const data = await res.json();
-      if (res.ok) {
-        setTransactionPin('');
+      if (data.success) {
+        setTransactionPin("");
         setPinAttempts(0);
         setLoading(false);
         await executeTransfer(data.privateKey);
@@ -579,52 +633,76 @@ const SantTab = ({ user, registries, showMsg }) => {
         const newAttempts = pinAttempts + 1;
         setPinAttempts(newAttempts);
         showMsg(
-          `Incorrect PIN — ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? 's' : ''} left`,
-          'error'
+          `Incorrect PIN — ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} left`,
+          "error",
         );
         setLoading(false);
       }
     } catch {
-      showMsg('Network error', 'error');
+      showMsg("Network error", "error");
       setLoading(false);
     }
   };
 
   const handleClaimClick = () => {
-    if (!claim.active) return;
+    if (!(canRedeem && santPoints > 0)) return;
     setClaimPinModal(true);
-    setClaimPin('');
+    setClaimPin("");
   };
 
   const executeClaim = async () => {
     if (claimPin.length !== 4) return;
     setClaiming(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/sant/claim`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const verifyRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: user.email, pin: claimPin }),
       });
-      const data = await res.json();
-      if (res.ok) {
-        showMsg(`🎉 Claimed ${data.claimedAmount} SANT!`);
+      const verifyData = await verifyRes.json();
+      if (!verifyData.success) {
+        showMsg("Incorrect PIN", "error");
+        setClaiming(false);
+        return;
+      }
+      const mintRes = await fetch(`${SALVA_API_URL}/api/user/mint-sant`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email,
+          address: user.safeAddress,
+          pKey: verifyData.privateKey,
+        }),
+      });
+      const mintData = await mintRes.json();
+      if (mintRes.ok && mintData.status && mintData.data) {
+        showMsg(
+          `🎉 Claimed ${(santPoints * 100).toLocaleString("en-US")} SANT!`,
+        );
         setClaimPinModal(false);
         fetchBalance();
         fetchClaimStatus();
       } else {
-        showMsg(data.message || 'Claim failed', 'error');
+        showMsg(
+          mintData.errorMsg || mintData.message || "Claim failed",
+          "error",
+        );
       }
     } catch {
-      showMsg('Network error', 'error');
+      showMsg("Network error", "error");
     } finally {
       setClaiming(false);
     }
   };
 
-  const showRegistryDropdown = inputType === 'name';
+  const showRegistryDropdown = inputType === "name";
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-5">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="space-y-5"
+    >
       {/* ── SANT Balance Card ── */}
       <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-salvaGold/[0.15] bg-gradient-to-b from-salvaGold/[0.06] to-white/[0.02] shadow-2xl">
         <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/50 to-transparent" />
@@ -650,7 +728,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                 className="text-white/60 hover:text-salvaGold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <svg
-                  className={`w-3.5 h-3.5 ${balanceLoading ? 'animate-spin' : ''}`}
+                  className={`w-3.5 h-3.5 ${balanceLoading ? "animate-spin" : ""}`}
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -666,7 +744,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                 onClick={toggleShowBalance}
                 className="text-white/60 hover:text-white/70 transition-colors text-sm leading-none"
               >
-                {showBalance ? '👁' : '👁‍🗨'}
+                {showBalance ? "👁" : "👁‍🗨"}
               </button>
             </div>
           </div>
@@ -678,15 +756,17 @@ const SantTab = ({ user, registries, showMsg }) => {
           ) : (
             <p
               className="font-black text-white tracking-tight break-all leading-none"
-              style={{ fontSize: 'clamp(0.95rem, 4.5vw, 1.875rem)' }}
+              style={{ fontSize: "clamp(0.95rem, 4.5vw, 1.875rem)" }}
             >
               {showBalance ? (
                 <>
-                  {fmtSant(santBalance)}{' '}
-                  <span className="text-salvaGold text-[0.55em] align-middle">SNT</span>
+                  {fmtSant(santBalance)}{" "}
+                  <span className="text-salvaGold text-[0.55em] align-middle">
+                    SNT
+                  </span>
                 </>
               ) : (
-                '••••••'
+                "••••••"
               )}
             </p>
           )}
@@ -696,7 +776,9 @@ const SantTab = ({ user, registries, showMsg }) => {
             <span className="opacity-40">·</span>
             <span>$0.00</span>
           </div>
-          <p className="text-[9px] text-white/30 mt-1">No market price yet. Earn by using Salva.</p>
+          <p className="text-[9px] text-white/30 mt-1">
+            No market price yet. Earn by using Salva.
+          </p>
 
           <div className="grid grid-cols-2 gap-3 mt-6">
             <button
@@ -720,31 +802,31 @@ const SantTab = ({ user, registries, showMsg }) => {
         <div className="flex justify-center py-6">
           <span className="w-6 h-6 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
         </div>
-      ) : claim.visible ? (
+      ) : (
         <div className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5">
           <div className="flex items-center justify-between mb-4 gap-2">
             <p className="text-[9px] sm:text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
               SANT Points
             </p>
             <p className="font-black text-lg sm:text-2xl text-salvaGold">
-              {claim.totalPoints.toLocaleString('en-US')}
+              {(santPoints * 100).toLocaleString("en-US")}
             </p>
           </div>
           <button
             onClick={handleClaimClick}
-            disabled={!claim.active}
+            disabled={!(canRedeem && santPoints > 0)}
             className={`w-full py-3 sm:py-3.5 rounded-xl font-black text-[11px] sm:text-sm uppercase tracking-widest transition-all leading-tight ${
-              claim.active
-                ? 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
-                : 'bg-white/5 border border-white/10 text-white/25 cursor-not-allowed opacity-50'
+              canRedeem && santPoints > 0
+                ? "bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20"
+                : "bg-white/5 border border-white/10 text-white/25 cursor-not-allowed opacity-50"
             }`}
           >
-            {claim.active
-              ? `Claim ${claim.totalPoints.toLocaleString('en-US')} SANT`
-              : 'Claim (earn points to unlock)'}
+            {canRedeem && santPoints > 0
+              ? `Claim ${(santPoints * 100).toLocaleString("en-US")} SANT POINTS`
+              : "Claim (earn points to unlock)"}
           </button>
         </div>
-      ) : null}
+      )}
 
       {/* ── Send Modal — mirrors Dashboard Send exactly, content scaled 30% on mobile only ── */}
       <AnimatePresence>
@@ -761,14 +843,18 @@ const SantTab = ({ user, registries, showMsg }) => {
             <motion.div
               className="send-card-scale relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
               style={{ padding: sendPxs(24, 40) }}
-              initial={{ y: '100%' }}
+              initial={{ y: "100%" }}
               animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div
                 className="bg-white/10 rounded-full mx-auto sm:hidden"
-                style={{ width: sendPx(40), height: sendPx(4), marginBottom: sendPx(24) }}
+                style={{
+                  width: sendPx(40),
+                  height: sendPx(4),
+                  marginBottom: sendPx(24),
+                }}
               />
               <h3
                 className="font-black text-white"
@@ -782,17 +868,30 @@ const SantTab = ({ user, registries, showMsg }) => {
               >
                 Salva Secure Transfer
               </p>
-              <p className="text-white/60" style={{ fontSize: sendPx(10), marginBottom: sendPx(20) }}>
-                Balance: {balanceLoading ? '…' : fmtSant(santBalance)} SANT
+              <p
+                className="text-white/60"
+                style={{ fontSize: sendPx(10), marginBottom: sendPx(20) }}
+              >
+                Balance: {balanceLoading ? "…" : fmtSant(santBalance)} SANT
               </p>
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   resolveAndConfirm();
                 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: sendPx(16) }}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: sendPx(16),
+                }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: sendPx(8) }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: sendPx(8),
+                  }}
+                >
                   <label
                     className="uppercase text-white/60 font-bold block"
                     style={{ fontSize: sendPx(10) }}
@@ -808,23 +907,26 @@ const SantTab = ({ user, registries, showMsg }) => {
                     className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-white placeholder:text-white/60 transition-all"
                     style={{ padding: sendPx(16), fontSize: sendPx(14) }}
                   />
-                  {inputType !== 'empty' && (
+                  {inputType !== "empty" && (
                     <p
                       className="text-white/60 font-bold"
                       style={{ fontSize: sendPx(10), marginLeft: sendPx(4) }}
                     >
-                      {inputType === 'address'
-                        ? '✓ Wallet address — sending directly'
-                        : inputType === 'fullname'
-                        ? '✓ Full name detected — resolving directly'
-                        : 'Name alias — select a wallet below'}
+                      {inputType === "address"
+                        ? "✓ Wallet address — sending directly"
+                        : inputType === "fullname"
+                          ? "✓ Full name detected — resolving directly"
+                          : "Name alias — select a wallet below"}
                     </p>
                   )}
                   {showRegistryDropdown && registries.length > 0 && (
                     <div>
                       <label
                         className="uppercase text-white/60 font-bold block"
-                        style={{ fontSize: sendPx(10), marginBottom: sendPx(8) }}
+                        style={{
+                          fontSize: sendPx(10),
+                          marginBottom: sendPx(8),
+                        }}
                       >
                         Select Wallet Service
                       </label>
@@ -841,7 +943,10 @@ const SantTab = ({ user, registries, showMsg }) => {
                     className="flex items-center justify-between"
                     style={{ marginBottom: sendPx(8) }}
                   >
-                    <label className="uppercase text-white/60 font-bold" style={{ fontSize: sendPx(10) }}>
+                    <label
+                      className="uppercase text-white/60 font-bold"
+                      style={{ fontSize: sendPx(10) }}
+                    >
                       Amount (SANT)
                     </label>
                     <button
@@ -853,7 +958,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                         // that exactly). santBalance IS the exact decimal
                         // string the blockchain returned via
                         // ethers.formatUnits — just paste it through as-is.
-                        const exact = santBalance || '0';
+                        const exact = santBalance || "0";
                         setTransferAmountDisplay(exact);
                         setTransferAmount(exact);
                       }}
@@ -870,14 +975,20 @@ const SantTab = ({ user, registries, showMsg }) => {
                       inputMode="decimal"
                       value={transferAmountDisplay}
                       onChange={(e) => {
-                        const v = e.target.value.replace(/[^0-9.]/g, '');
+                        const v = e.target.value.replace(/[^0-9.]/g, "");
                         setTransferAmountDisplay(v);
                         setTransferAmount(v);
                       }}
                       className={`w-full rounded-xl bg-white/5 border outline-none font-bold text-white transition-all ${
-                        amountError ? 'border-red-500' : 'border-white/10 focus:border-salvaGold'
+                        amountError
+                          ? "border-red-500"
+                          : "border-white/10 focus:border-salvaGold"
                       }`}
-                      style={{ padding: sendPx(16), fontSize: sendPx(18), paddingRight: sendPx(64) }}
+                      style={{
+                        padding: sendPx(16),
+                        fontSize: sendPx(18),
+                        paddingRight: sendPx(64),
+                      }}
                     />
                     <span
                       className="absolute top-1/2 -translate-y-1/2 text-salvaGold font-black"
@@ -900,35 +1011,36 @@ const SantTab = ({ user, registries, showMsg }) => {
                       marginTop: sendPx(8),
                       padding: sendPx(12),
                       fontSize: sendPx(10),
-                      display: 'flex',
-                      flexDirection: 'column',
+                      display: "flex",
+                      flexDirection: "column",
                       gap: sendPx(4),
                     }}
                   >
                     <div className="flex justify-between items-center">
-                      <span className="text-white/60 uppercase font-bold">Network Fee</span>
+                      <span className="text-white/60 uppercase font-bold">
+                        Network Fee
+                      </span>
                       {feePreview.loading ? (
                         <span
                           className="border border-white/20 border-t-white/60 rounded-full animate-spin inline-block"
                           style={{ width: sendPx(12), height: sendPx(12) }}
                         />
-                      ) : feePreview.noBalance ? (
-                        <span className="text-red-400 font-black">No balance to cover fee</span>
-                      ) : feePreview.insufficientFee ? (
-                        <span className="text-red-400 font-black">Insufficient fee balance</span>
-                      ) : feePreview.feeToken ? (
-                        <span className="text-red-400 font-black">
-                          {feePreview.currency === 'USD'
-                            ? `$${feePreview.feeUsd?.toFixed(4)}`
-                            : `₦${formatNumber(feePreview.feeNGN)}`}{' '}
-                          ({feePreview.feeToken})
-                        </span>
                       ) : (
-                        <span className="text-white/30">—</span>
+                        <span
+                          className={
+                            feeCovered
+                              ? "text-red-400 font-black"
+                              : "text-yellow-400 font-black"
+                          }
+                        >
+                          ₦{formatNumber(feePreview.feeNGN)} ($
+                          {feePreview.feeUsd?.toFixed(4)})
+                        </span>
                       )}
                     </div>
                     <p className="text-white/30 font-medium">
-                      Paid automatically in whichever of NGNs, cNGN, USDT, or USDC covers the fee
+                      Paid automatically in whichever of NGNs, cNGN, USDT, or
+                      USDC covers the fee
                     </p>
                   </div>
                   {hasNoFeeFunds && (
@@ -936,12 +1048,18 @@ const SantTab = ({ user, registries, showMsg }) => {
                       className="flex items-center gap-2 rounded-xl bg-yellow-500/5 border border-yellow-500/20"
                       style={{ marginTop: sendPx(8), padding: sendPxs(8, 12) }}
                     >
-                      <span className="text-yellow-400 flex-shrink-0" style={{ fontSize: sendPx(14) }}>
+                      <span
+                        className="text-yellow-400 flex-shrink-0"
+                        style={{ fontSize: sendPx(14) }}
+                      >
                         ⚠️
                       </span>
-                      <p className="text-yellow-400/90 font-bold leading-snug" style={{ fontSize: sendPx(10) }}>
-                        This transaction may not go through — you have no NGNs, cNGN, USDT, or USDC
-                        to cover the network fee.
+                      <p
+                        className="text-yellow-400/90 font-bold leading-snug"
+                        style={{ fontSize: sendPx(10) }}
+                      >
+                        This transaction may not go through — you have no NGNs,
+                        cNGN, USDT, or USDC to cover the network fee.
                       </p>
                     </div>
                   )}
@@ -953,10 +1071,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                     !recipientInput ||
                     !transferAmount ||
                     parseFloat(transferAmount) <= 0 ||
-                    feePreview.loading ||
-                    feePreview.noBalance ||
-                    feePreview.insufficientFee ||
-                    !feePreview.feeToken
+                    feePreview.loading
                   }
                   type="submit"
                   className={`w-full rounded-2xl font-black transition-all uppercase tracking-widest flex items-center justify-center ${
@@ -965,14 +1080,15 @@ const SantTab = ({ user, registries, showMsg }) => {
                     !recipientInput ||
                     !transferAmount ||
                     parseFloat(transferAmount) <= 0 ||
-                    feePreview.loading ||
-                    feePreview.noBalance ||
-                    feePreview.insufficientFee ||
-                    !feePreview.feeToken
-                      ? 'bg-white/5 text-white/60 cursor-not-allowed border border-white/5'
-                      : 'bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20'
+                    feePreview.loading
+                      ? "bg-white/5 text-white/60 cursor-not-allowed border border-white/5"
+                      : "bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20"
                   }`}
-                  style={{ padding: sendPx(16), fontSize: sendPx(14), gap: sendPx(8) }}
+                  style={{
+                    padding: sendPx(16),
+                    fontSize: sendPx(14),
+                    gap: sendPx(8),
+                  }}
                 >
                   {loading && (
                     <span
@@ -980,7 +1096,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                       style={{ width: sendPx(16), height: sendPx(16) }}
                     />
                   )}
-                  {loading ? 'Processing…' : 'Review & Send'}
+                  {loading ? "Processing…" : "Review & Send"}
                 </button>
               </form>
             </motion.div>
@@ -1008,10 +1124,17 @@ const SantTab = ({ user, registries, showMsg }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center" style={{ marginBottom: scalePx(24) }}>
+              <div
+                className="text-center"
+                style={{ marginBottom: scalePx(24) }}
+              >
                 <div
                   className="bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto"
-                  style={{ width: scalePx(56), height: scalePx(56), marginBottom: scalePx(16) }}
+                  style={{
+                    width: scalePx(56),
+                    height: scalePx(56),
+                    marginBottom: scalePx(16),
+                  }}
                 >
                   <span style={{ fontSize: scalePx(24) }}>⚠️</span>
                 </div>
@@ -1022,13 +1145,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                   Verify Recipient
                 </h3>
                 <p className="text-white/60" style={{ fontSize: scalePx(14) }}>
-                  Double-check before sending. Blockchain transactions are irreversible.
+                  Double-check before sending. Blockchain transactions are
+                  irreversible.
                 </p>
               </div>
               <div
                 style={{
-                  display: 'flex',
-                  flexDirection: 'column',
+                  display: "flex",
+                  flexDirection: "column",
                   gap: scalePx(12),
                   marginBottom: scalePx(24),
                 }}
@@ -1037,7 +1161,10 @@ const SantTab = ({ user, registries, showMsg }) => {
                   className="rounded-2xl bg-salvaGold/5 border border-salvaGold/15"
                   style={{ padding: scalePx(16) }}
                 >
-                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                  <p
+                    className="text-white/60"
+                    style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}
+                  >
                     Sending To
                   </p>
                   <p
@@ -1065,11 +1192,20 @@ const SantTab = ({ user, registries, showMsg }) => {
                   className="rounded-2xl bg-white/[0.03] border border-white/[0.06]"
                   style={{ padding: scalePx(16) }}
                 >
-                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                  <p
+                    className="text-white/60"
+                    style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}
+                  >
                     You Send
                   </p>
-                  <p className="font-black text-white" style={{ fontSize: scalePx(20) }}>
-                    {formatNumber(confirmationData.amount, { minDecimals: 0, maxDecimals: 6 })}{' '}
+                  <p
+                    className="font-black text-white"
+                    style={{ fontSize: scalePx(20) }}
+                  >
+                    {formatNumber(confirmationData.amount, {
+                      minDecimals: 0,
+                      maxDecimals: 6,
+                    })}{" "}
                     <span className="text-salvaGold">SANT</span>
                   </p>
                 </div>
@@ -1077,18 +1213,22 @@ const SantTab = ({ user, registries, showMsg }) => {
                   className="rounded-2xl bg-red-500/5 border border-red-500/10"
                   style={{ padding: scalePx(16) }}
                 >
-                  <p className="text-white/60" style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}>
+                  <p
+                    className="text-white/60"
+                    style={{ fontSize: scalePx(10), marginBottom: scalePx(4) }}
+                  >
                     Network Fee
                   </p>
-                  <p className="font-black text-red-400" style={{ fontSize: scalePx(16) }}>
-                    {confirmationData.feeCurrency === 'USD'
-                      ? `$${confirmationData.feeUsd?.toFixed(4)}`
-                      : `₦${formatNumber(confirmationData.feeNGN)}`}{' '}
-                    <span className="text-salvaGold">({confirmationData.feeToken})</span>
+                  <p
+                    className="font-black text-red-400"
+                    style={{ fontSize: scalePx(16) }}
+                  >
+                    ₦{formatNumber(confirmationData.feeNGN)} ($
+                    {confirmationData.feeUsd?.toFixed(4)})
                   </p>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: scalePx(12) }}>
+              <div style={{ display: "flex", gap: scalePx(12) }}>
                 <button
                   onClick={() => setIsConfirmModalOpen(false)}
                   className="flex-1 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all"
@@ -1100,7 +1240,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                   onClick={() => {
                     setIsConfirmModalOpen(false);
                     setIsPinModalOpen(true);
-                    setTransactionPin('');
+                    setTransactionPin("");
                     setPinAttempts(0);
                   }}
                   className="flex-1 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 transition-all"
@@ -1134,10 +1274,17 @@ const SantTab = ({ user, registries, showMsg }) => {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
             >
-              <div className="text-center" style={{ marginBottom: scalePx(24) }}>
+              <div
+                className="text-center"
+                style={{ marginBottom: scalePx(24) }}
+              >
                 <div
                   className="bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto"
-                  style={{ width: scalePx(56), height: scalePx(56), marginBottom: scalePx(16) }}
+                  style={{
+                    width: scalePx(56),
+                    height: scalePx(56),
+                    marginBottom: scalePx(16),
+                  }}
                 >
                   <span style={{ fontSize: scalePx(24) }}>🔐</span>
                 </div>
@@ -1157,14 +1304,16 @@ const SantTab = ({ user, registries, showMsg }) => {
                 pattern="\d{4}"
                 maxLength="4"
                 value={transactionPin}
-                onChange={(e) => setTransactionPin(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) =>
+                  setTransactionPin(e.target.value.replace(/\D/g, ""))
+                }
                 placeholder="••••"
                 autoFocus
                 className="w-full rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center font-black text-white"
                 style={{
                   padding: scalePx(16),
                   fontSize: scalePx(30),
-                  letterSpacing: '1em',
+                  letterSpacing: "1em",
                   marginBottom: scalePx(20),
                 }}
               />
@@ -1173,10 +1322,11 @@ const SantTab = ({ user, registries, showMsg }) => {
                   className="text-red-400 text-center font-bold"
                   style={{ fontSize: scalePx(12), marginBottom: scalePx(16) }}
                 >
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? 's' : ''} remaining
+                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
+                  remaining
                 </p>
               )}
-              <div style={{ display: 'flex', gap: scalePx(12) }}>
+              <div style={{ display: "flex", gap: scalePx(12) }}>
                 <button
                   onClick={() => setIsPinModalOpen(false)}
                   disabled={loading}
@@ -1189,7 +1339,11 @@ const SantTab = ({ user, registries, showMsg }) => {
                   onClick={verifyPinAndProceed}
                   disabled={loading || transactionPin.length !== 4}
                   className="flex-1 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center"
-                  style={{ padding: scalePxs(12, 0), fontSize: scalePx(14), gap: scalePx(8) }}
+                  style={{
+                    padding: scalePxs(12, 0),
+                    fontSize: scalePx(14),
+                    gap: scalePx(8),
+                  }}
                 >
                   {loading && (
                     <span
@@ -1197,7 +1351,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                       style={{ width: scalePx(16), height: scalePx(16) }}
                     />
                   )}
-                  {loading ? 'Verifying…' : 'Verify'}
+                  {loading ? "Verifying…" : "Verify"}
                 </button>
               </div>
             </motion.div>
@@ -1226,15 +1380,17 @@ const SantTab = ({ user, registries, showMsg }) => {
                 <span className="text-2xl">🎁</span>
               </div>
               <h3 className="text-xl font-black text-white mb-1">
-                Claim {claim.totalPoints.toLocaleString('en-US')} SANT
+                Claim {(santPoints * 100).toLocaleString("en-US")} SANT POINTS
               </h3>
-              <p className="text-sm text-white/60 mb-5">Minted directly to your Base wallet</p>
+              <p className="text-sm text-white/60 mb-5">
+                Minted directly to your Base wallet
+              </p>
               <input
                 type="password"
                 inputMode="numeric"
                 maxLength="4"
                 value={claimPin}
-                onChange={(e) => setClaimPin(e.target.value.replace(/\D/g, ''))}
+                onChange={(e) => setClaimPin(e.target.value.replace(/\D/g, ""))}
                 placeholder="••••"
                 autoFocus
                 className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[1em] font-black mb-5 text-white"
@@ -1255,7 +1411,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                   {claiming && (
                     <span className="w-3 h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
                   )}
-                  {claiming ? 'Minting…' : 'Claim'}
+                  {claiming ? "Minting…" : "Claim"}
                 </button>
               </div>
             </motion.div>
@@ -1276,23 +1432,25 @@ const SantTab = ({ user, registries, showMsg }) => {
             />
             <motion.div
               className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
-              initial={{ y: '100%' }}
+              initial={{ y: "100%" }}
               animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 200 }}
             >
               <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-7 sm:hidden" />
               <div className="text-center mb-7">
                 <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
                   Receive SANT
                 </p>
-                <h3 className="text-2xl font-black text-white">{user.username}</h3>
+                <h3 className="text-2xl font-black text-white">
+                  {user.username}
+                </h3>
               </div>
               <div className="flex justify-center mb-6">
                 <div
                   onClick={() => {
                     navigator.clipboard.writeText(user.safeAddress);
-                    showMsg('Address copied!');
+                    showMsg("Address copied!");
                   }}
                   className="p-4 rounded-2xl bg-white border-2 border-salvaGold/30 cursor-pointer"
                 >
@@ -1302,7 +1460,7 @@ const SantTab = ({ user, registries, showMsg }) => {
               <button
                 onClick={() => {
                   navigator.clipboard.writeText(user.safeAddress);
-                  showMsg('Address copied!');
+                  showMsg("Address copied!");
                 }}
                 className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 transition-all mb-3 group"
               >
@@ -1321,7 +1479,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                     stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
+                    <rect
+                      x="9"
+                      y="9"
+                      width="13"
+                      height="13"
+                      rx="2"
+                      strokeWidth="2"
+                    />
                     <path
                       d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                       strokeWidth="2"
@@ -1333,7 +1498,7 @@ const SantTab = ({ user, registries, showMsg }) => {
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(user.nameAlias);
-                    showMsg('Name alias copied!');
+                    showMsg("Name alias copied!");
                   }}
                   className="w-full flex items-center justify-between gap-3 p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 transition-all mb-3 group"
                 >
@@ -1341,7 +1506,9 @@ const SantTab = ({ user, registries, showMsg }) => {
                     <p className="text-[9px] uppercase tracking-[0.35em] text-white/60 font-black mb-1">
                       Name Alias
                     </p>
-                    <p className="font-black text-sm text-salvaGold">{user.nameAlias}</p>
+                    <p className="font-black text-sm text-salvaGold">
+                      {user.nameAlias}
+                    </p>
                   </div>
                   <div className="w-7 h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
                     <svg
@@ -1350,7 +1517,14 @@ const SantTab = ({ user, registries, showMsg }) => {
                       stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
+                      <rect
+                        x="9"
+                        y="9"
+                        width="13"
+                        height="13"
+                        rx="2"
+                        strokeWidth="2"
+                      />
                       <path
                         d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
                         strokeWidth="2"

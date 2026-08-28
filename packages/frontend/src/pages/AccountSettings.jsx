@@ -3,31 +3,47 @@ import { SALVA_API_URL } from '../config';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useNavigate } from 'react-router-dom';
-import { Edit2, Lock, Mail, Key, ArrowLeft, AlertTriangle, X, CheckCircle2 } from 'lucide-react';
+import {
+  Edit2,
+  Lock,
+  Mail,
+  Key,
+  ArrowLeft,
+  AlertTriangle,
+  X,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+} from 'lucide-react';
 import Stars from '../components/Stars';
+
 
 const AccountSettings = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [notification, setNotification] = useState({ show: false, message: '', type: '' });
+  const [notification, setNotification] = useState({
+    show: false,
+    message: '',
+    type: '',
+  });
   const [activeModal, setActiveModal] = useState(null);
   const [modalStep, setModalStep] = useState(1);
-  const [otp, setOtp] = useState('');
-  const [formData, setFormData] = useState({ oldPin: '', newValue: '', confirmValue: '' });
-  const [pinStatus, setPinStatus] = useState({
-    hasPin: false,
-    isLocked: false,
+  const [formData, setFormData] = useState({
+    oldPin: '',
+    newValue: '',
+    confirmValue: '',
+  });
+  const [visibility, setVisibility] = useState({
+    old: false,
+    new: false,
+    confirm: false,
+  });
+  const [accountStatus, setAccountStatus] = useState({
     lockedUntil: null,
     loading: true,
     error: false,
   });
-  const [bnbPinStatus, setBnbPinStatus] = useState({
-    hasPin: false,
-    isLocked: false,
-    lockedUntil: null,
-    loading: true,
-    error: false,
-  });
+  const [lockCountdown, setLockCountdown] = useState('');
 
   // New State for Modern Confirmation Cards
   const [confirmDialog, setConfirmDialog] = useState({
@@ -72,8 +88,7 @@ const AccountSettings = () => {
       try {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
-        checkPinStatus(parsedUser.email);
-        checkBnbPinStatus(parsedUser.email);
+        checkAccountStatus(parsedUser.email);
       } catch (error) {
         navigate('/login');
       }
@@ -81,6 +96,42 @@ const AccountSettings = () => {
       navigate('/login');
     }
   }, [navigate]);
+
+  // Poll lock status while the user stays on this page.
+  useEffect(() => {
+    if (!user?.email) return;
+    const interval = setInterval(() => checkAccountStatus(user.email), 60000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Hours while far out, minutes once under an hour, seconds once under a minute.
+  useEffect(() => {
+    if (!accountStatus.lockedUntil) {
+      setLockCountdown('');
+      return;
+    }
+    const tick = () => {
+      const diffMs = new Date(accountStatus.lockedUntil).getTime() - Date.now();
+      if (diffMs <= 0) {
+        setLockCountdown('');
+        setAccountStatus((prev) => ({ ...prev, lockedUntil: null }));
+        return;
+      }
+      const totalSeconds = Math.floor(diffMs / 1000);
+      if (totalSeconds >= 3600) {
+        const hours = Math.ceil(totalSeconds / 3600);
+        setLockCountdown(`${hours} hour${hours === 1 ? '' : 's'}`);
+      } else if (totalSeconds >= 60) {
+        const minutes = Math.ceil(totalSeconds / 60);
+        setLockCountdown(`${minutes} minute${minutes === 1 ? '' : 's'}`);
+      } else {
+        setLockCountdown(`${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`);
+      }
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [accountStatus.lockedUntil]);
 
   useEffect(() => {
     if (notification.show) {
@@ -91,98 +142,35 @@ const AccountSettings = () => {
 
   const showMsg = (msg, type = 'success') => setNotification({ show: true, message: msg, type });
 
-  const checkPinStatus = async (email) => {
-    setPinStatus((prev) => ({ ...prev, loading: true, error: false }));
+  const checkAccountStatus = async (email) => {
+    setAccountStatus((prev) => ({ ...prev, loading: true, error: false }));
     try {
       const data = await fetchJsonWithRetry(
-        `${SALVA_API_URL}/api/user/pin-status/${encodeURIComponent(email)}`
+        `${SALVA_API_URL}/api/data/account-status/${encodeURIComponent(email)}`
       );
-      setPinStatus({
-        hasPin: !!data.hasPin,
-        isLocked: !!data.isLocked,
-        lockedUntil: data.lockedUntil || null,
+      setAccountStatus({
+        lockedUntil: data.status || null,
         loading: false,
         error: false,
       });
     } catch (err) {
-      console.error('❌ Failed to check Base PIN status:', err.message);
-      setPinStatus((prev) => ({ ...prev, loading: false, error: true }));
-    }
-  };
-
-  const checkBnbPinStatus = async (email) => {
-    setBnbPinStatus((prev) => ({ ...prev, loading: true, error: false }));
-    try {
-      const data = await fetchJsonWithRetry(
-        `${SALVA_API_URL}/api/bnb/pin-status/${encodeURIComponent(email)}`
-      );
-      setBnbPinStatus({
-        hasPin: !!data.hasPin,
-        isLocked: !!data.isLocked,
-        lockedUntil: data.lockedUntil || null,
-        loading: false,
-        error: false,
-      });
-    } catch (err) {
-      console.error('❌ Failed to check BNB PIN status:', err.message);
-      setBnbPinStatus((prev) => ({ ...prev, loading: false, error: true }));
+      console.error('❌ Failed to check account lock status:', err.message);
+      setAccountStatus((prev) => ({ ...prev, loading: false, error: true }));
     }
   };
 
   const openModal = (type) => {
     setActiveModal(type);
     setModalStep(type === 'username' ? 3 : 1);
-    setOtp('');
     setFormData({ oldPin: '', newValue: '', confirmValue: '' });
+    setVisibility({ old: false, new: false, confirm: false });
   };
 
   const closeModal = () => {
     setActiveModal(null);
     setModalStep(1);
-    setOtp('');
     setFormData({ oldPin: '', newValue: '', confirmValue: '' });
-  };
-
-  const sendOTP = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email }),
-      });
-      if (res.ok) {
-        setModalStep(2);
-        showMsg('Verification code sent!');
-      } else {
-        showMsg('Failed to send code', 'error');
-      }
-    } catch (err) {
-      showMsg('Network error', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOTP = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, code: otp }),
-      });
-      if (res.ok) {
-        setModalStep(3);
-        showMsg('Code verified!');
-      } else {
-        showMsg('Invalid or expired code', 'error');
-      }
-    } catch (err) {
-      showMsg('Verification failed', 'error');
-    } finally {
-      setLoading(false);
-    }
+    setVisibility({ old: false, new: false, confirm: false });
   };
 
   const handleSubmit = async () => {
@@ -192,28 +180,15 @@ const AccountSettings = () => {
     }
 
     if (
-      (activeModal === 'pin' || activeModal === 'bnbpin') &&
+      activeModal === 'pin' &&
       (formData.newValue.length !== 4 || !/^\d{4}$/.test(formData.newValue))
     ) {
       showMsg('PIN must be exactly 4 digits', 'error');
       return;
     }
 
-    if (
-      activeModal === 'pin' &&
-      pinStatus.hasPin &&
-      (!formData.oldPin || formData.oldPin.length !== 4)
-    ) {
-      showMsg('Old Base PIN must be exactly 4 digits', 'error');
-      return;
-    }
-
-    if (
-      activeModal === 'bnbpin' &&
-      bnbPinStatus.hasPin &&
-      (!formData.oldPin || formData.oldPin.length !== 4)
-    ) {
-      showMsg('Old BNB PIN must be exactly 4 digits', 'error');
+    if (activeModal === 'pin' && (!formData.oldPin || formData.oldPin.length !== 4)) {
+      showMsg('Old PIN must be exactly 4 digits', 'error');
       return;
     }
 
@@ -222,29 +197,31 @@ const AccountSettings = () => {
     let endpoint, body;
     switch (activeModal) {
       case 'email':
-        endpoint = '/api/user/update-email';
-        body = { oldEmail: user.email, newEmail: formData.newValue };
+        endpoint = '/api/data/update-email';
+        body = {
+          email: user.email,
+          newEmail: formData.newValue,
+        };
         break;
       case 'password':
-        endpoint = '/api/user/update-password';
-        body = { email: user.email, newPassword: formData.newValue };
+        endpoint = '/api/data/update-password';
+        body = {
+          email: user.email,
+          newPassword: formData.newValue,
+        };
         break;
       case 'pin':
-        endpoint = pinStatus.hasPin ? '/api/user/reset-pin' : '/api/user/set-pin';
-        body = pinStatus.hasPin
-          ? { email: user.email, oldPin: formData.oldPin, newPin: formData.newValue }
-          : { email: user.email, pin: formData.newValue };
-        break;
-      case 'bnbpin':
-        // BNB PIN is completely independent from Base PIN
-        endpoint = bnbPinStatus.hasPin ? '/api/bnb/reset-pin' : '/api/bnb/set-pin';
-        body = bnbPinStatus.hasPin
-          ? { email: user.email, oldPin: formData.oldPin, newPin: formData.newValue }
-          : { email: user.email, pin: formData.newValue };
+        // Unified PIN — same endpoint, same lock, for both Base and BNB.
+        endpoint = '/api/data/update-pin';
+        body = {
+          email: user.email,
+          oldPin: formData.oldPin,
+          newPin: formData.newValue,
+        };
         break;
       case 'username':
-        endpoint = '/api/user/update-username';
-        body = { email: user.email, newUsername: formData.newValue };
+        endpoint = '/api/data/update-username';
+        body = { email: user.email, newusername: formData.newValue };
         break;
       default:
         return;
@@ -259,34 +236,29 @@ const AccountSettings = () => {
 
       const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.status) {
         showMsg(data.message || 'Updated successfully!');
+
+        // Track the email this status check should run against — avoids
+        // querying the old address before the setUser closure updates.
+        let statusEmail = user.email;
 
         if (activeModal === 'email') {
           const updatedUser = { ...user, email: formData.newValue };
           localStorage.setItem('salva_user', JSON.stringify(updatedUser));
           setUser(updatedUser);
+          statusEmail = formData.newValue;
         } else if (activeModal === 'username') {
           const updatedUser = { ...user, username: formData.newValue };
           localStorage.setItem('salva_user', JSON.stringify(updatedUser));
           setUser(updatedUser);
         }
 
-        if (data.lockedUntil) {
-          if (activeModal === 'pin') {
-            setPinStatus((prev) => ({ ...prev, isLocked: true, lockedUntil: data.lockedUntil }));
-          } else if (activeModal === 'bnbpin') {
-            setBnbPinStatus((prev) => ({ ...prev, isLocked: true, lockedUntil: data.lockedUntil }));
-          }
-        }
-
         closeModal();
 
-        if (activeModal === 'pin' && !pinStatus.hasPin) {
-          checkPinStatus(user.email);
-        }
-        if (activeModal === 'bnbpin' && !bnbPinStatus.hasPin) {
-          checkBnbPinStatus(user.email);
+        // Email, password, and PIN changes trigger a 24h lockdown.
+        if (['email', 'password', 'pin'].includes(activeModal)) {
+          checkAccountStatus(statusEmail);
         }
       } else {
         showMsg(data.message || 'Update failed', 'error');
@@ -300,15 +272,9 @@ const AccountSettings = () => {
 
   if (!user) return null;
 
-  const requiresOTP = ['email', 'password', 'pin', 'bnbpin'].includes(activeModal);
-  const isFirstTimePin = activeModal === 'pin' && !pinStatus.hasPin;
-  const isResetPin = activeModal === 'pin' && pinStatus.hasPin;
-  const isFirstTimeBnbPin = activeModal === 'bnbpin' && !bnbPinStatus.hasPin;
-  const isResetBnbPin = activeModal === 'bnbpin' && bnbPinStatus.hasPin;
-  // PIN modals always show old PIN field if resetting — lockdown doesn't block PIN change
-  const isPinModal = activeModal === 'pin' || activeModal === 'bnbpin';
-  const isAnyFirstTimePin = isFirstTimePin || isFirstTimeBnbPin;
-  const isAnyResetPin = isResetPin || isResetBnbPin;
+  const requiresWarning = ['email', 'password', 'pin'].includes(activeModal);
+  // PIN is unified across Base and BNB — always requires the old PIN.
+  const isPinModal = activeModal === 'pin';
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white pt-16 sm:pt-24 px-3 sm:px-4 pb-8 sm:pb-12 relative overflow-hidden">
@@ -329,7 +295,7 @@ const AccountSettings = () => {
           <p className="text-[10px] sm:text-sm opacity-60">Manage your Salva account preferences</p>
         </header>
 
-        {pinStatus.isLocked && (
+        {accountStatus.lockedUntil && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -338,23 +304,7 @@ const AccountSettings = () => {
             <p className="text-[10px] sm:text-sm font-bold text-red-500 flex items-center gap-1.5 sm:gap-2">
               <Lock size={11} className="sm:hidden flex-shrink-0" />
               <Lock size={16} className="hidden sm:block flex-shrink-0" />
-              Base Chain Locked: Transactions disabled until{' '}
-              {new Date(pinStatus.lockedUntil).toLocaleString()}
-            </p>
-          </motion.div>
-        )}
-
-        {bnbPinStatus.isLocked && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 sm:mb-6 p-2.5 sm:p-4 bg-yellow-500/10 border border-yellow-500 rounded-2xl"
-          >
-            <p className="text-[10px] sm:text-sm font-bold text-yellow-500 flex items-center gap-1.5 sm:gap-2">
-              <Lock size={11} className="sm:hidden flex-shrink-0" />
-              <Lock size={16} className="hidden sm:block flex-shrink-0" />
-              BNB Chain Locked: Transactions disabled until{' '}
-              {new Date(bnbPinStatus.lockedUntil).toLocaleString()}
+              Account Locked: Transactions disabled for {lockCountdown || 'a moment'} more
             </p>
           </motion.div>
         )}
@@ -417,62 +367,19 @@ const AccountSettings = () => {
             </div>
           </button>
 
-          {/* PIN — Base Chain */}
+          {/* Transaction PIN — unified across Base and BNB */}
           <button
-            onClick={() => (pinStatus.error ? checkPinStatus(user.email) : openModal('pin'))}
-            disabled={pinStatus.loading}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left disabled:opacity-60 disabled:cursor-wait"
+            onClick={() => openModal('pin')}
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-salvaGold/30 transition-all text-left"
           >
             <div className="flex justify-between items-center">
               <div>
                 <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
-                  Base Chain Security
+                  Transaction Security
                 </p>
-                {pinStatus.loading ? (
-                  <p className="text-sm sm:text-lg font-black opacity-50">Checking PIN status…</p>
-                ) : pinStatus.error ? (
-                  <p className="text-sm sm:text-lg font-black text-red-500">
-                    Couldn't check status — tap to retry
-                  </p>
-                ) : (
-                  <p className="text-sm sm:text-lg font-black">
-                    {pinStatus.hasPin ? 'Reset' : 'Set'} Base Transaction PIN
-                  </p>
-                )}
+                <p className="text-sm sm:text-lg font-black">Reset Transaction PIN</p>
               </div>
               <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-salvaGold group-hover:text-black rounded-xl transition-all shadow-sm">
-                <Key size={13} className="sm:hidden" />
-                <Key size={18} className="hidden sm:block" />
-              </div>
-            </div>
-          </button>
-
-          {/* PIN — BNB Chain */}
-          <button
-            onClick={() =>
-              bnbPinStatus.error ? checkBnbPinStatus(user.email) : openModal('bnbpin')
-            }
-            disabled={bnbPinStatus.loading}
-            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-yellow-500/30 transition-all text-left disabled:opacity-60 disabled:cursor-wait"
-          >
-            <div className="flex justify-between items-center">
-              <div>
-                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
-                  BNB Chain Security
-                </p>
-                {bnbPinStatus.loading ? (
-                  <p className="text-sm sm:text-lg font-black opacity-50">Checking PIN status…</p>
-                ) : bnbPinStatus.error ? (
-                  <p className="text-sm sm:text-lg font-black text-red-500">
-                    Couldn't check status — tap to retry
-                  </p>
-                ) : (
-                  <p className="text-sm sm:text-lg font-black">
-                    {bnbPinStatus.hasPin ? 'Reset' : 'Set'} BNB Transaction PIN
-                  </p>
-                )}
-              </div>
-              <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-yellow-500 group-hover:text-black rounded-xl transition-all shadow-sm">
                 <Key size={13} className="sm:hidden" />
                 <Key size={18} className="hidden sm:block" />
               </div>
@@ -543,7 +450,7 @@ const AccountSettings = () => {
                 exit={{ opacity: 0, scale: 0.95 }}
               >
                 {/* Step 1: Warning */}
-                {modalStep === 1 && requiresOTP && !isAnyFirstTimePin && (
+                {modalStep === 1 && requiresWarning && (
                   <div className="text-center">
                     <div className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
                       <AlertTriangle className="text-salvaGold" size={22} />
@@ -564,142 +471,157 @@ const AccountSettings = () => {
                         Cancel
                       </button>
                       <button
-                        onClick={sendOTP}
-                        disabled={loading}
+                        onClick={() => setModalStep(3)}
                         className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
                       >
-                        {loading ? 'Processing...' : 'I Understand'}
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Step 2: OTP */}
-                {modalStep === 2 && (
-                  <div className="text-center">
-                    <h3 className="text-base sm:text-2xl font-black mb-1.5 sm:mb-2">Verify</h3>
-                    <p className="text-[10px] sm:text-sm opacity-60 mb-5 sm:mb-8">
-                      Verification code sent to <strong>{user.email}</strong>
-                    </p>
-                    <input
-                      type="text"
-                      maxLength="6"
-                      placeholder="••••••"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.3em] sm:tracking-[0.4em] font-black mb-5 sm:mb-8"
-                    />
-                    <div className="flex gap-2 sm:gap-3">
-                      <button
-                        onClick={closeModal}
-                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={verifyOTP}
-                        disabled={loading || !otp}
-                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base disabled:opacity-50 transition-all"
-                      >
-                        {loading ? 'Verifying...' : 'Verify Identity'}
+                        I Understand
                       </button>
                     </div>
                   </div>
                 )}
 
                 {/* Step 3: Input Fields */}
-                {(modalStep === 3 || (isAnyFirstTimePin && modalStep === 1)) && (
+                {modalStep === 3 && (
                   <>
                     <h3 className="text-base sm:text-2xl font-black mb-4 sm:mb-6 flex items-center gap-1.5 sm:gap-2">
                       <CheckCircle2 className="text-salvaGold" size={16} />
-                      {activeModal === 'bnbpin'
-                        ? 'Update BNB PIN'
-                        : activeModal === 'pin'
-                          ? 'Update Base PIN'
-                          : `Update ${activeModal}`}
+                      {activeModal === 'pin' ? 'Update Transaction PIN' : `Update ${activeModal}`}
                     </h3>
 
                     <div className="space-y-3 sm:space-y-4 mb-5 sm:mb-8">
-                      {isAnyResetPin && (
+                      {isPinModal && (
                         <div className="space-y-1.5 sm:space-y-2">
                           <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
-                            Current {activeModal === 'bnbpin' ? 'BNB' : 'Base'} PIN
+                            Current PIN
                           </label>
-                          <input
-                            type="password"
-                            inputMode="numeric"
-                            maxLength={4}
-                            placeholder="••••"
-                            value={formData.oldPin}
-                            onChange={(e) =>
-                              setFormData({
-                                ...formData,
-                                oldPin: e.target.value.replace(/\D/g, ''),
-                              })
-                            }
-                            className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-lg sm:text-2xl tracking-widest"
-                          />
+                          <div className="relative">
+                            <input
+                              type={visibility.old ? 'text' : 'password'}
+                              inputMode="numeric"
+                              maxLength={4}
+                              placeholder="••••"
+                              value={formData.oldPin}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  oldPin: e.target.value.replace(/\D/g, ''),
+                                })
+                              }
+                              className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-lg sm:text-2xl tracking-widest"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisibility({
+                                  ...visibility,
+                                  old: !visibility.old,
+                                })
+                              }
+                              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity"
+                              tabIndex={-1}
+                            >
+                              {visibility.old ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          </div>
                         </div>
                       )}
 
                       <div className="space-y-1.5 sm:space-y-2">
                         <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
-                          New{' '}
-                          {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''}{' '}
-                          PIN
+                          New {isPinModal ? 'PIN' : activeModal}
                         </label>
-                        <input
-                          type={
-                            isPinModal
-                              ? 'password'
-                              : activeModal === 'password'
+                        <div className="relative">
+                          <input
+                            type={
+                              visibility.new
+                                ? 'text'
+                                : isPinModal || activeModal === 'password'
                                 ? 'password'
                                 : 'text'
-                          }
-                          inputMode={isPinModal ? 'numeric' : 'text'}
-                          maxLength={isPinModal ? 4 : undefined}
-                          placeholder={isPinModal ? '••••' : `Enter new ${activeModal}`}
-                          value={formData.newValue}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              newValue: isPinModal
-                                ? e.target.value.replace(/\D/g, '')
-                                : e.target.value,
-                            })
-                          }
-                          className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${isPinModal ? 'text-center text-lg sm:text-2xl tracking-widest' : 'font-bold'}`}
-                        />
+                            }
+                            inputMode={isPinModal ? 'numeric' : 'text'}
+                            maxLength={isPinModal ? 4 : undefined}
+                            placeholder={isPinModal ? '••••' : `Enter new ${activeModal}`}
+                            value={formData.newValue}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                newValue: isPinModal
+                                  ? e.target.value.replace(/\D/g, '')
+                                  : e.target.value,
+                              })
+                            }
+                            className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${
+                              isPinModal
+                                ? 'text-center text-lg sm:text-2xl tracking-widest'
+                                : 'font-bold'
+                            }`}
+                          />
+                          {(isPinModal || activeModal === 'password') && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisibility({
+                                  ...visibility,
+                                  new: !visibility.new,
+                                })
+                              }
+                              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity"
+                              tabIndex={-1}
+                            >
+                              {visibility.new ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="space-y-1.5 sm:space-y-2">
                         <label className="text-[7px] sm:text-[10px] uppercase tracking-widest font-black opacity-40 ml-1.5 sm:ml-2">
-                          Confirm{' '}
-                          {activeModal === 'bnbpin' ? 'BNB' : activeModal === 'pin' ? 'Base' : ''}{' '}
-                          PIN
+                          Confirm {isPinModal ? 'PIN' : activeModal}
                         </label>
-                        <input
-                          type={
-                            isPinModal
-                              ? 'password'
-                              : activeModal === 'password'
+                        <div className="relative">
+                          <input
+                            type={
+                              visibility.confirm
+                                ? 'text'
+                                : isPinModal || activeModal === 'password'
                                 ? 'password'
                                 : 'text'
-                          }
-                          inputMode={isPinModal ? 'numeric' : 'text'}
-                          maxLength={isPinModal ? 4 : undefined}
-                          placeholder={isPinModal ? '••••' : `Confirm new ${activeModal}`}
-                          value={formData.confirmValue}
-                          onChange={(e) =>
-                            setFormData({
-                              ...formData,
-                              confirmValue: isPinModal
-                                ? e.target.value.replace(/\D/g, '')
-                                : e.target.value,
-                            })
-                          }
-                          className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${isPinModal ? 'text-center text-lg sm:text-2xl tracking-widest' : 'font-bold'}`}
-                        />
+                            }
+                            inputMode={isPinModal ? 'numeric' : 'text'}
+                            maxLength={isPinModal ? 4 : undefined}
+                            placeholder={isPinModal ? '••••' : `Confirm new ${activeModal}`}
+                            value={formData.confirmValue}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                confirmValue: isPinModal
+                                  ? e.target.value.replace(/\D/g, '')
+                                  : e.target.value,
+                              })
+                            }
+                            className={`w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black placeholder:opacity-30 text-xs sm:text-base ${
+                              isPinModal
+                                ? 'text-center text-lg sm:text-2xl tracking-widest'
+                                : 'font-bold'
+                            }`}
+                          />
+                          {(isPinModal || activeModal === 'password') && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisibility({
+                                  ...visibility,
+                                  confirm: !visibility.confirm,
+                                })
+                              }
+                              className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-100 transition-opacity"
+                              tabIndex={-1}
+                            >
+                              {visibility.confirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -733,7 +655,9 @@ const AccountSettings = () => {
             initial={{ y: 100, x: '-50%', opacity: 0 }}
             animate={{ y: 0, x: '-50%', opacity: 1 }}
             exit={{ y: 100, x: '-50%', opacity: 0 }}
-            className={`fixed bottom-4 sm:bottom-6 left-1/2 px-5 py-3.5 sm:px-8 sm:py-5 rounded-2xl sm:rounded-3xl z-[100] font-black text-[7px] sm:text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center gap-2 sm:gap-3 ${notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'}`}
+            className={`fixed bottom-4 sm:bottom-6 left-1/2 px-5 py-3.5 sm:px-8 sm:py-5 rounded-2xl sm:rounded-3xl z-[100] font-black text-[7px] sm:text-[10px] uppercase tracking-[0.2em] shadow-2xl flex items-center gap-2 sm:gap-3 ${
+              notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-salvaGold text-black'
+            }`}
           >
             {notification.type === 'error' ? (
               <AlertTriangle size={11} />

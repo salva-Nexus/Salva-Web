@@ -1,7 +1,6 @@
-// Salva-Digital-Tech/packages/backend/src/utils/encryption.js
-const crypto = require('crypto');
+import crypto from "crypto";
 
-const ALGORITHM = 'aes-256-cbc';
+const ALGORITHM = "aes-256-cbc";
 const IV_LENGTH = 16;
 const SALT_LENGTH = 16;
 // OWASP recommendation for PBKDF2 iterations (600,000 for 2023+)
@@ -15,7 +14,13 @@ const KEY_LENGTH = 32; // 256 bits for AES-256
  * @returns {Buffer} - Derived 32-byte key
  */
 function deriveKeyFromPin(pin, salt) {
-  return crypto.pbkdf2Sync(String(pin), salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha256');
+  return crypto.pbkdf2Sync(
+    String(pin),
+    salt,
+    PBKDF2_ITERATIONS,
+    KEY_LENGTH,
+    "sha256",
+  );
 }
 
 /**
@@ -36,11 +41,11 @@ function encryptPrivateKey(privateKey, pin) {
 
   // Create cipher and encrypt
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  let encrypted = cipher.update(privateKey, 'utf8', 'hex');
-  encrypted += cipher.final('hex');
+  let encrypted = cipher.update(privateKey, "utf8", "hex");
+  encrypted += cipher.final("hex");
 
   // Return salt:IV:encrypted data (we need both salt and IV to decrypt)
-  return salt.toString('hex') + ':' + iv.toString('hex') + ':' + encrypted;
+  return salt.toString("hex") + ":" + iv.toString("hex") + ":" + encrypted;
 }
 
 /**
@@ -52,15 +57,15 @@ function encryptPrivateKey(privateKey, pin) {
 function decryptPrivateKey(encryptedPrivateKey, pin) {
   try {
     // Split salt, IV and encrypted data
-    const parts = encryptedPrivateKey.split(':');
+    const parts = encryptedPrivateKey.split(":");
 
     // Check if it's the new format (salt:iv:data) or old format (iv:data)
     let salt, iv, encryptedData;
 
     if (parts.length === 3) {
       // New PBKDF2 format
-      salt = Buffer.from(parts[0], 'hex');
-      iv = Buffer.from(parts[1], 'hex');
+      salt = Buffer.from(parts[0], "hex");
+      iv = Buffer.from(parts[1], "hex");
       encryptedData = parts[2];
 
       // Derive key using PBKDF2
@@ -68,30 +73,30 @@ function decryptPrivateKey(encryptedPrivateKey, pin) {
 
       // Create decipher and decrypt
       const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
+      let decrypted = decipher.update(encryptedData, "hex", "utf8");
+      decrypted += decipher.final("utf8");
 
       return decrypted;
     } else if (parts.length === 2) {
       // Old SHA-256 format (for migration compatibility)
       // THIS IS INSECURE - Only here for migrating existing users
-      iv = Buffer.from(parts[0], 'hex');
+      iv = Buffer.from(parts[0], "hex");
       encryptedData = parts[1];
 
       // Old insecure key derivation (SHA-256 only)
-      const key = crypto.createHash('sha256').update(String(pin)).digest();
+      const key = crypto.createHash("sha256").update(String(pin)).digest();
 
       // Create decipher and decrypt
       const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-      let decrypted = decipher.update(encryptedData, 'hex', 'utf8');
-      decrypted += decipher.final('utf8');
+      let decrypted = decipher.update(encryptedData, "hex", "utf8");
+      decrypted += decipher.final("utf8");
 
       return decrypted;
     } else {
-      throw new Error('Invalid encrypted key format');
+      throw new Error("Invalid encrypted key format");
     }
   } catch (error) {
-    throw new Error('Invalid PIN or corrupted data');
+    throw new Error("Invalid PIN or corrupted data");
   }
 }
 
@@ -102,9 +107,15 @@ function decryptPrivateKey(encryptedPrivateKey, pin) {
  */
 function hashPin(pin) {
   const salt = crypto.randomBytes(SALT_LENGTH);
-  const hash = crypto.pbkdf2Sync(String(pin), salt, PBKDF2_ITERATIONS, KEY_LENGTH, 'sha256');
+  const hash = crypto.pbkdf2Sync(
+    String(pin),
+    salt,
+    PBKDF2_ITERATIONS,
+    KEY_LENGTH,
+    "sha256",
+  );
 
-  return salt.toString('hex') + ':' + hash.toString('hex');
+  return salt.toString("hex") + ":" + hash.toString("hex");
 }
 
 /**
@@ -116,13 +127,13 @@ function hashPin(pin) {
 function verifyPin(pin, hashedPin) {
   try {
     // Split salt and hash
-    const parts = hashedPin.split(':');
+    const parts = hashedPin.split(":");
 
     // Check if it's new PBKDF2 format or old SHA-256 format
     if (parts.length === 2) {
       // New PBKDF2 format
-      const salt = Buffer.from(parts[0], 'hex');
-      const storedHash = Buffer.from(parts[1], 'hex');
+      const salt = Buffer.from(parts[0], "hex");
+      const storedHash = Buffer.from(parts[1], "hex");
 
       // Derive hash from input PIN
       const inputHash = crypto.pbkdf2Sync(
@@ -130,7 +141,7 @@ function verifyPin(pin, hashedPin) {
         salt,
         PBKDF2_ITERATIONS,
         KEY_LENGTH,
-        'sha256'
+        "sha256",
       );
 
       // Constant-time comparison to prevent timing attacks
@@ -138,44 +149,29 @@ function verifyPin(pin, hashedPin) {
     } else if (parts.length === 1) {
       // Old SHA-256 format (for migration compatibility)
       // THIS IS INSECURE - Only here for migrating existing users
-      const inputHash = crypto.createHash('sha256').update(String(pin)).digest('hex');
+      const inputHash = crypto
+        .createHash("sha256")
+        .update(String(pin))
+        .digest("hex");
 
       // Still use timing-safe comparison even for old format
-      return crypto.timingSafeEqual(Buffer.from(hashedPin, 'hex'), Buffer.from(inputHash, 'hex'));
+      return crypto.timingSafeEqual(
+        Buffer.from(hashedPin, "hex"),
+        Buffer.from(inputHash, "hex"),
+      );
     } else {
       return false;
     }
   } catch (error) {
-    console.error('PIN verification error:', error.message);
+    console.error("PIN verification error:", error.message);
     return false;
   }
 }
 
-/**
- * Checks if a private key is using the old insecure encryption
- * @param {string} encryptedPrivateKey - The encrypted private key
- * @returns {boolean} - True if using old format
- */
-function isOldEncryptionFormat(encryptedPrivateKey) {
-  const parts = encryptedPrivateKey.split(':');
-  return parts.length === 2; // Old format has only iv:data
-}
 
-/**
- * Checks if a PIN hash is using the old insecure format
- * @param {string} hashedPin - The hashed PIN
- * @returns {boolean} - True if using old format
- */
-function isOldPinHashFormat(hashedPin) {
-  const parts = hashedPin.split(':');
-  return parts.length === 1; // Old format has no salt separator
-}
-
-module.exports = {
+export {
   encryptPrivateKey,
   decryptPrivateKey,
   hashPin,
   verifyPin,
-  isOldEncryptionFormat,
-  isOldPinHashFormat,
 };

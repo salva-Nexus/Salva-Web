@@ -1,5 +1,6 @@
 // Salva-Digital-Tech/packages/backend/src/models/WalletRegistry.js
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
+import { baseConnection } from '../DB_connection.js';
 
 const WalletRegistrySchema = new mongoose.Schema({
   name: { type: String, required: true },
@@ -15,4 +16,5 @@ const WalletRegistrySchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('WalletRegistry', WalletRegistrySchema);
+const WalletRegistry = baseConnection.model("WalletRegistries", WalletRegistrySchema);
+export default WalletRegistry;

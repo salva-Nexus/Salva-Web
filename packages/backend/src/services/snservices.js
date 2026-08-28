@@ -1,0 +1,489 @@
+import { ethers } from "ethers";
+import { User, UserBNB } from "../models/Users.js";
+import { PointsRecord, pointsDistribution } from "../models/PointsState.js";
+import {
+  SINGLETON,
+  REGISTRY,
+  MULTISEND,
+  REGISTRYFACTORY,
+  ERC20,
+  SAFE,
+} from "../utils/abi.js";
+import { SNS, erc20 } from "../../salva.js";
+import { _estimateLinkFee } from "./estimateFee.js";
+import { getBalance, _appendSafeReq } from "./transferServices.js";
+import { balance } from "./balanceServices.js";
+import { basePool, bnbPool } from "../models/Pool.js";
+import { isReservedName } from "../models/ReservedNames.js";
+
+const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
+const factory = process.env.REGISTRY_FACTORY;
+
+const dummySafe = "0xAEf59B5A3D9471D964cA40B4A270a940D2F580f3";
+const dummyKey =
+  "0x4411143141b8d2ba381d5be779b6c671bb98f5f89719c5dcc9cdf819f59695fb";
+
+const mode = process.env.NODE_ENV;
+const MULTI_SEND_BASE_ADDRESS =
+  mode === "development"
+    ? "0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425"
+    : "0xfA11MAINNET...";
+
+const baseRpcUrl =
+  mode === "development"
+    ? process.env.BASE_SEPOLIA_RPC_URL ||
+      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
+    : process.env.BASE_MAINNET_RPC_URL;
+
+const salvaRegistry = process.env.REGISTRY_CONTRACT_ADDRESS;
+
+const ngnsBaseAddress = process.env.NGN_TOKEN_ADDRESS;
+const cngnBaseAddress = process.env.CNGN_CONTRACT_ADDRESS;
+const usdtBaseAddress = process.env.USDT_CONTRACT_ADDRESS;
+const usdcBaseAddress = process.env.USDC_CONTRACT_ADDRESS;
+const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
+
+const ABI = {
+  REGISTRY,
+  REGISTRYFACTORY,
+};
+
+async function linkName(email, owner, pKey, name, address, registry) {
+  if (isReservedName(name)) {
+    return { status: false };
+  }
+  const sns = new SNS(ABI, registry, factory, pKey, baseRpcUrl);
+  const signerConfig = sns._buildConfig(sponsorKey);
+  const snsFeeWei = await sns.getFee();
+
+  const fee = await _estimateLinkFee(
+    ABI,
+    registry,
+    ngnsBaseAddress,
+    signerConfig,
+    true,
+  );
+
+  let feeHuman;
+  let feeTokenSymbol;
+
+  const balances = await balance(owner, "base");
+  if (
+    balances.data.ngnsBalance >= fee.data.feeNGN ||
+    balances.data.cNgnBalance >= fee.data.feeNGN
+  ) {
+    feeHuman = fee.data.feeNGN;
+    feeTokenSymbol =
+      balances.data.ngnsBalance >= fee.data.feeNGN ? "NGNS" : "CNGN";
+  } else if (
+    balances.data.usdtBalance >= fee.data.feeUsd ||
+    balances.data.usdcBalance >= fee.data.feeUsd
+  ) {
+    feeHuman = fee.data.feeUsd;
+    feeTokenSymbol =
+      balances.data.usdtBalance >= fee.data.feeUsd ? "USDT" : "USDC";
+  } else {
+    return { status: false };
+  }
+
+  let feeTokenAddress =
+    feeTokenSymbol === "NGNS"
+      ? ngnsBaseAddress
+      : feeTokenSymbol === "CNGN"
+        ? cngnBaseAddress
+        : feeTokenSymbol === "USDC"
+          ? usdcBaseAddress
+          : usdtBaseAddress;
+
+  const feeTokenData = await getBalance(feeTokenAddress, owner, "base");
+
+  let feeWei =
+    feeTokenSymbol === "NGNS" || feeTokenSymbol === "CNGN"
+      ? ethers.parseUnits(fee.data.feeNGN.toString(), feeTokenData.decimals)
+      : ethers.parseUnits(fee.data.feeUsd.toString(), feeTokenData.decimals);
+  let feeTokenDecimals = feeTokenData.decimals;
+  const tx = await _buildAndExecLink(
+    sns,
+    owner,
+    name.toLowerCase(),
+    address,
+    registry,
+    signerConfig,
+    feeTokenAddress,
+    feeWei,
+    snsFeeWei,
+    Number(snsFeeWei) > 0 ? true : false,
+  );
+
+  // UpdateDB
+  const namespace = await sns.namespace();
+  console.log(`Name Space: ${namespace}`);
+  const welded = `${name.toLowerCase().trim()}${namespace.trim()}`;
+  console.log(`Welded Name: ${welded}`);
+
+  const userBase = await User.findOne({
+    email: email,
+  });
+
+  if (userBase) {
+    userBase.nameAliases.push({
+      name: welded,
+      wallet: address,
+      registryAddress: registry,
+    });
+    await userBase.save();
+  }
+
+  const pointsRecord = await PointsRecord.findOne({
+    network: mode === "production" ? "MAINNET" : "TESTNET",
+  });
+
+  if (pointsRecord && !pointsRecord.isLocked) {
+    console.log(`ISSUED 1 : ${pointsRecord.totalPointsIssued}`);
+    const remainingPoints =
+      pointsRecord.hardCap - pointsRecord.totalPointsIssued;
+    console.log(`Remaining: ${remainingPoints}`);
+    let totalReward = 0;
+    let linkerReceives = pointsDistribution.link;
+    console.log(`Linker Receives 1: ${linkerReceives}`);
+    if (userBase) totalReward += linkerReceives;
+    console.log(`Total Reward 1: ${totalReward}`);
+
+    console.log(`Total Reward > Remaining?: ${totalReward > remainingPoints}`);
+
+    if (totalReward > remainingPoints) {
+      linkerReceives = remainingPoints;
+      totalReward = remainingPoints;
+      console.log(`Linker Receives 2: ${linkerReceives}`);
+      console.log(`Total Reward 2: ${totalReward}`);
+    }
+
+    userBase.santPoints += linkerReceives;
+    await userBase.save();
+
+    pointsRecord.totalPointsIssued += totalReward;
+    await pointsRecord.save();
+    console.log(
+      `Total Points Issued > Hard Cap?: ${
+        pointsRecord.totalPointsIssued >= pointsRecord.hardCap
+      }`,
+    );
+
+    console.log(`ISSUED 2 : ${pointsRecord.totalPointsIssued}`);
+    console.log(`HARDCAP : ${pointsRecord.hardCap}`);
+
+    if (pointsRecord.totalPointsIssued >= pointsRecord.hardCap)
+      await pointsRecord.updateOne({ isLocked: true });
+
+    if (pointsRecord.totalPointsIssued >= pointsRecord.redeemCap)
+      await pointsRecord.updateOne({ canRedeem: true });
+  }
+
+  return {
+    status: tx.status,
+    name: welded,
+    data: tx.data,
+  };
+}
+
+async function _buildAndExecLink(
+  snsConfig,
+  owner,
+  name,
+  address,
+  registry,
+  signer,
+  feeTokenAddress,
+  txFee,
+  singletonFee,
+  approve,
+) {
+  const safe = new ethers.Contract(owner, SAFE, signer);
+  const firstTx = [registry, singletonFee];
+
+  const data = snsConfig._dataHash(name, address);
+  const signature = await signer.signMessage(data.hash);
+
+  const secondTx = [data.nameBytes, data.address, ethers.hexlify(signature)];
+  const thirdTx = [treasury, txFee];
+
+  let to = !approve
+    ? [registry, feeTokenAddress]
+    : [ngnsBaseAddress, registry, feeTokenAddress];
+  let value = !approve ? [0n, 0n] : [0n, 0n, 0n];
+
+  const erc20Contract = new ethers.Interface(ERC20);
+  const registryContract = new ethers.Interface(REGISTRY);
+  let tx1Hex = erc20Contract.encodeFunctionData("approve", firstTx);
+  let tx2Hex = registryContract.encodeFunctionData("link", secondTx);
+  let tx3Hex = erc20Contract.encodeFunctionData("transfer", thirdTx);
+  let encodedData = !approve ? [tx2Hex, tx3Hex] : [tx1Hex, tx2Hex, tx3Hex];
+
+  const currentNonce = await safe.nonce();
+  const multisendIface = new ethers.Interface(MULTISEND);
+  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
+    to,
+    value,
+    encodedData,
+  ]);
+  const safeTx = {
+    to: MULTI_SEND_BASE_ADDRESS,
+    value: 0n,
+    data: multisendTx,
+    op: 1n,
+    safeTxGas: 0n,
+    baseGas: 0n,
+    gasPrice: 0n,
+    gasToken: ethers.ZeroAddress,
+    refundReceiver: ethers.ZeroAddress,
+    nonce: currentNonce,
+  };
+  const hash = await safe.getTransactionHash(
+    safeTx.to,
+    safeTx.value,
+    safeTx.data,
+    safeTx.op,
+    safeTx.safeTxGas,
+    safeTx.baseGas,
+    safeTx.gasPrice,
+    safeTx.gasToken,
+    safeTx.refundReceiver,
+    safeTx.nonce,
+  );
+
+  const sig = await snsConfig
+    ._snsConfig()
+    .OWNER.signMessage(ethers.getBytes(hash));
+  const newSig = _appendSafeReq(sig);
+
+  const tx = await safe.execTransaction(
+    safeTx.to,
+    safeTx.value,
+    safeTx.data,
+    safeTx.op,
+    safeTx.safeTxGas,
+    safeTx.baseGas,
+    safeTx.gasPrice,
+    safeTx.gasToken,
+    safeTx.refundReceiver,
+    newSig,
+  );
+  const receipt = await tx.wait();
+  if (receipt.hash) {
+    return {
+      status: true,
+      data: {
+        receipt: receipt,
+      },
+    };
+  } else {
+    throw err("❌ Link Failed");
+  }
+}
+
+async function unlinkName(email, owner, name, pKey, registry) {
+  console.log(name);
+  const sns = new SNS(ABI, registry, factory, pKey, baseRpcUrl);
+  const signerConfig = sns._buildConfig(sponsorKey);
+
+  const fee = await _estimateLinkFee(
+    ABI,
+    registry,
+    ngnsBaseAddress,
+    signerConfig,
+    true,
+  );
+
+  let feeHuman;
+  let feeTokenSymbol;
+
+  const balances = await balance(owner, "base");
+  if (
+    balances.data.ngnsBalance >= fee.data.feeNGN ||
+    balances.data.cNgnBalance >= fee.data.feeNGN
+  ) {
+    feeHuman = fee.data.feeNGN;
+    feeTokenSymbol =
+      balances.data.ngnsBalance >= fee.data.feeNGN ? "NGNS" : "CNGN";
+  } else if (
+    balances.data.usdtBalance >= fee.data.feeUsd ||
+    balances.data.usdcBalance >= fee.data.feeUsd
+  ) {
+    feeHuman = fee.data.feeUsd;
+    feeTokenSymbol =
+      balances.data.usdtBalance >= fee.data.feeUsd ? "USDT" : "USDC";
+  } else {
+    return { status: false };
+  }
+
+  let feeTokenAddress =
+    feeTokenSymbol === "NGNS"
+      ? ngnsBaseAddress
+      : feeTokenSymbol === "CNGN"
+        ? cngnBaseAddress
+        : feeTokenSymbol === "USDC"
+          ? usdcBaseAddress
+          : usdtBaseAddress;
+
+  const fTokenData = await getBalance(feeTokenAddress, owner, "base");
+  let feeWei =
+    feeTokenSymbol === "NGNS" || feeTokenSymbol === "CNGN"
+      ? ethers.parseUnits(fee.data.feeNGN.toString(), fTokenData.decimals)
+      : ethers.parseUnits(fee.data.feeUsd.toString(), fTokenData.decimals);
+  let feeTokenDecimals = fTokenData.decimals;
+
+  const tx = await _performUnlink(
+    sns,
+    name,
+    owner,
+    registry,
+    signerConfig,
+    feeTokenAddress,
+    feeWei,
+  );
+
+  // UpdateDB
+  const namespace = await sns.namespace();
+  console.log(`Name Space: ${namespace}`);
+  const welded = name.includes("@")
+    ? name
+    : `${name.toLowerCase().trim()}${namespace.trim()}`;
+  console.log(`Welded Name: ${welded}`);
+
+  const userBase = await User.findOne({
+    email: email,
+  });
+
+  if (userBase) {
+    userBase.nameAliases.pull({
+      name: welded.toLowerCase(),
+    });
+    await userBase.save();
+  }
+
+  const BasePool = await basePool.findOne({
+    poolName: welded.toLowerCase(),
+  });
+
+  const BnbPool = await bnbPool.findOne({
+    poolName: welded.toLowerCase(),
+  });
+
+  if (BasePool) {
+    BasePool.poolName = null;
+    BasePool.registryAddress = null;
+    await BasePool.save();
+  }
+  if (BnbPool) {
+    BnbPool.poolName = null;
+    BnbPool.registryAddress = null;
+    await BnbPool.save();
+  }
+
+  return {
+    status: tx.status,
+    name: welded,
+    data: tx.data,
+  };
+}
+
+async function _performUnlink(
+  snsConfig,
+  fullName,
+  owner,
+  registry,
+  signer,
+  feeTokenAddress,
+  txFee,
+) {
+  const safe = new ethers.Contract(owner, SAFE, signer);
+  const firstTx = [ethers.toUtf8Bytes(fullName)];
+  const secondTx = [treasury, txFee];
+
+  let to = [registry, feeTokenAddress];
+
+  let value = [0n, 0n];
+
+  const erc20Contract = new ethers.Interface(ERC20);
+  const registryContract = new ethers.Interface(REGISTRY);
+  let tx1Hex = registryContract.encodeFunctionData("unlink", firstTx);
+  let tx2Hex = erc20Contract.encodeFunctionData("transfer", secondTx);
+  let encodedData = [tx1Hex, tx2Hex];
+
+  const currentNonce = await safe.nonce();
+  const multisendIface = new ethers.Interface(MULTISEND);
+  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
+    to,
+    value,
+    encodedData,
+  ]);
+  const safeTx = {
+    to: MULTI_SEND_BASE_ADDRESS,
+    value: 0n,
+    data: multisendTx,
+    op: 1n,
+    safeTxGas: 0n,
+    baseGas: 0n,
+    gasPrice: 0n,
+    gasToken: ethers.ZeroAddress,
+    refundReceiver: ethers.ZeroAddress,
+    nonce: currentNonce,
+  };
+  const hash = await safe.getTransactionHash(
+    safeTx.to,
+    safeTx.value,
+    safeTx.data,
+    safeTx.op,
+    safeTx.safeTxGas,
+    safeTx.baseGas,
+    safeTx.gasPrice,
+    safeTx.gasToken,
+    safeTx.refundReceiver,
+    safeTx.nonce,
+  );
+
+  const sig = await snsConfig
+    ._snsConfig()
+    .OWNER.signMessage(ethers.getBytes(hash));
+  const newSig = _appendSafeReq(sig);
+
+  const tx = await safe.execTransaction(
+    safeTx.to,
+    safeTx.value,
+    safeTx.data,
+    safeTx.op,
+    safeTx.safeTxGas,
+    safeTx.baseGas,
+    safeTx.gasPrice,
+    safeTx.gasToken,
+    safeTx.refundReceiver,
+    newSig,
+  );
+  const receipt = await tx.wait();
+  if (receipt.hash) {
+    return {
+      status: true,
+      data: {
+        receipt: receipt,
+      },
+    };
+  } else {
+    throw err("❌ Unlink Failed");
+  }
+}
+
+async function estimateUnlinkFee(tx) {
+  const sns = new SNS(ABI, salvaRegistry, factory, sponsorKey, baseRpcUrl);
+  const signerConfig = sns._buildConfig(sponsorKey);
+  const fee = await _estimateLinkFee(
+    ABI,
+    salvaRegistry,
+    ngnsBaseAddress,
+    signerConfig,
+    tx,
+  );
+
+  return fee;
+}
+
+export { linkName, unlinkName, estimateUnlinkFee };

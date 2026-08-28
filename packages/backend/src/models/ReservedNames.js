@@ -1,4 +1,4 @@
-// Salva-Digital-Tech/packages/backend/src/models/ReservedNames.js
+// ../../../backend/src/models/ReservedNames.js
 // This model is NOT a Mongoose schema — it is a hardcoded lookup set.
 // All names are stored lowercase. The lookup is O(1) via Set.
 
@@ -466,4 +466,4 @@ function isReservedName(name) {
   return false;
 }
 
-module.exports = { isReservedName, RESERVED_NAMES_SET, RESERVED_NAMES_LIST };
+export { isReservedName, RESERVED_NAMES_SET, RESERVED_NAMES_LIST };

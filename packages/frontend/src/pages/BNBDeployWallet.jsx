@@ -37,7 +37,7 @@ const BNBDeployWallet = ({ user, onDeployed }) => {
 
       // 2. Deploy BNB Safe — backend generates fresh keypair, PIN is passed so
       //    backend can encrypt the BNB private key with the same PIN as Base.
-      const res = await fetch(`${SALVA_API_URL}/api/bnb/register`, {
+      const res = await fetch(`${SALVA_API_URL}/api/user/bnb/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: user.email, pin }),
@@ -101,7 +101,8 @@ const BNBDeployWallet = ({ user, onDeployed }) => {
             <div className="mb-6 p-4 rounded-2xl bg-blue-500/5 border border-blue-500/15">
               <p className="text-xs text-blue-400 font-black mb-1">🔐 Secured with your Base PIN</p>
               <p className="text-[11px] text-white/60 leading-relaxed">
-                Your BNB wallet will use the <strong className="text-white">same transaction PIN</strong> as your Base wallet. The wallet addresses differ per chain — this is standard multi-chain behaviour.
+                Your BNB wallet will use the{' '}
+                <strong className="text-white">same transaction PIN</strong> as your Base wallet.
               </p>
             </div>
 
@@ -163,7 +164,9 @@ const BNBDeployWallet = ({ user, onDeployed }) => {
             </div>
             <div>
               <p className="font-black text-white text-lg">Deploying BNB Wallet…</p>
-              <p className="text-xs text-white/60 mt-1">Broadcasting to BNB Chain · 30–60 seconds</p>
+              <p className="text-xs text-white/60 mt-1">
+                Broadcasting to BNB Chain · 30–60 seconds
+              </p>
             </div>
           </div>
         )}

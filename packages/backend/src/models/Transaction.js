@@ -1,44 +1,29 @@
 // Salva-Digital-Tech/packages/backend/src/models/Transaction.js
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
+import { baseConnection } from "../DB_connection.js";
 
 const TransactionSchema = new mongoose.Schema({
   // ── Sender ──────────────────────────────────────────────────────────────
   fromAddress: { type: String, required: true, lowercase: true },
-  fromUsername: { type: String, default: null },
-  // The sender's @salva alias if they are a Salva wallet user
-  fromNameAlias: { type: String, default: null },
 
   // ── Recipient ────────────────────────────────────────────────────────────
   toAddress: { type: String, default: null, lowercase: true },
-  toUsername: { type: String, default: null },
-  // The recipient's @salva alias if they are a Salva wallet user
-  toNameAlias: { type: String, default: null },
-
-  // ── Display identifiers ──────────────────────────────────────────────────
-  // Exactly what the sender typed into the recipient input box,
-  // after welding — e.g. "cboi@metamask" or "0x1234…".
-  // This is used verbatim as the "TO:" display on the sender's history.
-  senderDisplayIdentifier: { type: String, default: null },
 
   // ── Token & amounts ──────────────────────────────────────────────────────
   amount: { type: String, required: true },
   // Human-readable fee taken (e.g. "50" NGNs or "0.015" USDC). null = free.
   fee: { type: String, default: null },
+  feeCoin: { type: String, default: "NGNS" },
   // Token used: "NGN" | "USDT" | "USDC"
-  coin: { type: String, default: 'NGN' },
+  coin: { type: String, default: "NGNS" },
+  chain: { type: String, default: "base" },
 
   // ── Status & type ────────────────────────────────────────────────────────
-  status: { type: String, default: 'pending' },
+  status: { type: String, default: "success" },
   taskId: { type: String, default: null },
-  type: { type: String, default: 'transfer' },
-  txType: { type: String, default: 'transfer' },
-  swapExecutor: { type: String, default: null }, // safe address that executed the swap
-  _isReceiverCopy: { type: Boolean, default: false }, // true = copy saved for the receiver
-  poolAddress: { type: String, default: null, lowercase: true },
-  poolName: { type: String, default: null },
-  tokenIn: { type: String, default: null },
-  tokenOut: { type: String, default: null },
+  type: { type: String, default: "transfer" },
   date: { type: Date, default: Date.now },
 });
 
-module.exports = mongoose.model('Transaction', TransactionSchema);
+const Transaction = baseConnection.model("Transaction", TransactionSchema);
+export default Transaction;

@@ -11,6 +11,8 @@ const isLocalWebDev =
   !Capacitor.isNativePlatform() &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-export const SALVA_API_URL = isLocalWebDev
-  ? 'http://127.0.0.1:3001'
-  : 'https://salva-web.vercel.app';
+const SALVA_API_URL = isLocalWebDev ? 'http://127.0.0.1:3001' : 'https://salva-web.vercel.app';
+
+const NODE_ENV = 'development';
+
+export {SALVA_API_URL, NODE_ENV}

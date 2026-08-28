@@ -7,78 +7,37 @@ import { Eye, EyeOff } from 'lucide-react';
 import Stars from '../components/Stars';
 
 const ForgotPassword = () => {
-  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
+  const [step, setStep] = useState(1); // 1: Email, 2: New Password
   const [email, setEmail] = useState('');
-  const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ text: '', type: '' });
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showWarning, setShowWarning] = useState(false); // ✅ NEW STATE
+  const [showWarning, setShowWarning] = useState(false);
 
   const navigate = useNavigate();
 
-  const handleSendOTP = async (e) => {
+  // Step 1 submit — no OTP round-trip, just surface the lockdown warning.
+  const handleEmailSubmit = (e) => {
     e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (res.ok) {
-        setStep(2);
-        setMessage({ text: 'Verification code sent to your email!', type: 'success' });
-      } else {
-        setMessage({ text: 'User not found or error sending email.', type: 'error' });
-      }
-    } catch (err) {
-      setMessage({ text: 'Network error. Is the backend running?', type: 'error' });
-    }
-    setLoading(false);
+    setMessage({ text: '', type: '' });
+    setShowWarning(true);
   };
 
-  // ✅ ENHANCED - Show warning instead of directly proceeding
-  const handleVerifyOTP = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: otp }),
-      });
-      if (res.ok) {
-        // ✅ Show warning instead of directly going to step 3
-        setShowWarning(true);
-        setMessage({ text: 'Code verified!', type: 'success' });
-      } else {
-        setMessage({ text: 'Invalid or expired code.', type: 'error' });
-      }
-    } catch (err) {
-      setMessage({ text: 'Verification failed.', type: 'error' });
-    }
-    setLoading(false);
-  };
-
-  // ✅ NEW FUNCTION - Handle proceeding after warning acceptance
   const handleProceedToReset = () => {
     setShowWarning(false);
-    setStep(3);
+    setStep(2);
     setMessage({ text: 'Set your new password.', type: 'success' });
   };
 
-  // ✅ FIXED - Added response parsing and validation
   const handleResetPassword = async (e) => {
     e.preventDefault();
     if (newPassword !== confirmPassword) {
       return setMessage({ text: 'Passwords do not match!', type: 'error' });
     }
 
-    // ✅ Validate password strength
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(newPassword)) {
       return setMessage({
         text: 'Password must be 8+ characters with uppercase, lowercase, and number',
@@ -88,23 +47,27 @@ const ForgotPassword = () => {
 
     setLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/auth/reset-password`, {
+      const res = await fetch(`${SALVA_API_URL}/api/data/update-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, newPassword }),
       });
 
-      const data = await res.json(); // ✅ FIX: Actually parse the response
+      const data = await res.json();
 
-      if (res.ok) {
+      if (res.ok && data.status) {
         setMessage({
-          text: 'Password reset successful! Account locked for 24 hours. Redirecting...',
+          text:
+            data.message ||
+            'Password reset successful! Account locked for 24 hours. Redirecting...',
           type: 'success',
         });
         setTimeout(() => navigate('/login'), 3000);
       } else {
-        // ✅ FIX: Show actual error message from backend
-        setMessage({ text: data.message || 'Failed to update password.', type: 'error' });
+        setMessage({
+          text: data.message || 'Failed to update password.',
+          type: 'error',
+        });
       }
     } catch (err) {
       console.error('Reset error:', err);
@@ -126,14 +89,10 @@ const ForgotPassword = () => {
         <h2 className="text-3xl font-black mb-2 tracking-tighter">RESET PASSWORD</h2>
         <p className="text-xs text-salvaGold uppercase tracking-[0.3em] font-bold mb-8">
           {step === 1 && 'Identify your account'}
-          {step === 2 && 'Check your inbox'}
-          {step === 3 && 'Secure your vault'}
+          {step === 2 && 'Secure your vault'}
         </p>
 
-        <form
-          onSubmit={step === 1 ? handleSendOTP : step === 2 ? handleVerifyOTP : handleResetPassword}
-          className="space-y-6"
-        >
+        <form onSubmit={step === 1 ? handleEmailSubmit : handleResetPassword} className="space-y-6">
           {step === 1 && (
             <div>
               <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
@@ -151,23 +110,6 @@ const ForgotPassword = () => {
           )}
 
           {step === 2 && (
-            <div>
-              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
-                6-Digit Code
-              </label>
-              <input
-                required
-                type="text"
-                maxLength="6"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                className="w-full p-4 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-bold text-center text-2xl tracking-[0.5em]"
-                placeholder="000000"
-              />
-            </div>
-          )}
-
-          {step === 3 && (
             <>
               <div>
                 <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
@@ -218,13 +160,7 @@ const ForgotPassword = () => {
             disabled={loading}
             className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 transition-all uppercase tracking-widest text-sm"
           >
-            {loading
-              ? 'Processing...'
-              : step === 1
-                ? 'Send Code'
-                : step === 2
-                  ? 'Verify Code'
-                  : 'Update Password'}
+            {loading ? 'Processing...' : step === 1 ? 'Continue' : 'Update Password'}
           </button>
         </form>
 
@@ -242,7 +178,9 @@ const ForgotPassword = () => {
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className={`mt-4 text-[10px] uppercase font-bold text-center ${message.type === 'error' ? 'text-red-500' : 'text-salvaGold'}`}
+              className={`mt-4 text-[10px] uppercase font-bold text-center ${
+                message.type === 'error' ? 'text-red-500' : 'text-salvaGold'
+              }`}
             >
               {message.text}
             </motion.p>
@@ -250,7 +188,7 @@ const ForgotPassword = () => {
         </AnimatePresence>
       </motion.div>
 
-      {/* ✅ WARNING MODAL */}
+      {/* ── Warning modal — same 24h-lockdown warning shown before email/pin changes in AccountSettings ── */}
       <AnimatePresence>
         {showWarning && (
           <div className="fixed inset-0 z-50 flex items-center justify-center px-4">

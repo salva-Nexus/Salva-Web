@@ -256,7 +256,11 @@ const DEXVisual = () => {
               <div className="flex items-center gap-2 min-w-0">
                 <p className="text-[11px] font-black text-salvaGold truncate">{pool.name}</p>
                 <span
-                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${pool.chain === 'BSC' ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20' : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'}`}
+                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
+                    pool.chain === 'BSC'
+                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                      : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'
+                  }`}
                 >
                   {pool.chain}
                 </span>
@@ -547,7 +551,9 @@ const FAQItem = ({ question, answer }) => {
         </span>
         <motion.div animate={{ rotate: open ? 135 : 0 }} transition={{ duration: 0.25 }}>
           <div
-            className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${open ? 'border-salvaGold bg-salvaGold text-black' : 'border-current opacity-30'}`}
+            className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${
+              open ? 'border-salvaGold bg-salvaGold text-black' : 'border-current opacity-30'
+            }`}
           >
             <span className="text-xs font-black leading-none">+</span>
           </div>
@@ -626,7 +632,9 @@ const FeatureSection = ({
     <section
       id={id}
       ref={ref}
-      className={`flex flex-col ${fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'} gap-8 lg:gap-24 items-start py-14 sm:py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
+      className={`flex flex-col ${
+        fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'
+      } gap-8 lg:gap-24 items-start py-14 sm:py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
     >
       <motion.div
         initial={{ opacity: 0, x: fromLeft ? -40 : 40 }}
@@ -694,7 +702,11 @@ const SupportModal = ({ onClose }) => (
         onSubmit={(e) => {
           e.preventDefault();
           const fd = new FormData(e.target);
-          window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent('SALVA SUPPORT: ' + fd.get('topic'))}&body=${encodeURIComponent(`Name: ${fd.get('name')}\nAccount: ${fd.get('account')}\nIssue: ${fd.get('message')}`)}`;
+          window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent(
+            'SALVA SUPPORT: ' + fd.get('topic')
+          )}&body=${encodeURIComponent(
+            `Name: ${fd.get('name')}\nAccount: ${fd.get('account')}\nIssue: ${fd.get('message')}`
+          )}`;
           onClose();
         }}
         className="space-y-3"
@@ -763,12 +775,13 @@ const Home = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await fetch(`${SALVA_API_URL}/api/stats`);
+        const res = await fetch(`${SALVA_API_URL}/api/data/stats`);
         if (!res.ok) return;
         const d = await res.json();
+        if (!d.status || !d.data) return;
         setStats({
-          totalMinted: parseFloat(d.totalMinted || 0),
-          userCount: parseInt(d.userCount || 0),
+          totalMinted: parseFloat(d.data.ngnsCirculating || 0),
+          userCount: parseInt(d.data.usersCount || 0),
         });
       } catch {
       } finally {
@@ -828,7 +841,7 @@ const Home = () => {
               PAYMENT RAILS.
             </span>
           </motion.h1>
-          
+
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
