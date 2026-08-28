@@ -40,4 +40,9 @@ bnbConnection.on("error", (err) =>
   console.error("❌ BNB database error:", err.message),
 );
 
-export { baseConnection, bnbConnection };
+const dbReady = Promise.all([
+  baseConnection.asPromise(),
+  bnbConnection.asPromise(),
+]);
+
+export { baseConnection, bnbConnection, dbReady };

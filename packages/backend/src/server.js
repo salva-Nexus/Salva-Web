@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+import { dbReady } from './DB_connection.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
@@ -47,6 +47,16 @@ app.use(
 );
 
 app.use(express.json());
+
+app.use(async (req, res, next) => {
+  try {
+    await dbReady;
+    next();
+  } catch (err) {
+    console.error('❌ DB not ready:', err.message);
+    res.status(503).json({ message: 'Service temporarily unavailable, try again shortly' });
+  }
+});
 
 // Auth & Base User Routes
 app.use('/api/auth', otpRoute);
