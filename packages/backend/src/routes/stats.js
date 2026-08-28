@@ -38,8 +38,7 @@ router.get('/stats', async (req, res) => {
 
     // NGNS
 
-    console.log(ngnsBaseAddress, cngnBaseAddress, usdtBaseAddress, usdcBaseAddress);
-    console.log(ngnsBnbAddress, cngnBnbAddress, cngnBnbAddress, usdcBnbAddress);
+  
     const ngnsBase = new ethers.Contract(ngnsBaseAddress, ERC20, Provider(baseRpcUrl));
     const ngnsBnb = new ethers.Contract(ngnsBnbAddress, ERC20, Provider(bnbRpcUrl));
 
@@ -56,7 +55,7 @@ router.get('/stats', async (req, res) => {
     const usdcBnb = new ethers.Contract(usdcBnbAddress, ERC20, Provider(bnbRpcUrl));
 
     const ngnsBaseTs = await ngnsBase.totalSupply();
-    const ngnsBnbTs = await ngnsBase.totalSupply();
+    const ngnsBnbTs = await ngnsBnb.totalSupply();
 
     const usdtBaseDec = await usdtBase.decimals();
     const usdtBnbDec = await usdtBnb.decimals();
