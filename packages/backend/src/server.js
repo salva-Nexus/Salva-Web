@@ -65,7 +65,7 @@ app.use('/api/pool', poolRoute);
 app.use('/api/data', statsRouter);
 app.use('/api', userRecordRoute);
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 SALVA BACKEND ACTIVE ON PORT ${PORT}`);
 });
 
