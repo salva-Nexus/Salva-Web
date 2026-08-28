@@ -1,16 +1,6 @@
 import { ethers } from 'ethers';
 import { User, UserBNB } from '../models/Users.js';
-import WalletRegistry from '../models/WalletRegistry.js';
-import { ERC20, REGISTRY, SAFE, MULTISEND } from '../utils/abi.js';
-import {
-  checkNameAvailability,
-  resolveToAddress,
-  isNameAlias,
-  nameToBytes,
-  weldName,
-  getNamespace,
-  getContract,
-} from '../services/resolverServices.js';
+import { ERC20, SAFE, MULTISEND } from '../utils/abi.js';
 import { estimateTransferFee } from './estimateFee.js';
 import { _getBalance, balance } from './balanceServices.js';
 import { sendTransactionEmailToSender, sendTransactionEmailToReceiver } from './emailService.js';

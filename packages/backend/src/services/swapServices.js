@@ -1,14 +1,13 @@
 import { ethers } from "ethers";
-import { User, UserBNB } from "../models/Users.js";
+import { User } from "../models/Users.js";
 import {
   basePool,
   bnbPool,
   trustedBasePool,
   trustedBnbPool,
 } from "../models/Pool.js";
-import { ERC20, POOL_IFACE, MULTISEND, SAFE } from "../utils/abi.js";
-import { _getBalance, balance, _getDecimals } from "./balanceServices.js";
-import { getBalance } from "./transferServices.js";
+import { ERC20, POOL_IFACE } from "../utils/abi.js";
+import { _getBalance, _getDecimals } from "./balanceServices.js";
 import { _asset, _getFeeAndToken } from "./poolServices.js";
 import {
   estimateSwapFee,
@@ -229,8 +228,6 @@ async function getAmountIn(
     ERC20,
     provider,
   );
-  const usdTokenDecimals = await _getDecimals(usdTokenContract);
-
   const outTokenContract = new ethers.Contract(
     outTokenAddress,
     ERC20,

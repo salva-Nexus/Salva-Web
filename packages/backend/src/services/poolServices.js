@@ -19,7 +19,7 @@ import {
 } from "./estimateFee.js";
 import { _getBalance, balance, _getDecimals } from "./balanceServices.js";
 import { getBalance } from "./transferServices.js";
-import { linkName, unlinkName } from "./snServices.js";
+import { linkName, unlinkName } from "./snservices.js";
 import { executeTransfer } from "./transferServices.js";
 
 const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
