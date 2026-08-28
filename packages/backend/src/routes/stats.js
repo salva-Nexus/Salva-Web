@@ -1,19 +1,18 @@
-import express from "express";
-import { ethers } from "ethers";
-import { ERC20 } from "../utils/abi.js";
-import { User } from "../models/Users.js";
-import StatsSnapshot from "../models/StatsSnapshot.js";
+import express from 'express';
+import { ethers } from 'ethers';
+import { ERC20 } from '../utils/abi.js';
+import { User } from '../models/Users.js';
+import StatsSnapshot from '../models/StatsSnapshot.js';
 
 const router = express.Router();
 const mode = process.env.NODE_ENV;
 const baseRpcUrl =
-  mode === "development"
-    ? process.env.BASE_SEPOLIA_RPC_URL ||
-      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
+  mode === 'development'
+    ? process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
     : process.env.BASE_MAINNET_RPC_URL;
 
 const bnbRpcUrl =
-  mode === "development"
+  mode === 'development'
     ? process.env.BNB_TESTNET_RPC_URL || process.env.BNB_LOGS_RPC_URL
     : process.env.BNB_MAINNET_RPC_URL;
 
@@ -31,59 +30,29 @@ const Provider = (rpc) => {
   return new ethers.JsonRpcProvider(rpc);
 };
 
-router.get("/stats", async (req, res) => {
+router.get('/stats', async (req, res) => {
   try {
     const users = await User.find({
       pinSetupCompleted: true,
     });
 
     // NGNS
-    const ngnsBase = new ethers.Contract(
-      ngnsBaseAddress,
-      ERC20,
-      Provider(baseRpcUrl),
-    );
-    const ngnsBnb = new ethers.Contract(
-      ngnsBnbAddress,
-      ERC20,
-      Provider(bnbRpcUrl),
-    );
+
+    console.log(ngnsBaseAddress, cngnBaseAddress, usdtBaseAddress, usdcBaseAddress);
+    const ngnsBase = new ethers.Contract(ngnsBaseAddress, ERC20, Provider(baseRpcUrl));
+    const ngnsBnb = new ethers.Contract(ngnsBnbAddress, ERC20, Provider(bnbRpcUrl));
 
     // CNGN
-    const cngnBase = new ethers.Contract(
-      cngnBaseAddress,
-      ERC20,
-      Provider(baseRpcUrl),
-    );
-    const cngnBnb = new ethers.Contract(
-      cngnBnbAddress,
-      ERC20,
-      Provider(bnbRpcUrl),
-    );
+    const cngnBase = new ethers.Contract(cngnBaseAddress, ERC20, Provider(baseRpcUrl));
+    const cngnBnb = new ethers.Contract(cngnBnbAddress, ERC20, Provider(bnbRpcUrl));
 
     //USDT
-    const usdtBase = new ethers.Contract(
-      usdtBaseAddress,
-      ERC20,
-      Provider(baseRpcUrl),
-    );
-    const usdtBnb = new ethers.Contract(
-      usdtBnbAddress,
-      ERC20,
-      Provider(bnbRpcUrl),
-    );
+    const usdtBase = new ethers.Contract(usdtBaseAddress, ERC20, Provider(baseRpcUrl));
+    const usdtBnb = new ethers.Contract(usdtBnbAddress, ERC20, Provider(bnbRpcUrl));
 
     // USC
-    const usdcBase = new ethers.Contract(
-      usdcBaseAddress,
-      ERC20,
-      Provider(baseRpcUrl),
-    );
-    const usdcBnb = new ethers.Contract(
-      usdcBnbAddress,
-      ERC20,
-      Provider(bnbRpcUrl),
-    );
+    const usdcBase = new ethers.Contract(usdcBaseAddress, ERC20, Provider(baseRpcUrl));
+    const usdcBnb = new ethers.Contract(usdcBnbAddress, ERC20, Provider(bnbRpcUrl));
 
     const ngnsBaseTs = await ngnsBase.totalSupply();
     const ngnsBnbTs = await ngnsBase.totalSupply();
@@ -98,37 +67,25 @@ router.get("/stats", async (req, res) => {
     //NGNS
     const treasuryBaseNgnsBalance = await ngnsBase.balanceOf(treasury);
     const treasuryBnbNgnsBalance = await ngnsBnb.balanceOf(treasury);
-    const tBaseNgnsFormat = ethers.formatUnits(
-      treasuryBaseNgnsBalance.toString(),
-      6,
-    );
-    const tBnbNgnsFormat = ethers.formatUnits(
-      treasuryBnbNgnsBalance.toString(),
-      6,
-    );
+    const tBaseNgnsFormat = ethers.formatUnits(treasuryBaseNgnsBalance.toString(), 6);
+    const tBnbNgnsFormat = ethers.formatUnits(treasuryBnbNgnsBalance.toString(), 6);
 
     // CNGN
     const treasuryBaseCngnBalance = await cngnBase.balanceOf(treasury);
     const treasuryBnbCngnBalance = await cngnBnb.balanceOf(treasury);
-    const tBaseCngnFormat = ethers.formatUnits(
-      treasuryBaseCngnBalance.toString(),
-      6,
-    );
-    const tBnbCngnFormat = ethers.formatUnits(
-      treasuryBnbCngnBalance.toString(),
-      6,
-    );
+    const tBaseCngnFormat = ethers.formatUnits(treasuryBaseCngnBalance.toString(), 6);
+    const tBnbCngnFormat = ethers.formatUnits(treasuryBnbCngnBalance.toString(), 6);
 
     // USDT
     const treasuryBaseUsdtBalance = await usdtBase.balanceOf(treasury);
     const treasuryBnbUsdtBalance = await usdtBnb.balanceOf(treasury);
     const tBaseUsdtFormat = ethers.formatUnits(
       treasuryBaseUsdtBalance.toString(),
-      Number(usdtBaseDec),
+      Number(usdtBaseDec)
     );
     const tBnbUsdtFormat = ethers.formatUnits(
       treasuryBnbUsdtBalance.toString(),
-      Number(usdtBnbDec),
+      Number(usdtBnbDec)
     );
 
     // USDC
@@ -136,19 +93,19 @@ router.get("/stats", async (req, res) => {
     const treasuryBnbUsdcBalance = await usdcBnb.balanceOf(treasury);
     const tBaseUsdcFormat = ethers.formatUnits(
       treasuryBaseUsdcBalance.toString(),
-      Number(usdcBaseDec),
+      Number(usdcBaseDec)
     );
     const tBnbUsdcFormat = ethers.formatUnits(
       treasuryBnbUsdcBalance.toString(),
-      Number(usdcBnbDec),
+      Number(usdcBnbDec)
     );
 
     let stats = await StatsSnapshot.findOne({
-      network: mode === "development" ? "TESTNET" : "MAINNET",
+      network: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
     if (!stats) {
       stats = await StatsSnapshot.create({
-        network: mode === "development" ? "TESTNET" : "MAINNET",
+        network: mode === 'development' ? 'TESTNET' : 'MAINNET',
         userCount: users.length,
         ngnsCirculating:
           Number(ethers.formatUnits(ngnsBaseTs.toString(), 6)) +
@@ -166,7 +123,7 @@ router.get("/stats", async (req, res) => {
       });
     } else {
       await stats.updateOne({
-        network: mode === "development" ? "TESTNET" : "MAINNET",
+        network: mode === 'development' ? 'TESTNET' : 'MAINNET',
         userCount: users.length,
         ngnsCirculating:
           Number(ethers.formatUnits(ngnsBaseTs.toString(), 6)) +
