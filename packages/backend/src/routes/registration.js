@@ -222,6 +222,7 @@ router.post(
         nameAlias: null,
       });
     } catch (err) {
+      console.error(err.message)
       return res.status(500).json({
         errorMsg: err.message,
       });
