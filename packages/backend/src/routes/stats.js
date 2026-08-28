@@ -23,7 +23,7 @@ const usdcBaseAddress = process.env.USDC_CONTRACT_ADDRESS;
 
 const ngnsBnbAddress = process.env.BSC_NGN_TOKEN_ADDRESS;
 const cngnBnbAddress = process.env.BSC_CNGN_CONTRACT_ADDRESS;
-const usdtBnbAddress = process.env.BSC_USDT_CONTRACT_ADDRESS;
+const cngnBnbAddress = process.env.BSC_USDT_CONTRACT_ADDRESS;
 const usdcBnbAddress = process.env.BSC_USDC_CONTRACT_ADDRESS;
 const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
 const Provider = (rpc) => {
@@ -39,6 +39,7 @@ router.get('/stats', async (req, res) => {
     // NGNS
 
     console.log(ngnsBaseAddress, cngnBaseAddress, usdtBaseAddress, usdcBaseAddress);
+    console.log(ngnsBnbAddress, cngnBnbAddress, cngnBnbAddress, usdcBnbAddress);
     const ngnsBase = new ethers.Contract(ngnsBaseAddress, ERC20, Provider(baseRpcUrl));
     const ngnsBnb = new ethers.Contract(ngnsBnbAddress, ERC20, Provider(bnbRpcUrl));
 
@@ -56,8 +57,6 @@ router.get('/stats', async (req, res) => {
 
     const ngnsBaseTs = await ngnsBase.totalSupply();
     const ngnsBnbTs = await ngnsBase.totalSupply();
-    const cngnBaseTs = await cngnBase.totalSupply();
-    const cngnBnbTs = await cngnBase.totalSupply();
 
     const usdtBaseDec = await usdtBase.decimals();
     const usdtBnbDec = await usdtBnb.decimals();
@@ -123,7 +122,6 @@ router.get('/stats', async (req, res) => {
       });
     } else {
       await stats.updateOne({
-        network: mode === 'development' ? 'TESTNET' : 'MAINNET',
         userCount: users.length,
         ngnsCirculating:
           Number(ethers.formatUnits(ngnsBaseTs.toString(), 6)) +
