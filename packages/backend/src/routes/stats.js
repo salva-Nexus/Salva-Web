@@ -23,7 +23,7 @@ const usdcBaseAddress = process.env.USDC_CONTRACT_ADDRESS;
 
 const ngnsBnbAddress = process.env.BSC_NGN_TOKEN_ADDRESS;
 const cngnBnbAddress = process.env.BSC_CNGN_CONTRACT_ADDRESS;
-const cngnBnbAddress = process.env.BSC_USDT_CONTRACT_ADDRESS;
+const usdtBnbAddress = process.env.BSC_USDT_CONTRACT_ADDRESS;
 const usdcBnbAddress = process.env.BSC_USDC_CONTRACT_ADDRESS;
 const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
 const Provider = (rpc) => {
