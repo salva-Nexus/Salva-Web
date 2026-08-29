@@ -20,14 +20,14 @@ import Rate from "../models/Rate.js";
 
 const mode = process.env.NODE_ENV;
 const MULTI_SEND_BASE_ADDRESS =
-  mode === "development"
-    ? "0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425"
-    : "0xfA11MAINNET...";
+  mode === 'development'
+    ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425'
+    : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
 
 const MULTI_SEND_BNB_ADDRESS =
-  mode === "development"
-    ? "0x5270A710B4df2ecB457Be1aCA29fbD6C34435eb6"
-    : "0xfA11...";
+  mode === 'development'
+    ? '0x5270A710B4df2ecB457Be1aCA29fbD6C34435eb6'
+    : '0x63bF68FE0280799E43009eb66D7a1E4248082E14';
 
 const dummySafe = process.env.DUMMY_SAFE;
 const dummyKey = process.env.DUMMY_KEY;
@@ -163,8 +163,8 @@ async function estimateTransferFee(chain, tx) {
 async function _buildTransferData(provider, sponsor, chain) {
   const signerPack = new ethers.Wallet(dummyKey, provider);
   const safe = new ethers.Contract(dummySafe, SAFE, sponsor);
-  const firstTx = [treasury, "100000"];
-  const secondTx = [treasury, "100000"];
+  const firstTx = [treasury, "10000"];
+  const secondTx = [treasury, "10000"];
   const token =
     chain === "base"
       ? process.env.NGN_TOKEN_ADDRESS
@@ -320,148 +320,6 @@ async function deriveSaltNonce(ownerWallet, deploymentIndex = 0) {
   return BigInt(hash);
 }
 
-async function _estimateLinkFee(abi, registry, ngns, sponsor, tx) {
-  const provider = new ethers.JsonRpcProvider(baseRpcUrl);
-  const data = await _buildLinkData(abi, registry, ngns, provider, sponsor);
-  let gasCost;
-  try {
-    gasCost = await sponsor.estimateGas(data);
-  } catch (err) {
-    gasCost = 300000n;
-  }
-  const gasPrice = (await provider.getFeeData()).gasPrice;
-  const ethCost = ethers.formatEther(gasCost * gasPrice);
-  const costInUsd = await _ethCostInUsd(Number(ethCost), provider, "base");
-
-  let storedRate = await Rate.findOne({
-    active: true,
-  });
-
-  if (!storedRate) {
-    storedRate = await Rate.create({
-      active: true,
-    });
-  }
-
-  let ngnRate =
-    mode === "development"
-      ? { status: true, data: 1000.0 }
-      : !tx
-        ? { status: true, data: storedRate.rate }
-        : await fetchRate();
-  if (!ngnRate.status) {
-    await new Promise((r) => setTimeout(r, 5000));
-    ngnRate = await fetchRate();
-  } else {
-    await storedRate.updateOne({
-      rate: ngnRate.data,
-    });
-  }
-
-  if (!ngnRate.status) ngnRate = { status: true, data: storedRate.rate };
-
-  let costInNgn;
-  if (!ngnRate.status) {
-    // Non fatal
-    ngnRate.data = 10;
-  } else {
-    costInNgn = Math.ceil(ngnRate.data * costInUsd.data * 1000) / 1000;
-  }
-
-  const value = {
-    status: true,
-    data: {
-      feeNGN: buff(costInNgn, 600),
-      feeUsd: buff(
-        costInUsd.data === 0
-          ? chain === "base"
-            ? 0.0025
-            : 0.015
-          : costInUsd.data,
-        300,
-      ),
-    },
-  };
-  return value;
-}
-
-async function _buildLinkData(abi, registry, ngns, provider, signer) {
-  const callerPack = new ethers.Wallet(dummyKey, provider);
-  const safe = new ethers.Contract(dummySafe, SAFE, signer);
-  const firstTx = [registry, "300000000"];
-
-  const dummySNS = new SNS(abi, registry, regFactory, dummyKey, baseRpcUrl);
-  const data = dummySNS._dataHash("2.2", dummySafe);
-  const signature = await signer.signMessage(data.hash);
-
-  const secondTx = [data.nameBytes, data.address, ethers.hexlify(signature)];
-
-  let to = [ngns, registry, ngns];
-  let value = [0n, 0n, 0n];
-
-  const erc20Contract = new ethers.Interface(ERC20);
-  const registryContract = new ethers.Interface(REGISTRY);
-  let approveCalldata = erc20Contract.encodeFunctionData("approve", firstTx);
-  let linkCalldata = registryContract.encodeFunctionData("link", secondTx);
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    firstTx,
-  );
-  let encodedData = [approveCalldata, linkCalldata, transferFeeCalldata];
-  const currentNonce = await safe.nonce();
-  const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
-  const safeTx = {
-    to: MULTI_SEND_BASE_ADDRESS,
-    value: 0n,
-    data: multisendTx,
-    op: 1n,
-    safeTxGas: 0n,
-    baseGas: 0n,
-    gasPrice: 0n,
-    gasToken: ethers.ZeroAddress,
-    refundReceiver: ethers.ZeroAddress,
-    nonce: currentNonce,
-  };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce,
-  );
-
-  const sig = await callerPack.signMessage(ethers.getBytes(hash));
-  const newSig = _appendSafeReq(sig);
-  const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    newSig,
-  ]);
-  return {
-    to: dummySafe,
-    value: 0n,
-    data: safeData,
-  };
-}
-
 async function estimatePoolDeploymentFee(chain, tx) {
   const provider =
     chain === "base"
@@ -486,7 +344,7 @@ async function estimatePoolDeploymentFee(chain, tx) {
 async function _buildPoolDeploymentData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "1000000",
+  txFee = "1000",
   feeToken,
   provider,
   sponsor,
@@ -618,7 +476,7 @@ async function estimateAdd_RemoveLiqFee(chain, type, tx) {
 async function _buildAdd_RemoveLiqData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "10000",
+  txFee = "1000",
   feeToken,
   poolAddress,
   asset,
@@ -771,7 +629,7 @@ async function estimateUpdateRateFee(chain, tx) {
 async function _buildUpdateRateData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "10000",
+  txFee = "1000",
   feeToken,
   poolAddress,
   rate = "1200",
@@ -907,7 +765,7 @@ async function estimateUpdatePauseStateFee(chain, tx) {
 async function _buildUpdatePauseStateData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "10000",
+  txFee = "100",
   feeToken,
   poolAddress,
   state = "pause",
@@ -1049,10 +907,10 @@ async function estimateSwapFee(chain, isTrusted, tx) {
 async function _buildSwapData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "1000000",
+  txFee = "100",
   feeToken,
   poolAddress,
-  usdToken = "USDC",
+  usdToken = "NGNS",
   ngnToken = "NGNS",
   amount = "100",
   receiver = dummySafe,

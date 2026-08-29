@@ -60,7 +60,7 @@ router.get('/stats', async (req, res) => {
     const usdtBaseDec = await usdtBase.decimals();
     const usdtBnbDec = await usdtBnb.decimals();
     const usdcBaseDec = await usdcBase.decimals();
-    const usdcBnbDec = await usdcBase.decimals();
+    const usdcBnbDec = await usdcBnb.decimals();
 
     //NGNS
     const treasuryBaseNgnsBalance = await ngnsBase.balanceOf(treasury);

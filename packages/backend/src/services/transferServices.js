@@ -10,10 +10,12 @@ import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
 const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
 const mode = process.env.NODE_ENV;
 const MULTI_SEND_BASE_ADDRESS =
-  mode === 'development' ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425' : '0xfA11MAINNET...';
+  mode === 'development' ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425' : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
 
 const MULTI_SEND_BNB_ADDRESS =
-  mode === 'development' ? '0x5270A710B4df2ecB457Be1aCA29fbD6C34435eb6' : '0xfA11...';
+  mode === 'development'
+    ? '0x5270A710B4df2ecB457Be1aCA29fbD6C34435eb6'
+    : '0x63bF68FE0280799E43009eb66D7a1E4248082E14';
 
 const baseRpcUrl =
   mode === 'development'

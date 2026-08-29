@@ -1112,7 +1112,6 @@ const PoolNameModal = ({
   const [weldedName, setWeldedName] = useState("");
   const [linkFee, setLinkFee] = useState(null);
   const [linkFeeLoading, setLinkFeeLoading] = useState(false);
-  const [unlinkFee, setUnlinkFee] = useState(null);
   const [oldRegistryAddress, setOldRegistryAddress] = useState(null);
   const [reservedEmail, setReservedEmail] = useState("");
   const [reservedSubmitting, setReservedSubmitting] = useState(false);
@@ -1153,12 +1152,6 @@ const PoolNameModal = ({
           .catch(() => setLinkFee("0")),
       ];
       if (existingName) {
-        jobs.push(
-          fetch(`${SALVA_API_URL}/api/user/unlinkTxFee`)
-            .then((r) => r.json())
-            .then((d) => setUnlinkFee(d?.fee?.data || null))
-            .catch(() => setUnlinkFee(null)),
-        );
         jobs.push(
           fetch(`${SALVA_API_URL}/api/pool/single-pool/${poolAddress}/${CHAIN}`)
             .then((r) => r.json())
@@ -1479,19 +1472,6 @@ const PoolNameModal = ({
                 </div>
               ) : (
                 <>
-                  {existingName && unlinkFee && (
-                    <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
-                      <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
-                        Unlink Fee
-                      </p>
-                      <p className="font-black text-white text-[10px] sm:text-sm">
-                        ₦{smartFmt(unlinkFee.feeNGN)}{" "}
-                        <span className="text-salvaGold text-[8px] sm:text-xs">
-                          (~${smartFmt(unlinkFee.feeUsd)})
-                        </span>
-                      </p>
-                    </div>
-                  )}
                   {linkFee !== null && Number(linkFee) > 0 ? (
                     <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
                       <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">

@@ -804,7 +804,6 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
   const [unlinkLoading, setUnlinkLoading] = useState(false);
   const [linkFee, setLinkFee] = useState(null);
   const [feeLoading, setFeeLoading] = useState(false);
-  const [unlinkFee, setUnlinkFee] = useState(null);
 
   const fetchLinkedNames = useCallback(async () => {
     if (!user?.email) return;
@@ -1021,14 +1020,6 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
       setUnlinkLoading(false);
     }
   };
-
-  useEffect(() => {
-    if (!unlinkPinStep) return;
-    fetch(`${SALVA_API_URL}/api/user/unlinkTxFee`)
-      .then((r) => r.json())
-      .then((d) => setUnlinkFee(d.fee?.data || null))
-      .catch(() => setUnlinkFee(null));
-  }, [unlinkPinStep]);
 
   const resetLinkForm = () => {
     setLinkStep("form");
@@ -1591,11 +1582,6 @@ const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
                     {unlinkTarget.name}
                   </span>
                 </p>
-                {unlinkFee && (
-                  <p className="text-[8px] sm:text-[11px] text-white/40 mt-1">
-                    Est. fee: ₦{unlinkFee.feeNGN} (${unlinkFee.feeUsd})
-                  </p>
-                )}
               </div>
               <input
                 type="password"

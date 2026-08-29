@@ -13,9 +13,9 @@ const factory = process.env.REGISTRY_FACTORY;
 
 const mode = process.env.NODE_ENV;
 const MULTI_SEND_BASE_ADDRESS =
-  mode === "development"
-    ? "0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425"
-    : "0xfA11MAINNET...";
+  mode === 'development'
+    ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425'
+    : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
 
 const baseRpcUrl =
   mode === "development"
@@ -82,20 +82,6 @@ router.get("/linkFee", async (req, res) => {
     res.status(200).json({
       status: true,
       data: ethers.formatUnits(fee.toString(), 6).toString(),
-    });
-  } catch (err) {
-    res.status(500).json({
-      status: false,
-      errorMsg: err.message,
-    });
-  }
-});
-
-router.get("/unlinkTxFee", async (req, res) => {
-  try {
-    const fee = await estimateUnlinkFee(false);
-    res.status(200).json({
-      fee,
     });
   } catch (err) {
     res.status(500).json({

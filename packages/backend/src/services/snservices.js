@@ -9,8 +9,7 @@ import {
   ERC20,
   SAFE,
 } from "../utils/abi.js";
-import { SNS, erc20 } from "../../salva.js";
-import { _estimateLinkFee } from "./estimateFee.js";
+import { SNS } from "../../salva.js";
 import { getBalance, _appendSafeReq } from "./transferServices.js";
 import { balance } from "./balanceServices.js";
 import { basePool, bnbPool } from "../models/Pool.js";
@@ -19,15 +18,12 @@ import { isReservedName } from "../models/ReservedNames.js";
 const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
 const factory = process.env.REGISTRY_FACTORY;
 
-const dummySafe = "0xAEf59B5A3D9471D964cA40B4A270a940D2F580f3";
-const dummyKey =
-  "0x4411143141b8d2ba381d5be779b6c671bb98f5f89719c5dcc9cdf819f59695fb";
 
 const mode = process.env.NODE_ENV;
 const MULTI_SEND_BASE_ADDRESS =
-  mode === "development"
-    ? "0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425"
-    : "0xfA11MAINNET...";
+  mode === 'development'
+    ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425'
+    : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
 
 const baseRpcUrl =
   mode === "development"
@@ -56,52 +52,6 @@ async function linkName(email, owner, pKey, name, address, registry) {
   const signerConfig = sns._buildConfig(sponsorKey);
   const snsFeeWei = await sns.getFee();
 
-  const fee = await _estimateLinkFee(
-    ABI,
-    registry,
-    ngnsBaseAddress,
-    signerConfig,
-    true,
-  );
-
-  let feeHuman;
-  let feeTokenSymbol;
-
-  const balances = await balance(owner, "base");
-  if (
-    balances.data.ngnsBalance >= fee.data.feeNGN ||
-    balances.data.cNgnBalance >= fee.data.feeNGN
-  ) {
-    feeHuman = fee.data.feeNGN;
-    feeTokenSymbol =
-      balances.data.ngnsBalance >= fee.data.feeNGN ? "NGNS" : "CNGN";
-  } else if (
-    balances.data.usdtBalance >= fee.data.feeUsd ||
-    balances.data.usdcBalance >= fee.data.feeUsd
-  ) {
-    feeHuman = fee.data.feeUsd;
-    feeTokenSymbol =
-      balances.data.usdtBalance >= fee.data.feeUsd ? "USDT" : "USDC";
-  } else {
-    return { status: false };
-  }
-
-  let feeTokenAddress =
-    feeTokenSymbol === "NGNS"
-      ? ngnsBaseAddress
-      : feeTokenSymbol === "CNGN"
-        ? cngnBaseAddress
-        : feeTokenSymbol === "USDC"
-          ? usdcBaseAddress
-          : usdtBaseAddress;
-
-  const feeTokenData = await getBalance(feeTokenAddress, owner, "base");
-
-  let feeWei =
-    feeTokenSymbol === "NGNS" || feeTokenSymbol === "CNGN"
-      ? ethers.parseUnits(fee.data.feeNGN.toString(), feeTokenData.decimals)
-      : ethers.parseUnits(fee.data.feeUsd.toString(), feeTokenData.decimals);
-  let feeTokenDecimals = feeTokenData.decimals;
   const tx = await _buildAndExecLink(
     sns,
     owner,
@@ -109,8 +59,6 @@ async function linkName(email, owner, pKey, name, address, registry) {
     address,
     registry,
     signerConfig,
-    feeTokenAddress,
-    feeWei,
     snsFeeWei,
     Number(snsFeeWei) > 0 ? true : false,
   );
@@ -193,8 +141,6 @@ async function _buildAndExecLink(
   address,
   registry,
   signer,
-  feeTokenAddress,
-  txFee,
   singletonFee,
   approve,
 ) {
@@ -205,19 +151,17 @@ async function _buildAndExecLink(
   const signature = await signer.signMessage(data.hash);
 
   const secondTx = [data.nameBytes, data.address, ethers.hexlify(signature)];
-  const thirdTx = [treasury, txFee];
 
   let to = !approve
-    ? [registry, feeTokenAddress]
-    : [ngnsBaseAddress, registry, feeTokenAddress];
-  let value = !approve ? [0n, 0n] : [0n, 0n, 0n];
+    ? [registry]
+    : [ngnsBaseAddress, registry];
+  let value = !approve ? [0n] : [0n, 0n];
 
   const erc20Contract = new ethers.Interface(ERC20);
   const registryContract = new ethers.Interface(REGISTRY);
   let tx1Hex = erc20Contract.encodeFunctionData("approve", firstTx);
   let tx2Hex = registryContract.encodeFunctionData("link", secondTx);
-  let tx3Hex = erc20Contract.encodeFunctionData("transfer", thirdTx);
-  let encodedData = !approve ? [tx2Hex, tx3Hex] : [tx1Hex, tx2Hex, tx3Hex];
+  let encodedData = !approve ? [tx2Hex] : [tx1Hex, tx2Hex];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
@@ -286,60 +230,12 @@ async function unlinkName(email, owner, name, pKey, registry) {
   const sns = new SNS(ABI, registry, factory, pKey, baseRpcUrl);
   const signerConfig = sns._buildConfig(sponsorKey);
 
-  const fee = await _estimateLinkFee(
-    ABI,
-    registry,
-    ngnsBaseAddress,
-    signerConfig,
-    true,
-  );
-
-  let feeHuman;
-  let feeTokenSymbol;
-
-  const balances = await balance(owner, "base");
-  if (
-    balances.data.ngnsBalance >= fee.data.feeNGN ||
-    balances.data.cNgnBalance >= fee.data.feeNGN
-  ) {
-    feeHuman = fee.data.feeNGN;
-    feeTokenSymbol =
-      balances.data.ngnsBalance >= fee.data.feeNGN ? "NGNS" : "CNGN";
-  } else if (
-    balances.data.usdtBalance >= fee.data.feeUsd ||
-    balances.data.usdcBalance >= fee.data.feeUsd
-  ) {
-    feeHuman = fee.data.feeUsd;
-    feeTokenSymbol =
-      balances.data.usdtBalance >= fee.data.feeUsd ? "USDT" : "USDC";
-  } else {
-    return { status: false };
-  }
-
-  let feeTokenAddress =
-    feeTokenSymbol === "NGNS"
-      ? ngnsBaseAddress
-      : feeTokenSymbol === "CNGN"
-        ? cngnBaseAddress
-        : feeTokenSymbol === "USDC"
-          ? usdcBaseAddress
-          : usdtBaseAddress;
-
-  const fTokenData = await getBalance(feeTokenAddress, owner, "base");
-  let feeWei =
-    feeTokenSymbol === "NGNS" || feeTokenSymbol === "CNGN"
-      ? ethers.parseUnits(fee.data.feeNGN.toString(), fTokenData.decimals)
-      : ethers.parseUnits(fee.data.feeUsd.toString(), fTokenData.decimals);
-  let feeTokenDecimals = fTokenData.decimals;
-
   const tx = await _performUnlink(
     sns,
     name,
     owner,
     registry,
     signerConfig,
-    feeTokenAddress,
-    feeWei,
   );
 
   // UpdateDB
@@ -393,22 +289,17 @@ async function _performUnlink(
   owner,
   registry,
   signer,
-  feeTokenAddress,
-  txFee,
 ) {
   const safe = new ethers.Contract(owner, SAFE, signer);
   const firstTx = [ethers.toUtf8Bytes(fullName)];
-  const secondTx = [treasury, txFee];
 
-  let to = [registry, feeTokenAddress];
+  let to = [registry];
 
-  let value = [0n, 0n];
+  let value = [0n];
 
-  const erc20Contract = new ethers.Interface(ERC20);
   const registryContract = new ethers.Interface(REGISTRY);
   let tx1Hex = registryContract.encodeFunctionData("unlink", firstTx);
-  let tx2Hex = erc20Contract.encodeFunctionData("transfer", secondTx);
-  let encodedData = [tx1Hex, tx2Hex];
+  let encodedData = [tx1Hex];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
@@ -472,18 +363,5 @@ async function _performUnlink(
   }
 }
 
-async function estimateUnlinkFee(tx) {
-  const sns = new SNS(ABI, salvaRegistry, factory, sponsorKey, baseRpcUrl);
-  const signerConfig = sns._buildConfig(sponsorKey);
-  const fee = await _estimateLinkFee(
-    ABI,
-    salvaRegistry,
-    ngnsBaseAddress,
-    signerConfig,
-    tx,
-  );
 
-  return fee;
-}
-
-export { linkName, unlinkName, estimateUnlinkFee };
+export { linkName, unlinkName };
