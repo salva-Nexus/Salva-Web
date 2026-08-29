@@ -19,7 +19,7 @@ const PointsSchema = new mongoose.Schema({
 
 const pointsDistribution = {
   registration: {
-    referrer: 0.3,
+    referrer: 0.1,
   },
   transfers: {
     sender: 0.3,

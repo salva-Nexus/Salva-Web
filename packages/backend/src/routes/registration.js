@@ -131,8 +131,8 @@ router.post(
         password: hashPassword,
         safeAddress: deploymentData.data.basesafe,
         ownerPrivateKey: deploymentData.data.pkey,
-        deploymentLoanNGN: buff(deploymentLoan.data.BASE.NGN, 200),
-        deploymentLoanUSD: buff(deploymentLoan.data.BASE.USD, 200),
+        deploymentLoanNGN: buff(deploymentLoan.data.BASE.NGN, 500),
+        deploymentLoanUSD: buff(deploymentLoan.data.BASE.USD, 500),
         referralCode: newReferralCode,
         referredBy: referralCode,
       });
@@ -144,8 +144,8 @@ router.post(
           password: hashPassword,
           safeAddress: deploymentData.data.bnbSafe,
           ownerPrivateKey: deploymentData.data.pkey,
-          deploymentLoanNGN: buff(deploymentLoan.data.BNB.NGN, 150),
-          deploymentLoanUSD: buff(deploymentLoan.data.BNB.USD, 150),
+          deploymentLoanNGN: buff(deploymentLoan.data.BNB.NGN, 400),
+          deploymentLoanUSD: buff(deploymentLoan.data.BNB.USD, 400),
         });
       }
 
@@ -171,13 +171,13 @@ router.post(
           const rem = pointsRecord.hardCap - pointsRecord.totalPointsIssued;
           console.log(`Remaining: ${rem}`);
           let totalReward = pointsDistribution.registration.referrer;
-          console.log(`NEW USER Receives 1: ${totalReward}`);
+          console.log(`USER Receives 1: ${totalReward}`);
           console.log(`Total Reward 1: ${totalReward}`);
           console.log(`Total Reward > Remaining?: ${totalReward > rem}`);
 
           if (totalReward > rem) {
             totalReward = rem;
-            console.log(`NEW USER Receives 2: ${totalReward}`);
+            console.log(`USER Receives 2: ${totalReward}`);
             console.log(`Total Reward 2: ${totalReward}`);
           }
           let existingUser;
