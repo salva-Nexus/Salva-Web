@@ -1115,7 +1115,6 @@ export {
   _buildUpdateRateData,
   _buildFactoryData,
   _buildAdd_RemoveLiqData,
-  _estimateLinkFee,
   _buildPoolDeploymentData,
   _appendSafeReq,
 };
