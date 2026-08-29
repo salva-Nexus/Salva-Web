@@ -88,17 +88,13 @@ async function estimateDeploymentFee() {
     const bnbCostInUsd = await _ethCostInUsd(Number(bnbCost), bnbProvider, 'bnb');
     console.log('Base Usd Cost: ', baseCostInUsd);
     console.log('Base Usd Cost: ', bnbCostInUsd);
+
     let ngnRate = mode === 'development' ? { status: true, data: 1000.0 } : await fetchRate();
     console.log('Ngn Rate: ', ngnRate);
+
     if (!ngnRate.status) {
       await new Promise((r) => setTimeout(r, 5000));
       ngnRate = await fetchRate();
-    } else {
-      if (mode !== 'development') {
-        await storedRate.updateOne({
-          rate: ngnRate.data,
-        });
-      }
     }
 
     let baseCostInNgn;
