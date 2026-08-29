@@ -86,7 +86,7 @@ async function estimateDeploymentFee() {
     const baseCostInUsd = await _ethCostInUsd(Number(baseEthCost), baseProvider, 'base');
 
     const bnbCostInUsd = await _ethCostInUsd(Number(bnbCost), bnbProvider, 'bnb');
-    console.log('Base Usd Cost: ', baseCostInUsd)
+    console.log('Base Usd Cost: ', baseCostInUsd);
     console.log('Base Usd Cost: ', bnbCostInUsd);
     let ngnRate = mode === 'development' ? { status: true, data: 1000.0 } : await fetchRate();
     console.log('Ngn Rate: ', ngnRate);
@@ -272,11 +272,7 @@ async function _ethCostInUsd(etherCost, provider, chain) {
   const aggregator = new ethers.Contract(contract, CHAINLINK, provider);
   try {
     const data = await aggregator.latestRoundData();
-    console.log(
-      'Chain link Data: ',
-      Math.ceil(etherCost * ethers.formatUnits(data.answer, decimals) * 10000) / 10000
-    );
-    const decimals = await aggregator.decimals();
+    const dec = await aggregator.decimals();
     const isStale = Date.now() - Number(data.updatedAt) * 1000 > maxAgeMs;
     if (isStale) {
       console.error(`Price is stale`);
@@ -287,7 +283,7 @@ async function _ethCostInUsd(etherCost, provider, chain) {
     }
     return {
       status: true,
-      data: Math.ceil(etherCost * ethers.formatUnits(data.answer, decimals) * 10000) / 10000,
+      data: Math.ceil(etherCost * ethers.formatUnits(data.answer, dec) * 10000) / 10000,
     };
   } catch (err) {
     return {
