@@ -99,7 +99,7 @@ async function deploySafeWalletBASE_BNB() {
     }
     bnbSuccess = true;
   } catch (err) {
-    console.error(`⚠️ BNB deployment error: ${err.message}....Non-Fatal`);
+    console.error(`⚠️ BNB deployment error....Non-Fatal`);
     bnbSuccess = false;
   }
 

@@ -242,9 +242,7 @@ router.post("/bnb/register", async (req, res) => {
     const sanitizedEmail = sanitizeData(email, true);
     const data = await deploySafeWalletBNB(sanitizedEmail, pin);
 
-    console.log(
-      `✅ BNB wallet deployed for ${sanitizedEmail}: ${data.safeAddress}`,
-    );
+    console.log(`✅ BNB wallet deployed for ${sanitizedEmail}: ${data.data.safeAddress}`);
     res.json({
       username: data.data.username,
       email: sanitizedEmail,

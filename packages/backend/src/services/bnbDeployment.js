@@ -17,8 +17,6 @@ const bnbRpcUrl =
     : process.env.BNB_MAINNET_RPC_URL;
 
 async function deploySafeWalletBNB(email, pin) {
-  const mode = process.env.NODE_ENV;
-
   const userBase = await User.findOne({
     email: email,
   });
@@ -68,7 +66,7 @@ async function deploySafeWalletBNB(email, pin) {
     };
   }
 
-  const userBnb = await UserBNB.create({
+  await UserBNB.create({
     email: email,
     username: userBase.username,
     safeAddress: bnbSafeAddress,

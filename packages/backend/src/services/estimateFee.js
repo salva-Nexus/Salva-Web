@@ -266,6 +266,12 @@ async function _ethCostInUsd(etherCost, provider, chain) {
     }
   }
   const aggregator = new ethers.Contract(contract, CHAINLINK, provider);
+  console.log('CHAIN:', chain);
+  console.log('FEED:', contract);
+  console.log('PROVIDER:', await provider.getNetwork());
+
+  const code = await provider.getCode(contract);
+  console.log('CONTRACT CODE:', code.slice(0, 32), '.......');
   try {
     const data = await aggregator.latestRoundData();
     const dec = await aggregator.decimals();
@@ -277,11 +283,14 @@ async function _ethCostInUsd(etherCost, provider, chain) {
         data: 0,
       };
     }
+
+    console.log('CHAIN LINK ANSWER: ', data.answer, '\n', ethers.formatUnits(data.answer, dec));
     return {
       status: true,
       data: Math.ceil(etherCost * ethers.formatUnits(data.answer, dec) * 10000) / 10000,
     };
   } catch (err) {
+    console.error('Deployment Error: ', err.message);
     return {
       status: false,
       data: `Calculate Cost Error: ${err.message}`,
@@ -963,7 +972,7 @@ async function _getFee(gasCost, provider, chain, tx) {
     await new Promise((r) => setTimeout(r, 5000));
     ngnRate = await fetchRate();
   } else {
-    if (mode !== 'development') {
+    if (!tx && mode !== 'development') {
       await storedRate.updateOne({
         rate: ngnRate.data,
       });
