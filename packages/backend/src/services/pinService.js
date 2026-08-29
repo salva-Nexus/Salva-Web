@@ -86,7 +86,7 @@ async function verify_Pin(email, pin) {
     };
   }
 
-  const newUser = user.isNewUser || user.isNewUser === true;
+  const newUser = user.isNewUser === true;
   const isValid = newUser
     ? verifyPin(mix(pin), user.transactionPin)
     : verifyPin(pin, user.transactionPin);
