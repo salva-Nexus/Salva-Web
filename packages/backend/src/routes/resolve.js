@@ -10,7 +10,7 @@ router.get('/isAvail/:weldedName/:regAddress', async (req, res) => {
 
   try {
     const mainName = name.split('@');
-    if (isReservedName(mainName)) {
+    if (isReservedName(mainName[0])) {
       return res.status(400).json({
         status: false,
         message: `Name is whitelisted, Contact Support to claim name`,
