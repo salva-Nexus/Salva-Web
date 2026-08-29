@@ -1,5 +1,5 @@
-import Safe from "@safe-global/protocol-kit";
-import { ethers } from "ethers";
+import Safe from '@safe-global/protocol-kit';
+import { ethers } from 'ethers';
 import {
   SAFE_PROXY_FACTORY,
   SAFE_SETUP,
@@ -11,12 +11,12 @@ import {
   CHAINLINK,
   FACTORY_IFACE,
   POOL_IFACE,
-} from "../utils/abi.js";
-import fetchRate from "../utils/fetchRate.js";
-import buff from "../utils/buffer.js";
-import { SNS } from "../../salva.js";
-import { _asset } from "./poolServices.js";
-import Rate from "../models/Rate.js";
+} from '../utils/abi.js';
+import fetchRate from '../utils/fetchRate.js';
+import buff from '../utils/buffer.js';
+import { SNS } from '../../salva.js';
+import { _asset } from './poolServices.js';
+import Rate from '../models/Rate.js';
 
 const mode = process.env.NODE_ENV;
 const MULTI_SEND_BASE_ADDRESS =
@@ -35,20 +35,19 @@ const dummyBasePool = process.env.DUMMY_BASE_POOL;
 const dummyBnbPool = process.env.DUMMY_BNB_POOL;
 const maxAgeMs = 2 * 60 * 60 * 1000;
 const baseRpcUrl =
-  mode === "development"
-    ? process.env.BASE_SEPOLIA_RPC_URL ||
-      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
+  mode === 'development'
+    ? process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
     : process.env.BASE_MAINNET_RPC_URL;
 
 const bnbRpcUrl =
-  mode === "development"
+  mode === 'development'
     ? process.env.BNB_TESTNET_RPC_URL || process.env.BNB_LOGS_RPC_URL
     : process.env.BNB_MAINNET_RPC_URL;
 
-const singleton = "0x29fcb43b46531bca003ddc8fcb67ffe91900c762";
+const singleton = '0x29fcb43b46531bca003ddc8fcb67ffe91900c762';
 const factory = process.env.SAFE_PROXY_FACTORY;
-const fallbackHandler = "0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4";
-const DEPLOYMENT_SALT_MESSAGE = "NEW_SALVA_SAFE_DEPLOYMENT";
+const fallbackHandler = '0xf48f2B2d2a534e402487b3ee7C18c33Aec0Fe5e4';
+const DEPLOYMENT_SALT_MESSAGE = 'NEW_SALVA_SAFE_DEPLOYMENT';
 const regFactory = process.env.REGISTRY_FACTORY;
 const basePoolFactory = process.env.BASE_POOL_FACTORY_ADDRESS;
 const bnbPoolFactory = process.env.BSC_POOL_FACTORY_ADDRESS;
@@ -72,14 +71,8 @@ async function estimateDeploymentFee() {
   const baseProvider = new ethers.JsonRpcProvider(baseRpcUrl);
   const bnbProvider = new ethers.JsonRpcProvider(bnbRpcUrl);
 
-  const baseSigner = new ethers.Wallet(
-    process.env.MANAGER_PRIVATE_KEY,
-    baseProvider,
-  );
-  const bnbSigner = new ethers.Wallet(
-    process.env.MANAGER_PRIVATE_KEY,
-    bnbProvider,
-  );
+  const baseSigner = new ethers.Wallet(process.env.MANAGER_PRIVATE_KEY, baseProvider);
+  const bnbSigner = new ethers.Wallet(process.env.MANAGER_PRIVATE_KEY, bnbProvider);
 
   try {
     const baseGasCost = await baseSigner.estimateGas(data);
@@ -90,26 +83,22 @@ async function estimateDeploymentFee() {
 
     const baseEthCost = ethers.formatEther(baseGasCost * baseGasPrice);
     const bnbCost = ethers.formatEther(bnbGasCost * bnbGasPrice);
-    const baseCostInUsd = await _ethCostInUsd(
-      Number(baseEthCost),
-      baseProvider,
-      "base",
-    );
+    const baseCostInUsd = await _ethCostInUsd(Number(baseEthCost), baseProvider, 'base');
 
-    const bnbCostInUsd = await _ethCostInUsd(
-      Number(bnbCost),
-      bnbProvider,
-      "bnb",
-    );
-
-    let ngnRate =
-      mode === "development"
-        ? { status: true, data: 1000.0 }
-        : await fetchRate();
-
+    const bnbCostInUsd = await _ethCostInUsd(Number(bnbCost), bnbProvider, 'bnb');
+    console.log('Base Usd Cost: ', baseCostInUsd)
+    console.log('Base Usd Cost: ', bnbCostInUsd);
+    let ngnRate = mode === 'development' ? { status: true, data: 1000.0 } : await fetchRate();
+    console.log('Ngn Rate: ', ngnRate);
     if (!ngnRate.status) {
       await new Promise((r) => setTimeout(r, 5000));
       ngnRate = await fetchRate();
+    } else {
+      if (mode !== 'development') {
+        await storedRate.updateOne({
+          rate: ngnRate.data,
+        });
+      }
     }
 
     let baseCostInNgn;
@@ -118,8 +107,7 @@ async function estimateDeploymentFee() {
       // Non fatal
       ngnRate.data = 0;
     } else {
-      baseCostInNgn =
-        Math.ceil(ngnRate.data * baseCostInUsd.data * 1000) / 1000;
+      baseCostInNgn = Math.ceil(ngnRate.data * baseCostInUsd.data * 1000) / 1000;
       bnbCostInNgn = Math.ceil(ngnRate.data * bnbCostInUsd.data * 1000) / 1000;
     }
 
@@ -127,12 +115,12 @@ async function estimateDeploymentFee() {
       status: true,
       data: {
         BASE: {
-          NGN: baseCostInNgn === 0 ? 3 : baseCostInNgn,
-          USD: baseCostInUsd.data === 0 ? 0.0025 : baseCostInUsd.data,
+          NGN: !baseCostInNgn || isNaN(baseCostInNgn) ? 3 : baseCostInNgn,
+          USD: !baseCostInUsd.data || isNaN(baseCostInUsd.data) ? 0.0025 : baseCostInUsd.data,
         },
         BNB: {
-          NGN: bnbCostInNgn === 0 ? 22 : bnbCostInNgn,
-          USD: bnbCostInUsd.data === 0 ? 0.026 : bnbCostInUsd.data,
+          NGN: !bnbCostInNgn || isNaN(bnbCostInNgn) ? 22 : bnbCostInNgn,
+          USD: !bnbCostInUsd.data || isNaN(bnbCostInUsd.data) ? 0.026 : bnbCostInUsd.data,
         },
       },
     };
@@ -149,7 +137,7 @@ async function estimateDeploymentFee() {
 
 async function estimateTransferFee(chain, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -163,19 +151,17 @@ async function estimateTransferFee(chain, tx) {
 async function _buildTransferData(provider, sponsor, chain) {
   const signerPack = new ethers.Wallet(dummyKey, provider);
   const safe = new ethers.Contract(dummySafe, SAFE, sponsor);
-  const firstTx = [treasury, "10000"];
-  const secondTx = [treasury, "10000"];
+  const firstTx = [treasury, '10000'];
+  const secondTx = [treasury, '10000'];
   const token =
-    chain === "base"
-      ? process.env.NGN_TOKEN_ADDRESS
-      : process.env.BSC_NGN_TOKEN_ADDRESS;
+    chain === 'base' ? process.env.NGN_TOKEN_ADDRESS : process.env.BSC_NGN_TOKEN_ADDRESS;
   const data = [firstTx, secondTx];
   let to = [];
   let value = [];
   let encodedData = [];
   const erc20Contract = new ethers.Interface(ERC20);
   for (let i = 0; i < data.length; i++) {
-    let hex = erc20Contract.encodeFunctionData("transfer", data[i]);
+    let hex = erc20Contract.encodeFunctionData('transfer', data[i]);
     to.push(token);
     value.push(0n);
     encodedData.push(hex);
@@ -183,13 +169,9 @@ async function _buildTransferData(provider, sponsor, chain) {
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -210,13 +192,13 @@ async function _buildTransferData(provider, sponsor, chain) {
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -246,11 +228,11 @@ async function _buildFactoryData(owner) {
   const saltNonce = await deriveSaltNonce(owner, 0); // 0 = first deployment for this user
 
   const setupIface = new ethers.Interface(SAFE_SETUP);
-  const setupCalldata = setupIface.encodeFunctionData("setup", [
+  const setupCalldata = setupIface.encodeFunctionData('setup', [
     [owner.address],
     1,
     ethers.ZeroAddress,
-    "0x",
+    '0x',
     fallbackHandler,
     ethers.ZeroAddress,
     0,
@@ -258,10 +240,11 @@ async function _buildFactoryData(owner) {
   ]);
 
   const factoryIface = new ethers.Interface(SAFE_PROXY_FACTORY);
-  const factoryCalldata = factoryIface.encodeFunctionData(
-    "createProxyWithNonce",
-    [singleton, setupCalldata, saltNonce],
-  );
+  const factoryCalldata = factoryIface.encodeFunctionData('createProxyWithNonce', [
+    singleton,
+    setupCalldata,
+    saltNonce,
+  ]);
 
   const data = {
     to: factory,
@@ -273,14 +256,14 @@ async function _buildFactoryData(owner) {
 
 async function _ethCostInUsd(etherCost, provider, chain) {
   let contract;
-  if (chain === "base") {
-    if (mode === "development") {
+  if (chain === 'base') {
+    if (mode === 'development') {
       contract = process.env.CHAINLINK_ETH_USD_FEED_BASE_SEP;
     } else {
       contract = process.env.CHAINLINK_ETH_USD_FEED_BASE;
     }
   } else {
-    if (mode === "development") {
+    if (mode === 'development') {
       contract = process.env.CHAINLINK_BNB_USD_FEED_BSC_TEST;
     } else {
       contract = process.env.CHAINLINK_BNB_USD_FEED_BSC;
@@ -289,6 +272,10 @@ async function _ethCostInUsd(etherCost, provider, chain) {
   const aggregator = new ethers.Contract(contract, CHAINLINK, provider);
   try {
     const data = await aggregator.latestRoundData();
+    console.log(
+      'Chain link Data: ',
+      Math.ceil(etherCost * ethers.formatUnits(data.answer, decimals) * 10000) / 10000
+    );
     const decimals = await aggregator.decimals();
     const isStale = Date.now() - Number(data.updatedAt) * 1000 > maxAgeMs;
     if (isStale) {
@@ -300,10 +287,7 @@ async function _ethCostInUsd(etherCost, provider, chain) {
     }
     return {
       status: true,
-      data:
-        Math.ceil(
-          etherCost * ethers.formatUnits(data.answer, decimals) * 10000,
-        ) / 10000,
+      data: Math.ceil(etherCost * ethers.formatUnits(data.answer, decimals) * 10000) / 10000,
     };
   } catch (err) {
     return {
@@ -322,7 +306,7 @@ async function deriveSaltNonce(ownerWallet, deploymentIndex = 0) {
 
 async function estimatePoolDeploymentFee(chain, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -334,7 +318,7 @@ async function estimatePoolDeploymentFee(chain, tx) {
     undefined,
     provider,
     sponsor,
-    chain,
+    chain
   );
 
   const gasCost = await sponsor.estimateGas(data.data);
@@ -344,11 +328,11 @@ async function estimatePoolDeploymentFee(chain, tx) {
 async function _buildPoolDeploymentData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "1000",
+  txFee = '1000',
   feeToken,
   provider,
   sponsor,
-  chain,
+  chain
 ) {
   const signerPack = new ethers.Wallet(privateKey, provider);
   const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
@@ -356,36 +340,26 @@ async function _buildPoolDeploymentData(
   const secondTx = [treasury, txFee];
   let ftoken =
     feeToken === undefined
-      ? chain === "base"
+      ? chain === 'base'
         ? process.env.NGN_TOKEN_ADDRESS
         : process.env.BSC_NGN_TOKEN_ADDRESS
       : feeToken;
 
-  const pool_factory = chain === "base" ? basePoolFactory : bnbPoolFactory;
+  const pool_factory = chain === 'base' ? basePoolFactory : bnbPoolFactory;
   const data = [firstTx, secondTx];
   let to = [pool_factory, ftoken];
   let value = [0n, 0n];
   const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
-  let deployPoolCalldata = poolFactoryContract.encodeFunctionData(
-    "deployPool",
-    data[0],
-  );
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    data[1],
-  );
+  let deployPoolCalldata = poolFactoryContract.encodeFunctionData('deployPool', data[0]);
+  let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', data[1]);
   let encodedData = [deployPoolCalldata, transferFeeCalldata];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -406,13 +380,13 @@ async function _buildPoolDeploymentData(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -450,7 +424,7 @@ async function _buildPoolDeploymentData(
 
 async function estimateAdd_RemoveLiqFee(chain, type, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -466,7 +440,7 @@ async function estimateAdd_RemoveLiqFee(chain, type, tx) {
     provider,
     sponsor,
     chain,
-    type,
+    type
   );
 
   const gasCost = await sponsor.estimateGas(data.data);
@@ -476,70 +450,48 @@ async function estimateAdd_RemoveLiqFee(chain, type, tx) {
 async function _buildAdd_RemoveLiqData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "1000",
+  txFee = '1000',
   feeToken,
   poolAddress,
   asset,
-  amount = "500",
+  amount = '500',
   provider,
   sponsor,
   chain,
-  type,
+  type
 ) {
   const signerPack = new ethers.Wallet(privateKey, provider);
   const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
   const poolAddr =
-    poolAddress === undefined
-      ? chain === "base"
-        ? dummyBasePool
-        : dummyBnbPool
-      : poolAddress;
+    poolAddress === undefined ? (chain === 'base' ? dummyBasePool : dummyBnbPool) : poolAddress;
   const assetToken =
-    asset === undefined
-      ? chain === "base"
-        ? ngnsBaseAddress
-        : ngnsBnbAddress
-      : asset;
+    asset === undefined ? (chain === 'base' ? ngnsBaseAddress : ngnsBnbAddress) : asset;
   const firstTx = [poolAddr, amount];
   const secondTx = [assetToken, amount];
   let ftoken =
     feeToken === undefined
-      ? chain === "base"
+      ? chain === 'base'
         ? process.env.NGN_TOKEN_ADDRESS
         : process.env.BSC_NGN_TOKEN_ADDRESS
       : feeToken;
   const thirdTx = [treasury, txFee];
-  let to =
-    type === "provide" ? [assetToken, poolAddr, ftoken] : [poolAddr, ftoken];
-  let value = type === "provide" ? [0n, 0n, 0n] : [0n, 0n];
+  let to = type === 'provide' ? [assetToken, poolAddr, ftoken] : [poolAddr, ftoken];
+  let value = type === 'provide' ? [0n, 0n, 0n] : [0n, 0n];
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
-  let approveCalldata = erc20Contract.encodeFunctionData("approve", firstTx);
-  let provideLiquidityCalldata = poolContract.encodeFunctionData(
-    "provideLiquidity",
-    secondTx,
-  );
-  let removeLiquidityCalldata = poolContract.encodeFunctionData(
-    "removeLiquidity",
-    secondTx,
-  );
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    thirdTx,
-  );
+  let approveCalldata = erc20Contract.encodeFunctionData('approve', firstTx);
+  let provideLiquidityCalldata = poolContract.encodeFunctionData('provideLiquidity', secondTx);
+  let removeLiquidityCalldata = poolContract.encodeFunctionData('removeLiquidity', secondTx);
+  let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', thirdTx);
   let encodedData =
-    type === "provide"
+    type === 'provide'
       ? [approveCalldata, provideLiquidityCalldata, transferFeeCalldata]
       : [removeLiquidityCalldata, transferFeeCalldata];
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -560,13 +512,13 @@ async function _buildAdd_RemoveLiqData(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -604,7 +556,7 @@ async function _buildAdd_RemoveLiqData(
 
 async function estimateUpdateRateFee(chain, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -619,7 +571,7 @@ async function estimateUpdateRateFee(chain, tx) {
     undefined,
     provider,
     sponsor,
-    chain,
+    chain
   );
 
   const gasCost = await sponsor.estimateGas(data.data);
@@ -629,27 +581,23 @@ async function estimateUpdateRateFee(chain, tx) {
 async function _buildUpdateRateData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "1000",
+  txFee = '1000',
   feeToken,
   poolAddress,
-  rate = "1200",
-  type = "buy",
+  rate = '1200',
+  type = 'buy',
   provider,
   sponsor,
-  chain,
+  chain
 ) {
   const signerPack = new ethers.Wallet(privateKey, provider);
   const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
   const poolAddr =
-    poolAddress === undefined
-      ? chain === "base"
-        ? dummyBasePool
-        : dummyBnbPool
-      : poolAddress;
+    poolAddress === undefined ? (chain === 'base' ? dummyBasePool : dummyBnbPool) : poolAddress;
   const firstTx = [rate];
   let ftoken =
     feeToken === undefined
-      ? chain === "base"
+      ? chain === 'base'
         ? process.env.NGN_TOKEN_ADDRESS
         : process.env.BSC_NGN_TOKEN_ADDRESS
       : feeToken;
@@ -659,24 +607,17 @@ async function _buildUpdateRateData(
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
   let updateRateCalldata = poolContract.encodeFunctionData(
-    type === "buy" ? "updateBuyRate" : "updateSellRate",
-    firstTx,
+    type === 'buy' ? 'updateBuyRate' : 'updateSellRate',
+    firstTx
   );
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    secondTx,
-  );
+  let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', secondTx);
   let encodedData = [updateRateCalldata, transferFeeCalldata];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -697,13 +638,13 @@ async function _buildUpdateRateData(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -741,7 +682,7 @@ async function _buildUpdateRateData(
 
 async function estimateUpdatePauseStateFee(chain, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -755,7 +696,7 @@ async function estimateUpdatePauseStateFee(chain, tx) {
     undefined,
     provider,
     sponsor,
-    chain,
+    chain
   );
 
   const gasCost = await sponsor.estimateGas(data.data);
@@ -765,26 +706,22 @@ async function estimateUpdatePauseStateFee(chain, tx) {
 async function _buildUpdatePauseStateData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "100",
+  txFee = '100',
   feeToken,
   poolAddress,
-  state = "pause",
+  state = 'pause',
   provider,
   sponsor,
-  chain,
+  chain
 ) {
   const signerPack = new ethers.Wallet(privateKey, provider);
   const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
   const poolAddr =
-    poolAddress === undefined
-      ? chain === "base"
-        ? dummyBasePool
-        : dummyBnbPool
-      : poolAddress;
+    poolAddress === undefined ? (chain === 'base' ? dummyBasePool : dummyBnbPool) : poolAddress;
   const firstTx = [];
   let ftoken =
     feeToken === undefined
-      ? chain === "base"
+      ? chain === 'base'
         ? process.env.NGN_TOKEN_ADDRESS
         : process.env.BSC_NGN_TOKEN_ADDRESS
       : feeToken;
@@ -794,24 +731,17 @@ async function _buildUpdatePauseStateData(
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
   let updatePauseStateCalldata = poolContract.encodeFunctionData(
-    state === "pause" ? "pause" : "unpause",
-    firstTx,
+    state === 'pause' ? 'pause' : 'unpause',
+    firstTx
   );
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    secondTx,
-  );
+  let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', secondTx);
   let encodedData = [updatePauseStateCalldata, transferFeeCalldata];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -832,13 +762,13 @@ async function _buildUpdatePauseStateData(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -876,7 +806,7 @@ async function _buildUpdatePauseStateData(
 
 async function estimateSwapFee(chain, isTrusted, tx) {
   const provider =
-    chain === "base"
+    chain === 'base'
       ? new ethers.JsonRpcProvider(baseRpcUrl)
       : new ethers.JsonRpcProvider(bnbRpcUrl);
 
@@ -897,7 +827,7 @@ async function estimateSwapFee(chain, isTrusted, tx) {
     sponsor,
     chain,
     undefined,
-    isTrusted,
+    isTrusted
   );
 
   const gasCost = await sponsor.estimateGas(data.data);
@@ -907,70 +837,52 @@ async function estimateSwapFee(chain, isTrusted, tx) {
 async function _buildSwapData(
   safeAddress = dummySafe,
   privateKey = dummyKey,
-  txFee = "100",
+  txFee = '100',
   feeToken,
   poolAddress,
-  usdToken = "NGNS",
-  ngnToken = "NGNS",
-  amount = "100",
+  usdToken = 'NGNS',
+  ngnToken = 'NGNS',
+  amount = '100',
   receiver = dummySafe,
-  approveToken = "NGNS",
-  approveAmount = "100",
+  approveToken = 'NGNS',
+  approveAmount = '100',
   provider,
   sponsor,
   chain,
-  type = "swapExactNGNAmountForUSD",
-  isTrusted,
+  type = 'swapExactNGNAmountForUSD',
+  isTrusted
 ) {
   const signerPack = new ethers.Wallet(privateKey, provider);
   const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
   const poolAddr =
-    poolAddress === undefined
-      ? chain === "base"
-        ? dummyBasePool
-        : dummyBnbPool
-      : poolAddress;
+    poolAddress === undefined ? (chain === 'base' ? dummyBasePool : dummyBnbPool) : poolAddress;
   const firstTx = [poolAddr, approveAmount];
-  const secondTx = [
-    receiver,
-    _asset(usdToken, chain),
-    _asset(ngnToken, chain),
-    amount,
-  ];
+  const secondTx = [receiver, _asset(usdToken, chain), _asset(ngnToken, chain), amount];
   const thirdTx = [treasury, txFee];
   let ftoken =
     feeToken === undefined
-      ? chain === "base"
+      ? chain === 'base'
         ? process.env.NGN_TOKEN_ADDRESS
         : process.env.BSC_NGN_TOKEN_ADDRESS
       : feeToken;
 
-  let to = isTrusted
-    ? [poolAddr, ftoken]
-    : [_asset(approveToken, chain), poolAddr, ftoken];
+  let to = isTrusted ? [poolAddr, ftoken] : [_asset(approveToken, chain), poolAddr, ftoken];
   let value = isTrusted ? [0n, 0n] : [0n, 0n, 0n];
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
-  let approveCalldata = erc20Contract.encodeFunctionData("approve", firstTx);
+  let approveCalldata = erc20Contract.encodeFunctionData('approve', firstTx);
   let swapCalldata = poolContract.encodeFunctionData(type, secondTx);
-  let transferFeeCalldata = erc20Contract.encodeFunctionData(
-    "transfer",
-    thirdTx,
-  );
+  let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', thirdTx);
 
   let encodedData = isTrusted
     ? [swapCalldata, transferFeeCalldata]
     : [approveCalldata, swapCalldata, transferFeeCalldata];
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
 
   const safeTx = {
-    to: chain === "base" ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -992,12 +904,12 @@ async function _buildSwapData(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
-  const safeData = safeIFace.encodeFunctionData("execTransaction", [
+  const safeData = safeIFace.encodeFunctionData('execTransaction', [
     safeTx.to,
     safeTx.value,
     safeTx.data,
@@ -1035,7 +947,7 @@ async function _buildSwapData(
 
 async function _getFee(gasCost, provider, chain, tx) {
   const gasPrice = (await provider.getFeeData()).gasPrice;
-  console.log(chain, " gas price: ", gasPrice);
+  console.log(chain, ' gas price: ', gasPrice);
   const ethCost = ethers.formatEther(gasCost * gasPrice);
   const costInUsd = await _ethCostInUsd(Number(ethCost), provider, chain);
 
@@ -1050,7 +962,7 @@ async function _getFee(gasCost, provider, chain, tx) {
   }
 
   let ngnRate =
-    mode === "development"
+    mode === 'development'
       ? { status: true, data: 1000.0 }
       : !tx
         ? { status: true, data: storedRate.rate }
@@ -1059,9 +971,11 @@ async function _getFee(gasCost, provider, chain, tx) {
     await new Promise((r) => setTimeout(r, 5000));
     ngnRate = await fetchRate();
   } else {
-    await storedRate.updateOne({
-      rate: ngnRate.data,
-    });
+    if (mode !== 'development') {
+      await storedRate.updateOne({
+        rate: ngnRate.data,
+      });
+    }
   }
 
   if (!ngnRate.status) ngnRate = { status: true, data: storedRate.rate };
@@ -1075,30 +989,18 @@ async function _getFee(gasCost, provider, chain, tx) {
 
   const costInNgn = Math.ceil(ngnRate.data * costInUsd.data * 1000) / 1000;
 
+  const safeCostInNgn = !costInNgn || isNaN(costInNgn) ? (chain === 'base' ? 3 : 22) : costInNgn;
+  const safeCostInUsd =
+    !costInUsd.data || isNaN(costInUsd.data) ? (chain === 'base' ? 0.0025 : 0.015) : costInUsd.data;
+
   const value = {
     status: true,
     data: {
-      feeNGN: chain === "base" ? buff(costInNgn, 600) : buff(costInNgn, 150),
-      feeUsd:
-        chain === "base"
-          ? buff(
-              costInUsd.data === 0
-                ? chain === "base"
-                  ? 0.0025
-                  : 0.015
-                : costInUsd.data,
-              600,
-            )
-          : buff(
-              costInUsd.data === 0
-                ? chain === "base"
-                  ? 0.0025
-                  : 0.015
-                : costInUsd.data,
-              150,
-            ),
+      feeNGN: chain === 'base' ? buff(safeCostInNgn, 600) : buff(safeCostInNgn, 150),
+      feeUsd: chain === 'base' ? buff(safeCostInUsd, 600) : buff(safeCostInUsd, 150),
     },
   };
+  return value;
   return value;
 }
 
