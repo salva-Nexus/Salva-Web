@@ -125,7 +125,7 @@ router.post(
         console.error(`Could Not Generate Unique ID`);
       }
 
-      const userBase = User.create({
+      const userBase = await User.create({
         email: email,
         username: username,
         password: hashPassword,
@@ -138,7 +138,7 @@ router.post(
       });
 
       if (deploymentData.data.bnbSuccess) {
-        const userBnb = UserBNB.create({
+        const userBnb = await UserBNB.create({
           email: email,
           username: username,
           password: hashPassword,

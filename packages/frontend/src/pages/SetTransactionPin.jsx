@@ -89,19 +89,19 @@ const SetTransactionPin = () => {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative z-10 w-full max-w-md bg-white/90 dark:bg-black/40 backdrop-blur-2xl p-10 rounded-[2.5rem] border border-gray-200 dark:border-white/10 shadow-2xl"
+        className="relative z-10 w-full max-w-md bg-white/90 dark:bg-black/40 backdrop-blur-2xl p-7 sm:p-10 rounded-[1.75rem] sm:rounded-[2.5rem] border border-gray-200 dark:border-white/10 shadow-2xl"
       >
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">🔐</span>
+        <div className="text-center mb-5 sm:mb-8">
+          <div className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+            <span className="text-xl sm:text-3xl">🔐</span>
           </div>
-          <h2 className="text-3xl font-black mb-2">Set Transaction PIN</h2>
-          <p className="text-sm opacity-60">Secure your wallet with a 4-digit PIN</p>
+          <h2 className="text-xl sm:text-3xl font-black mb-1.5 sm:mb-2">Set Transaction PIN</h2>
+          <p className="text-xs sm:text-sm opacity-60">Secure your wallet with a 4-digit PIN</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
           <div>
-            <label className="text-xs uppercase opacity-40 font-bold mb-2 block tracking-widest">
+            <label className="text-[10px] sm:text-xs uppercase opacity-40 font-bold mb-1.5 sm:mb-2 block tracking-widest">
               Enter PIN
             </label>
             <input
@@ -114,12 +114,12 @@ const SetTransactionPin = () => {
               placeholder="••••"
               autoFocus
               required
-              className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-2xl tracking-[1em] font-black"
+              className="w-full p-3 sm:p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-lg sm:text-2xl tracking-[0.6em] sm:tracking-[1em] font-black"
             />
           </div>
 
           <div>
-            <label className="text-xs uppercase opacity-40 font-bold mb-2 block tracking-widest">
+            <label className="text-[10px] sm:text-xs uppercase opacity-40 font-bold mb-1.5 sm:mb-2 block tracking-widest">
               Confirm PIN
             </label>
             <input
@@ -131,7 +131,7 @@ const SetTransactionPin = () => {
               onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, ''))}
               placeholder="••••"
               required
-              className="w-full p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-2xl tracking-[1em] font-black"
+              className="w-full p-3 sm:p-4 rounded-xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-center text-lg sm:text-2xl tracking-[0.6em] sm:tracking-[1em] font-black"
             />
           </div>
 
@@ -139,7 +139,7 @@ const SetTransactionPin = () => {
             <motion.div
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded-xl text-sm font-bold text-center"
+              className="bg-red-500/10 border border-red-500 text-red-500 p-2 sm:p-3 rounded-xl text-xs sm:text-sm font-bold text-center"
             >
               {error}
             </motion.div>
@@ -148,14 +148,14 @@ const SetTransactionPin = () => {
           <button
             type="submit"
             disabled={loading || pin.length !== 4 || confirmPin.length !== 4}
-            className="w-full py-5 rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full py-3.5 sm:py-5 rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base"
           >
             {loading ? 'SECURING WALLET...' : 'CONFIRM & ENTER DASHBOARD'}
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-salvaGold/5 border border-salvaGold/20 rounded-xl">
-          <p className="text-xs text-center opacity-70 font-bold">
+        <div className="mt-4 sm:mt-6 p-3 sm:p-4 bg-salvaGold/5 border border-salvaGold/20 rounded-xl">
+          <p className="text-[10px] sm:text-xs text-center opacity-70 font-bold">
             🔑 Your PIN encrypts your private key. Never share it with anyone. It cannot be
             recovered if lost.
           </p>
