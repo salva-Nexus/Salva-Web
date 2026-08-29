@@ -2,7 +2,6 @@ import express from "express";
 import {
   linkName,
   unlinkName,
-  estimateUnlinkFee,
 } from "../services/snservices.js";
 import { REGISTRYFACTORY } from "../utils/abi.js";
 import { ethers } from "ethers";
