@@ -131,8 +131,8 @@ router.post(
         password: hashPassword,
         safeAddress: deploymentData.data.basesafe,
         ownerPrivateKey: deploymentData.data.pkey,
-        deploymentLoanNGN: buff(deploymentLoan.data.BASE.NGN, 500),
-        deploymentLoanUSD: buff(deploymentLoan.data.BASE.USD, 500),
+        deploymentLoanNGN: buff(deploymentLoan.data.BASE.NGN, 800),
+        deploymentLoanUSD: buff(deploymentLoan.data.BASE.USD, 800),
         referralCode: newReferralCode,
         referredBy: referralCode,
       });

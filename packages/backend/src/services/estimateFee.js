@@ -995,8 +995,8 @@ async function _getFee(gasCost, provider, chain, tx) {
   const value = {
     status: true,
     data: {
-      feeNGN: chain === 'base' ? buff(safeCostInNgn, 600) : buff(safeCostInNgn, 600),
-      feeUsd: chain === 'base' ? buff(safeCostInUsd, 200) : buff(safeCostInUsd, 200),
+      feeNGN: chain === 'base' ? buff(safeCostInNgn, 800) : buff(safeCostInNgn, 400),
+      feeUsd: chain === 'base' ? buff(safeCostInUsd, 800) : buff(safeCostInUsd, 400),
     },
   };
   return value;

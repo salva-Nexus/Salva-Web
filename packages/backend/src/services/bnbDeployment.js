@@ -73,8 +73,8 @@ async function deploySafeWalletBNB(email, pin) {
     ownerPrivateKey: userBase.ownerPrivateKey,
     transactionPin: userBase.transactionPin,
     pinSetupCompleted: userBase.pinSetupCompleted,
-    deploymentLoanNGN: buff(deploymentLoan.data.BNB.NGN, 150),
-    deploymentLoanUSD: buff(deploymentLoan.data.BNB.USD, 150),
+    deploymentLoanNGN: buff(deploymentLoan.data.BNB.NGN, 400),
+    deploymentLoanUSD: buff(deploymentLoan.data.BNB.USD, 400),
   });
   return {
     status: true,
