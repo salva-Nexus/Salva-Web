@@ -969,12 +969,12 @@ async function _getFee(gasCost, provider, chain, tx) {
   if (!ngnRate.status) {
     await new Promise((r) => setTimeout(r, 5000));
     ngnRate = await fetchRate();
-  } else {
-    if (!tx && mode !== 'development') {
-      await storedRate.updateOne({
-        rate: ngnRate.data,
-      });
-    }
+  }
+
+  if (tx && mode !== 'development') {
+    await storedRate.updateOne({
+      rate: ngnRate.data,
+    });
   }
 
   if (!ngnRate.status) ngnRate = { status: true, data: storedRate.rate };
