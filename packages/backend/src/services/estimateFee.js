@@ -1,4 +1,3 @@
-import Safe from '@safe-global/protocol-kit';
 import { ethers } from 'ethers';
 import {
   SAFE_PROXY_FACTORY,
@@ -268,7 +267,6 @@ async function _ethCostInUsd(etherCost, provider, chain) {
   const aggregator = new ethers.Contract(contract, CHAINLINK, provider);
   console.log('CHAIN:', chain);
   console.log('FEED:', contract);
-  console.log('PROVIDER:', await provider.getNetwork());
 
   const code = await provider.getCode(contract);
   console.log('CONTRACT CODE:', code.slice(0, 32), '.......');
@@ -1001,7 +999,6 @@ async function _getFee(gasCost, provider, chain, tx) {
       feeUsd: chain === 'base' ? buff(safeCostInUsd, 600) : buff(safeCostInUsd, 150),
     },
   };
-  return value;
   return value;
 }
 

@@ -1,12 +1,12 @@
-import { ethers } from "ethers";
-import { User, UserBNB } from "../models/Users.js";
-import { basePool, bnbPool } from "../models/Pool.js";
+import { ethers } from 'ethers';
+import { User, UserBNB } from '../models/Users.js';
+import { basePool, bnbPool } from '../models/Pool.js';
 import {
   basePoolSubscription,
   bnbPoolSubscription,
   FEE_PER_MONTH,
-} from "../models/PoolSubscription.js";
-import { ERC20, POOL_IFACE, MULTISEND } from "../utils/abi.js";
+} from '../models/PoolSubscription.js';
+import { ERC20, POOL_IFACE, MULTISEND } from '../utils/abi.js';
 import {
   estimatePoolDeploymentFee,
   estimateAdd_RemoveLiqFee,
@@ -16,11 +16,11 @@ import {
   _buildUpdateRateData,
   _buildAdd_RemoveLiqData,
   _buildPoolDeploymentData,
-} from "./estimateFee.js";
-import { _getBalance, balance, _getDecimals } from "./balanceServices.js";
-import { getBalance } from "./transferServices.js";
-import { linkName, unlinkName } from "./snservices.js";
-import { executeTransfer } from "./transferServices.js";
+} from './estimateFee.js';
+import { _getBalance, balance, _getDecimals } from './balanceServices.js';
+import { getBalance } from './transferServices.js';
+import { linkName, unlinkName } from './snservices.js';
+import { executeTransfer } from './transferServices.js';
 
 const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
 const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
@@ -41,13 +41,12 @@ const usdcBnbAddress = process.env.BSC_USDC_CONTRACT_ADDRESS;
 
 const mode = process.env.NODE_ENV;
 const baseRpcUrl =
-  mode === "development"
-    ? process.env.BASE_SEPOLIA_RPC_URL ||
-      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
+  mode === 'development'
+    ? process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
     : process.env.BASE_MAINNET_RPC_URL;
 
 const bnbRpcUrl =
-  mode === "development"
+  mode === 'development'
     ? process.env.BNB_TESTNET_RPC_URL || process.env.BNB_LOGS_RPC_URL
     : process.env.BNB_MAINNET_RPC_URL;
 
@@ -55,7 +54,7 @@ function _getPoolAddress(receipt, chain) {
   const logs = receipt.logs;
   let address;
   for (let i = 0; i < logs.length; i++) {
-    if (chain === "base") {
+    if (chain === 'base') {
       if (logs[i].address.toLowerCase() === basePoolFactory.toLowerCase()) {
         const cleaned = logs[i].topics[2].slice(26, logs[i].topics[1].length);
         address = `0x${cleaned}`;
@@ -73,40 +72,39 @@ function _getPoolAddress(receipt, chain) {
 }
 
 function _asset(asset, chain) {
-  return chain === "base"
-    ? asset === "NGNS"
+  return chain === 'base'
+    ? asset === 'NGNS'
       ? ngnsBaseAddress
-      : asset === "CNGN"
+      : asset === 'CNGN'
         ? cngnBaseAddress
-        : asset === "USDC"
+        : asset === 'USDC'
           ? usdcBaseAddress
           : usdtBaseAddress
-    : asset === "NGNS"
+    : asset === 'NGNS'
       ? ngnsBnbAddress
-      : asset === "CNGN"
+      : asset === 'CNGN'
         ? cngnBnbAddress
-        : asset === "USDC"
+        : asset === 'USDC'
           ? usdcBnbAddress
           : usdtBnbAddress;
 }
 async function deployPool(email, pkey, chain) {
   let user;
   try {
-    chain === "base"
+    chain === 'base'
       ? (user = await User.findOne({ email: email }))
       : (user = await UserBNB.findOne({ email: email }));
   } catch (err) {
     console.log(`Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
-    chain === "base"
+    chain === 'base'
       ? (user = await User.findOne({ email: email }))
       : (user = await UserBNB.findOne({ email: email }));
   }
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+  const rpc = chain === 'base' ? baseRpcUrl : bnbRpcUrl;
 
   const fee = await estimatePoolDeploymentFee(chain, true);
   const feeData = await _getFeeAndToken(user.safeAddress, fee, chain);
-  console.log(feeData);
   if (!feeData.status) {
     throw Error(`❌ No Balance to cover fee`);
   }
@@ -119,7 +117,7 @@ async function deployPool(email, pkey, chain) {
     feeData.data.feeTokenAddress,
     provider,
     sponsor,
-    chain,
+    chain
   );
   const tx = await deployData.safe.execTransaction(
     deployData.params.to,
@@ -131,7 +129,7 @@ async function deployPool(email, pkey, chain) {
     deployData.params.gasPrice,
     deployData.params.gasToken,
     deployData.params.refundReceiver,
-    deployData.params.sig,
+    deployData.params.sig
   );
   const receipt = await tx.wait();
   const poolAddress = _getPoolAddress(receipt, chain);
@@ -143,7 +141,7 @@ async function deployPool(email, pkey, chain) {
   // UPDATE DB
   let pool;
   try {
-    chain === "base"
+    chain === 'base'
       ? (pool = await basePool.create({
           poolAddress: poolAddress,
           ownerSafeAddress: user.safeAddress,
@@ -155,7 +153,7 @@ async function deployPool(email, pkey, chain) {
   } catch (err) {
     console.log(`Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
-    chain === "base"
+    chain === 'base'
       ? (pool = await basePool.create({
           poolAddress: poolAddress,
           ownerSafeAddress: user.safeAddress,
@@ -172,17 +170,9 @@ async function deployPool(email, pkey, chain) {
   };
 }
 
-async function poolNameService(
-  email,
-  pkey,
-  name,
-  poolAddress,
-  registry,
-  type,
-  chain,
-) {
+async function poolNameService(email, pkey, name, poolAddress, registry, type, chain) {
   let pool =
-    chain === "base"
+    chain === 'base'
       ? await basePool.findOne({
           poolAddress: poolAddress,
         })
@@ -201,15 +191,8 @@ async function poolNameService(
   }
 
   let nameOpResult;
-  if (type === "link") {
-    nameOpResult = await linkName(
-      email,
-      owner.safeAddress,
-      pkey,
-      name,
-      poolAddress,
-      registry,
-    );
+  if (type === 'link') {
+    nameOpResult = await linkName(email, owner.safeAddress, pkey, name, poolAddress, registry);
     if (nameOpResult.status) {
       pool.poolName = nameOpResult.name;
       pool.registryAddress = registry;
@@ -220,13 +203,7 @@ async function poolNameService(
       };
     }
   } else {
-    nameOpResult = await unlinkName(
-      email,
-      owner.safeAddress,
-      name,
-      pkey,
-      pool.registryAddress,
-    );
+    nameOpResult = await unlinkName(email, owner.safeAddress, name, pkey, pool.registryAddress);
     if (nameOpResult.status) {
       pool.poolName = null;
       pool.registryAddress = null;
@@ -248,20 +225,13 @@ async function poolNameService(
   };
 }
 
-async function poolSubscription(
-  email,
-  pkey,
-  poolAddress,
-  chain,
-  type,
-  interval,
-) {
+async function poolSubscription(email, pkey, poolAddress, chain, type, interval) {
   // Type = subscibe || renew || cancel
   // interval = 1 || 3 || 4 || 12
   let pool;
   try {
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -272,7 +242,7 @@ async function poolSubscription(
     console.warn(`⚠️ Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -295,18 +265,18 @@ async function poolSubscription(
   let poolSub;
   const month = 30 * 24 * 60 * 60 * 1000;
   if (pool) {
-    if (type === "subscribe") {
+    if (type === 'subscribe') {
       returnData = await executeTransfer(
         email,
         owner.safeAddress,
         pkey,
         treasury,
         FEE_PER_MONTH * interval,
-        "NGNS",
-        chain,
+        'NGNS',
+        chain
       );
       if (!returnData.status) throw Error(`❌ Subscription Failed`);
-      if (chain === "base") {
+      if (chain === 'base') {
         poolSub = await basePoolSubscription.findOne({
           poolAddress: poolAddress,
         });
@@ -323,7 +293,7 @@ async function poolSubscription(
         poolSub.expiresAt = currentExpiry.getTime() + month * interval;
         await poolSub.save();
       } else {
-        if (chain === "base") {
+        if (chain === 'base') {
           await basePoolSubscription.create({
             poolAddress: poolAddress,
             ownerSafeAddress: owner.safeAddress,
@@ -347,18 +317,18 @@ async function poolSubscription(
           });
         }
       }
-    } else if (type === "renew") {
+    } else if (type === 'renew') {
       returnData = await executeTransfer(
         email,
         owner.safeAddress,
         pkey,
         treasury,
         FEE_PER_MONTH * interval,
-        "NGNS",
-        chain,
+        'NGNS',
+        chain
       );
       if (!returnData.status) throw Error(`❌ Subscription Failed`);
-      if (chain === "base") {
+      if (chain === 'base') {
         poolSub = await basePoolSubscription.findOne({
           poolAddress: poolAddress,
         });
@@ -375,7 +345,7 @@ async function poolSubscription(
         await poolSub.save();
       }
     } else {
-      if (chain === "base") {
+      if (chain === 'base') {
         poolSub = await basePoolSubscription.deleteOne({
           poolAddress: poolAddress,
         });
@@ -389,24 +359,15 @@ async function poolSubscription(
 
   return {
     status: true,
-    expiresAt:
-      type === `cancel` ? null : new Date(Date.now() + month * interval),
+    expiresAt: type === `cancel` ? null : new Date(Date.now() + month * interval),
   };
 }
 
-async function add_RemoveLiq(
-  email,
-  pkey,
-  poolAddress,
-  asset,
-  amount,
-  chain,
-  type,
-) {
+async function add_RemoveLiq(email, pkey, poolAddress, asset, amount, chain, type) {
   let pool;
   try {
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -417,7 +378,7 @@ async function add_RemoveLiq(
     console.warn(`⚠️ Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -435,7 +396,7 @@ async function add_RemoveLiq(
       status: false,
     };
   }
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+  const rpc = chain === 'base' ? baseRpcUrl : bnbRpcUrl;
 
   const fee = await estimateAdd_RemoveLiqFee(chain, type, true);
   const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
@@ -456,7 +417,7 @@ async function add_RemoveLiq(
     provider,
     sponsor,
     chain,
-    type,
+    type
   );
 
   const tx = await txData.safe.execTransaction(
@@ -469,7 +430,7 @@ async function add_RemoveLiq(
     txData.params.gasPrice,
     txData.params.gasToken,
     txData.params.refundReceiver,
-    txData.params.sig,
+    txData.params.sig
   );
   const receipt = await tx.wait();
   if (receipt) {
@@ -488,7 +449,7 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
   let pool;
   try {
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -499,7 +460,7 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
     console.warn(`⚠️ Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -518,7 +479,7 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
     };
   }
 
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+  const rpc = chain === 'base' ? baseRpcUrl : bnbRpcUrl;
 
   const fee = await estimateUpdateRateFee(chain, true);
   const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
@@ -535,7 +496,7 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
     type,
     provider,
     sponsor,
-    chain,
+    chain
   );
 
   const tx = await txData.safe.execTransaction(
@@ -548,7 +509,7 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
     txData.params.gasPrice,
     txData.params.gasToken,
     txData.params.refundReceiver,
-    txData.params.sig,
+    txData.params.sig
   );
   const receipt = await tx.wait();
   if (receipt) {
@@ -567,7 +528,7 @@ async function updatePauseState(email, pkey, poolAddress, state, chain) {
   let pool;
   try {
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -578,7 +539,7 @@ async function updatePauseState(email, pkey, poolAddress, state, chain) {
     console.warn(`⚠️ Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
     pool =
-      chain === "base"
+      chain === 'base'
         ? (pool = await basePool.findOne({
             poolAddress: poolAddress,
           }))
@@ -597,7 +558,7 @@ async function updatePauseState(email, pkey, poolAddress, state, chain) {
     };
   }
 
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+  const rpc = chain === 'base' ? baseRpcUrl : bnbRpcUrl;
 
   const fee = await estimateUpdatePauseStateFee(chain, true);
   const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
@@ -612,7 +573,7 @@ async function updatePauseState(email, pkey, poolAddress, state, chain) {
     state,
     provider,
     sponsor,
-    chain,
+    chain
   );
 
   const tx = await txData.safe.execTransaction(
@@ -625,7 +586,7 @@ async function updatePauseState(email, pkey, poolAddress, state, chain) {
     txData.params.gasPrice,
     txData.params.gasToken,
     txData.params.refundReceiver,
-    txData.params.sig,
+    txData.params.sig
   );
   const receipt = await tx.wait();
   if (receipt) {
@@ -649,40 +610,38 @@ async function _getFeeAndToken(safeAddress, data, chain) {
     balances.data.cNgnBalance >= data.data.feeNGN
   ) {
     feeHuman = data.data.feeNGN;
-    feeTokenSymbol =
-      balances.data.ngnsBalance >= data.data.feeNGN ? "NGNS" : "CNGN";
+    feeTokenSymbol = balances.data.ngnsBalance >= data.data.feeNGN ? 'NGNS' : 'CNGN';
   } else if (
     balances.data.usdtBalance >= data.data.feeUsd ||
     balances.data.usdcBalance >= data.data.feeUsd
   ) {
     feeHuman = data.data.feeUsd;
-    feeTokenSymbol =
-      balances.data.usdtBalance >= data.data.feeUsd ? "USDT" : "USDC";
+    feeTokenSymbol = balances.data.usdtBalance >= data.data.feeUsd ? 'USDT' : 'USDC';
   } else {
     return { status: false };
   }
 
   let feeTokenAddress =
-    chain === "bnb"
-      ? feeTokenSymbol === "NGNS"
+    chain === 'bnb'
+      ? feeTokenSymbol === 'NGNS'
         ? ngnsBnbAddress
-        : feeTokenSymbol === "CNGN"
+        : feeTokenSymbol === 'CNGN'
           ? cngnBnbAddress
-          : feeTokenSymbol === "USDC"
+          : feeTokenSymbol === 'USDC'
             ? usdcBnbAddress
             : usdtBnbAddress
-      : feeTokenSymbol === "NGNS"
+      : feeTokenSymbol === 'NGNS'
         ? ngnsBaseAddress
-        : feeTokenSymbol === "CNGN"
+        : feeTokenSymbol === 'CNGN'
           ? cngnBaseAddress
-          : feeTokenSymbol === "USDC"
+          : feeTokenSymbol === 'USDC'
             ? usdcBaseAddress
             : usdtBaseAddress;
 
   const feeTokenData = await getBalance(feeTokenAddress, safeAddress, chain);
 
   const feeWei =
-    feeTokenSymbol === "NGNS" || feeTokenSymbol === "CNGN"
+    feeTokenSymbol === 'NGNS' || feeTokenSymbol === 'CNGN'
       ? ethers.parseUnits(data.data.feeNGN.toString(), feeTokenData.decimals)
       : ethers.parseUnits(data.data.feeUsd.toString(), feeTokenData.decimals);
   const feeTokenDecimals = feeTokenData.decimals;

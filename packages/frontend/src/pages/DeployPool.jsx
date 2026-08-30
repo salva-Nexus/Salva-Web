@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from "../config";
+import { createPortal } from 'react-dom';
 
 // ─── Chain constants — this file is the BASE build. The BNB build is a ───────
 // mirror of this file with CHAIN='bnb', BALANCE_PREFIX='bnb', and the gold
@@ -68,28 +69,61 @@ const RegistryDropdown = ({
   registries,
   value,
   onChange,
-  placeholder = "Search wallet service…",
+  placeholder = 'Search wallet service…',
 }) => {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('');
+  const [coords, setCoords] = useState({ left: 0, width: 0, bottom: 0 });
   const ref = React.useRef(null);
   const inputRef = React.useRef(null);
 
   const filtered = registries.filter(
     (r) =>
       r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || "").toLowerCase().includes(query.toLowerCase()),
+      (r.nspace || '').toLowerCase().includes(query.toLowerCase())
   );
+
+  const updateCoords = () => {
+    if (!ref.current) return;
+    const rect = ref.current.getBoundingClientRect();
+    setCoords({
+      left: rect.left,
+      width: rect.width,
+      bottom: window.innerHeight - rect.top + 8,
+    });
+  };
+
+  const openDropdown = () => {
+    updateCoords();
+    setOpen(true);
+    setQuery('');
+    setTimeout(() => inputRef.current?.focus(), 50);
+  };
+
+  React.useEffect(() => {
+    if (!open) return;
+    const handler = () => updateCoords();
+    window.addEventListener('scroll', handler, true);
+    window.addEventListener('resize', handler);
+    return () => {
+      window.removeEventListener('scroll', handler, true);
+      window.removeEventListener('resize', handler);
+    };
+  }, [open]);
 
   React.useEffect(() => {
     const h = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target) &&
+        !e.target.closest('[data-registry-portal]')
+      ) {
         setOpen(false);
-        setQuery("");
+        setQuery('');
       }
     };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
   }, []);
 
   return (
@@ -98,26 +132,20 @@ const RegistryDropdown = ({
         role="button"
         tabIndex={0}
         onClick={() => {
-          if (!value) {
-            setOpen(true);
-            setQuery("");
-            setTimeout(() => inputRef.current?.focus(), 50);
-          }
+          if (!value) openDropdown();
         }}
         onKeyDown={(e) => {
-          if ((e.key === "Enter" || e.key === " ") && !value) {
+          if ((e.key === 'Enter' || e.key === ' ') && !value) {
             e.preventDefault();
-            setOpen(true);
-            setQuery("");
-            setTimeout(() => inputRef.current?.focus(), 50);
+            openDropdown();
           }
         }}
         className={`w-full flex items-center justify-between gap-2 sm:gap-3 px-3 py-2.5 sm:px-4 sm:py-3.5 rounded-xl border transition-all text-left cursor-pointer ${
           open
-            ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
+            ? 'border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30'
             : value
-              ? "border-salvaGold/40 bg-salvaGold/5"
-              : "border-white/10 bg-white/5 hover:border-salvaGold/40"
+            ? 'border-salvaGold/40 bg-salvaGold/5'
+            : 'border-white/10 bg-white/5 hover:border-salvaGold/40'
         }`}
       >
         {value ? (
@@ -128,18 +156,14 @@ const RegistryDropdown = ({
               </span>
             </div>
             <div className="min-w-0">
-              <p className="font-black text-[10px] sm:text-sm truncate text-white">
-                {value.name}
-              </p>
+              <p className="font-black text-[10px] sm:text-sm truncate text-white">{value.name}</p>
               <p className="text-[7px] sm:text-[10px] text-white/60 font-mono truncate">
                 {value.nspace}
               </p>
             </div>
           </div>
         ) : (
-          <span className="text-[10px] sm:text-sm text-white/60 font-bold">
-            {placeholder}
-          </span>
+          <span className="text-[10px] sm:text-sm text-white/60 font-bold">{placeholder}</span>
         )}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           {value && (
@@ -148,26 +172,30 @@ const RegistryDropdown = ({
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(null);
-                setQuery("");
+                setQuery('');
               }}
               className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
             >
-              <span className="text-[7px] sm:text-[10px] text-red-400 font-black">
-                ✕
-              </span>
+              <span className="text-[7px] sm:text-[10px] text-red-400 font-black">✕</span>
             </button>
           )}
           <button
             type="button"
-            onClick={() => {
-              setOpen((o) => !o);
-              setQuery("");
-              setTimeout(() => inputRef.current?.focus(), 50);
+            onClick={(e) => {
+              e.stopPropagation();
+              if (open) {
+                setOpen(false);
+                setQuery('');
+              } else {
+                openDropdown();
+              }
             }}
             className="w-3.5 h-3.5 sm:w-5 sm:h-5 flex items-center justify-center"
           >
             <svg
-              className={`w-2 h-2 sm:w-3 sm:h-3 text-white/60 transition-transform ${open ? "rotate-180" : ""}`}
+              className={`w-2 h-2 sm:w-3 sm:h-3 text-white/60 transition-transform ${
+                open ? 'rotate-180' : ''
+              }`}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -183,91 +211,95 @@ const RegistryDropdown = ({
         </div>
       </div>
 
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-[200] bottom-full mb-2 w-full bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
-          >
-            <div className="p-2 sm:p-3 border-b border-white/[0.05]">
-              <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-white/5">
-                <svg
-                  className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white/60 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
-                  <path
-                    d="m21 21-4.35-4.35"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Type to search…"
-                  className="flex-1 bg-transparent outline-none text-[9px] sm:text-xs font-bold placeholder:text-white/60 text-white"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    className="text-white/60 hover:text-white/80 text-[7px] sm:text-[10px]"
+      {open &&
+        createPortal(
+          <AnimatePresence>
+            <motion.div
+              data-registry-portal
+              initial={{ opacity: 0, y: -8, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.97 }}
+              transition={{ duration: 0.15 }}
+              style={{
+                position: 'fixed',
+                left: coords.left,
+                width: coords.width,
+                bottom: coords.bottom,
+                zIndex: 9999,
+              }}
+              className="bg-zinc-950 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
+            >
+              <div className="p-2 sm:p-3 border-b border-white/[0.05]">
+                <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-lg bg-white/5">
+                  <svg
+                    className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white/60 flex-shrink-0"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    ✕
-                  </button>
+                    <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
+                    <path d="m21 21-4.35-4.35" strokeWidth="2.5" strokeLinecap="round" />
+                  </svg>
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Type to search…"
+                    className="flex-1 bg-transparent outline-none text-[9px] sm:text-xs font-bold placeholder:text-white/60 text-white"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery('')}
+                      className="text-white/60 hover:text-white/80 text-[7px] sm:text-[10px]"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
+                {filtered.length === 0 ? (
+                  <div className="px-3 py-3.5 sm:px-4 sm:py-5 text-center text-[9px] sm:text-xs text-white/60 font-bold">
+                    No services found
+                  </div>
+                ) : (
+                  filtered.map((reg) => (
+                    <button
+                      key={reg.registryAddress}
+                      type="button"
+                      onClick={() => {
+                        onChange(reg);
+                        setOpen(false);
+                        setQuery('');
+                      }}
+                      className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 hover:bg-salvaGold/5 transition-colors text-left ${
+                        value?.registryAddress === reg.registryAddress ? 'bg-salvaGold/10' : ''
+                      }`}
+                    >
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
+                        <span className="text-salvaGold text-[9px] sm:text-xs font-black">
+                          {reg.name.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-black text-[10px] sm:text-sm text-white">{reg.name}</p>
+                        <p className="text-[7px] sm:text-[10px] font-mono text-white/60">
+                          {reg.nspace}
+                        </p>
+                      </div>
+                      {value?.registryAddress === reg.registryAddress && (
+                        <span className="text-salvaGold text-[10px] sm:text-sm">✓</span>
+                      )}
+                    </button>
+                  ))
                 )}
               </div>
-            </div>
-            <div style={{ maxHeight: "160px", overflowY: "auto" }}>
-              {filtered.length === 0 ? (
-                <div className="px-3 py-3.5 sm:px-4 sm:py-5 text-center text-[9px] sm:text-xs text-white/60 font-bold">
-                  No services found
-                </div>
-              ) : (
-                filtered.map((reg) => (
-                  <button
-                    key={reg.registryAddress}
-                    type="button"
-                    onClick={() => {
-                      onChange(reg);
-                      setOpen(false);
-                      setQuery("");
-                    }}
-                    className={`w-full flex items-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
-                  >
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-salvaGold text-[9px] sm:text-xs font-black">
-                        {reg.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-black text-[10px] sm:text-sm text-white">
-                        {reg.name}
-                      </p>
-                      <p className="text-[7px] sm:text-[10px] font-mono text-white/60">
-                        {reg.nspace}
-                      </p>
-                    </div>
-                    {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-salvaGold text-[10px] sm:text-sm">
-                        ✓
-                      </span>
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </motion.div>
+            </motion.div>
+          </AnimatePresence>,
+          document.body
         )}
-      </AnimatePresence>
     </div>
   );
 };
@@ -1793,11 +1825,11 @@ const [refreshing, setRefreshing] = useState(false);
       setPinVisible(false);
       setDeploying(true);
       const res = await fetch(`${SALVA_API_URL}/api/pool/deploy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: user.email,
-          pin: verifyData.privateKey,
+          pkey: verifyData.privateKey,
           chain: CHAIN,
         }),
       });
