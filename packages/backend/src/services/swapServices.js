@@ -1,44 +1,20 @@
-import { ethers } from "ethers";
-import { User } from "../models/Users.js";
-import {
-  basePool,
-  bnbPool,
-  trustedBasePool,
-  trustedBnbPool,
-} from "../models/Pool.js";
-import { ERC20, POOL_IFACE } from "../utils/abi.js";
-import { _getBalance, _getDecimals } from "./balanceServices.js";
-import { _asset, _getFeeAndToken } from "./poolServices.js";
-import {
-  estimateSwapFee,
-  _buildSwapData,
-  _appendSafeReq,
-} from "./estimateFee.js";
-import { PointsRecord, pointsDistribution } from "../models/PointsState.js";
+import { ethers } from 'ethers';
+import { User } from '../models/Users.js';
+import { basePool, bnbPool, trustedBasePool, trustedBnbPool } from '../models/Pool.js';
+import { ERC20, POOL_IFACE } from '../utils/abi.js';
+import { _getBalance, _getDecimals } from './balanceServices.js';
+import { _asset, _getFeeAndToken } from './poolServices.js';
+import { estimateSwapFee, _buildSwapData, _appendSafeReq } from './estimateFee.js';
+import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
+import Transaction from '../models/Transaction.js';
+import { keyValue, mode } from '../utils/vars.js';
 
-const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
-const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
-
-const mode = process.env.NODE_ENV;
-const baseRpcUrl =
-  mode === "development"
-    ? process.env.BASE_SEPOLIA_RPC_URL ||
-      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
-    : process.env.BASE_MAINNET_RPC_URL;
-
-const bnbRpcUrl =
-  mode === "development"
-    ? process.env.BNB_TESTNET_RPC_URL || process.env.BNB_LOGS_RPC_URL
-    : process.env.BNB_MAINNET_RPC_URL;
-
-const maxUint256 =
-  "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 const Provider = (rpc) => {
   return new ethers.JsonRpcProvider(rpc);
 };
 
 const tokenIn = (type, usdToken, ngnToken) => {
-  return type === "swapExactNGNAmountForUSD" || type === "swapForExactUSDAmount"
+  return type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount'
     ? ngnToken
     : usdToken;
 };
@@ -53,11 +29,11 @@ async function swap(
   amount,
   chain,
   trustPool,
-  type,
+  type
 ) {
   let pool;
   try {
-    chain === "base"
+    chain === 'base'
       ? (pool = await basePool.findOne({
           poolAddress: poolAddress.toLowerCase(),
         }))
@@ -66,7 +42,7 @@ async function swap(
         }));
   } catch (err) {
     await new Promise((r) => setTimeout(r, 15000));
-    chain === "base"
+    chain === 'base'
       ? (pool = await basePool.findOne({
           poolAddress: poolAddress.toLowerCase(),
         }))
@@ -86,24 +62,21 @@ async function swap(
     email: email,
   });
   const tIn = tokenIn(type, usdToken, ngnToken);
-  console.log("Token In: ", tIn);
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+  console.log('Token In: ', tIn);
+  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
   const provider = Provider(rpc);
   const contract = new ethers.Contract(_asset(tIn, chain), ERC20, provider);
 
   let allowanceNum;
   let isTrusted = false;
   try {
-    const allowance = await contract.allowance(
-      initiator.safeAddress,
-      poolAddress,
-    );
+    const allowance = await contract.allowance(initiator.safeAddress, poolAddress);
     allowanceNum = Number(allowance);
-    isTrusted = allowanceNum >= maxUint256;
+    isTrusted = allowanceNum >= keyValue('maxUint256');
   } catch (err) {
     console.error(err.message);
     const trustedPool =
-      chain === "base"
+      chain === 'base'
         ? await trustedBasePool.findOne({
             userSafeAddress: initiator.safeAddress,
             poolAddress: poolAddress.toLowerCase(),
@@ -118,7 +91,7 @@ async function swap(
   }
   const fee = await estimateSwapFee(chain, isTrusted, true);
   const feeData = await _getFeeAndToken(initiator.safeAddress, fee, chain);
-  const sponsor = new ethers.Wallet(sponsorKey, provider);
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const decimals = await _getDecimals(contract);
   const amountWei = ethers.parseUnits(amount.toString(), decimals);
   const txData = await _buildSwapData(
@@ -132,37 +105,83 @@ async function swap(
     amountWei,
     receiver,
     tIn,
-    trustPool && !isTrusted ? maxUint256 : amountWei,
+    trustPool && !isTrusted ? keyValue('maxUint256') : amountWei,
     provider,
     sponsor,
     chain,
     type,
-    isTrusted,
+    isTrusted
   );
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig,
-  );
-  const receipt = await tx.wait();
+
+  const poolData =
+    chain === 'base'
+      ? await basePool.findOne({
+          poolAddress: poolAddress.toLowerCase(),
+        })
+      : await bnbPool.findOne({
+          poolAddress: poolAddress.toLowerCase(),
+        });
+
+  const recipientData = await User.findOne({
+    safeAddress: receiver.toLowerCase(),
+  });
+  let tx;
+  let receipt;
+  try {
+    tx = await txData.safe.execTransaction(
+      txData.params.to,
+      txData.params.value,
+      txData.params.data,
+      txData.params.op,
+      txData.params.safeTxGas,
+      txData.params.baseGas,
+      txData.params.gasPrice,
+      txData.params.gasToken,
+      txData.params.refundReceiver,
+      txData.params.sig
+    );
+    receipt = await tx.wait();
+  } catch {
+    console.error(`Swap Failed`);
+    await Transaction.create({
+      fromAddress: poolData.poolName,
+      toAddress: recipientData ? recipientData.username : receiver.toLowerCase(),
+      amount: amount.toString(),
+      fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+      feeCoin: feeData.data.feeToken,
+      coin:
+        type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount'
+          ? usdToken
+          : ngnToken,
+      chain: chain,
+      status: 'failed',
+      taskId: tx.txHash,
+      type: 'swap',
+      date: new Date(),
+    });
+    return {
+      status: false,
+    };
+  }
   // UPDATE POINTS
   await _updatePoint(email, owner);
 
+  await Transaction.create({
+    fromAddress: poolData.poolName,
+    toAddress: recipientData ? recipientData.username : receiver.toLowerCase(),
+    amount: amount.toString(),
+    fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+    feeCoin: feeData.data.feeToken,
+    coin:
+      type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount' ? usdToken : ngnToken,
+    chain: chain,
+    taskId: tx.txHash,
+    type: 'swap',
+    date: new Date(),
+  });
+
   if (trustPool && !isTrusted)
-    await _updateTrustedPool(
-      initiator.safeAddress,
-      poolAddress,
-      tIn,
-      receipt.hash,
-      chain,
-    );
+    await _updateTrustedPool(initiator.safeAddress, poolAddress, tIn, receipt.hash, chain);
   return {
     status: true,
     receipt: receipt,
@@ -171,15 +190,8 @@ async function swap(
 
 // ==============VIEW=============================
 
-async function getAmountOut(
-  poolAddress,
-  tokenOut,
-  tokenIn,
-  amount,
-  rate,
-  chain,
-) {
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+async function getAmountOut(poolAddress, tokenOut, tokenIn, amount, rate, chain) {
+  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
   const provider = Provider(rpc);
   const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
   const tokenOutAddress = _asset(tokenOut, chain);
@@ -189,65 +201,29 @@ async function getAmountOut(
   const amountWei = ethers.parseUnits(amount.toString(), tokenInDecimals);
   const rateWei = ethers.parseUnits(rate.toString(), 6);
   const amountOut =
-    tokenOut === "USDC" || tokenOut === "USDT"
-      ? await poolContract.getExactUSDAmountOut(
-          tokenOutAddress,
-          amountWei,
-          rateWei,
-        )
-      : await poolContract.getExactNGNAmountOut(
-          tokenOutAddress,
-          amountWei,
-          rateWei,
-        );
-  const tokenOutContract = new ethers.Contract(
-    tokenOutAddress,
-    ERC20,
-    provider,
-  );
+    tokenOut === 'USDC' || tokenOut === 'USDT'
+      ? await poolContract.getExactUSDAmountOut(tokenOutAddress, amountWei, rateWei)
+      : await poolContract.getExactNGNAmountOut(tokenOutAddress, amountWei, rateWei);
+  const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20, provider);
   const tokenOutDecimals = await _getDecimals(tokenOutContract);
   return Number(amountOut) / 10 ** tokenOutDecimals;
 }
 
-async function getAmountIn(
-  poolAddress,
-  usdToken,
-  inToken,
-  outToken,
-  outAmount,
-  rate,
-  chain,
-) {
-  const rpc = chain === "base" ? baseRpcUrl : bnbRpcUrl;
+async function getAmountIn(poolAddress, usdToken, inToken, outToken, outAmount, rate, chain) {
+  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
   const provider = Provider(rpc);
   const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
   const usdTokenAddress = _asset(usdToken, chain);
   const outTokenAddress = _asset(outToken, chain);
-  const usdTokenContract = new ethers.Contract(
-    usdTokenAddress,
-    ERC20,
-    provider,
-  );
-  const outTokenContract = new ethers.Contract(
-    outTokenAddress,
-    ERC20,
-    provider,
-  );
+  const usdTokenContract = new ethers.Contract(usdTokenAddress, ERC20, provider);
+  const outTokenContract = new ethers.Contract(outTokenAddress, ERC20, provider);
   const outTokenDecimals = await _getDecimals(outTokenContract);
   const amountWei = ethers.parseUnits(outAmount.toString(), outTokenDecimals);
   const rateWei = ethers.parseUnits(rate.toString(), 6);
   const amountIn =
-    inToken === "NGNS" || inToken === "CNGN"
-      ? await poolContract.getExactNGNAmountIn(
-          usdTokenAddress,
-          amountWei,
-          rateWei,
-        )
-      : await poolContract.getExactUSDAmountIn(
-          usdTokenAddress,
-          amountWei,
-          rateWei,
-        );
+    inToken === 'NGNS' || inToken === 'CNGN'
+      ? await poolContract.getExactNGNAmountIn(usdTokenAddress, amountWei, rateWei)
+      : await poolContract.getExactUSDAmountIn(usdTokenAddress, amountWei, rateWei);
 
   const inTokenAddress = _asset(inToken, chain);
   const inTokenContract = new ethers.Contract(inTokenAddress, ERC20, provider);
@@ -258,16 +234,10 @@ async function getAmountIn(
 
 // =============HELPERS============================
 
-async function _updateTrustedPool(
-  swapInitiator,
-  poolAddress,
-  approveToken,
-  txHash,
-  chain,
-) {
+async function _updateTrustedPool(swapInitiator, poolAddress, approveToken, txHash, chain) {
   console.log(`Trusting Pool!!!`);
   try {
-    chain === "base"
+    chain === 'base'
       ? await trustedBasePool.create({
           userSafeAddress: swapInitiator,
           poolAddress: poolAddress,
@@ -283,7 +253,7 @@ async function _updateTrustedPool(
 
     return;
   } catch (err) {
-    console.error("⚠️ TRUSTED POOL UPDATE FAILED - NON FATAL", err.message);
+    console.error('⚠️ TRUSTED POOL UPDATE FAILED - NON FATAL', err.message);
     return;
   }
 }
@@ -298,13 +268,12 @@ async function _updatePoint(swapInitiator, poolOwner) {
       safeAddress: poolOwner.toLowerCase(),
     });
     const pointsRecord = await PointsRecord.findOne({
-      network: mode === "production" ? "MAINNET" : "TESTNET",
+      network: mode === 'production' ? 'MAINNET' : 'TESTNET',
     });
     if (!pointsRecord) await PointsRecord.create({});
     if (pointsRecord && !pointsRecord.isLocked) {
       console.log(`ISSUED 1 : ${pointsRecord.totalPointsIssued}`);
-      const remainingPoints =
-        pointsRecord.hardCap - pointsRecord.totalPointsIssued;
+      const remainingPoints = pointsRecord.hardCap - pointsRecord.totalPointsIssued;
       console.log(`Remaining: ${remainingPoints}`);
       let totalReward = 0;
       let initiatorReceives = pointsDistribution.swaps.ls;
@@ -315,9 +284,7 @@ async function _updatePoint(swapInitiator, poolOwner) {
       if (owner) totalReward += poolOwnerReceives;
       console.log(`Total Reward 1: ${totalReward}`);
 
-      console.log(
-        `Total Reward > Remaining?: ${totalReward > remainingPoints}`,
-      );
+      console.log(`Total Reward > Remaining?: ${totalReward > remainingPoints}`);
 
       if (totalReward > remainingPoints) {
         initiatorReceives = remainingPoints / 2;
@@ -340,9 +307,7 @@ async function _updatePoint(swapInitiator, poolOwner) {
       await pointsRecord.save();
 
       console.log(
-        `Total Points Issued > Hard Cap?: ${
-          pointsRecord.totalPointsIssued >= pointsRecord.hardCap
-        }`,
+        `Total Points Issued > Hard Cap?: ${pointsRecord.totalPointsIssued >= pointsRecord.hardCap}`
       );
 
       console.log(`ISSUED 2 : ${pointsRecord.totalPointsIssued}`);
@@ -364,4 +329,4 @@ async function _updatePoint(swapInitiator, poolOwner) {
   }
 }
 
-export { swap, getAmountIn, getAmountOut, maxUint256 };
+export { swap, getAmountIn, getAmountOut };

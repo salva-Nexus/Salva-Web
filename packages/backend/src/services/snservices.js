@@ -1,43 +1,12 @@
-import { ethers } from "ethers";
-import { User, UserBNB } from "../models/Users.js";
-import { PointsRecord, pointsDistribution } from "../models/PointsState.js";
-import {
-  SINGLETON,
-  REGISTRY,
-  MULTISEND,
-  REGISTRYFACTORY,
-  ERC20,
-  SAFE,
-} from "../utils/abi.js";
-import { SNS } from "../../salva.js";
-import { getBalance, _appendSafeReq } from "./transferServices.js";
-import { balance } from "./balanceServices.js";
-import { basePool, bnbPool } from "../models/Pool.js";
-import { isReservedName } from "../models/ReservedNames.js";
-
-const sponsorKey = process.env.MANAGER_PRIVATE_KEY;
-const factory = process.env.REGISTRY_FACTORY;
-
-
-const mode = process.env.NODE_ENV;
-const MULTI_SEND_BASE_ADDRESS =
-  mode === 'development'
-    ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425'
-    : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
-
-const baseRpcUrl =
-  mode === "development"
-    ? process.env.BASE_SEPOLIA_RPC_URL ||
-      process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
-    : process.env.BASE_MAINNET_RPC_URL;
-
-const salvaRegistry = process.env.REGISTRY_CONTRACT_ADDRESS;
-
-const ngnsBaseAddress = process.env.NGN_TOKEN_ADDRESS;
-const cngnBaseAddress = process.env.CNGN_CONTRACT_ADDRESS;
-const usdtBaseAddress = process.env.USDT_CONTRACT_ADDRESS;
-const usdcBaseAddress = process.env.USDC_CONTRACT_ADDRESS;
-const treasury = process.env.TREASURY_CONTRACT_ADDRESS;
+import { ethers } from 'ethers';
+import { User } from '../models/Users.js';
+import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
+import { REGISTRY, MULTISEND, REGISTRYFACTORY, ERC20, SAFE } from '../utils/abi.js';
+import { SNS } from '../../salva.js';
+import { _appendSafeReq } from './transferServices.js';
+import { basePool, bnbPool } from '../models/Pool.js';
+import { isReservedName } from '../models/ReservedNames.js';
+import { keyValue, mode } from '../utils/vars.js';
 
 const ABI = {
   REGISTRY,
@@ -48,8 +17,8 @@ async function linkName(email, owner, pKey, name, address, registry) {
   if (isReservedName(name)) {
     return { status: false };
   }
-  const sns = new SNS(ABI, registry, factory, pKey, baseRpcUrl);
-  const signerConfig = sns._buildConfig(sponsorKey);
+  const sns = new SNS(ABI, registry, keyValue('factory'), pKey, keyValue('baseRpcUrl'));
+  const signerConfig = sns._buildConfig(keyValue('sponsorKey'));
   const snsFeeWei = await sns.getFee();
 
   const tx = await _buildAndExecLink(
@@ -60,7 +29,7 @@ async function linkName(email, owner, pKey, name, address, registry) {
     registry,
     signerConfig,
     snsFeeWei,
-    Number(snsFeeWei) > 0 ? true : false,
+    Number(snsFeeWei) > 0 ? true : false
   );
 
   // UpdateDB
@@ -83,13 +52,12 @@ async function linkName(email, owner, pKey, name, address, registry) {
   }
 
   const pointsRecord = await PointsRecord.findOne({
-    network: mode === "production" ? "MAINNET" : "TESTNET",
+    network: mode === 'production' ? 'MAINNET' : 'TESTNET',
   });
 
   if (pointsRecord && !pointsRecord.isLocked) {
     console.log(`ISSUED 1 : ${pointsRecord.totalPointsIssued}`);
-    const remainingPoints =
-      pointsRecord.hardCap - pointsRecord.totalPointsIssued;
+    const remainingPoints = pointsRecord.hardCap - pointsRecord.totalPointsIssued;
     console.log(`Remaining: ${remainingPoints}`);
     let totalReward = 0;
     let linkerReceives = pointsDistribution.link;
@@ -106,15 +74,15 @@ async function linkName(email, owner, pKey, name, address, registry) {
       console.log(`Total Reward 2: ${totalReward}`);
     }
 
-    userBase.santPoints += linkerReceives;
-    await userBase.save();
+    if (userBase) {
+      userBase.santPoints += linkerReceives;
+      await userBase.save();
+    }
 
     pointsRecord.totalPointsIssued += totalReward;
     await pointsRecord.save();
     console.log(
-      `Total Points Issued > Hard Cap?: ${
-        pointsRecord.totalPointsIssued >= pointsRecord.hardCap
-      }`,
+      `Total Points Issued > Hard Cap?: ${pointsRecord.totalPointsIssued >= pointsRecord.hardCap}`
     );
 
     console.log(`ISSUED 2 : ${pointsRecord.totalPointsIssued}`);
@@ -142,7 +110,7 @@ async function _buildAndExecLink(
   registry,
   signer,
   singletonFee,
-  approve,
+  approve
 ) {
   const safe = new ethers.Contract(owner, SAFE, signer);
   const firstTx = [registry, singletonFee];
@@ -152,26 +120,20 @@ async function _buildAndExecLink(
 
   const secondTx = [data.nameBytes, data.address, ethers.hexlify(signature)];
 
-  let to = !approve
-    ? [registry]
-    : [ngnsBaseAddress, registry];
+  let to = !approve ? [registry] : [keyValue('ngnsBaseAddress'), registry];
   let value = !approve ? [0n] : [0n, 0n];
 
   const erc20Contract = new ethers.Interface(ERC20);
   const registryContract = new ethers.Interface(REGISTRY);
-  let tx1Hex = erc20Contract.encodeFunctionData("approve", firstTx);
-  let tx2Hex = registryContract.encodeFunctionData("link", secondTx);
+  let tx1Hex = erc20Contract.encodeFunctionData('approve', firstTx);
+  let tx2Hex = registryContract.encodeFunctionData('link', secondTx);
   let encodedData = !approve ? [tx2Hex] : [tx1Hex, tx2Hex];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: MULTI_SEND_BASE_ADDRESS,
+    to: keyValue('MULTI_SEND_BASE_ADDRESS'),
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -192,12 +154,10 @@ async function _buildAndExecLink(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
-  const sig = await snsConfig
-    ._snsConfig()
-    .OWNER.signMessage(ethers.getBytes(hash));
+  const sig = await snsConfig._snsConfig().OWNER.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
 
   const tx = await safe.execTransaction(
@@ -210,7 +170,7 @@ async function _buildAndExecLink(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    newSig,
+    newSig
   );
   const receipt = await tx.wait();
   if (receipt.hash) {
@@ -221,29 +181,21 @@ async function _buildAndExecLink(
       },
     };
   } else {
-    throw err("❌ Link Failed");
+    throw new Error('❌ Link Failed');
   }
 }
 
 async function unlinkName(email, owner, name, pKey, registry) {
   console.log(name);
-  const sns = new SNS(ABI, registry, factory, pKey, baseRpcUrl);
-  const signerConfig = sns._buildConfig(sponsorKey);
+  const sns = new SNS(ABI, registry, keyValue('factory'), pKey, keyValue('baseRpcUrl'));
+  const signerConfig = sns._buildConfig(keyValue('sponsorKey'));
 
-  const tx = await _performUnlink(
-    sns,
-    name,
-    owner,
-    registry,
-    signerConfig,
-  );
+  const tx = await _performUnlink(sns, name, owner, registry, signerConfig);
 
   // UpdateDB
   const namespace = await sns.namespace();
   console.log(`Name Space: ${namespace}`);
-  const welded = name.includes("@")
-    ? name
-    : `${name.toLowerCase().trim()}${namespace.trim()}`;
+  const welded = name.includes('@') ? name : `${name.toLowerCase().trim()}${namespace.trim()}`;
   console.log(`Welded Name: ${welded}`);
 
   const userBase = await User.findOne({
@@ -283,13 +235,7 @@ async function unlinkName(email, owner, name, pKey, registry) {
   };
 }
 
-async function _performUnlink(
-  snsConfig,
-  fullName,
-  owner,
-  registry,
-  signer,
-) {
+async function _performUnlink(snsConfig, fullName, owner, registry, signer) {
   const safe = new ethers.Contract(owner, SAFE, signer);
   const firstTx = [ethers.toUtf8Bytes(fullName)];
 
@@ -298,18 +244,14 @@ async function _performUnlink(
   let value = [0n];
 
   const registryContract = new ethers.Interface(REGISTRY);
-  let tx1Hex = registryContract.encodeFunctionData("unlink", firstTx);
+  let tx1Hex = registryContract.encodeFunctionData('unlink', firstTx);
   let encodedData = [tx1Hex];
 
   const currentNonce = await safe.nonce();
   const multisendIface = new ethers.Interface(MULTISEND);
-  const multisendTx = multisendIface.encodeFunctionData("multiSend", [
-    to,
-    value,
-    encodedData,
-  ]);
+  const multisendTx = multisendIface.encodeFunctionData('multiSend', [to, value, encodedData]);
   const safeTx = {
-    to: MULTI_SEND_BASE_ADDRESS,
+    to: keyValue('MULTI_SEND_BASE_ADDRESS'),
     value: 0n,
     data: multisendTx,
     op: 1n,
@@ -330,12 +272,10 @@ async function _performUnlink(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    safeTx.nonce,
+    safeTx.nonce
   );
 
-  const sig = await snsConfig
-    ._snsConfig()
-    .OWNER.signMessage(ethers.getBytes(hash));
+  const sig = await snsConfig._snsConfig().OWNER.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
 
   const tx = await safe.execTransaction(
@@ -348,7 +288,7 @@ async function _performUnlink(
     safeTx.gasPrice,
     safeTx.gasToken,
     safeTx.refundReceiver,
-    newSig,
+    newSig
   );
   const receipt = await tx.wait();
   if (receipt.hash) {
@@ -359,9 +299,8 @@ async function _performUnlink(
       },
     };
   } else {
-    throw err("❌ Unlink Failed");
+    throw new Error('❌ Unlink Failed');
   }
 }
-
 
 export { linkName, unlinkName };

@@ -3,20 +3,9 @@ import { linkName, unlinkName } from '../services/snservices.js';
 import { REGISTRYFACTORY } from '../utils/abi.js';
 import { ethers } from 'ethers';
 import { User } from '../models/Users.js';
+import { keyValue } from '../utils/vars.js';
 
 const router = express.Router();
-const factory = process.env.REGISTRY_FACTORY;
-
-const mode = process.env.NODE_ENV;
-const MULTI_SEND_BASE_ADDRESS =
-  mode === 'development'
-    ? '0xfA117BCFd4C5221B1aD8835EB3905Dc2A4500425'
-    : '0xB7B32a484D49D555ec8519cC35eC5907353d9Ca3';
-
-const baseRpcUrl =
-  mode === 'development'
-    ? process.env.BASE_SEPOLIA_RPC_URL || process.env.BASE_SEPOLIA_RPC_URL_FALLBACK
-    : process.env.BASE_MAINNET_RPC_URL;
 
 router.post('/link', async (req, res) => {
   const { email, safeAddress, privateKey, name, address, registry } = req.body;
@@ -27,7 +16,7 @@ router.post('/link', async (req, res) => {
       data: data.data,
     });
   } catch (err) {
-    console.error(err.message);
+    console.error(`Link error: ${err.message}`);
     res.status(500).json({
       status: false,
       errorMsg: err.message,
@@ -45,6 +34,7 @@ router.post('/unlink', async (req, res) => {
       data: data.data,
     });
   } catch (err) {
+    console.error(`Unlink error: ${err.message}`);
     res.status(500).json({
       status: false,
       errorMsg: err.message,
@@ -54,14 +44,23 @@ router.post('/unlink', async (req, res) => {
 
 router.get('/linkFee', async (req, res) => {
   try {
+    const baseRpcUrl = keyValue('baseRpcUrl');
+    const factory = keyValue('factory');
+
+    if (!baseRpcUrl || !factory) {
+      throw new Error('Missing baseRpcUrl or registry factory configuration');
+    }
+
     const provider = new ethers.JsonRpcProvider(baseRpcUrl);
     const factoryContract = new ethers.Contract(factory, REGISTRYFACTORY, provider);
     const fee = await factoryContract.getFee();
+
     res.status(200).json({
       status: true,
-      data: ethers.formatUnits(fee.toString(), 6).toString(),
+      data: ethers.formatUnits(fee.toString(), 6),
     });
   } catch (err) {
+    console.error(`LinkFee error: ${err.message}`);
     res.status(500).json({
       status: false,
       errorMsg: err.message,
@@ -70,26 +69,38 @@ router.get('/linkFee', async (req, res) => {
 });
 
 router.get('/record/:email', async (req, res) => {
-  const email = req.params.email;
-  const fullName = req.query.fullName;
+  const { email } = req.params;
+  const { fullName } = req.query;
+
   try {
-    const user = await User.findOne({
-      email: email,
-    });
-    const aliases = user.nameAliases;
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        errorMsg: 'User record not found',
+      });
+    }
+
+    const aliases = user.nameAliases || [];
+
     if (!fullName) {
-      res.status(200).json({
+      return res.status(200).json({
         status: true,
         data: aliases,
       });
-    } else {
-      res.status(200).json({
-        status: true,
-        data: aliases.find((alias) => alias.name === fullName.toLowerCase()),
-      });
     }
+
+    const targetAlias = aliases.find(
+      (alias) => alias.name.toLowerCase() === fullName.toLowerCase()
+    );
+
+    return res.status(200).json({
+      status: true,
+      data: targetAlias || null,
+    });
   } catch (err) {
-    res.status(500).json({
+    console.error(`Record fetch error: ${err.message}`);
+    return res.status(500).json({
       status: false,
       errorMsg: err.message,
     });

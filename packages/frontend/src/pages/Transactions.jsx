@@ -16,23 +16,23 @@ import { Share } from '@capacitor/share';
 // ── FROM/TO display logic ──────────────────────────────────────────────────
 function getTxDisplayNames(tx, user) {
   const dType = getDisplayType(tx, user.safeAddress);
-  const isSentOrFailed = dType === "sent" || dType === "failed";
+  const isSentOrFailed = dType === 'sent' || dType === 'failed';
 
-  if (tx.txType === "swap") {
-    const fromLabel = tx.fromAddress || "Unknown";
-    const toLabel = tx.toAddress || user.safeAddress || "—";
+  if (tx.txType === 'swap') {
+    const fromLabel = tx.fromAddress || 'Unknown';
+    const toLabel = tx.toAddress || user.safeAddress || '—';
     return { fromLabel, toLabel };
   }
 
-  let fromLabel = "—";
-  let toLabel = "—";
+  let fromLabel = '—';
+  let toLabel = '—';
 
   if (isSentOrFailed) {
-    fromLabel = user.safeAddress || "Unknown";
-    toLabel = tx.toAddress || "Unknown";
+    fromLabel = tx.fromAddress || user.safeAddress || 'Unknown';
+    toLabel = tx.toAddress || 'Unknown';
   } else {
-    fromLabel = tx.fromAddress || "Unknown";
-    toLabel = user.safeAddress || "Unknown";
+    fromLabel = tx.fromAddress || 'Unknown';
+    toLabel = tx.toAddress || user.safeAddress || 'Unknown';
   }
 
   return { fromLabel, toLabel };
@@ -68,12 +68,7 @@ const feeCoinLabel = (tx) => {
 };
 
 const truncateAddr = (addr) => {
-  if (
-    !addr ||
-    typeof addr !== "string" ||
-    !addr.startsWith("0x") ||
-    addr.length <= 32
-  ) {
+  if (!addr || typeof addr !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length <= 32) {
     return addr;
   }
   return `${addr.slice(0, 12)}${".".repeat(13)}${addr.slice(-16)}`;
@@ -134,19 +129,17 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
         className="w-full flex items-center gap-2 sm:gap-4 px-3 py-3 sm:px-4 sm:py-4 text-left"
       >
         {/* status dot */}
-        <div
-          className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${dotColor}`}
-        />
+        <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${dotColor}`} />
 
         {/* date */}
         <div className="w-[50px] sm:w-[72px] flex-shrink-0 hidden sm:block">
           <p className="text-[7px] sm:text-[10px] font-black text-white/50">
-            {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
           </p>
           <p className="text-[6px] sm:text-[9px] font-mono text-white/20 mt-0.5">
-            {d.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
+            {d.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
               hour12: true,
             })}
           </p>
@@ -162,12 +155,12 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
         {/* chain tag */}
         <span
           className={`inline-block text-[6px] sm:text-[8px] font-black uppercase tracking-widest px-1 py-0.5 sm:px-1.5 rounded-md flex-shrink-0 ${
-            tx.chain === "bnb"
-              ? "text-yellow-400 bg-yellow-500/10 border border-yellow-500/20"
-              : "text-blue-400 bg-blue-500/10 border border-blue-500/20"
+            tx.chain === 'bnb'
+              ? 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20'
+              : 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
           }`}
         >
-          {tx.chain === "bnb" ? "BNB" : "BASE"}
+          {tx.chain === 'bnb' ? 'BNB' : 'BASE'}
         </span>
 
         {/* counterparty */}
@@ -175,7 +168,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
           <p className="text-[8px] sm:text-xs font-black text-white truncate">
             {(() => {
               const label = isReceived ? fromLabel : toLabel;
-              if (label && label.startsWith("0x") && label.length > 14) {
+              if (label && /^0x[a-fA-F0-9]{40}$/.test(label)) {
                 return `${label.slice(0, 6)}...${label.slice(-4)}`;
               }
               return label;
@@ -183,11 +176,10 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
           </p>
           {/* mobile date */}
           <p className="text-[6px] sm:text-[9px] font-mono text-white/20 mt-0.5 sm:hidden">
-            {d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}{" "}
-            ·{" "}
-            {d.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
+            {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
+            {d.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
               hour12: true,
             })}
           </p>
@@ -196,31 +188,24 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
         {/* amount + cancel */}
         <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
           <div className="text-right">
-            <p
-              className={`text-[10px] sm:text-sm font-black tabular-nums ${amtColor}`}
-            >
+            <p className={`text-[10px] sm:text-sm font-black tabular-nums ${amtColor}`}>
               {amtPrefix}
               {formatNumber(tx.amount ?? tx.swapAmount ?? tx.amountIn ?? 0)}
             </p>
-            <p className="text-[6px] sm:text-[9px] text-white/25 font-bold">
-              {coin}
-            </p>
+            <p className="text-[6px] sm:text-[9px] text-white/25 font-bold">{coin}</p>
           </div>
         </div>
 
         {/* chevron */}
         <svg
-          className={`w-2 h-2 sm:w-3 sm:h-3 text-white/20 flex-shrink-0 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`}
+          className={`w-2 h-2 sm:w-3 sm:h-3 text-white/20 flex-shrink-0 transition-transform duration-200 ${
+            expanded ? 'rotate-180' : ''
+          }`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2.5}
-            d="M19 9l-7 7-7-7"
-          />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
 
@@ -229,7 +214,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
         {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
+            animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="overflow-hidden"
@@ -265,21 +250,43 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
                     <p className="text-[8px] sm:text-xs font-black text-red-400/70">
                       −
                       {parseFloat(tx.fee).toFixed(
-                        tx.feeCoin === "NGN" || tx.feeCoin === "NGNS" ? 0 : 3,
-                      )}{" "}
+                        tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 3
+                      )}{' '}
                       {feeCoinLabel(tx)}
                     </p>
                   </div>
                 )}
                 {tx.taskId && (
-                  <div className="flex-1 min-w-0 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg bg-white/[0.03] border border-white/[0.05]">
-                    <p className="text-[6px] sm:text-[9px] uppercase text-white/25 font-black">
-                      Tx Hash
-                    </p>
-                    <p className="text-[6px] sm:text-[9px] font-mono text-salvaGold/50 truncate">
-                      {tx.taskId}
-                    </p>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigator.clipboard.writeText(tx.taskId);
+                      showMsg('Tx hash copied!');
+                    }}
+                    className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg bg-white/[0.03] border border-white/[0.05] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all text-left group"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[6px] sm:text-[9px] uppercase text-white/25 font-black">
+                        Tx Hash
+                      </p>
+                      <p className="text-[6px] sm:text-[9px] font-mono text-salvaGold/50 truncate">
+                        {tx.taskId}
+                      </p>
+                    </div>
+                    <svg
+                      className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white/25 group-hover:text-salvaGold flex-shrink-0 transition-colors"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
+                      <path
+                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                        strokeWidth="2"
+                      />
+                    </svg>
+                  </button>
                 )}
               </div>
 
