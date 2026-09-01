@@ -141,6 +141,7 @@ async function swap(
       txData.params.sig
     );
     receipt = await tx.wait();
+    console.log(tx)
   } catch {
     console.error(`Swap Failed`);
     await Transaction.create({
@@ -155,7 +156,7 @@ async function swap(
           : ngnToken,
       chain: chain,
       status: 'failed',
-      taskId: tx.txHash,
+      taskId: tx.hash,
       type: 'swap',
       date: new Date(),
     });
@@ -165,7 +166,6 @@ async function swap(
   }
   // UPDATE POINTS
   await _updatePoint(email, owner);
-
   await Transaction.create({
     fromAddress: poolData.poolName,
     toAddress: recipientData ? recipientData.username : receiver.toLowerCase(),
@@ -175,7 +175,7 @@ async function swap(
     coin:
       type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount' ? usdToken : ngnToken,
     chain: chain,
-    taskId: tx.txHash,
+    taskId: receipt.hash,
     type: 'swap',
     date: new Date(),
   });

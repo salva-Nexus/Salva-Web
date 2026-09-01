@@ -49,6 +49,8 @@ const obj = {
 };
 
 const keyValue = (key) => {
+  // console.log('Key: ', key)
+  // console.log('Loaded Value: ', obj[key]);
   return obj[key];
 };
 

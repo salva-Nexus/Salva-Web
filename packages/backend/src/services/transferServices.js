@@ -9,6 +9,23 @@ import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
 import { basePool, bnbPool } from '../models/Pool.js';
 import { keyValue, mode } from '../utils/vars.js';
 
+// Accessing environment variables properly via the keyValue getter function
+const baseRpcUrl = keyValue('baseRpcUrl');
+const bnbRpcUrl = keyValue('bnbRpcUrl');
+const usdtBnbAddress = keyValue('usdtBnbAddress');
+const usdcBnbAddress = keyValue('usdcBnbAddress');
+const cngnBnbAddress = keyValue('cngnBnbAddress');
+const ngnsBnbAddress = keyValue('ngnsBnbAddress');
+const usdtBaseAddress = keyValue('usdtBaseAddress');
+const usdcBaseAddress = keyValue('usdcBaseAddress');
+const cngnBaseAddress = keyValue('cngnBaseAddress');
+const ngnsBaseAddress = keyValue('ngnsBaseAddress');
+const santAddress = keyValue('santAddress');
+const treasury = keyValue('treasury');
+const sponsorKey = keyValue('sponsorKey');
+const MULTI_SEND_BASE_ADDRESS = keyValue('MULTI_SEND_BASE_ADDRESS');
+const MULTI_SEND_BNB_ADDRESS = keyValue('MULTI_SEND_BNB_ADDRESS');
+
 function validateAmount(amount) {
   const num = parseFloat(amount);
   if (!Number.isFinite(num) || num <= 0 || num > 1000000000) {
@@ -20,8 +37,8 @@ function validateAmount(amount) {
 async function getBalance(token, address, chain) {
   const balanceProvider =
     chain === 'base'
-      ? new ethers.JsonRpcProvider(keyValue('baseRpcUrl'))
-      : new ethers.JsonRpcProvider(keyValue('bnbRpcUrl'));
+      ? new ethers.JsonRpcProvider(baseRpcUrl)
+      : new ethers.JsonRpcProvider(bnbRpcUrl);
 
   const tokenContract = new ethers.Contract(token, ERC20, balanceProvider);
 
@@ -31,20 +48,20 @@ async function getBalance(token, address, chain) {
 const coinSibling = (coin, chain) => {
   if (chain === 'bnb') {
     return coin === 'USDT'
-      ? { siblingSymbol: 'USDC', token: keyValue('usdcBnbAddress') }
+      ? { siblingSymbol: 'USDC', token: usdcBnbAddress }
       : coin === 'USDC'
-        ? { siblingSymbol: 'USDT', token: keyValue('usdtBnbAddress') }
+        ? { siblingSymbol: 'USDT', token: usdtBnbAddress }
         : coin === 'CNGN'
-          ? { siblingSymbol: 'NGNS', token: keyValue('ngnsBnbAddress') }
-          : { siblingSymbol: 'CNGN', token: keyValue('cngnBnbAddress') };
+          ? { siblingSymbol: 'NGNS', token: ngnsBnbAddress }
+          : { siblingSymbol: 'CNGN', token: cngnBnbAddress };
   } else {
     return coin === 'USDT'
-      ? { siblingSymbol: 'USDC', token: keyValue('usdcBaseAddress') }
+      ? { siblingSymbol: 'USDC', token: usdcBaseAddress }
       : coin === 'USDC'
-        ? { siblingSymbol: 'USDT', token: keyValue('usdtBaseAddress') }
+        ? { siblingSymbol: 'USDT', token: usdtBaseAddress }
         : coin === 'CNGN'
-          ? { siblingSymbol: 'NGNS', token: keyValue('ngnsBaseAddress') }
-          : { siblingSymbol: 'CNGN', token: keyValue('cngnBaseAddress') };
+          ? { siblingSymbol: 'NGNS', token: ngnsBaseAddress }
+          : { siblingSymbol: 'CNGN', token: cngnBaseAddress };
   }
 };
 
@@ -52,16 +69,16 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
   validateAmount(amount);
   let tokenAddress;
   if (chain === 'bnb') {
-    if (coin === 'USDT') tokenAddress = keyValue('usdtBnbAddress');
-    else if (coin === 'USDC') tokenAddress = keyValue('usdcBnbAddress');
-    else if (coin === 'CNGN') tokenAddress = keyValue('cngnBnbAddress');
-    else if (coin === 'NGNS') tokenAddress = keyValue('ngnsBnbAddress');
+    if (coin === 'USDT') tokenAddress = usdtBnbAddress;
+    else if (coin === 'USDC') tokenAddress = usdcBnbAddress;
+    else if (coin === 'CNGN') tokenAddress = cngnBnbAddress;
+    else if (coin === 'NGNS') tokenAddress = ngnsBnbAddress;
   } else {
-    if (coin === 'USDT') tokenAddress = keyValue('usdtBaseAddress');
-    else if (coin === 'USDC') tokenAddress = keyValue('usdcBaseAddress');
-    else if (coin === 'CNGN') tokenAddress = keyValue('cngnBaseAddress');
-    else if (coin === 'NGNS') tokenAddress = keyValue('ngnsBaseAddress');
-    else tokenAddress = keyValue('santAddress');
+    if (coin === 'USDT') tokenAddress = usdtBaseAddress;
+    else if (coin === 'USDC') tokenAddress = usdcBaseAddress;
+    else if (coin === 'CNGN') tokenAddress = cngnBaseAddress;
+    else if (coin === 'NGNS') tokenAddress = ngnsBaseAddress;
+    else tokenAddress = santAddress;
   }
 
   if (!tokenAddress) {
@@ -119,20 +136,20 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
   let feeTokenAddress =
     chain === 'bnb'
       ? fToken === 'NGNS'
-        ? keyValue('ngnsBnbAddress')
+        ? ngnsBnbAddress
         : fToken === 'CNGN'
-          ? keyValue('cngnBnbAddress')
+          ? cngnBnbAddress
           : fToken === 'USDC'
-            ? keyValue('usdcBnbAddress')
-            : keyValue('usdtBnbAddress')
+            ? usdcBnbAddress
+            : usdtBnbAddress
       : fToken === 'NGNS'
-        ? keyValue('ngnsBaseAddress')
+        ? ngnsBaseAddress
         : fToken === 'CNGN'
-          ? keyValue('cngnBaseAddress')
+          ? cngnBaseAddress
           : fToken === 'USDC'
-            ? keyValue('usdcBaseAddress')
+            ? usdcBaseAddress
             : fToken === 'USDT'
-              ? keyValue('usdtBaseAddress')
+              ? usdtBaseAddress
               : tokenAddress;
 
   let feeWei;
@@ -168,7 +185,11 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
           feeTokenDecimals = siblingTokenData.decimals;
         } else {
           if (feeHuman < amountNum) {
-            recipientReceives = amountNum - feeHuman;
+            const recipientReceivesNum = amountNum - feeHuman;
+            recipientReceives = ethers.parseUnits(
+              recipientReceivesNum.toString(),
+              tokenData.decimals
+            );
             actualAmountWei = ethers.parseUnits(
               recipientReceives.toFixed(tokenData.decimals),
               tokenData.decimals
@@ -208,19 +229,19 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
       const loanTokenDec =
         chain === 'base'
           ? coin === 'NGNS'
-            ? await getBalance(keyValue('ngnsBaseAddress'), safeAddress, chain)
+            ? await getBalance(ngnsBaseAddress, safeAddress, chain)
             : coin === 'CNGN'
-              ? await getBalance(keyValue('cngnBaseAddress'), safeAddress, chain)
+              ? await getBalance(cngnBaseAddress, safeAddress, chain)
               : coin === 'USDT'
-                ? await getBalance(keyValue('usdtBaseAddress'), safeAddress, chain)
-                : await getBalance(keyValue('usdcBaseAddress'), safeAddress, chain)
+                ? await getBalance(usdtBaseAddress, safeAddress, chain)
+                : await getBalance(usdcBaseAddress, safeAddress, chain)
           : coin === 'NGNS'
-            ? await getBalance(keyValue('ngnsBnbAddress'), safeAddress, chain)
+            ? await getBalance(ngnsBnbAddress, safeAddress, chain)
             : coin === 'CNGN'
-              ? await getBalance(keyValue('cngnBnbAddress'), safeAddress, chain)
+              ? await getBalance(cngnBnbAddress, safeAddress, chain)
               : coin === 'USDT'
-                ? await getBalance(keyValue('usdtBnbAddress'), safeAddress, chain)
-                : await getBalance(keyValue('usdcBnbAddress'), safeAddress, chain);
+                ? await getBalance(usdtBnbAddress, safeAddress, chain)
+                : await getBalance(usdcBnbAddress, safeAddress, chain);
 
       actualFeeWei = isEnough
         ? coin === 'NGNS' || coin === 'CNGN'
@@ -239,14 +260,8 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
   }
 
   const tx = [
-    [
-      recipientAddress,
-      ethers.parseUnits(
-        recipientReceives.toFixed(tokenData.decimals).toString(),
-        tokenData.decimals
-      ),
-    ],
-    [ethers.getAddress(keyValue('treasury')), actualFeeWei],
+    [recipientAddress, recipientReceives],
+    [ethers.getAddress(treasury), actualFeeWei],
   ];
 
   const toData = [tokenAddress, feeTokenAddress];
@@ -438,17 +453,15 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
 // ==================================================================
 
 async function _executeTransfer(safe, pKey, data, chain) {
-  const provider = new ethers.JsonRpcProvider(
-    chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl')
-  );
-  const sponsorPack = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const provider = new ethers.JsonRpcProvider(chain === 'base' ? baseRpcUrl : bnbRpcUrl);
+  const sponsorPack = new ethers.Wallet(sponsorKey, provider);
   const signerPack = new ethers.Wallet(pKey, provider);
   const safeContract = new ethers.Contract(safe, SAFE, sponsorPack);
 
   const currentNonce = await safeContract.nonce();
   const multisendTx = _buildMultiSendTx(data);
   const safeTx = {
-    to: chain === 'base' ? keyValue('MULTI_SEND_BASE_ADDRESS') : keyValue('MULTI_SEND_BNB_ADDRESS'),
+    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
     value: 0n,
     data: multisendTx,
     op: 1n,
