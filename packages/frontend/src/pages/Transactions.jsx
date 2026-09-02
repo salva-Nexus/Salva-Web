@@ -15,7 +15,7 @@ import { Share } from '@capacitor/share';
 
 // ── FROM/TO display logic ──────────────────────────────────────────────────
 function getTxDisplayNames(tx, user) {
-  const dType = getDisplayType(tx, user.safeAddress);
+  const dType = getDisplayType(tx, user);
   const isSentOrFailed = dType === 'sent' || dType === 'failed';
 
   if (tx.txType === 'swap') {
@@ -39,14 +39,15 @@ function getTxDisplayNames(tx, user) {
 }
 
 // ── Derive display type from the flat schema (no displayType field) ────────
-function getDisplayType(tx, safeAddress) {
-  const me = (safeAddress || "").toLowerCase();
-  const from = (tx.fromAddress || "").toLowerCase();
-  const to = (tx.toAddress || "").toLowerCase();
-  if (tx.status === "failed") return "failed";
-  if (from === me) return "sent";
-  if (to === me) return "receive";
-  return "sent";
+function getDisplayType(tx, user) {
+  const meAddr = (user?.safeAddress || '').toLowerCase();
+  const meName = (user?.username || '').toLowerCase();
+  const from = (tx.fromAddress || '').toLowerCase();
+  const to = (tx.toAddress || '').toLowerCase();
+  if (tx.status === 'failed') return 'failed';
+  if (from === meAddr || from === meName) return 'sent';
+  if (to === meAddr || to === meName) return 'receive';
+  return 'sent';
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -89,7 +90,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
   const [expanded, setExpanded] = useState(false);
 
-  const dType = getDisplayType(tx, user.safeAddress);
+  const dType = getDisplayType(tx, user);
   const isReceived = dType === "receive";
   const isFailed = dType === "failed";
   const isSuccess = dType === "sent" || isReceived;
@@ -405,7 +406,7 @@ const Transactions = () => {
         Failed: "failed",
       };
       list = list.filter(
-        (tx) => getDisplayType(tx, user.safeAddress) === map[filter],
+        (tx) => getDisplayType(tx, user) === map[filter],
       );
     }
     if (search.trim()) {

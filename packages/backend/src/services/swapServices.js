@@ -94,6 +94,26 @@ async function swap(
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const decimals = await _getDecimals(contract);
   const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
+  const rate =
+    type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount'
+      ? await poolContract._getBuyRate()
+      : await poolContract._getSellRate();
+  const formatRate = ethers.formatUnits(rate.toString(), 6);
+  const tInAmountForExactOutput = ethers.parseUnits(
+    String(
+      await getAmountIn(
+        poolAddress,
+        usdToken,
+        tIn,
+        tIn === 'ngnToken' ? 'usdToken' : 'ngnToken',
+        amount,
+        formatRate,
+        chain
+      )
+    ),
+    await _getDecimals(contract)
+  );
   const txData = await _buildSwapData(
     initiator.safeAddress,
     pkey,
@@ -105,7 +125,11 @@ async function swap(
     amountWei,
     receiver,
     tIn,
-    trustPool && !isTrusted ? keyValue('maxUint256') : amountWei,
+    trustPool && !isTrusted
+      ? keyValue('maxUint256')
+      : type === 'swapForExactUSDAmount' || type === 'swapForExactNGNAmount'
+        ? tInAmountForExactOutput
+        : amountWei,
     provider,
     sponsor,
     chain,
@@ -141,11 +165,10 @@ async function swap(
       txData.params.sig
     );
     receipt = await tx.wait();
-    console.log(tx)
-  } catch {
-    console.error(`Swap Failed`);
+  } catch (err) {
+    console.error(`Swap Failed: ${err.message}`);
     await Transaction.create({
-      fromAddress: poolData.poolName,
+      fromAddress: poolData ? (poolData.poolName ? poolData.poolName : poolAddress) : poolAddress,
       toAddress: recipientData ? recipientData.username : receiver.toLowerCase(),
       amount: amount.toString(),
       fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
@@ -156,7 +179,7 @@ async function swap(
           : ngnToken,
       chain: chain,
       status: 'failed',
-      taskId: tx.hash,
+      taskId: null,
       type: 'swap',
       date: new Date(),
     });
@@ -166,14 +189,35 @@ async function swap(
   }
   // UPDATE POINTS
   await _updatePoint(email, owner);
+  const tOut = tIn === ngnToken ? usdToken : ngnToken;
+  const amountData = await _getAmount(receipt, tIn, tOut, owner, poolAddress, provider, chain);
+  console.log(`IN: ${amountData.inAmount}`);
+  console.log(`OUT: ${amountData.outAmount}`);
+
+  // RECEIVED
   await Transaction.create({
-    fromAddress: poolData.poolName,
+    fromAddress: poolData ? (poolData.poolName ? poolData.poolName : poolAddress) : poolAddress,
     toAddress: recipientData ? recipientData.username : receiver.toLowerCase(),
-    amount: amount.toString(),
+    amount: amountData.outAmount,
     fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
     feeCoin: feeData.data.feeToken,
     coin:
       type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount' ? usdToken : ngnToken,
+    chain: chain,
+    taskId: receipt.hash,
+    type: 'swap',
+    date: new Date(),
+  });
+
+  // SENT
+  await Transaction.create({
+    fromAddress: initiator.username,
+    toAddress: poolData ? (poolData.poolName ? poolData.poolName : poolAddress) : poolAddress,
+    amount: amountData.inAmount,
+    fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+    feeCoin: feeData.data.feeToken,
+    coin:
+      type === 'swapExactNGNAmountForUSD' || type === 'swapForExactUSDAmount' ? ngnToken : usdToken,
     chain: chain,
     taskId: receipt.hash,
     type: 'swap',
@@ -187,6 +231,64 @@ async function swap(
     receipt: receipt,
   };
 }
+
+const _getAmount = async (
+  receipt,
+  tokenIn,
+  tokenOut,
+  safeAddress,
+  poolAddress,
+  provider,
+  chain
+) => {
+  const logs = receipt.logs;
+  const tokenInAddress = _asset(tokenIn, chain);
+  const tokenOutAddress = _asset(tokenOut, chain);
+
+  let inAmount;
+  let outAmount;
+  for (let i = 0; i < logs.length; i++) {
+    if (logs[i].topics.length > 2) {
+      if (
+        logs[i].address.toLowerCase() === tokenInAddress.toLowerCase() &&
+        `0x${logs[i].topics[2].slice(26)}`.toLowerCase() === poolAddress.toLowerCase() &&
+        ethers.toBigInt(logs[i].data) !== BigInt(keyValue('maxUint256'))
+      ) {
+        console.log(`0x${logs[i].topics[2].slice(26)}`.toLowerCase());
+        inAmount = ethers.toBigInt(logs[i].data);
+        break;
+      }
+    }
+  }
+
+  for (let i = 0; i < logs.length; i++) {
+    if (logs[i].topics.length > 2) {
+      if (
+        logs[i].address.toLowerCase() === tokenOutAddress.toLowerCase() &&
+        `0x${logs[i].topics[2].slice(26)}`.toLowerCase() === safeAddress.toLowerCase()
+      ) {
+        console.log(`0x${logs[i].topics[2].slice(26)}`.toLowerCase());
+        outAmount = ethers.toBigInt(logs[i].data);
+        break;
+      }
+    }
+  }
+
+  const tokenInContract = new ethers.Contract(tokenInAddress, ERC20, provider);
+  const tokenOutContract = new ethers.Contract(tokenOutAddress, ERC20, provider);
+  const [tokenInDecimals, tokenOutDecimcals] = await Promise.all([
+    _getDecimals(tokenInContract),
+    _getDecimals(tokenOutContract),
+  ]);
+
+  const formatInAmount = ethers.formatUnits(inAmount, tokenInDecimals);
+  const formatOutAmount = ethers.formatUnits(outAmount, tokenOutDecimcals);
+
+  return {
+    inAmount: String(formatInAmount),
+    outAmount: String(formatOutAmount),
+  };
+};
 
 // ==============VIEW=============================
 
@@ -215,7 +317,6 @@ async function getAmountIn(poolAddress, usdToken, inToken, outToken, outAmount, 
   const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
   const usdTokenAddress = _asset(usdToken, chain);
   const outTokenAddress = _asset(outToken, chain);
-  const usdTokenContract = new ethers.Contract(usdTokenAddress, ERC20, provider);
   const outTokenContract = new ethers.Contract(outTokenAddress, ERC20, provider);
   const outTokenDecimals = await _getDecimals(outTokenContract);
   const amountWei = ethers.parseUnits(outAmount.toString(), outTokenDecimals);

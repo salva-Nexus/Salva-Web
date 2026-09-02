@@ -11,13 +11,9 @@ import {
   _getFeeAndToken,
 } from '../services/poolServices.js';
 
-import { estimateUpdateRateFee, estimateUpdatePauseStateFee } from '../services/estimateFee.js';
-
-import { basePool, bnbPool, trustedBasePool, trustedBnbPool } from '../models/Pool.js';
+import { basePool, bnbPool } from '../models/Pool.js';
 
 import { basePoolSubscription, bnbPoolSubscription } from '../models/PoolSubscription.js';
-
-import { User } from '../models/Users.js';
 import { balance } from '../services/balanceServices.js';
 import { keyValue } from '../utils/vars.js';
 

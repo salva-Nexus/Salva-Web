@@ -843,7 +843,8 @@ async function _buildSwapData(
   let approveCalldata = erc20Contract.encodeFunctionData('approve', firstTx);
   let swapCalldata = poolContract.encodeFunctionData(type, secondTx);
   let transferFeeCalldata = erc20Contract.encodeFunctionData('transfer', thirdTx);
-
+  console.log(`Approve Token: ${approveToken} => ${_asset(approveToken, chain)}`);
+  console.log(`TYPE: ${type}`)
   let encodedData = isTrusted
     ? [swapCalldata, transferFeeCalldata]
     : [approveCalldata, swapCalldata, transferFeeCalldata];
