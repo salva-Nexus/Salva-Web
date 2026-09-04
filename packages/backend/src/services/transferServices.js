@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { User, UserBNB } from '../models/Users.js';
 import { ERC20, SAFE, MULTISEND } from '../utils/abi.js';
-import { estimateTransferFee } from './estimateFee.js';
+import { estimateTransferFee, _getTransactionHash, _appendSafeReq } from './estimateFee.js';
 import { _getBalance, balance } from './balanceServices.js';
 import { sendTransactionEmailToSender, sendTransactionEmailToReceiver } from './emailService.js';
 import Transaction from '../models/Transaction.js';
@@ -258,6 +258,7 @@ async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain
         : actualFeeWei + 0n;
     }
   }
+  
 
   const tx = [
     [recipientAddress, recipientReceives],
@@ -504,21 +505,7 @@ async function _executeTransfer(safe, pKey, data, chain) {
   }
 }
 
-async function _getTransactionHash(contract, data) {
-  const hash = await contract.getTransactionHash(
-    data.to,
-    data.value,
-    data.data,
-    data.op,
-    data.safeTxGas,
-    data.baseGas,
-    data.gasPrice,
-    data.gasToken,
-    data.refundReceiver,
-    data.nonce
-  );
-  return hash;
-}
+
 
 function _buildMultiSendTx(data) {
   const contract = new ethers.Interface(MULTISEND);
@@ -527,11 +514,4 @@ function _buildMultiSendTx(data) {
   return txHex;
 }
 
-function _appendSafeReq(sig) {
-  const v = Number(ethers.toBigInt(`0x${sig.slice(-2)}`));
-  const newV = ethers.toBeHex(BigInt(v + 4)).slice(-2);
-  const cutSig = sig.slice(0, sig.length - 2);
-  return `${cutSig}${newV}`;
-}
-
-export { executeTransfer, _getTransactionHash, getBalance, _appendSafeReq };
+export { executeTransfer, getBalance };

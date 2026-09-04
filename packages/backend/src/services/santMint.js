@@ -1,9 +1,9 @@
 import { ethers } from 'ethers';
 import { SANT_ABI, ERC20, SAFE } from '../utils/abi.js';
 import { _getDecimals } from './balanceServices.js';
-import { estimateTransferFee } from './estimateFee.js';
+import { estimateTransferFee, _appendSafeReq, _getTransactionHash } from './estimateFee.js';
 import { balance } from './balanceServices.js';
-import { _getTransactionHash, getBalance, _appendSafeReq } from './transferServices.js';
+import { getBalance } from './transferServices.js';
 import { User } from '../models/Users.js';
 import { PointsRecord } from '../models/PointsState.js';
 import { keyValue, mode } from '../utils/vars.js';
@@ -107,7 +107,6 @@ async function mintSant(email, toAddress, toKey) {
       refundReceiver: ethers.ZeroAddress,
       nonce: currentNonce,
     };
-
     const hash = await _getTransactionHash(safeContract, safeTx);
     const sig = await signerPack.signMessage(ethers.getBytes(hash));
     const newSig = _appendSafeReq(sig);

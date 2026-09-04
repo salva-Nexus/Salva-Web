@@ -1,19 +1,11 @@
-import { executeTransfer } from "../services/transferServices.js";
-import express from "express";
+import { executeTransfer } from '../services/transferServices.js';
+import express from 'express';
 
 const router = express.Router();
 
-router.post("/transfer", async (req, res) => {
+router.post('/transfer', async (req, res) => {
   try {
-    const {
-      email,
-      userPrivateKey,
-      safeAddress,
-      toAddress,
-      amount,
-      coin,
-      chain,
-    } = req.body;
+    const { email, userPrivateKey, safeAddress, toAddress, amount, coin, chain } = req.body;
     const coinFromQuery = req.query.coin;
 
     const transferResult = await executeTransfer(
@@ -23,7 +15,7 @@ router.post("/transfer", async (req, res) => {
       toAddress,
       amount,
       coinFromQuery ? coinFromQuery : coin,
-      chain,
+      chain
     );
     res.status(200).json({
       status: transferResult.status,

@@ -3,11 +3,10 @@ import { User } from '../models/Users.js';
 import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
 import { REGISTRY, MULTISEND, REGISTRYFACTORY, ERC20, SAFE } from '../utils/abi.js';
 import { SNS } from '../../salva.js';
-import { _appendSafeReq } from './transferServices.js';
 import { basePool, bnbPool } from '../models/Pool.js';
 import { isReservedName } from '../models/ReservedNames.js';
 import { keyValue, mode } from '../utils/vars.js';
-
+import { _appendSafeReq, _getTransactionHash } from './estimateFee.js';
 const ABI = {
   REGISTRY,
   REGISTRYFACTORY,
@@ -144,18 +143,7 @@ async function _buildAndExecLink(
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
 
   const sig = await snsConfig._snsConfig().OWNER.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);

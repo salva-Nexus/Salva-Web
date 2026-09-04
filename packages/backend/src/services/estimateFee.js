@@ -128,18 +128,7 @@ async function _buildTransferData(provider, sponsor, chain) {
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
@@ -161,6 +150,22 @@ async function _buildTransferData(provider, sponsor, chain) {
     value: 0n,
     data: safeData,
   };
+}
+
+async function _getTransactionHash(contract, data) {
+  const hash = await contract.getTransactionHash(
+    data.to,
+    data.value,
+    data.data,
+    data.op,
+    data.safeTxGas,
+    data.baseGas,
+    data.gasPrice,
+    data.gasToken,
+    data.refundReceiver,
+    data.nonce
+  );
+  return hash;
 }
 
 function _appendSafeReq(sig) {
@@ -320,18 +325,7 @@ async function _buildPoolDeploymentData(
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
@@ -460,18 +454,7 @@ async function _buildAdd_RemoveLiqData(
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
@@ -590,18 +573,7 @@ async function _buildUpdateRateData(
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
@@ -718,18 +690,7 @@ async function _buildUpdatePauseStateData(
     refundReceiver: ethers.ZeroAddress,
     nonce: currentNonce,
   };
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx );
 
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
@@ -865,18 +826,7 @@ async function _buildSwapData(
     nonce: currentNonce,
   };
 
-  const hash = await safe.getTransactionHash(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    safeTx.nonce
-  );
+  const hash = await _getTransactionHash(safe, safeTx);
   const sig = await signerPack.signMessage(ethers.getBytes(hash));
   const newSig = _appendSafeReq(sig);
   const safeIFace = new ethers.Interface(SAFE);
@@ -988,4 +938,5 @@ export {
   _buildAdd_RemoveLiqData,
   _buildPoolDeploymentData,
   _appendSafeReq,
+  _getTransactionHash,
 };
