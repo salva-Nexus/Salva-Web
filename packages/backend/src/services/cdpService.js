@@ -72,16 +72,58 @@ async function registerAndDepositCollateral(
   });
   const pinData = await verify_Pin(dData.email, pin);
   const privateKey = pinData.privateKey;
-
-  const fee = await _estimateReg_Deposit_CollateralFee(
-    safeAddress,
-    privateKey,
-    manager.contractAddress,
-    tokenInfo.tokenAddress,
-    ratioBps,
-    collateralAmount,
-    chain
-  );
+  const code = await provider.getCode(safeAddress);
+  const isDeployed = code !== '0x';
+  let fee = !isDeployed
+    ? await estimateDeploymentFee(safeAddress, chain)
+    : await _estimateReg_Deposit_CollateralFee(
+        safeAddress,
+        privateKey,
+        manager.contractAddress,
+        tokenInfo.tokenAddress,
+        ratioBps,
+        collateralAmount,
+        chain
+    );
+  
+  let depositFee;
+    if (!isDeployed) {
+      depositFee = await _estimateReg_Deposit_CollateralFee(
+        safeAddress,
+        privateKey,
+        manager.contractAddress,
+        tokenInfo.tokenAddress,
+        ratioBps,
+        collateralAmount,
+        chain
+      );
+      const initFeeData = await _getFeeAndToken(safeAddress, fee, chain);
+      const initDepositFeeData = await _getFeeAndToken(safeAddress, depositFee, chain);
+  
+      if (!initFeeData.status || !initDepositFeeData.status) {
+        throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
+      }
+  
+      // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
+      if (initFeeData.data.feeToken === tokenSymbol) {
+        const totalRequired =
+          amountToWei +
+          BigInt(initFeeData.data.feeToWei) +
+          BigInt(initDepositFeeData.data.feeToWei);
+        console.log(balanceData.balance);
+        console.log(totalRequired);
+        if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
+          throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
+        }
+      }
+      await _deploySafe(safeAddress, privateKey, provider, chain);
+    }
+  
+    if (depositFee) {
+      fee.data.feeEth += depositFee.data.feeEth;
+      fee.data.feeNGN += depositFee.data.feeNGN;
+      fee.data.feeUsd += depositFee.data.feeUsd;
+    }
   const feeData = await _getFeeAndToken(safeAddress, fee, chain);
 
   const isEth = tokenInfo.tokenAddress === ethers.ZeroAddress;

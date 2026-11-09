@@ -754,6 +754,10 @@ async function _estimateReg_Deposit_CollateralFee(
   chain
 ) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const code = await provider.getCode(safeAddress);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safeAddress, chain);
+  }
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const isEth = tokenAddress === ethers.ZeroAddress;
   const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);

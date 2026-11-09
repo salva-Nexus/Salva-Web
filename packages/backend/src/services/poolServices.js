@@ -50,18 +50,18 @@ async function deployPool(email, pin, chain) {
   const pkey = pinData.privateKey;
 
   const rpc = getRpcUrlByChain(chain);
-   const provider = new ethers.JsonRpcProvider(rpc);
-  const code = await provider.getCode(safeAddress);
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const code = await provider.getCode(user.safeAddress);
   const isDeployed = code !== '0x';
   let fee = !isDeployed
-    ? await estimateDeploymentFee(safeAddress, normchain)
+    ? await estimateDeploymentFee(user.safeAddress, chain)
     : await await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
-  
+
   let deployPoolFee;
   if (!isDeployed) {
     deployPoolFee = estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
-    const initFeeData = await _getFeeAndToken(user.safeAddress, fee, normchain);
-    const initDeployPoolFeeData = await _getFeeAndToken(user.safeAddress, deployPoolFee, normchain);
+    const initFeeData = await _getFeeAndToken(user.safeAddress, fee, chain);
+    const initDeployPoolFeeData = await _getFeeAndToken(user.safeAddress, deployPoolFee, chain);
 
     if (!initFeeData.status || !initDeployPoolFeeData.status) {
       throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
@@ -79,7 +79,7 @@ async function deployPool(email, pin, chain) {
         throw new TypeError('Insufficient balance to cover fee, please top up.');
       }
     }
-    await _deploySafe(user.safeAddress, pKey, provider, normchain);
+    await _deploySafe(user.safeAddress, pkey, provider, chain);
   }
 
   if (deployPoolFee) {
