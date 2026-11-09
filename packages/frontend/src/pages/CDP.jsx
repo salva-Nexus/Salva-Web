@@ -434,6 +434,7 @@ const ActionModal = ({
   manager,
   positions,
   initialSymbol,
+  registerOnly,
   user,
   chain,
   walletAssets,
@@ -442,7 +443,9 @@ const ActionModal = ({
   onSuccess,
 }) => {
   const cfg = ACTIONS[action];
-  const tokens = manager.whitelistedTokens;
+  const tokens = registerOnly
+    ? manager.whitelistedTokens.filter((t) => !positions?.[t.symbol]?.registered)
+    : manager.whitelistedTokens;
 
   const [stage, setStage] = useState('pin');
   const [privateKey, setPrivateKey] = useState('');
@@ -1817,7 +1820,9 @@ const CDP = () => {
   const depositedCollateralTokens = manager
     ? manager.whitelistedTokens.filter((token) => num(positions[token.symbol]?.collateral) > 0)
     : [];
-
+    const unregisteredTokens = manager
+    ? manager.whitelistedTokens.filter((token) => !positions[token.symbol]?.registered)
+    : [];
   // A position = any registered vault, on any manager, holding collateral or debt.
   const hasPosition = useMemo(
     () =>
@@ -1906,7 +1911,8 @@ const CDP = () => {
     }
   };
 
-  const openAction = (action, symbol) => setModal({ action, symbol });
+  const openAction = (action, symbol, registerOnly = false) =>
+    setModal({ action, symbol, registerOnly });
   const firstSymbol = (pred) =>
     manager?.whitelistedTokens.find((t) => pred(positions[t.symbol]))?.symbol ||
     manager?.whitelistedTokens[0]?.symbol;
@@ -2126,10 +2132,23 @@ const CDP = () => {
                   Each asset has its own collateral value, debt, health and withdrawable amount.
                 </p>
               </div>
-              <span className="rounded-full border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 text-[10px] font-bold text-white/75">
-                {depositedCollateralTokens.length} position
-                {depositedCollateralTokens.length === 1 ? '' : 's'}
-              </span>
+              <div className="flex items-center gap-2 shrink-0">
+                {activePositions > 0 && unregisteredTokens.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openAction('deposit', unregisteredTokens[0].symbol, true)
+                    }
+                    className="rounded-full bg-salvaGold px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-black hover:brightness-110"
+                  >
+                    ＋ Deposit collateral
+                  </button>
+                )}
+                <span className="rounded-full border border-white/[0.08] bg-white/[0.025] px-3 py-1.5 text-[10px] font-bold text-white/75">
+                  {depositedCollateralTokens.length} position
+                  {depositedCollateralTokens.length === 1 ? '' : 's'}
+                </span>
+              </div>
             </div>
             {depositedCollateralTokens.length > 0 ? (
               <div className="grid grid-cols-1 gap-4">
@@ -2171,6 +2190,7 @@ const CDP = () => {
             manager={manager}
             positions={positions}
             initialSymbol={modal.symbol}
+            registerOnly={modal.registerOnly}
             user={user}
             chain={chain}
             walletAssets={walletAssets}

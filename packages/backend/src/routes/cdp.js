@@ -39,7 +39,7 @@ router.post('/managers', async (req, res) => {
 
 router.post('/register-deposit', async (req, res) => {
   const { safe, pin, collateralTokenSymbol, ratioBps, amount, chain, version } = req.body;
-  const uData = await User.find({
+  const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
@@ -70,7 +70,7 @@ router.post('/register-deposit', async (req, res) => {
 
 router.post('/deposit', async (req, res) => {
   const { safe, pin, collateralTokenSymbol, amount, chain, version } = req.body;
-  const uData = await User.find({
+  const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
@@ -100,7 +100,7 @@ router.post('/deposit', async (req, res) => {
 
 router.post('/open-position', async (req, res) => {
   const { safe, pin, collateralTokenSymbol, ngnsAmount, chain, version } = req.body;
-  const uData = await User.find({
+  const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
@@ -130,7 +130,7 @@ router.post('/open-position', async (req, res) => {
 
 router.post('/settle-position', async (req, res) => {
   const { safe, pin, collateralTokenSymbol, ngnsAmount, chain, version } = req.body;
-  const uData = await User.find({
+  const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
@@ -160,7 +160,7 @@ router.post('/settle-position', async (req, res) => {
 
 router.post('/withdraw', async (req, res) => {
   const { safe, pin, collateralTokenSymbol, receiver, amount, chain, version } = req.body;
-  const uData = await User.find({
+  const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);

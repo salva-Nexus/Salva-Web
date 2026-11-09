@@ -48,7 +48,7 @@ async function _findTokenConfig(manager, symbol) {
 
 async function registerAndDepositCollateral(
   safeAddress,
-  pin,
+  privateKey,
   collateralTokenSymbol,
   ratioBps,
   collateralAmount,
@@ -67,11 +67,6 @@ async function registerAndDepositCollateral(
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const dData = await User.findOne({
-    safeAddress: safeAddress,
-  });
-  const pinData = await verify_Pin(dData.email, pin);
-  const privateKey = pinData.privateKey;
   const code = await provider.getCode(safeAddress);
   const isDeployed = code !== '0x';
   let fee = !isDeployed
@@ -84,47 +79,47 @@ async function registerAndDepositCollateral(
         ratioBps,
         collateralAmount,
         chain
-    );
-  let depositFee;
-    if (!isDeployed) {
-      depositFee = await _estimateReg_Deposit_CollateralFee(
-        safeAddress,
-        privateKey,
-        manager.contractAddress,
-        tokenInfo.tokenAddress,
-        ratioBps,
-        collateralAmount,
-        chain
       );
-      const initFeeData = await _getFeeAndToken(safeAddress, fee, chain);
-      const initDepositFeeData = await _getFeeAndToken(safeAddress, depositFee, chain);
-  
-      if (!initFeeData.status || !initDepositFeeData.status) {
-        throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
-      }
-  
-      // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-      const balanceData = await getBalance(initDepositFeeData.data.tokenAddress, safeAddress, chain);
-      if (initFeeData.data.feeToken === initDepositFeeData.data.feeToken) {
-        const totalRequired =
-          BigInt(initFeeData.data.feeToWei) + BigInt(initDepositFeeData.data.feeToWei);
-        console.log(balanceData.balance);
-        console.log(totalRequired);
-        if (balanceData.balance < totalRequired) {
-          throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
-        }
-      } else {
+  let depositFee;
+  if (!isDeployed) {
+    depositFee = await _estimateReg_Deposit_CollateralFee(
+      safeAddress,
+      privateKey,
+      manager.contractAddress,
+      tokenInfo.tokenAddress,
+      ratioBps,
+      collateralAmount,
+      chain
+    );
+    const initFeeData = await _getFeeAndToken(safeAddress, fee, chain);
+    const initDepositFeeData = await _getFeeAndToken(safeAddress, depositFee, chain);
+
+    if (!initFeeData.status || !initDepositFeeData.status) {
+      throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
+    }
+
+    // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
+    const balanceData = await getBalance(initDepositFeeData.data.tokenAddress, safeAddress, chain);
+    if (initFeeData.data.feeToken === initDepositFeeData.data.feeToken) {
+      const totalRequired =
+        BigInt(initFeeData.data.feeToWei) + BigInt(initDepositFeeData.data.feeToWei);
+      console.log(balanceData.balance);
+      console.log(totalRequired);
+      if (balanceData.balance < totalRequired) {
         throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
       }
-      
-      await _deploySafe(safeAddress, privateKey, provider, chain);
+    } else {
+      throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
     }
-  
-    if (depositFee) {
-      fee.data.feeEth += depositFee.data.feeEth;
-      fee.data.feeNGN += depositFee.data.feeNGN;
-      fee.data.feeUsd += depositFee.data.feeUsd;
-    }
+
+    await _deploySafe(safeAddress, privateKey, provider, chain);
+  }
+
+  if (depositFee) {
+    fee.data.feeEth += depositFee.data.feeEth;
+    fee.data.feeNGN += depositFee.data.feeNGN;
+    fee.data.feeUsd += depositFee.data.feeUsd;
+  }
   const feeData = await _getFeeAndToken(safeAddress, fee, chain);
 
   const isEth = tokenInfo.tokenAddress === ethers.ZeroAddress;
@@ -210,7 +205,7 @@ async function registerAndDepositCollateral(
 
 async function depositCollateral(
   safeAddress,
-  pin,
+  privateKey,
   collateralTokenSymbol,
   collateralAmount,
   chain,
@@ -220,11 +215,6 @@ async function depositCollateral(
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const dData = await User.findOne({
-    safeAddress: safeAddress,
-  });
-  const pinData = await verify_Pin(dData.email, pin);
-  const privateKey = pinData.privateKey;
 
   const fee = await _estimate_Deposit_CollateralFee(
     safeAddress,
@@ -293,7 +283,14 @@ async function depositCollateral(
   return { status: true, data: receipt };
 }
 
-async function openPosition(safeAddress, pin, collateralTokenSymbol, ngnsAmount, chain, version) {
+async function openPosition(
+  safeAddress,
+  privateKey,
+  collateralTokenSymbol,
+  ngnsAmount,
+  chain,
+  version
+) {
   const manager = await _findManager(version, chain);
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
@@ -302,11 +299,6 @@ async function openPosition(safeAddress, pin, collateralTokenSymbol, ngnsAmount,
   const ngnsAmountWei = ethers.parseEther(ngnsAmount.toString());
   const cdpIface = new ethers.Interface(CDP_ABI);
   const erc20Iface = new ethers.Interface(ERC20);
-  const dData = await User.findOne({
-    safeAddress: safeAddress,
-  });
-  const pinData = await verify_Pin(dData.email, pin);
-  const privateKey = pinData.privateKey;
 
   const fee = await _estimate_Open_Position_Fee(
     safeAddress,
@@ -355,7 +347,14 @@ async function openPosition(safeAddress, pin, collateralTokenSymbol, ngnsAmount,
   return { status: !!receipt, receipt };
 }
 
-async function settlePosition(safeAddress, pin, collateralTokenSymbol, ngnsAmount, chain, version) {
+async function settlePosition(
+  safeAddress,
+  privateKey,
+  collateralTokenSymbol,
+  ngnsAmount,
+  chain,
+  version
+) {
   const manager = await _findManager(version, chain);
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
@@ -364,11 +363,6 @@ async function settlePosition(safeAddress, pin, collateralTokenSymbol, ngnsAmoun
   const ngnsAmountWei = ethers.parseEther(ngnsAmount.toString());
   const cdpIface = new ethers.Interface(CDP_ABI);
   const erc20Iface = new ethers.Interface(ERC20);
-  const dData = await User.findOne({
-    safeAddress: safeAddress,
-  });
-  const pinData = await verify_Pin(dData.email, pin);
-  const privateKey = pinData.privateKey;
 
   const fee = await _estimate_Settle_Position_Fee(
     safeAddress,
@@ -419,7 +413,7 @@ async function settlePosition(safeAddress, pin, collateralTokenSymbol, ngnsAmoun
 
 async function withdraw(
   safeAddress,
-  pin,
+  privateKey,
   collateralTokenSymbol,
   receiver,
   collateralAmount,
@@ -430,11 +424,6 @@ async function withdraw(
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const dData = await User.findOne({
-    safeAddress: safeAddress,
-  });
-  const pinData = await verify_Pin(dData.email, pin);
-  const privateKey = pinData.privateKey;
 
   const fee = await _estimate_Withdraw_CollateralFee(
     safeAddress,
