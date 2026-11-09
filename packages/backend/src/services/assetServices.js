@@ -436,7 +436,7 @@ async function _updateConfig(email) {
     email: email,
   });
   const sChain = await SupportedChain.find({
-    type: mode === 'MAINNET' ? 'MAINNET' : 'TESTNET',
+    type: mode === 'production' ? 'MAINNET' : 'TESTNET',
   });
   let updateCount = 0;
   for (let i = 0; i < sChain.length; i++) {
