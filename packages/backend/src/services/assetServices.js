@@ -67,17 +67,9 @@ async function userAssetsData(safe, chain) {
 
       // Guard against missing DB entries in Assets collection
       if (!details) {
-        const uIsNative =
-          !config.tokenAddress ||
-          config.tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase() ||
-          config.tokenAddress === '0x0';
-        let uData;
-        if (uIsNative) {
-          uData = { balance: await provider.getBalance(safe), decimals: 18 };
-        } else {
-          const uContract = new ethers.Contract(config.tokenAddress, ERC20, provider);
-          uData = await _getBalance(uContract, safe);
-        }
+
+        const uContract = new ethers.Contract(config.tokenAddress, ERC20, provider);
+        const uData = await _getBalance(uContract, safe);
 
         const uFormattedBalance = ethers.formatUnits(uData.balance, Number(uData.decimals));
         userData.push({
