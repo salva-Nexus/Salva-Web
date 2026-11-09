@@ -85,7 +85,6 @@ async function registerAndDepositCollateral(
         collateralAmount,
         chain
     );
-  
   let depositFee;
     if (!isDeployed) {
       depositFee = await _estimateReg_Deposit_CollateralFee(
@@ -105,17 +104,19 @@ async function registerAndDepositCollateral(
       }
   
       // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-      if (initFeeData.data.feeToken === tokenSymbol) {
+      const balanceData = await getBalance(initDepositFeeData.data.tokenAddress, safeAddress, chain);
+      if (initFeeData.data.feeToken === initDepositFeeData.data.feeToken) {
         const totalRequired =
-          amountToWei +
-          BigInt(initFeeData.data.feeToWei) +
-          BigInt(initDepositFeeData.data.feeToWei);
+          BigInt(initFeeData.data.feeToWei) + BigInt(initDepositFeeData.data.feeToWei);
         console.log(balanceData.balance);
         console.log(totalRequired);
-        if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
+        if (balanceData.balance < totalRequired) {
           throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
         }
+      } else {
+        throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
       }
+      
       await _deploySafe(safeAddress, privateKey, provider, chain);
     }
   

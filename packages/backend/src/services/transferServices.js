@@ -91,6 +91,8 @@ async function executeTransfer(
       if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
         throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
       }
+    } else {
+      throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
     }
     await _deploySafe(safeAddress, pKey, provider, normchain);
   }

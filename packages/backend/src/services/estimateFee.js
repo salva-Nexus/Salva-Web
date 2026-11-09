@@ -1184,9 +1184,8 @@ async function _getFee(safeAddress, gasCost, provider, chain) {
   const feeData = await provider.getFeeData();
   const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
 
-  // If L2, buff gas units by 200% (multiply by 3). Otherwise, keep exact estimation.
   const isLayer2 = isL2(chain);
-  const bufferedGasUnits = isLayer2 ? gasCost * 18n : gasCost + (gasCost * 50n) / 100n;
+  const bufferedGasUnits = isLayer2 ? gasCost * 9n : gasCost + (gasCost * 50n) / 100n;
   const rawGasWei = bufferedGasUnits * gasPrice;
   const ethCost = ethers.formatEther(rawGasWei);
 

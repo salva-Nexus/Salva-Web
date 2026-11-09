@@ -56,6 +56,7 @@ async function deployPool(email, pin, chain) {
   let fee = !isDeployed
     ? await estimateDeploymentFee(user.safeAddress, chain)
     : await await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
+  const balanceData = await getBalance(tokenAddress, safeAddress, normchain);
 
   let deployPoolFee;
   if (!isDeployed) {
@@ -68,16 +69,16 @@ async function deployPool(email, pin, chain) {
     }
 
     // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
+    const balanceData = await getBalance(initDeployPoolFeeData.data.tokenAddress, safeAddress, chain);
     if (initFeeData.data.feeToken === tokenSymbol) {
-      const totalRequired =
-        amountToWei +
-        BigInt(initFeeData.data.feeToWei) +
-        BigInt(initDeployPoolFeeData.data.feeToWei);
+      const totalRequired = BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
       console.log(balanceData.balance);
       console.log(totalRequired);
-      if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
+      if (balanceData.balance < totalRequired) {
         throw new TypeError('Insufficient balance to cover fee, please top up.');
       }
+    } else {
+      throw new TypeError('Insufficient balance to cover fee, please top up');
     }
     await _deploySafe(user.safeAddress, pkey, provider, chain);
   }
