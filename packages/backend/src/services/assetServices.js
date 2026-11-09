@@ -443,6 +443,7 @@ async function _updateConfig(email) {
     const ngns = await Assets.findOne({
       chain: sChain[i].chainName,
       tokenSymbol: 'NGNS',
+      type: mode === 'production' ? 'MAINNET' : 'TESTNET',
     });
     if (ngns) {
       const isSet = user.tokenConfig.some(
@@ -463,6 +464,7 @@ async function _updateConfig(email) {
     const sant = await Assets.findOne({
       chain: sChain[i].chainName,
       tokenSymbol: 'SANT',
+      type: mode === 'production' ? 'MAINNET' : 'TESTNET',
     });
     if (sant) {
       const isSet = user.tokenConfig.some(
