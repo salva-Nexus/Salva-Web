@@ -25,11 +25,18 @@ const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [regStep, setRegStep] = useState(1);
   const [otp, setOtp] = useState('');
-  const [formData, setFormData] = useState({ username: '', email: '', password: '', pin: '' });
+  const [formData, setFormData] = useState({
+    username: '',
+    email: '',
+    password: '',
+    pin: '',
+    confirmPin: '',
+  });
   const [loading, setLoading] = useState(false);
   const [notif, setNotif] = useState({ show: false, msg: '', type: '' });
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+    const [showPin, setShowPin] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const reduce = useReducedMotion();
@@ -85,6 +92,8 @@ const Login = () => {
 
     if (!/^\d{4}$/.test(formData.pin))
       return showMsg('Transaction PIN must be exactly 4 digits', 'error');
+        if (formData.pin !== formData.confirmPin)
+      return showMsg('Transaction PINs do not match', 'error');
 
     setLoading(true);
     try {
@@ -435,26 +444,75 @@ const Login = () => {
                     )}
                   </div>
                   {!isLogin && (
-                    <div>
-                      <label className={fieldLabel}>Transaction PIN</label>
-                      <input
-                        className={`${inputClass} text-center tracking-[0.5em]`}
-                        type="password"
-                        inputMode="numeric"
-                        maxLength={4}
-                        placeholder="••••"
-                        value={formData.pin}
-                        onChange={(e) =>
-                          setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '') })
-                        }
-                        required
-                        pattern="\d{4}"
-                        autoComplete="off"
-                      />
-                      <p className="mt-2 text-[11px] leading-5 text-white/35">
-                        4 digits. Authorizes your transactions and cannot be recovered if lost.
-                      </p>
-                    </div>
+                    <>
+                      <div>
+                        <label className={fieldLabel}>Transaction PIN</label>
+                        <div className="relative">
+                          <input
+                            className={`${inputClass} px-12 text-center tracking-[0.5em]`}
+                            type={showPin ? 'text' : 'password'}
+                            inputMode="numeric"
+                            maxLength={4}
+                            placeholder="••••"
+                            value={formData.pin}
+                            onChange={(e) =>
+                              setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '') })
+                            }
+                            required
+                            pattern="\d{4}"
+                            autoComplete="off"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPin((v) => !v)}
+                            aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/35 transition hover:text-white"
+                          >
+                            {showPin ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={fieldLabel}>Confirm transaction PIN</label>
+                        <div className="relative">
+                          <input
+                            className={`${inputClass} px-12 text-center tracking-[0.5em]`}
+                            type={showPin ? 'text' : 'password'}
+                            inputMode="numeric"
+                            maxLength={4}
+                            placeholder="••••"
+                            value={formData.confirmPin}
+                            onChange={(e) =>
+                              setFormData({
+                                ...formData,
+                                confirmPin: e.target.value.replace(/\D/g, ''),
+                              })
+                            }
+                            required
+                            pattern="\d{4}"
+                            autoComplete="off"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPin((v) => !v)}
+                            aria-label={showPin ? 'Hide PIN' : 'Show PIN'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/35 transition hover:text-white"
+                          >
+                            {showPin ? <EyeOff size={17} /> : <Eye size={17} />}
+                          </button>
+                        </div>
+                        {formData.confirmPin.length === 4 &&
+                        formData.confirmPin !== formData.pin ? (
+                          <p className="mt-2 text-[11px] leading-5 text-red-300/80">
+                            PINs do not match.
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-[11px] leading-5 text-white/35">
+                            4 digits. Authorizes your transactions and cannot be recovered if lost.
+                          </p>
+                        )}
+                      </div>
+                    </>
                   )}
                 </>
               ) : (
