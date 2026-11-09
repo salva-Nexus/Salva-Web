@@ -63,8 +63,7 @@ router.post("/send-otp", authLimiter, async (req, res) => {
 
     console.log("📧 OTP sent:", undefined);
     res.json({
-      OTP: otp,
-      message: "OTP sent successfully",
+      message: 'OTP sent successfully',
     });
   } catch (err) {
     console.error("❌ RESEND FAIL:", err);

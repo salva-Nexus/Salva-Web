@@ -18,10 +18,10 @@ function sanitizeData(data, isEmail) {
 }
 
 router.post('/mint-sant', async (req, res) => {
-  const { email, address, pKey } = req.body;
+  const { email, address, pin } = req.body;
 
   try {
-    const data = await mintSant(sanitizeData(email, true), address, pKey);
+    const data = await mintSant(sanitizeData(email, true), address, pin);
     if (data.status) {
       res.status(200).json({
         status: data.status,

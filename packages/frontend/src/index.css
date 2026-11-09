@@ -47,3 +47,10 @@ html {
   background-color: #000000;
   transition: background-color 0.3s ease;
 }
+
+/* Any Dashboard overlay (chain page, all-assets, swap, pools, modals)
+   sets this flag on <body>. The nav is dashboard chrome only — it must
+   never float over an overlay. */
+body.salva-overlay-open .salva-nav {
+  display: none !important;
+}

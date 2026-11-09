@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import { baseConnection, bnbConnection } from "../DB_connection.js";
+import { baseConnection } from "../DB_connection.js";
 
 const OtpStoreSchema = new mongoose.Schema({
   email: {

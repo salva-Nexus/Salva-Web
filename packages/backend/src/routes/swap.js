@@ -1,38 +1,29 @@
 import express from 'express';
 import { ethers } from 'ethers';
-import { POOL_IFACE, ERC20 } from '../utils/abi.js';
-import { swap, getAmountIn, getAmountOut } from '../services/swapServices.js';
-import { basePool, bnbPool, trustedBasePool, trustedBnbPool } from '../models/Pool.js';
-import { balance } from '../services/balanceServices.js';
-import { _asset } from '../services/poolServices.js';
-import { estimateSwapFee } from '../services/estimateFee.js';
+import {
+  swapExactInput,
+  swapExactOutput,
+  getAmountIn,
+  getAmountOut,
+} from '../services/swapServices.js';
 import { keyValue } from '../utils/vars.js';
 
 const router = express.Router();
 
-const provider = (chain) => {
-  const baseRpcUrl = keyValue('baseRpcUrl');
-  const bnbRpcUrl = keyValue('bnbRpcUrl');
-  return chain === 'base'
-    ? new ethers.JsonRpcProvider(baseRpcUrl)
-    : new ethers.JsonRpcProvider(bnbRpcUrl);
-};
-
-router.post('/swap/execute-swap', async (req, res) => {
-  const { email, pkey, poolAddress, receiver, usdToken, ngnToken, amount, chain, trustPool, type } =
-    req.body;
+// --- Execute Exact Input Swap ---
+router.post('/swap/execute-exact-input', async (req, res) => {
+  const { email, pin, poolAddress, assetIn, assetOut, amountIn, minAmountOut, chain } = req.body;
   try {
-    const data = await swap(
+    
+    const data = await swapExactInput(
       email,
-      pkey,
+      pin,
       poolAddress,
-      receiver,
-      usdToken,
-      ngnToken,
-      amount,
-      chain,
-      trustPool,
-      type
+      assetIn,
+      assetOut,
+      amountIn,
+      minAmountOut,
+      chain
     );
     if (data?.status) {
       return res.status(200).json({
@@ -42,105 +33,11 @@ router.post('/swap/execute-swap', async (req, res) => {
     } else {
       return res.status(400).json({
         status: false,
-        errorMsg: `Swap Failed`,
+        errorMsg: 'Exact Input Swap Failed',
       });
     }
   } catch (err) {
-    console.error(`Swap Failed: ${err.message}`);
-    return res.status(500).json({
-      status: false,
-      errorMsg: `Swap Failed`,
-    });
-  }
-});
-
-router.get('/swap/amount-Out', async (req, res) => {
-  const { poolAddress, tokenOut, tokenIn, amount, rate, chain } = req.query;
-  try {
-    const amountOut = await getAmountOut(poolAddress, tokenOut, tokenIn, amount, rate, chain);
-
-    return res.status(200).json({
-      status: true,
-      amountOut: amountOut,
-    });
-  } catch (err) {
-    console.error(`Amount Out Fetch Failed: ${err.message}`);
-    return res.status(500).json({
-      status: false,
-      errorMsg: `Fetch Failed`,
-    });
-  }
-});
-
-router.get('/swap/amount-In', async (req, res) => {
-  const { poolAddress, usdToken, inToken, outToken, outAmount, rate, chain } = req.query;
-  try {
-    const amountIn = await getAmountIn(
-      poolAddress,
-      usdToken,
-      inToken,
-      outToken,
-      outAmount,
-      rate,
-      chain
-    );
-
-    return res.status(200).json({
-      status: true,
-      amountIn: amountIn,
-    });
-  } catch (err) {
-    console.error(`Amount In Fetch Failed: ${err.message}`);
-    return res.status(500).json({
-      status: false,
-      errorMsg: `Fetch Failed`,
-    });
-  }
-});
-
-router.get('/swap/single-pool/:poolAddress/:chain', async (req, res) => {
-  const poolAddress = req.params.poolAddress;
-  const chain = req.params.chain;
-  try {
-    const pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
-
-    if (pool) {
-      const balances = await balance(poolAddress, chain);
-      if (
-        balances?.data &&
-        (balances.data.ngnsBalance > 0 ||
-          balances.data.cNgnBalance > 0 ||
-          balances.data.usdtBalance > 0 ||
-          balances.data.usdcBalance > 0)
-      ) {
-        const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider(chain));
-        const buyRate = await poolContract._getBuyRate();
-        const sellRate = await poolContract._getSellRate();
-        if (buyRate > 0n || sellRate > 0n) {
-          const isPaused = await poolContract.isPaused();
-          if (!isPaused) {
-            return res.status(200).json({
-              status: true,
-              pool: pool,
-            });
-          }
-        }
-      }
-    }
-
-    return res.status(200).json({
-      status: false,
-      pool: {},
-    });
-  } catch (err) {
-    console.error(`❌ Fetch Failed: ${err.message}`);
+    console.error(`❌ Exact Input Swap Failed: ${err.message}`);
     return res.status(500).json({
       status: false,
       errorMsg: err.message,
@@ -148,63 +45,71 @@ router.get('/swap/single-pool/:poolAddress/:chain', async (req, res) => {
   }
 });
 
-router.get('/swap/isTrusted/:safeAddress/:poolAddress/:tokenIn/:chain', async (req, res) => {
-  const safeAddress = req.params.safeAddress;
-  const poolAddress = req.params.poolAddress;
-  const tokenIn = req.params.tokenIn;
-  const chain = req.params.chain;
-
+// --- Execute Exact Output Swap ---
+router.post('/swap/execute-exact-output', async (req, res) => {
+  const { email, pin, poolAddress, assetIn, assetOut, amountOut, maxAmountIn, chain } = req.body;
   try {
-    const tokenAddress = _asset(tokenIn, chain);
-    const contract = new ethers.Contract(tokenAddress, ERC20, provider(chain));
-
-    let isTrusted = false;
-    try {
-      const allowance = await contract.allowance(safeAddress, poolAddress);
-      const maxUint256Val = ethers.MaxUint256;
-      isTrusted = BigInt(allowance) >= maxUint256Val;
-    } catch (err) {
-      console.error(`Allowance read fallback to db: ${err.message}`);
-      const trustedPool =
-        chain === 'base'
-          ? await trustedBasePool.findOne({
-              userSafeAddress: safeAddress,
-              poolAddress: poolAddress.toLowerCase(),
-              tokenAddress: tokenAddress.toLowerCase(),
-            })
-          : await trustedBnbPool.findOne({
-              userSafeAddress: safeAddress,
-              poolAddress: poolAddress.toLowerCase(),
-              tokenAddress: tokenAddress.toLowerCase(),
-            });
-      isTrusted = !!trustedPool;
+    const data = await swapExactOutput(
+      email,
+      pin,
+      poolAddress,
+      assetIn,
+      assetOut,
+      amountOut,
+      maxAmountIn,
+      chain
+    );
+    if (data?.status) {
+      return res.status(200).json({
+        status: data.status,
+        receipt: data.receipt,
+      });
+    } else {
+      return res.status(400).json({
+        status: false,
+        errorMsg: 'Exact Output Swap Failed',
+      });
     }
-
-    return res.status(200).json({
-      status: true,
-      isTrusted: isTrusted,
-    });
-  } catch (newErr) {
-    console.error(newErr.message);
-    return res.status(200).json({
+  } catch (err) {
+    console.error(`❌ Exact Output Swap Failed: ${err.message}`);
+    return res.status(500).json({
       status: false,
-      isTrusted: false,
+      errorMsg: err.message,
     });
   }
 });
 
-router.get('/swap/estimate-swap-fee/:chain/:isTrusted', async (req, res) => {
-  const chain = req.params.chain;
-  const isTrusted = req.params.isTrusted === 'true';
+// --- Fetch Amount Out ---
+router.get('/swap/amount-out', async (req, res) => {
+  const { poolAddress, assetIn, assetOut, amount, chain } = req.query;
   try {
-    const fee = await estimateSwapFee(chain, isTrusted, false);
+    const amountOut = await getAmountOut(poolAddress, assetIn, assetOut, amount, chain);
     return res.status(200).json({
-      status: fee?.status || false,
-      fee: fee?.data,
+      status: true,
+      amountOut: amountOut,
     });
   } catch (err) {
-    console.error(`Fee estimate failed: ${err.message}`);
+    console.error(`❌ Amount Out Fetch Failed: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      errorMsg: err.message,
+    });
+  }
+});
+
+// --- Fetch Amount In ---
+router.get('/swap/amount-in', async (req, res) => {
+  const { poolAddress, assetIn, assetOut, amount, chain } = req.query;
+  try {
+    const amountIn = await getAmountIn(poolAddress, assetIn, assetOut, amount, chain);
+
     return res.status(200).json({
+      status: true,
+      amountIn: amountIn,
+    });
+  } catch (err) {
+    console.error(`❌ Amount In Fetch Failed: ${err.message}`);
+    return res.status(500).json({
       status: false,
       errorMsg: err.message,
     });

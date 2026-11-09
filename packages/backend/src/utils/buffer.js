@@ -1,5 +1,5 @@
 function buff(value, percentage) {
-  return Math.ceil(Number(value) * (Number(percentage) / 100) * 1000) / 1000;
+  return Number(value) * (Number(percentage) / 100);
 }
 
 export default buff;

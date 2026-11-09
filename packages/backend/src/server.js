@@ -2,13 +2,25 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { dbReady } from './DB_connection.js';
+import { mode } from './utils/vars.js';
+import webpush from 'web-push';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
+// Configure web-push once at server startup
+webpush.setVapidDetails(
+  'mailto:charlieonyii@gmail.com',
+  process.env.VAPID_PUBLIC_KEY,
+  process.env.VAPID_PRIVATE_KEY
+);
+
 import express from 'express';
 import cors from 'cors';
 
+import updateNgnRouter from './routes/updateNgn.js';
+import cdpRouter from './routes/cdp.js';
 import registerRoute from './routes/registration.js';
 import setPinRoute from './routes/pin.js';
 import otpRoute from './routes/otp.js';
@@ -27,6 +39,7 @@ import userDataRoute from './routes/userData.js';
 import poolRoute from './routes/pool.js';
 import swapRoute from './routes/swap.js';
 import statsRouter from './routes/stats.js';
+import adminRouter from './routes/admin.js';
 
 const app = express();
 app.set('trust proxy', 1);
@@ -59,6 +72,7 @@ app.use(async (req, res, next) => {
 });
 
 // Auth & Base User Routes
+app.use('/api/admin', adminRouter);
 app.use('/api/auth', otpRoute);
 app.use('/api/user', registerRoute);
 app.use('/api/user', loginRoute);
@@ -77,11 +91,13 @@ app.use('/api/user', linkNameRoute);
 app.use('/api/user', swapRoute);
 
 // Other Services
+app.use('/api/oracle', updateNgnRouter);
 app.use('/api/sant', pointsRecordRoute);
 app.use('/api/name', resolverRoute);
 app.use('/api/registry', walletRegistryRoute);
 app.use('/api/pool', poolRoute);
 app.use('/api/data', statsRouter);
+app.use('/api/cdp', cdpRouter);
 app.use('/api', userRecordRoute);
 
 app.listen(PORT, '0.0.0.0', () => {
@@ -99,3 +115,16 @@ function reloadWebsite() {
 }
 
 setInterval(reloadWebsite, INTERVAL);
+const ORACLE_UPDATE_URL =
+  mode === 'development'
+    ? `http://localhost:${PORT}/api/oracle/poll-update-ngn`
+    : 'https://salva-web.vercel.app/api/oracle/poll-update-ngn';
+setInterval(
+  () => {
+    fetch(ORACLE_UPDATE_URL)
+      .then((res) => res.json())
+      .then((data) => console.log('⚓ Oracle Poll Sync:', data))
+      .catch((err) => console.error('⚓ Oracle Poll Error:', err.message));
+  },
+  5 * 60 * 1000
+); // every 5 minutes

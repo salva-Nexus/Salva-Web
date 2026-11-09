@@ -1,308 +1,730 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Transactions.jsx
-import { SALVA_API_URL } from "../config";
-import React, {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-  useCallback,
-} from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import Stars from "../components/Stars";
+import { SALVA_API_URL } from '../config';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Stars from '../components/Stars';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 
-// ── FROM/TO display logic ──────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const FILTERS = ['All', 'Sent', 'Received', 'Failed'];
+const PAGE_SIZE = 20;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+function getDisplayType(tx, user) {
+  const meAddr = (user?.safeAddress || '').toLowerCase();
+  const meName = (user?.username || '').toLowerCase();
+
+  const from = (tx.fromAddress || '').toLowerCase();
+  const to = (tx.toAddress || '').toLowerCase();
+
+  if (tx.status === 'failed') return 'failed';
+  if (from === meAddr || from === meName) return 'sent';
+  if (to === meAddr || to === meName) return 'receive';
+
+  return 'sent';
+}
+
+// Single source of truth for "did this transaction fail?" — the Transaction
+// model's `status` field defaults to "success" (see
+// backend/src/models/Transaction.js), not "successful". Everywhere in this
+// file that needs a success/fail verdict must check `status !== 'failed'`,
+// the same way getDisplayType does, so the card and the receipt can never
+// disagree about the same transaction.
+const isTxSuccessful = (tx) => tx.status !== 'failed';
+
 function getTxDisplayNames(tx, user) {
   const dType = getDisplayType(tx, user);
   const isSentOrFailed = dType === 'sent' || dType === 'failed';
 
   if (tx.txType === 'swap') {
-    const fromLabel = tx.fromAddress || 'Unknown';
-    const toLabel = tx.toAddress || user.safeAddress || '—';
-    return { fromLabel, toLabel };
+    return {
+      fromLabel: tx.fromAddress || 'Unknown',
+      toLabel: tx.toAddress || user?.safeAddress || '—',
+    };
   }
-
-  let fromLabel = '—';
-  let toLabel = '—';
 
   if (isSentOrFailed) {
-    fromLabel = tx.fromAddress || user.safeAddress || 'Unknown';
-    toLabel = tx.toAddress || 'Unknown';
-  } else {
-    fromLabel = tx.fromAddress || 'Unknown';
-    toLabel = tx.toAddress || user.safeAddress || 'Unknown';
+    return {
+      fromLabel: tx.fromAddress || user?.safeAddress || 'Unknown',
+      toLabel: tx.toAddress || 'Unknown',
+    };
   }
 
-  return { fromLabel, toLabel };
+  return {
+    fromLabel: tx.fromAddress || 'Unknown',
+    toLabel: tx.toAddress || user?.safeAddress || 'Unknown',
+  };
 }
 
-// ── Derive display type from the flat schema (no displayType field) ────────
-function getDisplayType(tx, user) {
-  const meAddr = (user?.safeAddress || '').toLowerCase();
-  const meName = (user?.username || '').toLowerCase();
-  const from = (tx.fromAddress || '').toLowerCase();
-  const to = (tx.toAddress || '').toLowerCase();
-  if (tx.status === 'failed') return 'failed';
-  if (from === meAddr || from === meName) return 'sent';
-  if (to === meAddr || to === meName) return 'receive';
-  return 'sent';
-}
-
-// ── Helpers ────────────────────────────────────────────────────────────────
 const formatNumber = (value, { minDecimals = 2, maxDecimals = 6 } = {}) => {
-  if (value === null || value === undefined || value === "") return "0.00";
+  if (value === null || value === undefined || value === '') return '0.00';
+
   const num = Number(value);
-  if (!Number.isFinite(num)) return "0.00";
+  if (!Number.isFinite(num)) return '0.00';
+
   const factor = 10 ** maxDecimals;
   const truncated = Math.trunc(num * factor) / factor;
-  return truncated.toLocaleString("en-US", {
+
+  return truncated.toLocaleString('en-US', {
     minimumFractionDigits: minDecimals,
     maximumFractionDigits: maxDecimals,
   });
 };
 
+const coinLabel = (tx) => {
+  if (tx.txType === 'swap') {
+    return tx.tokenOut || tx.coin || 'NGNs';
+  }
+
+  return tx.coin === 'NGN' ? 'NGNs' : tx.coin || 'NGNs';
+};
+
 const feeCoinLabel = (tx) => {
   if (!tx.feeCoin) return coinLabel(tx);
-  return tx.feeCoin === "NGN" || tx.feeCoin === "NGNS" ? "NGNs" : tx.feeCoin;
+
+  return tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 'NGNs' : tx.feeCoin;
 };
 
-const truncateAddr = (addr) => {
-  if (!addr || typeof addr !== 'string' || !/^0x[a-fA-F0-9]{40}$/.test(addr) || addr.length <= 32) {
-    return addr;
+const truncateAddr = (addr, start = 6, end = 4) => {
+  if (!addr || typeof addr !== 'string') return addr || '—';
+
+  if (/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+    return `${addr.slice(0, start)}…${addr.slice(-end)}`;
   }
-  return `${addr.slice(0, 12)}${".".repeat(13)}${addr.slice(-16)}`;
+
+  if (addr.length > 24) {
+    return `${addr.slice(0, 10)}…${addr.slice(-8)}`;
+  }
+
+  return addr;
 };
 
-const coinLabel = (tx) => {
-  if (tx.txType === "swap") return tx.tokenOut || tx.coin || "NGNs";
-  return tx.coin === "NGN" ? "NGNs" : tx.coin || "NGNs";
+const getNetwork = (tx) => {
+  if (tx.chain === 'bnb') {
+    return {
+      name: 'BNB Chain',
+      short: 'BNB',
+      icon: '◆',
+      className: 'text-yellow-300 bg-yellow-400/[0.08] border-yellow-400/15',
+    };
+  }
+
+  if (tx.chain === 'base') {
+    return {
+      name: 'Base',
+      short: 'BASE',
+      icon: '●',
+      className: 'text-blue-300 bg-blue-400/[0.08] border-blue-400/15',
+    };
+  }
+
+  return {
+    name: tx.chain || 'Unknown',
+    short: (tx.chain || 'Unknown').toUpperCase(),
+    icon: '◈',
+    className: 'text-purple-300 bg-purple-400/[0.08] border-purple-400/15',
+  };
 };
 
-const FILTERS = ["All", "Sent", "Received", "Failed"];
-const PAGE_SIZE = 20;
+const getStatus = (tx, user) => {
+  const type = getDisplayType(tx, user);
 
-// ── Network label — driven by NODE_ENV ────────────────────────────────────────
-const IS_PRODUCTION = process.env.NODE_ENV === "production";
+  if (type === 'failed') {
+    return {
+      label: 'Failed',
+      icon: '×',
+      color: 'text-red-400',
+      bg: 'bg-red-500/[0.08]',
+      border: 'border-red-500/15',
+      dot: 'bg-red-400',
+    };
+  }
 
-// ── TX Row Card ────────────────────────────────────────────────────────────
-const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
+  return {
+    label: 'Confirmed',
+    icon: '✓',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/[0.08]',
+    border: 'border-emerald-500/15',
+    dot: 'bg-emerald-400',
+  };
+};
+
+const getTimeAgo = (dateValue) => {
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) return 'Unknown time';
+
+  const diff = Date.now() - date.getTime();
+  const seconds = Math.floor(diff / 1000);
+
+  if (seconds < 60) return 'Just now';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d ago`;
+
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo ago`;
+
+  return `${Math.floor(months / 12)}y ago`;
+};
+
+const getTxAmount = (tx) => tx.amount ?? tx.swapAmount ?? tx.amountIn ?? 0;
+
+const copyText = async (text) => {
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ICONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+const Icon = ({ name, size = 18, strokeWidth = 1.8, className = '' }) => {
+  const common = {
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth,
+    strokeLinecap: 'round',
+    strokeLinejoin: 'round',
+    className,
+  };
+
+  const paths = {
+    arrowUp: (
+      <>
+        <path d="M12 19V5" />
+        <path d="m6 11 6-6 6 6" />
+      </>
+    ),
+    arrowDown: (
+      <>
+        <path d="M12 5v14" />
+        <path d="m18 13-6 6-6-6" />
+      </>
+    ),
+    swap: (
+      <>
+        <path d="M7 7h12l-3-3" />
+        <path d="M17 17H5l3 3" />
+      </>
+    ),
+    copy: (
+      <>
+        <rect x="9" y="9" width="11" height="11" rx="2" />
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+      </>
+    ),
+    external: (
+      <>
+        <path d="M14 3h7v7" />
+        <path d="M10 14 21 3" />
+        <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+      </>
+    ),
+    search: (
+      <>
+        <circle cx="11" cy="11" r="7" />
+        <path d="m20 20-4-4" />
+      </>
+    ),
+    refresh: (
+      <>
+        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+        <path d="M21 3v6h-6" />
+      </>
+    ),
+    chevron: <path d="m6 9 6 6 6-6" />,
+    clock: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
+      </>
+    ),
+    gas: (
+      <>
+        <path d="M5 21h10" />
+        <path d="M6 21V5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v16" />
+        <path d="M15 7h3l2 2v7a2 2 0 0 0 4 0v-4" />
+        <path d="M9 7h4" />
+      </>
+    ),
+    filter: (
+      <>
+        <path d="M4 6h16" />
+        <path d="M7 12h10" />
+        <path d="M10 18h4" />
+      </>
+    ),
+  };
+
+  return <svg {...common}>{paths[name]}</svg>;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASSET ICON
+// ─────────────────────────────────────────────────────────────────────────────
+
+const AssetIcon = ({ tx, size = 'md' }) => {
+  const coin = coinLabel(tx).toUpperCase();
+
+  const dimensions =
+    size === 'lg'
+      ? 'w-12 h-12 sm:w-14 sm:h-14'
+      : size === 'sm'
+      ? 'w-8 h-8'
+      : 'w-10 h-10 sm:w-11 sm:h-11';
+
+  return (
+    <div
+      className={`${dimensions} rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.02]`}
+    >
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.12),transparent_55%)]" />
+
+      {coin === 'NGNS' || coin === 'NGN' ? (
+        <span className="relative text-salvaGold font-black text-xs">₦</span>
+      ) : coin === 'BNB' ? (
+        <span className="relative text-yellow-300 text-sm font-black">◆</span>
+      ) : coin === 'ETH' ? (
+        <span className="relative text-blue-300 text-sm font-black">◇</span>
+      ) : coin === 'USDC' ? (
+        <span className="relative text-blue-300 text-[9px] font-black">$</span>
+      ) : (
+        <span className="relative text-white/80 text-[8px] font-black">{coin.slice(0, 4)}</span>
+      )}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSACTION ICON
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TxTypeIcon = ({ type }) => {
+  if (type === 'receive') {
+    return (
+      <div className="w-8 h-8 rounded-full bg-emerald-400/[0.08] border border-emerald-400/10 flex items-center justify-center">
+        <Icon name="arrowDown" size={14} className="text-emerald-400" />
+      </div>
+    );
+  }
+
+  if (type === 'failed') {
+    return (
+      <div className="w-8 h-8 rounded-full bg-red-400/[0.08] border border-red-400/10 flex items-center justify-center">
+        <span className="text-red-400 font-black text-sm">×</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-8 h-8 rounded-full bg-salvaGold/[0.08] border border-salvaGold/10 flex items-center justify-center">
+      <Icon name="arrowUp" size={14} className="text-salvaGold" />
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DETAIL ROW
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DetailRow = ({ label, value, mono = false, gold = false, copyable = false, onCopy }) => (
+  <div className="group flex items-center justify-between gap-4 py-3 border-b border-white/[0.045] last:border-0">
+    <span className="text-[9px] uppercase tracking-[0.18em] text-white/25 font-black flex-shrink-0">
+      {label}
+    </span>
+
+    <div className="flex items-center gap-2 min-w-0">
+      <span
+        className={`text-right text-[10px] sm:text-[11px] font-bold truncate ${
+          mono ? 'font-mono' : ''
+        } ${gold ? 'text-salvaGold' : 'text-white/70'}`}
+      >
+        {value || '—'}
+      </span>
+
+      {copyable && value && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onCopy?.(value);
+          }}
+          className="opacity-40 group-hover:opacity-100 transition-opacity text-white/50 hover:text-salvaGold"
+          aria-label={`Copy ${label}`}
+        >
+          <Icon name="copy" size={12} />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TX CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
   const [expanded, setExpanded] = useState(false);
 
   const dType = getDisplayType(tx, user);
-  const isReceived = dType === "receive";
-  const isFailed = dType === "failed";
-  const isSuccess = dType === "sent" || isReceived;
+  const isReceived = dType === 'receive';
+  const isFailed = dType === 'failed';
+  const network = getNetwork(tx);
+  const status = getStatus(tx, user);
   const coin = coinLabel(tx);
-  const hasFee = tx.fee && parseFloat(tx.fee) > 0;
-  const { fromLabel, toLabel } = getTxDisplayNames(tx, user);
-  const d = new Date(tx.date);
 
-  const typeLabel = isReceived ? "Received" : isFailed ? "Failed" : "Sent";
-  const dotColor = isReceived
-    ? "bg-green-500"
-    : isFailed
-      ? "bg-red-500"
-      : "bg-blue-500";
-  const typeColor = isReceived
-    ? "text-green-400"
-    : isFailed
-      ? "text-red-400"
-      : "text-blue-400";
-  const amtColor = isReceived
-    ? "text-green-400"
-    : isFailed
-      ? "text-white/25"
-      : "text-white";
-  const amtPrefix = isReceived ? "+" : isFailed ? "" : "−";
+  const { fromLabel, toLabel } = getTxDisplayNames(tx, user);
+
+  const date = new Date(tx.date || tx.createdAt);
+  const amount = getTxAmount(tx);
+  const hasFee = tx.fee && parseFloat(tx.fee) > 0;
+  const isSwap = tx.txType === 'swap';
+
+  const amountPrefix = isReceived ? '+' : isFailed ? '' : '−';
+
+  const amountColor = isReceived ? 'text-emerald-400' : isFailed ? 'text-white/30' : 'text-white';
+
+  const actionLabel = isSwap ? 'Swap' : isReceived ? 'Received' : isFailed ? 'Failed' : 'Sent';
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 6 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.015, duration: 0.15 }}
-      className="border border-white/[0.07] bg-white/[0.02] rounded-xl sm:rounded-2xl overflow-hidden hover:border-white/[0.14] transition-colors"
+      transition={{
+        delay: index * 0.025,
+        duration: 0.22,
+        ease: 'easeOut',
+      }}
+      className={`group relative overflow-hidden rounded-2xl border transition-all duration-300 ${
+        expanded
+          ? 'border-salvaGold/20 bg-white/[0.045]'
+          : 'border-white/[0.065] bg-white/[0.018] hover:bg-white/[0.035] hover:border-white/[0.12]'
+      }`}
     >
-      {/* Main row — always visible */}
+      {/* Subtle hover glow */}
+      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity bg-[radial-gradient(circle_at_15%_50%,rgba(212,175,55,.045),transparent_35%)]" />
+
       <button
+        type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-2 sm:gap-4 px-3 py-3 sm:px-4 sm:py-4 text-left"
+        className="relative w-full text-left px-3 py-3.5 sm:px-5 sm:py-4"
       >
-        {/* status dot */}
-        <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full flex-shrink-0 ${dotColor}`} />
+        <div className="flex items-center gap-3 sm:gap-4">
+          {/* Type icon */}
+          <TxTypeIcon type={dType} />
 
-        {/* date */}
-        <div className="w-[50px] sm:w-[72px] flex-shrink-0 hidden sm:block">
-          <p className="text-[7px] sm:text-[10px] font-black text-white/50">
-            {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-          </p>
-          <p className="text-[6px] sm:text-[9px] font-mono text-white/20 mt-0.5">
-            {d.toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            })}
-          </p>
-        </div>
+          {/* Main identity */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[11px] sm:text-sm font-black text-white">{actionLabel}</span>
 
-        {/* type pill */}
-        <span
-          className={`text-[6px] sm:text-[9px] font-black uppercase tracking-widest w-[40px] sm:w-[58px] flex-shrink-0 ${typeColor}`}
-        >
-          {typeLabel}
-        </span>
+              {isSwap && (
+                <span className="text-[7px] sm:text-[8px] px-1.5 py-0.5 rounded-full bg-purple-400/[0.08] border border-purple-400/10 text-purple-300 font-black uppercase tracking-wider">
+                  Swap
+                </span>
+              )}
+            </div>
 
-        {/* chain tag */}
-        <span
-          className={`inline-block text-[6px] sm:text-[8px] font-black uppercase tracking-widest px-1 py-0.5 sm:px-1.5 rounded-md flex-shrink-0 ${
-            tx.chain === 'bnb'
-              ? 'text-yellow-400 bg-yellow-500/10 border border-yellow-500/20'
-              : 'text-blue-400 bg-blue-500/10 border border-blue-500/20'
-          }`}
-        >
-          {tx.chain === 'bnb' ? 'BNB' : 'BASE'}
-        </span>
+            <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] text-white/30 font-medium">
+              <span>
+                {isReceived ? `From ${truncateAddr(fromLabel)}` : `To ${truncateAddr(toLabel)}`}
+              </span>
 
-        {/* counterparty */}
-        <div className="flex-1 min-w-0">
-          <p className="text-[8px] sm:text-xs font-black text-white truncate">
-            {(() => {
-              const label = isReceived ? fromLabel : toLabel;
-              if (label && /^0x[a-fA-F0-9]{40}$/.test(label)) {
-                return `${label.slice(0, 6)}...${label.slice(-4)}`;
-              }
-              return label;
-            })()}
-          </p>
-          {/* mobile date */}
-          <p className="text-[6px] sm:text-[9px] font-mono text-white/20 mt-0.5 sm:hidden">
-            {d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} ·{' '}
-            {d.toLocaleTimeString('en-US', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true,
-            })}
-          </p>
-        </div>
+              <span className="text-white/10">•</span>
 
-        {/* amount + cancel */}
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-          <div className="text-right">
-            <p className={`text-[10px] sm:text-sm font-black tabular-nums ${amtColor}`}>
-              {amtPrefix}
-              {formatNumber(tx.amount ?? tx.swapAmount ?? tx.amountIn ?? 0)}
-            </p>
-            <p className="text-[6px] sm:text-[9px] text-white/25 font-bold">{coin}</p>
+              <span>{getTimeAgo(date)}</span>
+            </div>
+          </div>
+
+          {/* Amount */}
+          <div className="text-right flex-shrink-0">
+            <div
+              className={`text-[12px] sm:text-base font-black tabular-nums tracking-tight ${amountColor}`}
+            >
+              {amountPrefix}
+              {formatNumber(amount)}
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-end gap-1.5">
+              <span className="text-[8px] sm:text-[9px] text-white/25 font-black uppercase">
+                {coin}
+              </span>
+
+              <span
+                className={`hidden sm:inline-flex items-center px-1.5 py-0.5 rounded-full border text-[7px] font-black uppercase tracking-wider ${status.bg} ${status.border} ${status.color}`}
+              >
+                <span className={`w-1 h-1 rounded-full mr-1 ${status.dot}`} />
+                {status.label}
+              </span>
+            </div>
+          </div>
+
+          {/* Chevron */}
+          <div
+            className={`w-6 h-6 rounded-full border border-white/[0.06] flex items-center justify-center text-white/20 transition-all duration-300 ${
+              expanded
+                ? 'rotate-180 border-salvaGold/20 text-salvaGold'
+                : 'group-hover:text-white/50'
+            }`}
+          >
+            <Icon name="chevron" size={12} />
           </div>
         </div>
 
-        {/* chevron */}
-        <svg
-          className={`w-2 h-2 sm:w-3 sm:h-3 text-white/20 flex-shrink-0 transition-transform duration-200 ${
-            expanded ? 'rotate-180' : ''
-          }`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
+        {/* Mobile status / network strip */}
+        <div className="flex items-center gap-2 mt-3 pl-[88px] sm:hidden">
+          <span
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[7px] font-black uppercase tracking-wider ${status.bg} ${status.border} ${status.color}`}
+          >
+            <span className={`w-1 h-1 rounded-full ${status.dot}`} />
+            {status.label}
+          </span>
+
+          <span
+            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[7px] font-black uppercase tracking-wider ${network.className}`}
+          >
+            {network.icon}
+            {network.short}
+          </span>
+        </div>
+
+        {/* Desktop metadata */}
+        <div className="hidden sm:flex items-center gap-2 mt-3 pl-[92px]">
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[7px] font-black uppercase tracking-wider ${network.className}`}
+          >
+            <span>{network.icon}</span>
+            {network.name}
+          </span>
+
+          <span className="text-[8px] text-white/20">
+            {date.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric',
+            })}
+          </span>
+
+          <span className="text-white/10">•</span>
+
+          <span className="text-[8px] text-white/20 font-mono">
+            {date.toLocaleTimeString('en-US', {
+              hour: '2-digit',
+              minute: '2-digit',
+              hour12: true,
+            })}
+          </span>
+        </div>
       </button>
 
       {/* Expanded detail */}
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {expanded && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
+            transition={{ duration: 0.25, ease: 'easeInOut' }}
             className="overflow-hidden"
           >
-            <div className="px-3 pb-3 pt-1 sm:px-4 sm:pb-4 sm:pt-1 border-t border-white/[0.06] space-y-2 sm:space-y-3">
-              {/* From / To */}
-              <div className="grid grid-cols-2 gap-2 sm:gap-3">
-                <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                  <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white/25 font-black mb-1">
-                    From
+            <div className="relative border-t border-white/[0.06] px-3 pb-4 pt-4 sm:px-5 sm:pb-5">
+              {/* Detail header */}
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-[8px] uppercase tracking-[0.22em] text-salvaGold/50 font-black">
+                    Transaction details
                   </p>
-                  <p className="text-[8px] sm:text-xs font-black text-salvaGold truncate">
-                    {truncateAddr(fromLabel)}
+                  <p className="text-[10px] text-white/25 mt-1">Full transaction metadata</p>
+                </div>
+
+                <div
+                  className={`px-2 py-1 rounded-lg border text-[7px] font-black uppercase tracking-wider ${status.bg} ${status.border} ${status.color}`}
+                >
+                  {status.icon} {status.label}
+                </div>
+              </div>
+
+              {/* Summary */}
+              <div className="rounded-xl border border-white/[0.055] bg-black/20 p-3 sm:p-4 mb-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <AssetIcon tx={tx} size="sm" />
+
+                    <div>
+                      <p className="text-[8px] uppercase tracking-[0.16em] text-white/25 font-black">
+                        Asset
+                      </p>
+                      <p className="text-sm font-black text-white mt-0.5">{coin}</p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-[8px] uppercase tracking-[0.16em] text-white/25 font-black">
+                      Amount
+                    </p>
+                    <p
+                      className={`text-base sm:text-lg font-black tabular-nums mt-0.5 ${amountColor}`}
+                    >
+                      {amountPrefix}
+                      {formatNumber(amount)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* From / To */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                <div className="rounded-xl border border-white/[0.055] bg-black/20 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-white/[0.05] flex items-center justify-center">
+                      <Icon name="arrowUp" size={11} className="text-white/40" />
+                    </div>
+
+                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/25 font-black">
+                      From
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] sm:text-[11px] font-mono text-white/70 break-all">
+                    {fromLabel || 'Unknown'}
                   </p>
                 </div>
-                <div className="p-2 sm:p-3 rounded-lg sm:rounded-xl bg-white/[0.03] border border-white/[0.05]">
-                  <p className="text-[6px] sm:text-[9px] uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white/25 font-black mb-1">
-                    To
-                  </p>
-                  <p className="text-[8px] sm:text-xs font-black text-white truncate">
-                    {truncateAddr(toLabel)}
+
+                <div className="rounded-xl border border-white/[0.055] bg-black/20 p-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-white/[0.05] flex items-center justify-center">
+                      <Icon name="arrowDown" size={11} className="text-white/40" />
+                    </div>
+
+                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/25 font-black">
+                      To
+                    </span>
+                  </div>
+
+                  <p className="text-[10px] sm:text-[11px] font-mono text-white/70 break-all">
+                    {toLabel || 'Unknown'}
                   </p>
                 </div>
               </div>
 
-              {/* Fee + hash row */}
-              <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+              {/* Metadata */}
+              <div className="rounded-xl border border-white/[0.055] bg-black/20 px-3 sm:px-4">
+                <DetailRow label="Network" value={network.name} />
+
+                <DetailRow
+                  label="Date"
+                  value={
+                    Number.isNaN(date.getTime())
+                      ? 'Unknown'
+                      : date.toLocaleString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                  }
+                />
+
+                <DetailRow
+                  label="Time"
+                  value={
+                    Number.isNaN(date.getTime())
+                      ? 'Unknown'
+                      : date.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          second: '2-digit',
+                          hour12: true,
+                        })
+                  }
+                />
+
                 {hasFee && (
-                  <div className="px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg bg-red-500/5 border border-red-500/15">
-                    <p className="text-[6px] sm:text-[9px] uppercase text-white/25 font-black">
-                      Fee
-                    </p>
-                    <p className="text-[8px] sm:text-xs font-black text-red-400/70">
-                      −
-                      {parseFloat(tx.fee).toFixed(
-                        tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 3
-                      )}{' '}
-                      {feeCoinLabel(tx)}
-                    </p>
-                  </div>
+                  <DetailRow
+                    label="Network Fee"
+                    value={`${formatNumber(tx.fee, {
+                      minDecimals: tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 2,
+                      maxDecimals: tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 12,
+                    })} ${feeCoinLabel(tx)}`}
+                    mono
+                  />
                 )}
+
+                {tx.txType && (
+                  <DetailRow label="Transaction Type" value={tx.txType.toUpperCase()} />
+                )}
+
                 {tx.taskId && (
+                  <DetailRow
+                    label="Transaction Hash"
+                    value={tx.taskId}
+                    mono
+                    gold
+                    copyable
+                    onCopy={async (value) => {
+                      await copyText(value);
+                      showMsg('Transaction hash copied');
+                    }}
+                  />
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3">
+                {tx.taskId && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await copyText(tx.taskId);
+                      showMsg('Transaction hash copied');
+                    }}
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-white/[0.08] bg-white/[0.025] text-white/45 hover:text-white hover:border-white/15 transition-all text-[8px] uppercase tracking-[0.15em] font-black"
+                  >
+                    <Icon name="copy" size={12} />
+                    Copy Hash
+                  </button>
+                )}
+
+                {!isFailed && (
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigator.clipboard.writeText(tx.taskId);
-                      showMsg('Tx hash copied!');
+                      onDownload(tx);
                     }}
-                    className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg bg-white/[0.03] border border-white/[0.05] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all text-left group"
+                    className="flex items-center justify-center gap-2 py-2.5 rounded-xl border border-salvaGold/20 bg-salvaGold/[0.04] text-salvaGold hover:bg-salvaGold/[0.09] transition-all text-[8px] uppercase tracking-[0.15em] font-black"
                   >
-                    <div className="min-w-0">
-                      <p className="text-[6px] sm:text-[9px] uppercase text-white/25 font-black">
-                        Tx Hash
-                      </p>
-                      <p className="text-[6px] sm:text-[9px] font-mono text-salvaGold/50 truncate">
-                        {tx.taskId}
-                      </p>
-                    </div>
-                    <svg
-                      className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white/25 group-hover:text-salvaGold flex-shrink-0 transition-colors"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <rect x="9" y="9" width="13" height="13" rx="2" strokeWidth="2" />
-                      <path
-                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                        strokeWidth="2"
-                      />
-                    </svg>
+                    <span>↓</span>
+                    Download Receipt
                   </button>
                 )}
               </div>
-
-              {/* Receipt button */}
-              {isSuccess && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onDownload(tx);
-                  }}
-                  className="w-full py-2 sm:py-2.5 rounded-lg sm:rounded-xl border border-salvaGold/25 text-salvaGold font-black text-[7px] sm:text-[10px] uppercase tracking-widest hover:bg-salvaGold/10 transition-all"
-                >
-                  Download Receipt
-                </button>
-              )}
             </div>
           </motion.div>
         )}
@@ -311,59 +733,67 @@ const TxCard = ({ tx, user, index, onDownload, showMsg, setTransactions }) => {
   );
 };
 
-// ── Component ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
+
 const Transactions = () => {
   const [user, setUser] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState('All');
+  const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
-  const [toast, setToast] = useState({ show: false, message: "" });
-  const [isBNBChain, setIsBNBChain] = useState(false);
+  const [toast, setToast] = useState({
+    show: false,
+    message: '',
+    type: 'success',
+  });
+  const [refreshing, setRefreshing] = useState(false);
 
   const pollRef = useRef(null);
-  const chainRef = useRef("base");
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const chainIsBNB = params.get("chain") === "bnb";
-    setIsBNBChain(chainIsBNB);
-    chainRef.current = chainIsBNB ? "bnb" : "base";
+    // Chain is per-transaction data (tx.chain, returned by the API) — this
+    // page is not scoped to one chain, so it no longer reads a ?chain=
+    // query param or switches between separate localStorage user objects.
+    // There is exactly one signed-in user, stored under 'salva_user'.
+    const saved = localStorage.getItem('salva_user');
 
-    const storageKey = chainIsBNB ? "bnb_user" : "salva_user";
-    const saved = localStorage.getItem(storageKey);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
         setUser(parsed);
-        fetchTransactions(parsed.safeAddress, null);
+        fetchTransactions(parsed.safeAddress);
       } catch {
-        window.location.href = "/login";
+        window.location.href = '/login';
       }
     } else {
-      window.location.href = "/login";
+      window.location.href = '/login';
     }
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, []);
-  useEffect(() => {
-    if (toast.show) {
-      const t = setTimeout(
-        () => setToast((n) => ({ ...n, show: false })),
-        3500,
-      );
-      return () => clearTimeout(t);
-    }
-  }, [toast]);
 
-  const fetchTransactions = async (address, prevTxs = null) => {
+  useEffect(() => {
+    if (!toast.show) return;
+
+    const timeout = setTimeout(() => {
+      setToast((current) => ({
+        ...current,
+        show: false,
+      }));
+    }, 3500);
+
+    return () => clearTimeout(timeout);
+  }, [toast.show]);
+
+  const fetchTransactions = async (address) => {
     try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/transactions/${address}`,
-      );
+      const res = await fetch(`${SALVA_API_URL}/api/user/transactions/${address}`);
+
       const data = await res.json();
       const txList = Array.isArray(data) ? data : [];
 
@@ -375,84 +805,124 @@ const Transactions = () => {
     }
   };
 
-  const showMsg = (msg, type = "success") =>
-    setToast({ show: true, message: msg, type });
+  const showMsg = (message, type = 'success') => {
+    setToast({
+      show: true,
+      message,
+      type,
+    });
+  };
 
-  // Manual refresh — mobile has no pull-to-refresh here, so this button lets
-  // the user force a fresh transaction list fetch on tap. Reuses the same
-  // fetchTransactions() the initial load and the pending-tx poller already
-  // use, passing the current list as prevTxs so pending→success/failed
-  // toasts still fire correctly if something completed since the last poll.
-  const [refreshing, setRefreshing] = useState(false);
   const handleManualRefresh = useCallback(async () => {
     if (!user?.safeAddress || refreshing) return;
+
     setRefreshing(true);
+
     try {
-      await fetchTransactions(user.safeAddress, transactions);
+      await fetchTransactions(user.safeAddress);
+      showMsg('Transaction history updated');
     } finally {
       setRefreshing(false);
     }
-  }, [user?.safeAddress, refreshing, transactions]);
+  }, [user?.safeAddress, refreshing]);
 
   const filtered = useMemo(() => {
     let list = [...transactions].sort(
-      (a, b) =>
-        new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt),
+      (a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt)
     );
-    if (filter !== "All") {
+
+    if (filter !== 'All') {
       const map = {
-        Sent: "sent",
-        Received: "receive",
-        Failed: "failed",
+        Sent: 'sent',
+        Received: 'receive',
+        Failed: 'failed',
       };
-      list = list.filter(
-        (tx) => getDisplayType(tx, user) === map[filter],
-      );
+
+      list = list.filter((tx) => getDisplayType(tx, user) === map[filter]);
     }
+
     if (search.trim()) {
       const q = search.toLowerCase();
+
       list = list.filter((tx) => {
         if (!user) return false;
+
         const { fromLabel, toLabel } = getTxDisplayNames(tx, user);
+
         return (
-          fromLabel.toLowerCase().includes(q) ||
-          toLabel.toLowerCase().includes(q) ||
-          (tx.taskId || "").toLowerCase().includes(q) ||
-          String(tx.amount).includes(q)
+          String(fromLabel || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(toLabel || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(tx.taskId || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(tx.coin || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(tx.chain || '')
+            .toLowerCase()
+            .includes(q) ||
+          String(tx.amount ?? '').includes(q)
         );
       });
     }
+
     return list;
   }, [transactions, filter, search, user]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
-  useEffect(() => setPage(1), [filter, search]);
+  useEffect(() => {
+    setPage(1);
+  }, [filter, search]);
 
-  // ── Receipt — Canvas → PNG image download ─────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // RECEIPT GENERATION
+  // ─────────────────────────────────────────────────────────────────────────
+
   const downloadReceipt = async (tx) => {
     if (!user) return;
 
     const { fromLabel, toLabel } = getTxDisplayNames(tx, user);
-    const isReceived = tx.displayType === "receive";
-    const isSuccessful = tx.status === "successful";
+    const isReceived = getDisplayType(tx, user) === 'receive';
+    // BUG FIX: the Transaction model's `status` field defaults to "success"
+    // (see backend/src/models/Transaction.js), never "successful". Comparing
+    // against "successful" here meant isSuccessful was false for every
+    // normal transaction, so the receipt always rendered the red "TRANSACTION
+    // FAILED" badge even for confirmed transfers. Use the same "failed" check
+    // the rest of the page already uses (getDisplayType / isTxSuccessful) so
+    // the card and the receipt can never disagree.
+    const isSuccessful = isTxSuccessful(tx);
+    // BUG FIX: the network printed on the receipt must come from THIS
+    // transaction's own `chain` field (returned by GET
+    // /api/user/transactions/:from — see backend Transaction model, which
+    // defaults `chain` to "base"). This page has no single "current chain"
+    // of its own — a user's transaction history spans every chain they've
+    // used — so there is no page-level BNB/Base flag to fall back on here,
+    // by design.
+    const txChainIsBNB = tx.chain === 'bnb';
+    const txNetworkName = txChainIsBNB ? 'BNB' : 'Base';
     const coin = coinLabel(tx);
     const hasFee = tx.fee && parseFloat(tx.fee) > 0;
 
-    // Canvas dimensions — portrait receipt card
-    const W = 640,
-      H = 960;
-    const canvas = document.createElement("canvas");
+    const W = 640;
+    const H = 960;
+
+    const canvas = document.createElement('canvas');
     canvas.width = W;
     canvas.height = H;
-    const ctx = canvas.getContext("2d");
 
-    // ── Helpers ──────────────────────────────────────────────────────────
-    const GOLD = "#D4AF37";
-    const GREEN = "#22C55E";
-    const RED = "#EF4444";
-    const DARK = "#0A0A0B";
+    const ctx = canvas.getContext('2d');
+
+    const GOLD = '#D4AF37';
+    const GREEN = '#22C55E';
+    const RED = '#EF4444';
+    const DARK = '#0A0A0B';
 
     function roundRect(x, y, w, h, r) {
       ctx.beginPath();
@@ -468,304 +938,259 @@ const Transactions = () => {
       ctx.closePath();
     }
 
-    function label(
-      text,
-      x,
-      y,
-      size = 11,
-      color = "rgba(255,255,255,0.35)",
-      weight = "600",
-    ) {
+    function label(text, x, y, size = 11, color = 'rgba(255,255,255,0.35)', weight = '600') {
       ctx.font = `${weight} ${size}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.fillStyle = color;
       ctx.fillText(text.toUpperCase(), x, y);
     }
 
-    function value(text, x, y, size = 15, color = "#ffffff", weight = "700") {
+    function value(text, x, y, size = 15, color = '#ffffff', weight = '700') {
       ctx.font = `${weight} ${size}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
       ctx.fillStyle = color;
-      // Truncate long strings to fit
+
       const maxW = W - x - 40;
-      let t = text;
-      while (ctx.measureText(t).width > maxW && t.length > 8)
+      let t = String(text ?? '');
+
+      while (ctx.measureText(t).width > maxW && t.length > 8) {
         t = t.slice(0, -1);
-      if (t !== text) t = t.slice(0, -1) + "…";
+      }
+
+      if (t !== String(text ?? '')) {
+        t = t.slice(0, -1) + '…';
+      }
+
       ctx.fillText(t, x, y);
     }
 
     function divider(y) {
-      ctx.strokeStyle = "rgba(255,255,255,0.06)";
+      ctx.strokeStyle = 'rgba(255,255,255,0.06)';
       ctx.lineWidth = 1;
+
       ctx.beginPath();
       ctx.moveTo(40, y);
       ctx.lineTo(W - 40, y);
       ctx.stroke();
     }
 
-    // ── Background ────────────────────────────────────────────────────────
     ctx.fillStyle = DARK;
     ctx.fillRect(0, 0, W, H);
 
-    // Outer border
-    ctx.strokeStyle = "rgba(212,175,55,0.3)";
+    ctx.strokeStyle = 'rgba(212,175,55,0.3)';
     ctx.lineWidth = 1.5;
+
     roundRect(20, 20, W - 40, H - 40, 20);
     ctx.stroke();
 
-    // Gold top accent bar
     const grad = ctx.createLinearGradient(20, 20, W - 20, 20);
-    grad.addColorStop(0, "rgba(212,175,55,0)");
+
+    grad.addColorStop(0, 'rgba(212,175,55,0)');
     grad.addColorStop(0.5, GOLD);
-    grad.addColorStop(1, "rgba(212,175,55,0)");
+    grad.addColorStop(1, 'rgba(212,175,55,0)');
+
     ctx.fillStyle = grad;
+
     roundRect(20, 20, W - 40, 4, 2);
     ctx.fill();
 
-    // ── SALVA wordmark ────────────────────────────────────────────────────
-    ctx.font =
-      "800 52px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.font = "800 52px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     ctx.fillStyle = GOLD;
-    ctx.textAlign = "center";
-    ctx.fillText("SALVA", W / 2, 105);
+    ctx.textAlign = 'center';
+    ctx.fillText('SALVA', W / 2, 105);
 
-    ctx.font =
-      "500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.35)";
-    ctx.letterSpacing = "0.2em";
-    ctx.fillText("OFFICIAL TRANSACTION RECEIPT", W / 2, 128);
-    ctx.letterSpacing = "0";
+    ctx.font = "500 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.fillText('OFFICIAL TRANSACTION RECEIPT', W / 2, 128);
 
-    // ── Verified / Failed badge ───────────────────────────────────────────
     const badgeY = 148;
     const badgeH = 32;
     const badgeW = isSuccessful ? 280 : 230;
     const badgeX = (W - badgeW) / 2;
+
     const badgeColor = isSuccessful ? GREEN : RED;
 
     roundRect(badgeX, badgeY, badgeW, badgeH, 8);
-    ctx.fillStyle = isSuccessful
-      ? "rgba(34,197,94,0.12)"
-      : "rgba(239,68,68,0.12)";
+
+    ctx.fillStyle = isSuccessful ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.12)';
     ctx.fill();
-    ctx.strokeStyle = isSuccessful
-      ? "rgba(34,197,94,0.4)"
-      : "rgba(239,68,68,0.4)";
-    ctx.lineWidth = 1;
+
+    ctx.strokeStyle = isSuccessful ? 'rgba(34,197,94,0.4)' : 'rgba(239,68,68,0.4)';
     ctx.stroke();
 
-    ctx.font =
-      "700 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.font = "700 12px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     ctx.fillStyle = badgeColor;
-    ctx.textAlign = "center";
+
     const badgeText = isSuccessful
-      ? `✓  VERIFIED  ·  ${
-          IS_PRODUCTION
-            ? isBNBChain
-              ? "BNB MAINNET"
-              : "BASE MAINNET"
-            : isBNBChain
-              ? "BNB TESTNET"
-              : "BASE TESTNET"
-        }`
-      : "✗  TRANSACTION FAILED";
+      ? `✓ VERIFIED · ${txNetworkName.toUpperCase()} ${IS_PRODUCTION ? 'MAINNET' : 'TESTNET'}`
+      : '✗ TRANSACTION FAILED';
+
     ctx.fillText(badgeText, W / 2, badgeY + 21);
 
-    ctx.textAlign = "left";
+    ctx.textAlign = 'left';
 
-    // ── Amount block ──────────────────────────────────────────────────────
     const amtY = 220;
+
     divider(amtY - 20);
+    label('Amount', 40, amtY);
 
-    label("Amount", 40, amtY);
+    ctx.font = "800 40px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.fillStyle = '#ffffff';
 
-    ctx.font = `800 40px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`;
-    ctx.fillStyle = "#ffffff";
     const amtStr = formatNumber(tx.amount);
+
     ctx.fillText(amtStr, 40, amtY + 48);
-    // coin label in gold next to amount
+
     const amtW = ctx.measureText(amtStr).width;
-    ctx.font =
-      "700 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
+    ctx.font = "700 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
     ctx.fillStyle = GOLD;
+
     ctx.fillText(coin, 40 + amtW + 10, amtY + 48);
 
-    // Type badge (right side)
     const typeColor = isReceived ? GREEN : GOLD;
-    ctx.font =
-      "800 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    ctx.fillStyle = typeColor;
-    ctx.textAlign = "right";
-    ctx.fillText(isReceived ? "RECEIVED" : "SENT", W - 40, amtY + 48);
-    ctx.textAlign = "left";
 
-    // Fee
+    ctx.font = "800 13px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    ctx.fillStyle = typeColor;
+    ctx.textAlign = 'right';
+
+    ctx.fillText(isReceived ? 'RECEIVED' : 'SENT', W - 40, amtY + 48);
+
+    ctx.textAlign = 'left';
+
     if (hasFee) {
-      ctx.font =
-        "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-      ctx.fillStyle = "rgba(239,68,68,0.7)";
+      ctx.font = "600 11px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+
+      ctx.fillStyle = 'rgba(239,68,68,0.7)';
+
       ctx.fillText(
-        `NETWORK FEE: ${parseFloat(tx.fee).toFixed(
-          tx.feeCoin === "NGN" || tx.feeCoin === "NGNS" ? 0 : 3,
-        )} ${feeCoinLabel(tx)}`,
+        `NETWORK FEE: ${formatNumber(tx.fee, {
+          minDecimals: tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 2,
+          maxDecimals: tx.feeCoin === 'NGN' || tx.feeCoin === 'NGNS' ? 0 : 12,
+        })} ${feeCoinLabel(tx)}`,
         40,
-        amtY + 72,
+        amtY + 72
       );
     }
 
-    // ── FROM / TO ─────────────────────────────────────────────────────────
     const fromY = hasFee ? 340 : 320;
+
     divider(fromY - 20);
 
-    // FROM
-    label("From", 40, fromY);
-    value(fromLabel, 40, fromY + 24, 15, "#ffffff", "700");
-    // wallet address below
+    label('From', 40, fromY);
+    value(fromLabel, 40, fromY + 24, 15, '#ffffff', '700');
+
     if (!isReceived && user.safeAddress) {
-      value(
-        user.safeAddress,
-        40,
-        fromY + 44,
-        10,
-        "rgba(255,255,255,0.25)",
-        "500",
-      );
+      value(user.safeAddress, 40, fromY + 44, 10, 'rgba(255,255,255,0.25)', '500');
     } else if (isReceived && tx.fromAddress) {
-      value(
-        tx.fromAddress,
-        40,
-        fromY + 44,
-        10,
-        "rgba(255,255,255,0.25)",
-        "500",
-      );
+      value(tx.fromAddress, 40, fromY + 44, 10, 'rgba(255,255,255,0.25)', '500');
     }
 
-    // TO
     const toY = fromY + 80;
-    label("To", 40, toY);
-    value(toLabel, 40, toY + 24, 15, "#ffffff", "700");
+
+    label('To', 40, toY);
+    value(toLabel, 40, toY + 24, 15, '#ffffff', '700');
+
     if (isReceived && user.safeAddress) {
-      value(
-        user.safeAddress,
-        40,
-        toY + 44,
-        10,
-        "rgba(255,255,255,0.25)",
-        "500",
-      );
+      value(user.safeAddress, 40, toY + 44, 10, 'rgba(255,255,255,0.25)', '500');
     } else if (!isReceived && tx.toAddress) {
-      value(tx.toAddress, 40, toY + 44, 10, "rgba(255,255,255,0.25)", "500");
+      value(tx.toAddress, 40, toY + 44, 10, 'rgba(255,255,255,0.25)', '500');
     }
 
-    // ── Date / Time ───────────────────────────────────────────────────────
     const dateY = toY + 100;
+
     divider(dateY - 20);
 
     const d = new Date(tx.date);
-    label("Date & Time", 40, dateY);
+
+    label('Date & Time', 40, dateY);
+
     value(
-      d.toLocaleDateString("en-US", {
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
+      d.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
       }),
       40,
       dateY + 24,
       14,
-      "#ffffff",
-      "700",
+      '#ffffff',
+      '700'
     );
+
     value(
-      d.toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
+      d.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
         hour12: true,
       }),
       40,
       dateY + 44,
       12,
-      "rgba(255,255,255,0.45)",
-      "500",
+      'rgba(255,255,255,0.45)',
+      '500'
     );
 
-    // ── Network ───────────────────────────────────────────────────────────
     const netY = dateY + 82;
-    label("Network", 40, netY);
+
+    label('Network', 40, netY);
+
     value(
-      IS_PRODUCTION
-        ? isBNBChain
-          ? "BNB Mainnet"
-          : "Base Mainnet"
-        : isBNBChain
-          ? "BNB Testnet"
-          : "Base Testnet",
+      `${txNetworkName} ${IS_PRODUCTION ? 'Mainnet' : 'Testnet'}`,
       40,
       netY + 24,
       14,
-      "#ffffff",
-      "700",
+      '#ffffff',
+      '700'
     );
 
-    // ── Tx Hash ───────────────────────────────────────────────────────────
     if (tx.taskId) {
       const hashY = netY + 70;
+
       divider(hashY - 16);
-      label("Transaction Hash", 40, hashY);
-      // split hash into two lines
+
+      label('Transaction Hash', 40, hashY);
+
       const half = Math.ceil(tx.taskId.length / 2);
-      ctx.font = "500 10px monospace";
-      ctx.fillStyle = "rgba(212,175,55,0.55)";
+
+      ctx.font = '500 10px monospace';
+      ctx.fillStyle = 'rgba(212,175,55,0.55)';
+
       ctx.fillText(tx.taskId.slice(0, half), 40, hashY + 22);
+
       ctx.fillText(tx.taskId.slice(half), 40, hashY + 38);
     }
 
-    // ── Footer ────────────────────────────────────────────────────────────
     divider(H - 72);
 
-    // Receipt ID
-    ctx.font =
-      "500 10px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
-    ctx.fillStyle = "rgba(255,255,255,0.2)";
-    ctx.textAlign = "center";
-    ctx.fillText(
-      `Receipt ID: ${tx._id || "SALVA-" + Date.now()}`,
-      W / 2,
-      H - 52,
-    );
-    ctx.fillText("salva-nexus.org", W / 2, H - 34);
+    ctx.font = "500 10px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
 
-    // Bottom gold bar
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.textAlign = 'center';
+
+    ctx.fillText(`Receipt ID: ${tx._id || 'SALVA-' + Date.now()}`, W / 2, H - 52);
+
+    ctx.fillText('salva-nexus.org', W / 2, H - 34);
+
     const botGrad = ctx.createLinearGradient(20, 0, W - 20, 0);
-    botGrad.addColorStop(0, "rgba(212,175,55,0)");
+
+    botGrad.addColorStop(0, 'rgba(212,175,55,0)');
     botGrad.addColorStop(0.5, GOLD);
-    botGrad.addColorStop(1, "rgba(212,175,55,0)");
+    botGrad.addColorStop(1, 'rgba(212,175,55,0)');
+
     ctx.fillStyle = botGrad;
+
     ctx.fillRect(20, H - 24, W - 40, 3);
 
-    ctx.textAlign = "left";
+    ctx.textAlign = 'left';
 
-    // ── Save as PNG ──────────────────────────────────────────────────────
-    // On the web, canvas.toDataURL() + an <a download> click works because
-    // a real browser download manager is backing it. Inside a Capacitor
-    // WebView (the actual mobile app) there is no download manager — that
-    // click is silently a no-op, which is why the file never showed up in
-    // your gallery even though the toast fired. Native apps must instead
-    // write the file to disk via the Filesystem plugin and hand it to the
-    // OS Share sheet, which is what lets the user save it into Photos.
     const fileName = `Salva_Receipt_${Date.now()}.png`;
-    const dataUrl = canvas.toDataURL("image/png");
+    const dataUrl = canvas.toDataURL('image/png');
 
     if (Capacitor.isNativePlatform()) {
       try {
-        // Filesystem.writeFile wants raw base64 — strip the data URL prefix
-        const base64Data = dataUrl.split(",")[1];
+        const base64Data = dataUrl.split(',')[1];
 
-        // Directory.Cache is the correct target here: it's always writable
-        // without extra runtime permissions, and we only need the file to
-        // exist long enough to hand it to the native Share sheet — we are
-        // not trying to persist it ourselves.
         const writeResult = await Filesystem.writeFile({
           path: fileName,
           data: base64Data,
@@ -773,178 +1198,232 @@ const Transactions = () => {
         });
 
         await Share.share({
-          title: "Salva Transaction Receipt",
-          text: "Your Salva transaction receipt",
+          title: 'Salva Transaction Receipt',
+          text: 'Your Salva transaction receipt',
           url: writeResult.uri,
-          dialogTitle: "Save or share your receipt",
+          dialogTitle: 'Save or share your receipt',
         });
 
-        showMsg(
-          'Receipt ready — choose "Save Image" to add it to your gallery',
-        );
+        showMsg('Receipt ready — choose "Save Image" to add it to your gallery');
       } catch (err) {
-        // Most common cause here is the user dismissing the native share
-        // sheet without picking an action — Share.share() rejects in that
-        // case too, so we don't want to show a scary error for a cancel.
         const cancelled =
-          err?.message?.toLowerCase().includes("cancel") ||
-          err?.message?.toLowerCase().includes("dismiss");
+          err?.message?.toLowerCase().includes('cancel') ||
+          err?.message?.toLowerCase().includes('dismiss');
+
         if (!cancelled) {
-          console.error("Receipt save failed:", err);
-          showMsg("Could not save receipt. Please try again.", "error");
+          console.error('Receipt save failed:', err);
+
+          showMsg('Could not save receipt. Please try again.', 'error');
         }
       }
+
       return;
     }
 
-    // ── Web fallback — unchanged, still works via the browser's own
-    // download manager ──────────────────────────────────────────────────
-    const link = document.createElement("a");
+    const link = document.createElement('a');
+
     link.download = fileName;
     link.href = dataUrl;
     link.click();
-    showMsg("Receipt saved as image");
+
+    showMsg('Receipt saved as image');
   };
 
   if (!user) return null;
 
+  const successfulCount = transactions.filter((tx) => getDisplayType(tx, user) !== 'failed').length;
+
+  const failedCount = transactions.filter((tx) => getDisplayType(tx, user) === 'failed').length;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-2 pb-12 relative overflow-hidden">
+    <div className="min-h-screen bg-[#070708] text-white pt-16 pb-16 px-3 sm:px-6 relative overflow-hidden">
+      {/* Background atmosphere */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[650px] h-[350px] rounded-full bg-salvaGold/[0.035] blur-[120px]" />
+
+        <div className="absolute top-[35%] -left-40 w-[350px] h-[350px] rounded-full bg-purple-500/[0.025] blur-[120px]" />
+
+        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] rounded-full bg-blue-500/[0.02] blur-[120px]" />
+      </div>
+
       <Stars />
 
-      <div className="max-w-2xl mx-auto relative z-10">
-        {/* ── Back ── */}
+      <div className="max-w-4xl mx-auto relative z-10">
+        {/* Back */}
         <a
-          href={isBNBChain ? "/bnb" : "/dashboard"}
-          className="inline-flex items-center gap-2 text-[6px] sm:text-[8px] uppercase tracking-[0.2em] sm:tracking-[0.3em] text-white/25 hover:text-salvaGold transition-colors mb-4 sm:mb-5 font-black"
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-[8px] uppercase tracking-[0.22em] text-white/25 hover:text-salvaGold transition-colors mb-6 font-black"
         >
-          ← {isBNBChain ? "BNB Dashboard" : "Dashboard"}
+          ← Dashboard
         </a>
 
-        {/* ── Header ── */}
-        <header className="mb-4 sm:mb-5">
-          <p className="text-[6px] sm:text-[8px] uppercase tracking-[0.25em] sm:tracking-[0.35em] text-salvaGold/60 font-black mb-1">
-            Transaction History
-          </p>
-          <h1 className="text-sm sm:text-4xl font-black tracking-tight">
-            {user.username}
-          </h1>
+        {/* Hero */}
+        <header className="mb-6 sm:mb-8">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-salvaGold shadow-[0_0_12px_rgba(212,175,55,.6)]" />
+
+                <p className="text-[8px] uppercase tracking-[0.28em] text-salvaGold/60 font-black">
+                  DeFi Activity
+                </p>
+              </div>
+
+              <h1 className="text-2xl sm:text-4xl font-black tracking-[-0.04em]">
+                Transaction History
+              </h1>
+
+              <p className="text-[10px] sm:text-xs text-white/25 mt-2">
+                Your complete on-chain activity, across every network you've used.
+              </p>
+            </div>
+          </div>
         </header>
 
-        {/* ── Toolbar ── */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 mb-4 sm:mb-5">
-          {/* Filter pills */}
-          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
-            {FILTERS.map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg text-[6px] sm:text-[9px] font-black uppercase tracking-widest border transition-all ${
-                  filter === f
-                    ? "bg-salvaGold text-black border-salvaGold"
-                    : "border-white/10 text-white/30 hover:text-white/60 hover:border-white/20"
-                }`}
-              >
-                {f}
-              </button>
-            ))}
-            <button
-              onClick={handleManualRefresh}
-              disabled={refreshing || loading}
-              aria-label="Refresh transactions"
-              className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg border border-white/10 text-white/30 hover:text-salvaGold hover:border-salvaGold/40 transition-all flex items-center justify-center disabled:opacity-30 disabled:cursor-not-allowed flex-shrink-0"
-            >
-              <svg
-                className={`w-2.5 h-2.5 sm:w-3 sm:h-3 ${refreshing ? "animate-spin" : ""}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                <polyline points="21 3 21 9 15 9" />
-              </svg>
-            </button>
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+              Total
+            </p>
+
+            <p className="text-lg sm:text-xl font-black mt-1">{transactions.length}</p>
+
+            <p className="text-[7px] text-white/20 mt-0.5">Transactions</p>
           </div>
 
-          <div className="flex-1" />
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+              Confirmed
+            </p>
 
-          {/* Search */}
-          <div className="relative w-full sm:w-56">
-            <svg
-              className="absolute left-2 sm:left-3 top-1/2 -translate-y-1/2 w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-white/20"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+            <p className="text-lg sm:text-xl font-black text-emerald-400 mt-1">{successfulCount}</p>
+
+            <p className="text-[7px] text-white/20 mt-0.5">Successful</p>
+          </div>
+
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+              Failed
+            </p>
+
+            <p
+              className={`text-lg sm:text-xl font-black mt-1 ${
+                failedCount ? 'text-red-400' : 'text-white/30'
+              }`}
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"
-              />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-7 pr-3 py-1.5 sm:pl-9 sm:pr-4 sm:py-2 rounded-lg sm:rounded-xl text-[9px] sm:text-xs border border-white/10 bg-white/[0.03] text-white placeholder:text-white/20 focus:outline-none focus:border-salvaGold/40 transition-all"
-            />
+              {failedCount}
+            </p>
+
+            <p className="text-[7px] text-white/20 mt-0.5">Unsuccessful</p>
           </div>
         </div>
 
-        {/* ── Content ── */}
+        {/* Toolbar */}
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] p-2 sm:p-2.5 mb-4">
+          <div className="flex flex-col sm:flex-row gap-2">
+            {/* Filters */}
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+              {FILTERS.map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  className={`flex-shrink-0 px-3 py-2 rounded-xl text-[7px] sm:text-[8px] font-black uppercase tracking-[0.16em] transition-all ${
+                    filter === f
+                      ? 'bg-salvaGold text-black shadow-[0_4px_20px_rgba(212,175,55,.12)]'
+                      : 'text-white/30 hover:text-white/70 hover:bg-white/[0.04]'
+                  }`}
+                >
+                  {f}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={handleManualRefresh}
+                disabled={refreshing || loading}
+                aria-label="Refresh transactions"
+                className="ml-auto flex-shrink-0 w-9 h-9 rounded-xl border border-white/[0.07] text-white/25 hover:text-salvaGold hover:border-salvaGold/25 transition-all flex items-center justify-center disabled:opacity-30"
+              >
+                <Icon name="refresh" size={14} className={refreshing ? 'animate-spin' : ''} />
+              </button>
+            </div>
+
+            {/* Search */}
+            <div className="relative sm:w-64 sm:ml-auto">
+              <Icon
+                name="search"
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-white/20"
+              />
+
+              <input
+                type="text"
+                placeholder="Search address, hash, asset..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-white/[0.07] bg-black/20 text-[9px] sm:text-[10px] text-white placeholder:text-white/20 focus:outline-none focus:border-salvaGold/25 transition-all"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Results count */}
+        {!loading && filtered.length > 0 && (
+          <div className="flex items-center justify-between px-1 mb-2">
+            <p className="text-[8px] text-white/20 uppercase tracking-[0.16em] font-black">
+              {filter === 'All' ? 'All activity' : `${filter} activity`}
+            </p>
+
+            <p className="text-[8px] text-white/20 font-medium">
+              {filtered.length} result
+              {filtered.length === 1 ? '' : 's'}
+            </p>
+          </div>
+        )}
+
+        {/* Content */}
         {loading ? (
-          <div className="flex justify-center py-24">
-            <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-salvaGold/20 border-t-salvaGold rounded-full animate-spin" />
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] py-24 flex flex-col items-center justify-center">
+            <div className="w-8 h-8 border-2 border-salvaGold/15 border-t-salvaGold rounded-full animate-spin" />
+
+            <p className="text-[8px] uppercase tracking-[0.2em] text-white/20 font-black mt-4">
+              Loading activity
+            </p>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="text-center py-24">
-            <p className="text-xl sm:text-3xl mb-3">📭</p>
-            <p className="font-black text-white/40 text-xs sm:text-sm">
-              No transactions found
+          <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] py-24 px-6 text-center">
+            <div className="w-14 h-14 rounded-full mx-auto border border-white/[0.07] bg-white/[0.025] flex items-center justify-center">
+              {search ? (
+                <Icon name="search" size={20} className="text-white/20" />
+              ) : (
+                <span className="text-xl opacity-40">◌</span>
+              )}
+            </div>
+
+            <p className="font-black text-white/50 text-sm mt-4">No transactions found</p>
+
+            <p className="text-[9px] text-white/20 mt-1.5">
+              {search ? 'Try a different search term.' : 'Your on-chain activity will appear here.'}
             </p>
-            {search && (
+
+            {(search || filter !== 'All') && (
               <button
-                onClick={() => setSearch("")}
-                className="text-salvaGold text-[9px] sm:text-xs font-black mt-3 underline underline-offset-4"
+                type="button"
+                onClick={() => {
+                  setSearch('');
+                  setFilter('All');
+                }}
+                className="mt-4 text-salvaGold text-[8px] uppercase tracking-[0.18em] font-black hover:underline"
               >
-                Clear search
+                Clear filters
               </button>
             )}
           </div>
         ) : (
           <>
-            {/* Column headers — desktop only */}
-            <div className="hidden sm:flex items-center gap-3 sm:gap-4 px-4 mb-2">
-              <div className="w-2 flex-shrink-0" />
-              <div className="w-[72px] flex-shrink-0">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
-                  Date
-                </p>
-              </div>
-              <div className="w-[58px] flex-shrink-0">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
-                  Type
-                </p>
-              </div>
-              <div className="flex-1">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
-                  Reciepient
-                </p>
-              </div>
-              <div className="text-right flex-shrink-0 pr-6">
-                <p className="text-[8px] uppercase tracking-[0.3em] text-white/20 font-black">
-                  Amount
-                </p>
-              </div>
-            </div>
-
-            {/* Feed */}
-            <div className="space-y-1.5 sm:space-y-2">
+            <div className="space-y-2">
               {paginated.map((tx, i) => (
                 <TxCard
                   key={tx._id || i}
@@ -953,33 +1432,42 @@ const Transactions = () => {
                   index={i}
                   onDownload={downloadReceipt}
                   showMsg={showMsg}
-                  setTransactions={setTransactions}
                 />
               ))}
             </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-5 sm:mt-6 px-1">
-                <p className="text-[6px] sm:text-[9px] text-white/25 font-bold">
-                  {(page - 1) * PAGE_SIZE + 1}–
-                  {Math.min(page * PAGE_SIZE, filtered.length)} of{" "}
-                  {filtered.length}
+              <div className="flex items-center justify-between mt-5 px-1">
+                <p className="text-[8px] text-white/20 font-medium">
+                  Showing <span className="text-white/40">{(page - 1) * PAGE_SIZE + 1}</span> –{' '}
+                  <span className="text-white/40">
+                    {Math.min(page * PAGE_SIZE, filtered.length)}
+                  </span>{' '}
+                  of <span className="text-white/40">{filtered.length}</span>
                 </p>
-                <div className="flex gap-2">
+
+                <div className="flex items-center gap-1.5">
                   <button
+                    type="button"
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     disabled={page === 1}
-                    className="px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg border border-white/10 text-[6px] sm:text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all"
+                    className="w-9 h-9 rounded-xl border border-white/[0.07] text-white/30 hover:text-white hover:border-white/15 disabled:opacity-20 transition-all flex items-center justify-center text-xs"
                   >
-                    ← Prev
+                    ←
                   </button>
+
+                  <div className="min-w-9 h-9 px-2 rounded-xl border border-salvaGold/15 bg-salvaGold/[0.04] text-salvaGold flex items-center justify-center text-[8px] font-black">
+                    {page} / {totalPages}
+                  </div>
+
                   <button
+                    type="button"
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                     disabled={page === totalPages}
-                    className="px-2 py-1 sm:px-3 sm:py-1.5 rounded-md sm:rounded-lg border border-white/10 text-[6px] sm:text-[9px] font-black uppercase tracking-widest disabled:opacity-20 hover:border-salvaGold/40 transition-all"
+                    className="w-9 h-9 rounded-xl border border-white/[0.07] text-white/30 hover:text-white hover:border-white/15 disabled:opacity-20 transition-all flex items-center justify-center text-xs"
                   >
-                    Next →
+                    →
                   </button>
                 </div>
               </div>
@@ -988,17 +1476,29 @@ const Transactions = () => {
         )}
       </div>
 
-      {/* ── Toast ── */}
+      {/* Toast */}
       <AnimatePresence>
         {toast.show && (
           <motion.div
-            initial={{ y: 40, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            exit={{ y: 40, opacity: 0 }}
-            className={`fixed bottom-8 left-1/2 -translate-x-1/2 px-3 py-1.5 sm:px-5 sm:py-2.5 rounded-xl sm:rounded-2xl font-black text-[7px] sm:text-[10px] uppercase tracking-widest z-[100] shadow-2xl ${
-              toast.type === "error"
-                ? "bg-red-500 text-white shadow-red-500/20"
-                : "bg-salvaGold text-black shadow-salvaGold/20"
+            initial={{
+              y: 20,
+              opacity: 0,
+              scale: 0.96,
+            }}
+            animate={{
+              y: 0,
+              opacity: 1,
+              scale: 1,
+            }}
+            exit={{
+              y: 20,
+              opacity: 0,
+              scale: 0.96,
+            }}
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-3 rounded-2xl font-black text-[8px] uppercase tracking-[0.14em] z-[100] shadow-2xl backdrop-blur-xl border ${
+              toast.type === 'error'
+                ? 'bg-red-500/90 text-white border-red-400/20 shadow-red-500/20'
+                : 'bg-salvaGold/95 text-black border-white/10 shadow-salvaGold/20'
             }`}
           >
             {toast.message}

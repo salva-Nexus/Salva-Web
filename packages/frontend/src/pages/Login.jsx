@@ -1,532 +1,528 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Login.jsx
-import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
-import { Capacitor } from "@capacitor/core";
-import FloatingCoin from "../components/FloatingCoin";
-import Stars from "../components/Stars";
+import React, { useEffect, useState } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Fingerprint,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+} from 'lucide-react';
+import { Capacitor } from '@capacitor/core';
+import { SALVA_API_URL } from '../config';
+import Stars from '../components/Stars';
 
-// ── Mobile content-scale helpers ────────────────────────────────────────────
-// Same pattern used across the app's chat widgets and Seller Mint Panel:
-// container size (card padding/border-radius/width) is NOT touched here —
-// only inner content (font sizes, gaps, input padding) scales down 30% under
-// 640px via a CSS custom property, so it responds to real device width
-// without any JS resize listeners.
-const loginPx = (n) => `calc(${n}px * var(--login-scale, 1))`;
-const loginPxs = (...vals) =>
-  vals.map((v) => (typeof v === "number" ? loginPx(v) : v)).join(" ");
-
-const LoginScaleStyle = () => (
-  <style>{`
-    .login-scale { --login-scale: 1; }
-    @media (max-width: 639px) {
-      .login-scale { --login-scale: 0.7; }
-    }
-  `}</style>
-);
+const EASE = [0.16, 1, 0.3, 1];
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [regStep, setRegStep] = useState(1);
-  const [otp, setOtp] = useState("");
-  const [formData, setFormData] = useState({
-    username: "",
-    email: "",
-    password: "",
-  });
+  const [otp, setOtp] = useState('');
+  const [formData, setFormData] = useState({ username: '', email: '', password: '', pin: '' });
   const [loading, setLoading] = useState(false);
-  const [notif, setNotif] = useState({ show: false, msg: "", type: "" });
+  const [notif, setNotif] = useState({ show: false, msg: '', type: '' });
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
-  // ── Are we running inside the native (Play Store / App Store) app? ────────
-  // On native, there's no marketing "Home" page to go back to — the app opens
-  // straight into Login/Dashboard — so the link is only useful/valid on web.
+  const reduce = useReducedMotion();
   const isNativeApp = Capacitor.isNativePlatform();
-
-  // ── Read referral code from URL ?ref=CODE ──────────────────────────────────
   const referralCode =
-    new URLSearchParams(location.search).get("ref")?.trim().toUpperCase() ||
-    null;
+    new URLSearchParams(location.search).get('ref')?.trim().toUpperCase() || null;
 
   useEffect(() => {
-    // If there's a ref code, switch to register tab automatically
     if (referralCode) setIsLogin(false);
   }, [referralCode]);
 
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem("salva_user");
+      const savedUser = localStorage.getItem('salva_user');
       if (savedUser) {
         const userData = JSON.parse(savedUser);
         if (userData.safeAddress) {
-          if (userData.ownerKey) {
-            navigate("/set-transaction-pin", { replace: true });
-          } else {
-            navigate("/dashboard", { replace: true });
-          }
+          navigate(userData.ownerKey ? '/set-transaction-pin' : '/dashboard', { replace: true });
           return;
         }
       }
-    } catch (_) {
-      localStorage.removeItem("salva_user");
+    } catch {
+      localStorage.removeItem('salva_user');
     } finally {
       setCheckingAuth(false);
     }
   }, [navigate]);
 
   useEffect(() => {
-    if (notif.show) {
-      const t = setTimeout(() => setNotif({ ...notif, show: false }), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [notif]);
+    if (!notif.show) return undefined;
+    const t = setTimeout(() => setNotif((n) => ({ ...n, show: false })), 4000);
+    return () => clearTimeout(t);
+  }, [notif.show, notif.msg]);
 
-  const showMsg = (msg, type = "success") =>
-    setNotif({ show: true, msg, type });
+  const showMsg = (msg, type = 'success') => setNotif({ show: true, msg, type });
   const sanitizeInput = (input) =>
-    typeof input !== "string" ? "" : input.trim().replace(/[<>]/g, "");
+    typeof input !== 'string' ? '' : input.trim().replace(/[<>]/g, '');
   const validateEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const validatePassword = (password) =>
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
+  const validatePassword = (password) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
   const validateUsername = (username) => /^[a-zA-Z0-9_]{3,20}$/.test(username);
 
   const handleStartRegistration = async (e) => {
     e.preventDefault();
-    const sanitizedEmail = sanitizeInput(formData.email);
-    if (!validateEmail(sanitizedEmail))
-      return showMsg("Invalid email format", "error");
+    const email = sanitizeInput(formData.email);
+    if (!validateEmail(email)) return showMsg('Invalid email format', 'error');
     if (!validateUsername(sanitizeInput(formData.username)))
-      return showMsg("Username must be 3-20 alphanumeric characters", "error");
+      return showMsg('Username must be 3–20 letters, numbers, or underscores', 'error');
     if (!validatePassword(formData.password))
       return showMsg(
-        "Password must be 8+ chars with uppercase, lowercase, and number",
-        "error",
+        'Password must be 8+ characters with uppercase, lowercase, and a number',
+        'error'
       );
+
+    if (!/^\d{4}$/.test(formData.pin))
+      return showMsg('Transaction PIN must be exactly 4 digits', 'error');
+
     setLoading(true);
     try {
       const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: sanitizedEmail }),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
       if (res.ok) {
         setRegStep(2);
-        showMsg("Verification code sent to your email!");
+        showMsg('Verification code sent to your email');
       } else {
         const data = await res.json();
-        showMsg(data.message || "Failed to send code", "error");
+        showMsg(data.message || 'Failed to send verification code', 'error');
       }
     } catch {
-      showMsg("Backend offline", "error");
+      showMsg('Unable to reach Salva. Please try again.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
     setLoading(true);
 
     if (!isLogin && regStep === 2) {
       if (!/^\d{6}$/.test(otp)) {
         setLoading(false);
-        return showMsg("OTP must be 6 digits", "error");
+        return showMsg('Enter the 6-digit verification code', 'error');
       }
       try {
         const verifyRes = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            email: sanitizeInput(formData.email),
-            code: otp,
-          }),
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: sanitizeInput(formData.email), code: otp }),
         });
-        console.log(verifyRes)
         if (!verifyRes.ok) {
           setLoading(false);
-          return showMsg("Invalid or expired code", "error");
+          return showMsg('Invalid or expired verification code', 'error');
         }
       } catch {
         setLoading(false);
-        return showMsg("Verification error", "error");
+        return showMsg('Could not verify the code. Check your connection.', 'error');
       }
-      showMsg("Code verified! Deploying your wallet...");
+      showMsg('Email verified. Setting up your wallet…');
     }
 
-    const endpoint = isLogin ? "/api/user/login" : "/api/user/register";
+    const endpoint = isLogin ? '/api/user/login' : '/api/user/register';
     try {
       const sanitizedData = {
         username: sanitizeInput(formData.username),
         email: sanitizeInput(formData.email),
         password: formData.password,
-        // ── Include referral code on register ───────────────────────────────
         ...(!isLogin && referralCode ? { referralCode } : {}),
+        ...(!isLogin ? { pin: formData.pin } : {}),
       };
-
-      console.log(
-        `📝 ${isLogin ? "Login" : "Register"} — referralCode: ${referralCode || "none"}`,
-      );
-
       const response = await fetch(`${SALVA_API_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(sanitizedData),
       });
       const data = await response.json();
-      if (response.ok) {
-        if (!data.safeAddress) throw new Error("Invalid server response");
 
-        if (!isLogin) {
-          // ── Registration only — the backend returns ownerPrivateKey exactly
-          // ONCE here, right after wallet deployment. Stored temporarily so
-          // SetTransactionPin.jsx can use it to derive the encrypted key, then
-          // it deletes ownerKey from localStorage itself once that's done.
-          const userData = {
-            username: sanitizeInput(data.username),
-            email: sanitizeInput(formData.email),
-            safeAddress: data.safeAddress,
-            ownerKey: data.ownerPrivateKey,
-            isValidator: data.isValidator || false,
-            nameAlias: data.nameAlias || null,
-          };
-          localStorage.setItem("salva_user", JSON.stringify(userData));
+      if (!response.ok) {
+        showMsg(data.message || 'Authentication failed', 'error');
+        return;
+      }
+      if (!data.safeAddress) throw new Error('Invalid server response');
 
-          showMsg("Wallet Deployed! Setting up security...");
-          setTimeout(() => navigate("/set-transaction-pin"), 1500);
-        } else {
-          // ── Login — backend no longer returns ownerPrivateKey at all.
-          // No ownerKey field exists on userData here, ever.
-          const userData = {
-            username: sanitizeInput(data.username),
-            email: sanitizeInput(formData.email),
-            safeAddress: data.safeAddress,
-            isValidator: data.isValidator || false,
-            isSeller: data.isSeller || false,
-            nameAlias: data.nameAlias || null,
-          };
-          localStorage.setItem("salva_user", JSON.stringify(userData));
-
-          showMsg("Access Granted!");
-          try {
-            const pinStatusRes = await fetch(
-              `${SALVA_API_URL}/api/user/base/status/${encodeURIComponent(
-                sanitizeInput(formData.email),
-              )}`,
-            );
-            const pinStatus = await pinStatusRes.json();
-            if (!pinStatus.hasPin) {
-              setTimeout(() => navigate("/set-transaction-pin"), 1500);
-            } else {
-              setTimeout(() => navigate("/dashboard"), 1500);
-            }
-          } catch {
-            setTimeout(() => navigate("/dashboard"), 1500);
-          }
-        }
+      if (!isLogin) {
+        const userData = {
+          username: sanitizeInput(data.username),
+          email: sanitizeInput(formData.email),
+          safeAddress: data.safeAddress,
+          isValidator: data.isValidator || false,
+          nameAlias: data.nameAlias || null,
+        };
+        localStorage.setItem('salva_user', JSON.stringify(userData));
+        showMsg('Wallet created');
+        setTimeout(() => navigate('/dashboard'), 1000);
       } else {
-        showMsg(data.message || "Authentication failed", "error");
+        const userData = {
+          username: sanitizeInput(data.username),
+          email: sanitizeInput(formData.email),
+          safeAddress: data.safeAddress,
+          isValidator: data.isValidator || false,
+          isSeller: data.isSeller || false,
+          nameAlias: data.nameAlias || null,
+        };
+        localStorage.setItem('salva_user', JSON.stringify(userData));
+        showMsg('Welcome back');
+        try {
+          const pinRes = await fetch(
+            `${SALVA_API_URL}/api/user/base/status/${encodeURIComponent(
+              sanitizeInput(formData.email)
+            )}`
+          );
+          const pinStatus = await pinRes.json();
+          setTimeout(
+            () => navigate(!pinStatus.hasPin ? '/set-transaction-pin' : '/dashboard'),
+            1000
+          );
+        } catch {
+          setTimeout(() => navigate('/dashboard'), 1000);
+        }
       }
     } catch (err) {
-      console.error("Auth error:", err);
+      console.error('Auth error:', err);
       if (!isLogin) {
-        localStorage.removeItem("salva_user");
-        showMsg("Wallet deployment failed. Please try again.", "error");
+        localStorage.removeItem('salva_user');
+        showMsg('Wallet setup failed. Please try again.', 'error');
         setRegStep(1);
-        setOtp("");
+        setOtp('');
       } else {
-        showMsg("Network error", "error");
+        showMsg('Network error. Please try again.', 'error');
       }
     } finally {
       setLoading(false);
     }
   };
 
-  if (checkingAuth)
+  if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
-        <div className="text-salvaGold font-black text-2xl animate-pulse">
-          LOADING...
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-[#08090b] text-[#e8bd59]">
+        <div className="animate-pulse text-sm font-black tracking-[0.35em]">SALVA</div>
       </div>
     );
+  }
+
+  const inputClass =
+    'w-full rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm text-white outline-none placeholder:text-white/30 transition focus:border-[#e8bd59]/70 focus:bg-white/[0.065] focus:ring-4 focus:ring-[#e8bd59]/[0.08]';
+  const fieldLabel = 'mb-2 block text-xs font-semibold tracking-wide text-white/60';
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-white dark:bg-[#0A0A0B] transition-colors duration-500">
-      <LoginScaleStyle />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#08090b] px-4 py-8 text-white selection:bg-[#e8bd59]/30 sm:px-6">
       <Stars />
-      <FloatingCoin x="10%" y="20%" size="100px" delay={0} blur="blur-sm" />
-      <FloatingCoin x="80%" y="70%" size="150px" delay={1} blur="blur-md" />
-      <FloatingCoin x="50%" y="10%" size="60px" delay={2} blur="none" />
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-40 top-[-10rem] h-[28rem] w-[28rem] rounded-full bg-[#e8bd59]/[0.09] blur-[120px]" />
+        <div className="absolute -bottom-48 -right-24 h-[32rem] w-[32rem] rounded-full bg-indigo-500/[0.08] blur-[130px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#08090b_75%)]" />
+      </div>
 
       <AnimatePresence>
         {notif.show && (
           <motion.div
-            initial={{ x: 400 }}
-            animate={{ x: 0 }}
-            exit={{ x: 400 }}
-            className={`login-scale fixed z-[100] rounded-2xl border shadow-2xl ${
-              notif.type === "error"
-                ? "bg-red-500/20 border-red-500"
-                : "bg-zinc-900 border-salvaGold"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className={`fixed right-4 top-4 z-[100] max-w-sm rounded-xl border px-4 py-3 text-sm font-semibold shadow-2xl sm:right-6 ${
+              notif.type === 'error'
+                ? 'border-red-400/30 bg-red-950/95 text-red-100'
+                : 'border-[#e8bd59]/30 bg-zinc-950/95 text-white'
             }`}
-            style={{
-              top: loginPx(40),
-              right: loginPx(40),
-              padding: loginPx(20),
-            }}
+            role="status"
           >
-            <p
-              className="font-bold text-white"
-              style={{ fontSize: loginPx(14) }}
-            >
-              {notif.msg}
-            </p>
+            {notif.msg}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Card container — width/padding/border-radius NEVER scaled. Only the
-          .login-scale content inside responds to mobile. */}
-      <motion.div className="login-scale z-10 w-full max-w-md p-10 rounded-[2.5rem] border border-gray-200 dark:border-white/10 bg-white/90 dark:bg-black/40 backdrop-blur-2xl shadow-2xl">
-        {/* "Back to Home" only makes sense on web — the native app has no
-            marketing home page, it opens straight into Login/Dashboard. */}
-        {!isNativeApp && (
-          <Link
-            to="/"
-            className="uppercase opacity-50 hover:opacity-100 flex items-center transition-opacity text-black dark:text-white font-bold"
-            style={{
-              fontSize: loginPx(12),
-              letterSpacing: "0.1em",
-              gap: loginPx(8),
-              marginBottom: loginPx(32),
-            }}
-          >
-            ← Back to Home
-          </Link>
-        )}
-        <h2
-          className="font-black text-black dark:text-white tracking-tighter"
-          style={{ fontSize: loginPx(36), marginBottom: loginPx(8) }}
-        >
-          {isLogin ? "Sign In" : "Create Wallet"}
-        </h2>
-        {!isLogin && (
-          <p
-            className="text-salvaGold uppercase tracking-widest font-bold"
-            style={{ fontSize: loginPx(10), marginBottom: loginPx(32) }}
-          >
-            {regStep === 1
-              ? "Step 1: Account Details"
-              : "Step 2: Email Verification"}
-          </p>
-        )}
-        {/* Show referral badge if coming from a referral link */}
-        {!isLogin && referralCode && (
-          <div
-            className="rounded-xl bg-salvaGold/10 border border-salvaGold/30 flex items-center"
-            style={{
-              marginBottom: loginPx(16),
-              padding: loginPxs(8, 16),
-              gap: loginPx(8),
-            }}
-          >
-            <span className="text-salvaGold" style={{ fontSize: loginPx(14) }}>
-              🎁
-            </span>
-            <p
-              className="font-black text-salvaGold"
-              style={{ fontSize: loginPx(12) }}
+      <style>{`@media (max-width: 639px) { .salva-login-card { zoom: 0.8; } }`}</style>
+      <div className="salva-login-card relative z-10 grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/10 bg-[#0d0f12]/90 shadow-[0_30px_120px_rgba(0,0,0,0.55)] backdrop-blur-2xl lg:min-h-[620px] lg:grid-cols-[1fr_0.88fr]">
+        <section className="relative hidden flex-col justify-between overflow-hidden border-r border-white/[0.07] bg-gradient-to-br from-[#17150f] via-[#101114] to-[#0b0c0e] p-10 lg:flex xl:p-12">
+          <div className="pointer-events-none absolute -right-20 top-20 h-72 w-72 rounded-full bg-[#e8bd59]/10 blur-[90px]" />
+          <div className="relative">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-sm font-black tracking-[0.25em] text-[#e8bd59]"
             >
-              Referred by:{" "}
-              <span className="tracking-widest">{referralCode}</span>
-            </p>
-          </div>
-        )}
-        {isLogin && <div style={{ marginBottom: loginPx(32) }} />}
-
-        <form
-          onSubmit={
-            isLogin
-              ? handleSubmit
-              : regStep === 1
-                ? handleStartRegistration
-                : handleSubmit
-          }
-          style={{ display: "flex", flexDirection: "column", gap: loginPx(16) }}
-        >
-          {isLogin || regStep === 1 ? (
-            <>
-              {!isLogin && (
-                <input
-                  type="text"
-                  placeholder="Username"
-                  value={formData.username}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      username: sanitizeInput(e.target.value),
-                    })
-                  }
-                  required
-                  maxLength={20}
-                  pattern="[a-zA-Z0-9_]{3,20}"
-                  className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
-                  style={{ padding: loginPx(16), fontSize: loginPx(16) }}
-                />
-              )}
-              <input
-                type="email"
-                placeholder="Email"
-                value={formData.email}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    email: sanitizeInput(e.target.value),
-                  })
-                }
-                required
-                className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
-                style={{ padding: loginPx(16), fontSize: loginPx(16) }}
-              />
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: loginPx(8),
-                }}
-              >
-                <div className="relative">
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Password"
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    required
-                    minLength={8}
-                    className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-transparent focus:border-salvaGold outline-none text-black dark:text-white font-bold"
-                    style={{
-                      padding: loginPx(16),
-                      paddingRight: loginPx(48),
-                      fontSize: loginPx(16),
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-salvaGold transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff
-                        style={{ width: loginPx(20), height: loginPx(20) }}
-                      />
-                    ) : (
-                      <Eye
-                        style={{ width: loginPx(20), height: loginPx(20) }}
-                      />
-                    )}
-                  </button>
-                </div>
-                {isLogin && (
-                  <div className="flex justify-end px-1">
-                    <Link
-                      to="/forgot-password"
-                      className="uppercase text-salvaGold/60 hover:text-salvaGold transition-colors font-bold tracking-widest"
-                      style={{ fontSize: loginPx(10) }}
-                    >
-                      Forgot Password?
-                    </Link>
-                  </div>
-                )}
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#e8bd59]/25 bg-[#e8bd59]/10">
+                <Wallet size={18} />
+              </span>
+              SALVA
+            </Link>
+            <div className="mt-24 max-w-md">
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[#e8bd59]/20 bg-[#e8bd59]/[0.07] px-3 py-1.5 text-xs font-semibold text-[#e8bd59]">
+                <Sparkles size={13} /> Money, moving forward
               </div>
-            </>
-          ) : (
-            <div
-              style={{ paddingTop: loginPx(16), paddingBottom: loginPx(16) }}
-            >
-              <label
-                className="uppercase opacity-40 font-bold block text-center"
-                style={{ fontSize: loginPx(10), marginBottom: loginPx(8) }}
-              >
-                Enter 6-Digit Code
-              </label>
-              <input
-                type="text"
-                maxLength="6"
-                placeholder="000000"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
-                required
-                pattern="\d{6}"
-                className="w-full rounded-2xl bg-gray-100 dark:bg-white/5 border border-salvaGold text-center font-black outline-none text-black dark:text-white"
-                style={{
-                  padding: loginPx(16),
-                  fontSize: loginPx(30),
-                  letterSpacing: "0.5em",
-                }}
-              />
-              <p
-                className="opacity-40 text-center font-bold"
-                style={{ fontSize: loginPx(10), marginTop: loginPx(12) }}
-              >
-                After verification, your wallet will be deployed automatically
+              <h1 className="text-5xl font-black leading-[1.02] tracking-[-0.06em] xl:text-6xl">
+                Your money.
+                <br />
+                <span className="text-[#e8bd59]">Your on-chain</span>
+                <br />
+                world.
+              </h1>
+              <p className="mt-6 max-w-sm text-base leading-7 text-white/50">
+                Send by name, swap supported assets, and explore a more connected financial
+                experience.
               </p>
             </div>
-          )}
-          <button
-            disabled={loading}
-            type="submit"
-            className="w-full rounded-2xl bg-salvaGold text-black font-black hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ padding: loginPx(20), fontSize: loginPx(14) }}
-          >
-            {loading
-              ? !isLogin && regStep === 2
-                ? "DEPLOYING WALLET..."
-                : "WAITING..."
-              : isLogin
-                ? "ACCESS WALLET"
-                : regStep === 1
-                  ? "SEND VERIFICATION"
-                  : "VERIFY & DEPLOY"}
-          </button>
-        </form>
+          </div>
+          <div className="relative flex items-center gap-3 border-t border-white/[0.08] pt-6 text-xs text-white/40">
+            <ShieldCheck size={16} className="text-[#e8bd59]" />
+            Built for a simpler way to use on-chain finance
+          </div>
+        </section>
 
-        <div
-          className="flex flex-col items-center"
-          style={{ marginTop: loginPx(24), gap: loginPx(16) }}
-        >
-          <button
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setRegStep(1);
-              setOtp("");
-            }}
-            className="text-gray-600 dark:text-white/60 font-bold"
-            style={{ fontSize: loginPx(14) }}
-          >
-            {isLogin ? "New to Salva? " : "Already a citizen? "}
-            <span className="text-salvaGold hover:underline">
-              {isLogin ? "Create Account" : "Log In"}
-            </span>
-          </button>
-          {isLogin && (
+        <section className="p-5 sm:p-8 md:p-10 lg:p-12">
+          <div className="mb-8 flex items-center justify-between lg:mb-10">
             <Link
-              to="/forgot-password"
-              className="uppercase opacity-40 hover:opacity-100 transition-opacity font-bold tracking-widest"
-              style={{ fontSize: loginPx(10) }}
+              to="/"
+              className="inline-flex items-center gap-2 text-sm font-black tracking-[0.2em] text-[#e8bd59] lg:hidden"
             >
-              Forgot Password?
+              <Wallet size={18} /> SALVA
             </Link>
-          )}
-        </div>
-      </motion.div>
-    </div>
+            {!isNativeApp && (
+              <Link
+                to="/"
+                className="ml-auto inline-flex items-center gap-2 text-xs font-semibold text-white/45 transition hover:text-white"
+              >
+                <ArrowLeft size={14} /> Back to home
+              </Link>
+            )}
+          </div>
+
+          <div className="mx-auto max-w-md">
+            <div className="mb-7">
+              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-[#e8bd59]/20 bg-[#e8bd59]/10 text-[#e8bd59]">
+                {isLogin ? <LockKeyhole size={20} /> : <Fingerprint size={20} />}
+              </div>
+              <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e8bd59]">
+                {isLogin ? 'Welcome back' : regStep === 1 ? 'Get started' : 'Verify your email'}
+              </p>
+              <h2 className="mt-2 text-3xl font-black tracking-[-0.045em] sm:text-4xl">
+                {isLogin
+                  ? 'Sign in to Salva'
+                  : regStep === 1
+                  ? 'Create your wallet'
+                  : 'Check your inbox'}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-white/45">
+                {isLogin
+                  ? 'Access your wallet and continue where you left off.'
+                  : regStep === 1
+                  ? 'Set up your account in a few simple steps.'
+                  : `Enter the 6-digit code sent to ${sanitizeInput(formData.email)}.`}
+              </p>
+            </div>
+
+            {!isLogin && (
+              <div className="mb-6 flex items-center gap-2">
+                {[1, 2].map((step) => (
+                  <div
+                    key={step}
+                    className={`h-1 flex-1 rounded-full ${
+                      regStep >= step ? 'bg-[#e8bd59]' : 'bg-white/10'
+                    }`}
+                  />
+                ))}
+                <span className="ml-2 text-xs font-semibold text-white/40">
+                  Step {regStep} of 2
+                </span>
+              </div>
+            )}
+
+            {!isLogin && referralCode && (
+              <div className="mb-5 flex items-center gap-2 rounded-xl border border-[#e8bd59]/20 bg-[#e8bd59]/[0.07] px-3 py-2.5 text-xs font-semibold text-[#e8bd59]">
+                <CheckCircle2 size={15} /> Referred by{' '}
+                <span className="tracking-wider">{referralCode}</span>
+              </div>
+            )}
+
+            <form
+              onSubmit={
+                isLogin ? handleSubmit : regStep === 1 ? handleStartRegistration : handleSubmit
+              }
+              className="space-y-4"
+            >
+              {isLogin || regStep === 1 ? (
+                <>
+                  {!isLogin && (
+                    <div>
+                      <label className={fieldLabel}>Username</label>
+                      <input
+                        className={inputClass}
+                        type="text"
+                        placeholder="Choose a username"
+                        value={formData.username}
+                        onChange={(e) =>
+                          setFormData({ ...formData, username: sanitizeInput(e.target.value) })
+                        }
+                        required
+                        maxLength={20}
+                        pattern="[a-zA-Z0-9_]{3,20}"
+                        autoComplete="username"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className={fieldLabel}>Email address</label>
+                    <div className="relative">
+                      <Mail
+                        size={16}
+                        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+                      />
+                      <input
+                        className={`${inputClass} pl-11`}
+                        type="email"
+                        placeholder="you@example.com"
+                        value={formData.email}
+                        onChange={(e) =>
+                          setFormData({ ...formData, email: sanitizeInput(e.target.value) })
+                        }
+                        required
+                        autoComplete="email"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label className="text-xs font-semibold tracking-wide text-white/60">
+                        Password
+                      </label>
+                      {isLogin && (
+                        <Link
+                          to="/forgot-password"
+                          className="text-xs font-semibold text-[#e8bd59]/80 transition hover:text-[#e8bd59]"
+                        >
+                          Forgot password?
+                        </Link>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        className={`${inputClass} pr-12`}
+                        type={showPassword ? 'text' : 'password'}
+                        placeholder="Enter your password"
+                        value={formData.password}
+                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        required
+                        minLength={8}
+                        autoComplete={isLogin ? 'current-password' : 'new-password'}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/35 transition hover:text-white"
+                      >
+                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </div>
+                    {!isLogin && (
+                      <p className="mt-2 text-[11px] leading-5 text-white/35">
+                        Use 8+ characters, including uppercase, lowercase, and a number.
+                      </p>
+                    )}
+                  </div>
+                  {!isLogin && (
+                    <div>
+                      <label className={fieldLabel}>Transaction PIN</label>
+                      <input
+                        className={`${inputClass} text-center tracking-[0.5em]`}
+                        type="password"
+                        inputMode="numeric"
+                        maxLength={4}
+                        placeholder="••••"
+                        value={formData.pin}
+                        onChange={(e) =>
+                          setFormData({ ...formData, pin: e.target.value.replace(/\D/g, '') })
+                        }
+                        required
+                        pattern="\d{4}"
+                        autoComplete="off"
+                      />
+                      <p className="mt-2 text-[11px] leading-5 text-white/35">
+                        4 digits. Authorizes your transactions and cannot be recovered if lost.
+                      </p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div>
+                  <label className={fieldLabel}>6-digit verification code</label>
+                  <input
+                    className={`${inputClass} py-5 text-center text-2xl font-black tracking-[0.5em]`}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="000000"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                    required
+                    pattern="[0-9]{6}"
+                    autoComplete="one-time-code"
+                  />
+                  <p className="mt-3 text-center text-xs text-white/35">
+                    Your wallet setup begins after verification.
+                  </p>
+                </div>
+              )}
+
+              <button
+                disabled={loading}
+                type="submit"
+                className="group mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-[#e8bd59] px-5 py-4 text-sm font-black text-[#17140b] shadow-lg shadow-[#e8bd59]/10 transition hover:bg-[#f0ca72] focus:outline-none focus:ring-4 focus:ring-[#e8bd59]/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {loading
+                  ? 'PLEASE WAIT…'
+                  : isLogin
+                  ? 'Sign in'
+                  : regStep === 1
+                  ? 'Send verification code'
+                  : 'Verify & create wallet'}
+                {!loading && (
+                  <ArrowUpRight
+                    size={17}
+                    className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                  />
+                )}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin((v) => !v);
+                  setRegStep(1);
+                  setOtp('');
+                }}
+                className="text-sm text-white/45 transition hover:text-white"
+              >
+                {isLogin ? 'New to Salva?' : 'Already have an account?'}{' '}
+                <span className="font-bold text-[#e8bd59]">
+                  {isLogin ? 'Create an account' : 'Sign in'}
+                </span>
+              </button>
+            </div>
+
+            <div className="mt-8 flex items-center justify-center gap-2 border-t border-white/[0.07] pt-5 text-[11px] text-white/30">
+              <ShieldCheck size={14} /> Keep your account details private
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 };
 

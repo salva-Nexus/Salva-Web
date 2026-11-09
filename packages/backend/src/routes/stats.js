@@ -92,11 +92,11 @@ router.get('/stats', async (req, res) => {
       usdcBnb.balanceOf(treasury),
     ]);
 
-    const tBaseNgnsFormat = ethers.formatUnits(treasuryBaseNgnsBalance, 6);
-    const tBnbNgnsFormat = ethers.formatUnits(treasuryBnbNgnsBalance, 6);
+    const tBaseNgnsFormat = ethers.formatUnits(treasuryBaseNgnsBalance, 18);
+    const tBnbNgnsFormat = ethers.formatUnits(treasuryBnbNgnsBalance, 18);
 
-    const tBaseCngnFormat = ethers.formatUnits(treasuryBaseCngnBalance, 6);
-    const tBnbCngnFormat = ethers.formatUnits(treasuryBnbCngnBalance, 6);
+    const tBaseCngnFormat = ethers.formatUnits(treasuryBaseCngnBalance, 18);
+    const tBnbCngnFormat = ethers.formatUnits(treasuryBnbCngnBalance, 18);
 
     const tBaseUsdtFormat = ethers.formatUnits(treasuryBaseUsdtBalance, Number(usdtBaseDec));
     const tBnbUsdtFormat = ethers.formatUnits(treasuryBnbUsdtBalance, Number(usdtBnbDec));
@@ -107,7 +107,7 @@ router.get('/stats', async (req, res) => {
     const currentNetwork = mode === 'development' ? 'TESTNET' : 'MAINNET';
     const computedUserCount = users.length;
     const computedNgnsCirculating =
-      Number(ethers.formatUnits(ngnsBaseTs, 6)) + Number(ethers.formatUnits(ngnsBnbTs, 6));
+      Number(ethers.formatUnits(ngnsBaseTs, 18)) + Number(ethers.formatUnits(ngnsBnbTs, 18));
     const computedTreasuryNGN =
       Number(tBaseNgnsFormat) +
       Number(tBnbNgnsFormat) +
@@ -119,16 +119,13 @@ router.get('/stats', async (req, res) => {
       Number(tBaseUsdcFormat) +
       Number(tBnbUsdcFormat);
 
-    const stats = await StatsSnapshot.findOneAndUpdate(
-      { network: currentNetwork },
-      {
-        userCount: computedUserCount,
-        ngnsCirculating: computedNgnsCirculating,
-        treasuryNGN: computedTreasuryNGN,
-        treasuryUSD: computedTreasuryUSD,
-      },
-      { new: true, upsert: true }
-    );
+    const stats = await StatsSnapshot.findOne({ network: currentNetwork });
+    await stats.updateOne({
+      userCount: computedUserCount,
+      ngnsCirculating: computedNgnsCirculating,
+      treasuryNGN: computedTreasuryNGN,
+      treasuryUSD: computedTreasuryUSD,
+    });
 
     return res.status(200).json({
       status: true,

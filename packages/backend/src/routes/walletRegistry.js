@@ -1,9 +1,9 @@
-import WalletRegistry from "../models/WalletRegistry.js";
-import express from "express";
+import WalletRegistry from '../models/WalletRegistry.js';
+import express from 'express';
 
 const router = express.Router();
 
-router.post("/new", async (req, res) => {
+router.post('/new', async (req, res) => {
   try {
     const registries = await WalletRegistry.create(req.body);
     res.status(200).json({
@@ -17,7 +17,7 @@ router.post("/new", async (req, res) => {
   }
 });
 
-router.get("/registries", async (req, res) => {
+router.get('/registries', async (req, res) => {
   try {
     const registries = await WalletRegistry.find({
       active: true,
@@ -31,9 +31,7 @@ router.get("/registries", async (req, res) => {
   }
 });
 
-
-
-router.get("/findByName/:input", async (req, res) => {
+router.get('/findByName/:input', async (req, res) => {
   try {
     const input = req.params.input;
     const registry = await WalletRegistry.findOne({
@@ -48,7 +46,7 @@ router.get("/findByName/:input", async (req, res) => {
   }
 });
 
-router.get("/findByNamespace/:input", async (req, res) => {
+router.get('/findByNamespace/:input', async (req, res) => {
   try {
     const input = req.params.input;
     const registry = await WalletRegistry.findOne({

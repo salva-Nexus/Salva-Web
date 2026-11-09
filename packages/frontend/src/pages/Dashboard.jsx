@@ -1,198 +1,500 @@
-// Salva-Digital-Tech/packages/frontend/src/pages/Dashboard.jsx
-import { SALVA_API_URL } from "../config";
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Link, useNavigate } from "react-router-dom";
-import Stars from "../components/Stars";
-import DeployPool from "./DeployPool";
-import SwapTab from "./SwapTab";
-import SantTab from "./SantTab";
-import { QRCodeSVG } from "qrcode.react";
+import { SALVA_API_URL } from '../config';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { QRCodeSVG } from 'qrcode.react';
+import Stars from '../components/Stars';
+import SantTab from './SantTab';
+import Chains from './Chains';
+import SendTransferModal from './SendTransferModal';
+import ngnLogo from '../assets/ngn-coin.png';
+import santLogo from '../assets/icon-only.png';
+import {
+  POLL_INTERVAL_MS,
+  walletKey,
+  readWalletCache,
+  readSupportedChainsCache,
+  writeSupportedChainsCache,
+  fetchWalletSnapshot,
+  writeWalletCache,
+} from '../utils/walletCache';
 
-// ── Helpers ────────────────────────────────────────────────────────────────
+const LOCAL_LOGOS = {
+  NGNS: ngnLogo,
+  SANT: santLogo,
+};
+
+const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY || '';
+
+const urlBase64ToUint8Array = (b64) => {
+  const padding = '='.repeat((4 - (b64.length % 4)) % 4);
+  const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+};
+
+const pushSupported = () =>
+  typeof window !== 'undefined' &&
+  'serviceWorker' in navigator &&
+  'PushManager' in window &&
+  'Notification' in window &&
+  typeof window.Notification.requestPermission === 'function';
+
+/* ============================================================================
+   HELPERS
+============================================================================ */
+
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
-  if (value === null || value === undefined || value === "") return "0";
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "0";
-  if (num === 0) return "0";
+  if (value === null || value === undefined || value === '') return '0';
 
-  // Convert to fixed at maxDecimals to get all digits, no rounding issues
-  const fixed = num.toFixed(maxDecimals);
-  const [intPart, decPart = ""] = fixed.split(".");
+  const n = Number(value);
+  if (!Number.isFinite(n)) return '0';
+  if (n === 0) return minDecimals ? n.toFixed(minDecimals) : '0';
 
-  // Smart trim: strip trailing zeros, but keep at least minDecimals
-  let trimmed = decPart;
-  while (trimmed.length > minDecimals && trimmed.endsWith("0")) {
-    trimmed = trimmed.slice(0, -1);
+  const fixed = n.toFixed(maxDecimals);
+  let [i, d = ''] = fixed.split('.');
+
+  while (d.length > minDecimals && d.endsWith('0')) {
+    d = d.slice(0, -1);
   }
 
-  const formattedInt = Number(intPart).toLocaleString("en-US");
+  i = Number(i).toLocaleString('en-US');
 
-  return trimmed.length > 0 ? `${formattedInt}.${trimmed}` : formattedInt;
-};
-// Safe decimal string addition — no float garbage
-const addDecimals = (a, b) => {
-  const ai = Number(a || 0);
-  const bi = Number(b || 0);
-
-  const sum = ai + bi;
-
-  // preserve precision safely
-  return sum.toFixed(6).replace(/\.?0+$/, "");
+  return d ? `${i}.${d}` : i;
 };
 
 const formatAmountInput = (raw) => {
-  const digits = raw.replace(/[^0-9.]/g, "");
-  const parts = digits.split(".");
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return parts.length > 1 ? parts[0] + "." + parts[1] : parts[0];
+  const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  return parts.length > 1 ? `${parts[0]}.${parts.slice(1).join('')}` : parts[0];
 };
 
-function detectInputType(val) {
-  const t = val.trim();
-  if (!t) return "empty";
-  if (t.startsWith("0x")) return "address";
-  if (t.includes("@")) return "fullname";
-  return "name";
+const truncateAddress = (address, start = 7, end = 5) => {
+  if (!address) return '—';
+
+  if (address.length <= start + end + 1) {
+    return address;
+  }
+
+  return `${address.slice(0, start)}…${address.slice(-end)}`;
+};
+
+/* ============================================================================
+   ASSET PRICING
+============================================================================ */
+
+const getAssetUsdPrice = (asset) => {
+  const n = Number(asset?.usdPrice);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const getAssetNgnRate = (asset) => {
+  const n = Number(asset?.ngnRate);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const AssetValueLine = ({ asset, className = '' }) => {
+  const usdPrice = getAssetUsdPrice(asset);
+
+  if (usdPrice <= 0) {
+    return <p className={className}>-</p>;
+  }
+
+  const balance = Number(asset?.balance) || 0;
+  const usdValue = balance * usdPrice;
+  const ngnValue = usdValue * getAssetNgnRate(asset);
+
+  return (
+    <p className={className}>
+      ${formatNumber(usdValue, { minDecimals: 2, maxDecimals: 2 })}
+      <span className="text-white/35 mx-1">·</span>₦
+      {formatNumber(ngnValue, { minDecimals: 2, maxDecimals: 2 })}
+    </p>
+  );
+};
+
+const DEFAULT_FETCH_TIMEOUT_MS = 12000;
+
+let overlayStack = [];
+let pendingOverlayOps = { opened: [], closed: [] };
+let overlayFlushScheduled = false;
+let suppressPopCount = 0;
+let poppedViaHistory = new Set();
+
+function flushOverlayOps() {
+  overlayFlushScheduled = false;
+
+  const { opened, closed } = pendingOverlayOps;
+  pendingOverlayOps = { opened: [], closed: [] };
+
+  let historyClosedCount = 0;
+
+  closed.forEach(({ id }) => {
+    const idx = overlayStack.findIndex((layer) => layer.id === id);
+
+    if (idx !== -1) overlayStack.splice(idx, 1);
+
+    if (poppedViaHistory.has(id)) {
+      poppedViaHistory.delete(id);
+    } else {
+      historyClosedCount += 1;
+    }
+  });
+
+  // "Adopted" layers reuse the history entry the page is already on,
+  // so they must not push a new one.
+  const netAdded = opened.filter((layer) => !layer.adopt).length;
+  const netRemoved = historyClosedCount;
+
+  opened.forEach(({ id, close, adopt }) => {
+    overlayStack = overlayStack.filter((layer) => layer.id !== id);
+    overlayStack.push({ id, close });
+
+    if (adopt) {
+      window.history.replaceState({ ...(window.history.state || {}), salvaOverlay: true }, '');
+    }
+  });
+
+  if (netAdded > netRemoved) {
+    for (let i = 0; i < netAdded - netRemoved; i += 1) {
+      window.history.pushState({ salvaOverlay: true }, '');
+    }
+  } else if (netRemoved > netAdded) {
+    for (let i = 0; i < netRemoved - netAdded; i += 1) {
+      if (window.history.state?.salvaOverlay) {
+        suppressPopCount += 1;
+        window.history.back();
+      }
+    }
+  }
+
+  if (overlayStack.length > 0) {
+    document.body.classList.add('salva-overlay-open');
+  } else {
+    document.body.classList.remove('salva-overlay-open');
+  }
 }
 
-// ── QR Scanner Modal ───────────────────────────────────────────────────────
-const QRScannerModal = ({ onScan, onClose }) => {
-  const hasScanned = useRef(false);
-  const scannerInstanceRef = useRef(null);
-  const isStarted = useRef(false);
+function scheduleOverlayFlush() {
+  if (overlayFlushScheduled) return;
+
+  overlayFlushScheduled = true;
+  queueMicrotask(flushOverlayOps);
+}
+
+// Used when the owning component unmounts while its overlay is still open
+// (e.g. navigating from a service to /pools/... or /link-name). No history
+// manipulation here: the route change already moved history on.
+function dropOverlayLayer(id) {
+  pendingOverlayOps.opened = pendingOverlayOps.opened.filter((layer) => layer.id !== id);
+  overlayStack = overlayStack.filter((layer) => layer.id !== id);
+  poppedViaHistory.delete(id);
+
+  if (overlayStack.length === 0) {
+    document.body.classList.remove('salva-overlay-open');
+  }
+}
+
+export const useOverlayLayer = (id, isOpen, close, { adoptOnMount = false } = {}) => {
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
+  const wasOpenRef = useRef(false);
+  const adoptRef = useRef(adoptOnMount);
 
   useEffect(() => {
-    let scanner;
+    if (isOpen === wasOpenRef.current) return;
+
+    wasOpenRef.current = isOpen;
+
+    if (isOpen) {
+      pendingOverlayOps.opened.push({
+        id,
+        close: () => closeRef.current(),
+        adopt: adoptRef.current,
+      });
+    } else {
+      adoptRef.current = false;
+      pendingOverlayOps.closed.push({ id });
+    }
+
+    scheduleOverlayFlush();
+  }, [id, isOpen]);
+
+  // If the component unmounts while its overlay is open, release the layer.
+  useEffect(
+    () => () => {
+      if (wasOpenRef.current) {
+        wasOpenRef.current = false;
+        dropOverlayLayer(id);
+      }
+    },
+    [id]
+  );
+};
+
+const fetchWithTimeout = (url, options = {}, timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) => {
+  const controller = new AbortController();
+
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => clearTimeout(timer));
+};
+
+/* ============================================================================
+   SMALL UI
+============================================================================ */
+
+const Spinner = ({ small = false }) => (
+  <span
+    className={`${
+      small ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'
+    } border-2 border-salvaGold/25 border-t-salvaGold rounded-full animate-spin inline-block`}
+  />
+);
+
+export const Notification = ({ notification, onClose }) => {
+  useEffect(() => {
+    if (!notification.show) return undefined;
+    const t = setTimeout(onClose, 3000);
+    return () => clearTimeout(t);
+  }, [notification, onClose]);
+
+  if (!notification.show) return null;
+
+  const colors = {
+    success: ['✓', '#D4AF37'],
+    error: ['×', '#EF4444'],
+    info: ['i', '#3B82F6'],
+    warning: ['!', '#F59E0B'],
+  };
+
+  const [icon, accent] = colors[notification.type] || colors.info;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -18, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: -18, scale: 0.97 }}
+      className="fixed right-3 top-3 sm:right-4 sm:top-4 z-[200] w-[calc(100%-1.5rem)] sm:w-[calc(100%-2rem)] max-w-sm"
+    >
+      <div className="overflow-hidden rounded-xl sm:rounded-2xl border border-white/10 bg-[#101012]/95 shadow-2xl backdrop-blur-2xl">
+        <div className="h-px" style={{ background: accent }} />
+
+        <div className="flex items-start gap-2.5 sm:gap-3 p-3 sm:p-4">
+          <div
+            className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl font-black text-sm"
+            style={{
+              background: `${accent}12`,
+              color: accent,
+              border: `1px solid ${accent}28`,
+            }}
+          >
+            {icon}
+          </div>
+
+          <div className="min-w-0 flex-1">
+            <p
+              className="text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.18em]"
+              style={{ color: accent }}
+            >
+              {notification.type}
+            </p>
+
+            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs leading-4 sm:leading-5 text-white/75">
+              {notification.message}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg p-1 text-white/25 transition hover:bg-white/5 hover:text-white"
+            aria-label="Dismiss notification"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+/* ============================================================================
+   QR
+============================================================================ */
+
+const PushPrompt = ({ busy, onEnable, onDismiss }) => (
+  <div className="fixed inset-0 z-[120] flex items-end sm:items-center justify-center px-0 sm:px-4">
+    <div
+      className="absolute inset-0 bg-black/90 backdrop-blur-xl"
+      onClick={() => !busy && onDismiss()}
+    />
+    <motion.div
+      initial={{ opacity: 0, y: '8%', scale: 0.98 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: '8%', scale: 0.98 }}
+      transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+      className="relative w-full sm:max-w-md overflow-hidden rounded-t-[30px] sm:rounded-[30px] border border-white/10 bg-[#0b0b0d] shadow-[0_35px_120px_rgba(0,0,0,.65)]"
+    >
+      <div className="h-1 bg-gradient-to-r from-transparent via-salvaGold to-transparent" />
+      <div className="p-5 sm:p-7">
+        <div className="w-12 h-12 rounded-2xl border border-salvaGold/20 bg-salvaGold/10 flex items-center justify-center text-xl text-salvaGold">
+          🔔
+        </div>
+        <p className="mt-4 text-[9px] uppercase tracking-[.35em] text-salvaGold font-black">
+          Stay informed
+        </p>
+        <h3 className="text-xl sm:text-2xl font-black mt-1">Turn on transaction alerts</h3>
+        <p className="text-xs text-white/80 mt-2 leading-6">
+          Get notified when your transfers, swaps and other transactions are confirmed or fail,
+          even when Salva is closed.
+        </p>
+
+        <ul className="mt-4 space-y-2 text-[11px] text-white/80">
+          <li className="flex gap-2">
+            <span className="text-salvaGold">•</span>
+            Instant status updates on every transaction.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-salvaGold">•</span>
+            Know right away if something needs your attention.
+          </li>
+          <li className="flex gap-2">
+            <span className="text-salvaGold">•</span>
+            No marketing messages. You can turn this off in Account Settings.
+          </li>
+        </ul>
+
+        <div className="flex gap-2 mt-6">
+          <button
+            type="button"
+            onClick={onDismiss}
+            disabled={busy}
+            className="flex-1 h-12 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-40"
+          >
+            Not now
+          </button>
+          <button
+            type="button"
+            onClick={onEnable}
+            disabled={busy}
+            className="flex-1 h-12 rounded-2xl bg-salvaGold text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-40 flex items-center justify-center gap-2"
+          >
+            {busy && <Spinner small />}
+            {busy ? 'Enabling…' : 'Enable alerts'}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  </div>
+);
+
+const QRScannerModal = ({ onScan, onClose }) => {
+  const scannerRef = useRef(null);
+  const startedRef = useRef(false);
+
+  useEffect(() => {
     let stopped = false;
 
-    const startScanner = async () => {
+    (async () => {
       try {
-        const { Html5Qrcode } = await import("html5-qrcode");
-        scanner = new Html5Qrcode("qr-scanner-container", { verbose: false });
-        scannerInstanceRef.current = scanner;
+        const { Html5Qrcode } = await import('html5-qrcode');
+
+        const scanner = new Html5Qrcode('salva-qr-scanner', {
+          verbose: false,
+        });
+
+        scannerRef.current = scanner;
 
         await scanner.start(
-          { facingMode: "environment" },
+          { facingMode: 'environment' },
           {
             fps: 15,
-            qrbox: { width: 200, height: 200 },
+            qrbox: { width: 180, height: 180 },
             aspectRatio: 1.333,
-            disableFlip: false,
           },
-          (decodedText) => {
-            if (hasScanned.current || stopped) return;
-            hasScanned.current = true;
+          (text) => {
+            if (stopped) return;
+
             stopped = true;
-            const clean = decodedText
-              .replace(/^ethereum:/i, "")
-              .split("?")[0]
-              .trim();
-            onScan(clean);
+
+            onScan(
+              text
+                .replace(/^ethereum:/i, '')
+                .split('?')[0]
+                .trim()
+            );
           },
-          () => {},
+          () => {}
         );
 
-        isStarted.current = true;
-
-        setTimeout(() => {
-          const video = document.querySelector("#qr-scanner-container video");
-          if (video) {
-            video.style.width = "100%";
-            video.style.height = "100%";
-            video.style.objectFit = "cover";
-            video.style.position = "absolute";
-            video.style.top = "0";
-            video.style.left = "0";
-          }
-          const canvases = document.querySelectorAll(
-            "#qr-scanner-container canvas",
-          );
-          canvases.forEach((c) => {
-            if (!c.id.includes("qr")) c.style.display = "none";
-          });
-          const shadedRegion = document.querySelector("#qr-shaded-region");
-          if (shadedRegion) shadedRegion.style.display = "none";
-        }, 500);
+        startedRef.current = true;
       } catch (err) {
-        console.error("Scanner start error:", err);
+        console.error('Scanner start error:', err);
       }
-    };
-
-    startScanner();
+    })();
 
     return () => {
-      // Only stop if not already stopped by scan callback
-      if (!stopped && scannerInstanceRef.current && isStarted.current) {
-        stopped = true;
-        scannerInstanceRef.current.stop().catch(() => {});
+      stopped = true;
+
+      if (scannerRef.current && startedRef.current) {
+        scannerRef.current.stop().catch(() => {});
       }
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [onScan]);
 
   return (
     <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center px-0 sm:px-4">
-      <motion.div
-        onClick={onClose}
-        className="absolute inset-0 bg-black/95 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-      />
-      <motion.div
-        onClick={(e) => e.stopPropagation()}
-        className="relative bg-zinc-950 border border-white/10 p-6 sm:p-8 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
-        initial={{ y: "100%" }}
-        animate={{ y: 0 }}
-        exit={{ y: "100%" }}
-        transition={{ type: "spring", damping: 25, stiffness: 200 }}
-      >
-        <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-6 sm:hidden" />
+      <div className="absolute inset-0 bg-black/95 backdrop-blur-md" onClick={onClose} />
 
-        <div className="text-center mb-5">
-          <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold/50 font-black mb-1">
+      <motion.div
+        className="
+          relative w-full max-w-sm
+          bg-zinc-950 border border-white/10
+          p-4 sm:p-8
+          rounded-t-[2rem] sm:rounded-3xl
+        "
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{
+          type: 'spring',
+          damping: 25,
+          stiffness: 200,
+        }}
+      >
+        <div className="w-8 h-1 bg-white/10 rounded-full mx-auto mb-5 sm:hidden" />
+
+        <div className="text-center mb-4 sm:mb-5">
+          <p className="text-[8px] sm:text-[9px] uppercase tracking-[.4em] text-salvaGold/70 font-black mb-1">
             Scan to Pay
           </p>
-          <h3 className="text-xl font-black text-white">Scan Wallet QR</h3>
-          <p className="text-xs text-white/60 mt-1">
+
+          <h3 className="text-lg sm:text-xl font-black">Scan Wallet QR</h3>
+
+          <p className="text-[10px] sm:text-xs text-white/80 mt-1">
             Hold the QR code steady in front of the camera
           </p>
         </div>
 
-        <div
-          className="relative rounded-2xl overflow-hidden mb-5 border border-white/10 bg-black"
-          style={{ height: "260px" }}
-        >
-          <div
-            id="qr-scanner-container"
-            style={{
-              width: "100%",
-              height: "100%",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          />
-          <div className="absolute inset-0 pointer-events-none z-10">
-            <div className="absolute top-4 left-4 w-8 h-8 border-t-2 border-l-2 border-salvaGold rounded-tl-lg" />
-            <div className="absolute top-4 right-4 w-8 h-8 border-t-2 border-r-2 border-salvaGold rounded-tr-lg" />
-            <div className="absolute bottom-4 left-4 w-8 h-8 border-b-2 border-l-2 border-salvaGold rounded-bl-lg" />
-            <div className="absolute bottom-4 right-4 w-8 h-8 border-b-2 border-r-2 border-salvaGold rounded-br-lg" />
-          </div>
-          <motion.div
-            className="absolute left-4 right-4 h-0.5 bg-salvaGold/60 z-10 pointer-events-none"
-            style={{ boxShadow: "0 0 8px #D4AF37" }}
-            animate={{ top: ["20%", "80%", "20%"] }}
-            transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          />
+        <div className="relative h-[230px] sm:h-[260px] rounded-2xl overflow-hidden border border-white/10 bg-black mb-4">
+          <div id="salva-qr-scanner" className="absolute inset-0" />
         </div>
 
-        <p className="text-[10px] text-white/60 text-center mb-4 font-bold">
-          💡 Keep the QR 15–30cm from camera · good lighting helps
+        <p className="text-[9px] sm:text-[10px] text-white/70 text-center mb-4 font-bold">
+          Keep the QR 15–30cm from camera
         </p>
 
         <button
           onClick={onClose}
-          className="w-full py-3.5 rounded-2xl border border-white/10 font-bold text-white/60 hover:text-white hover:border-white/20 transition-all text-sm uppercase tracking-widest"
+          className="w-full py-3 rounded-xl sm:rounded-2xl border border-white/10 font-bold text-white/80 text-xs uppercase tracking-widest"
         >
           Cancel
         </button>
@@ -201,1518 +503,306 @@ const QRScannerModal = ({ onScan, onClose }) => {
   );
 };
 
-// ── Balance Spinner ────────────────────────────────────────────────────────
-const BalanceSpinner = () => (
-  <span className="inline-flex items-center gap-1.5">
-    <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin inline-block flex-shrink-0" />
-    <span className="text-sm opacity-30 font-bold">—</span>
-  </span>
-);
-// ── Split Balance Display ──────────────────────────────────────────────────
-// Shows 2 decimal places for both NGN and USD.
-// If balance is 0 → "0.00"
-// If balance is > 0 but < 0.01 → "<0.01" (Metamask-style)
-// If balance >= 0.01 → normal 2-decimal display
-const SplitBalance = ({ value, isusd = false, inline = false }) => {
-  const num = Number(value || 0);
-  if (!Number.isFinite(num)) {
-    return inline ? <span>0.00</span> : <span>0.00</span>;
-  }
+/* ============================================================================
+   ASSET LOGO
+============================================================================ */
 
-  // Sub-threshold: greater than zero but rounds to 0.00
-  if (num > 0 && num < 0.01) {
-    const tag = <span style={{ opacity: inline ? 0.8 : 1 }}>&lt;0.01</span>;
-    return tag;
-  }
-
-  // Zero
-  if (num === 0) {
-    return <span>0.00</span>;
-  }
-
-  // Normal display — always 2 decimals, TRUNCATED not rounded
-  // Math.floor(num * 100) / 100 truncates instead of rounding
-  // e.g. 22.997914 → 22.99 (not 23.00)
-  const truncated = Math.floor(num * 100) / 100;
-  const fixed = truncated.toFixed(2);
-  const [intPart, decPart] = fixed.split(".");
-  const formattedInt = Number(intPart).toLocaleString("en-US");
-
-  return (
-    <span>
-      {formattedInt}.
-      <span style={{ opacity: inline ? 0.6 : 1 }}>{decPart}</span>
-    </span>
-  );
+const CHAIN_BADGE_COLORS = {
+  base: '#0052FF',
+  bnb: '#F0B90B',
 };
 
-// ── Searchable Registry Dropdown ───────────────────────────────────────────
-const RegistryDropdown = ({
-  registries,
-  value,
-  onChange,
-  placeholder = "Search wallet service…",
-  className = "",
-}) => {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const containerRef = useRef(null);
-  const inputRef = useRef(null);
+const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = false }) => {
+  const chain = (asset?.chain || '').toLowerCase();
 
-  const filtered = registries.filter(
-    (r) =>
-      r.name.toLowerCase().includes(query.toLowerCase()) ||
-      (r.nspace || "").toLowerCase().includes(query.toLowerCase()) ||
-      (r.description || "").toLowerCase().includes(query.toLowerCase()),
-  );
+  const badgeColor = CHAIN_BADGE_COLORS[chain] || '#6B7280';
+
+  const [attempt, setAttempt] = useState(0);
+  const [broken, setBroken] = useState(false);
 
   useEffect(() => {
-    const handler = (e) => {
-      if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setOpen(false);
-        setQuery("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
+    setAttempt(0);
+    setBroken(false);
+  }, [asset?.logo]);
 
-  const handleOpen = () => {
-    setOpen(true);
-    setQuery("");
-    setTimeout(() => inputRef.current?.focus(), 50);
-  };
-  const handleSelect = (reg) => {
-    onChange(reg);
-    setOpen(false);
-    setQuery("");
-  };
-  const handleClear = (e) => {
-    e.stopPropagation();
-    onChange(null);
-    setQuery("");
-  };
+  useEffect(() => {
+    if (!broken || attempt >= 2) return undefined;
+
+    const t = setTimeout(() => {
+      setAttempt((a) => a + 1);
+      setBroken(false);
+    }, 1000 * (attempt + 1));
+
+    return () => clearTimeout(t);
+  }, [broken, attempt]);
+
+  const showImg = Boolean(asset?.logo) && !broken;
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={value ? undefined : handleOpen}
-        onKeyDown={(e) => {
-          if (!value && (e.key === "Enter" || e.key === " ")) handleOpen();
-        }}
-        className={`w-full flex items-center justify-between gap-3 px-4 py-3.5 rounded-xl border transition-all text-left cursor-pointer
-          ${
-            open
-              ? "border-salvaGold bg-salvaGold/5 ring-1 ring-salvaGold/30"
-              : value
-                ? "border-salvaGold/40 bg-salvaGold/5"
-                : "border-white/10 bg-white/5 hover:border-salvaGold/40"
-          }`}
-      >
-        {value ? (
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-lg bg-salvaGold/20 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-xs font-black">
-                {value.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="min-w-0">
-              <p className="font-black text-sm truncate text-white">
-                {value.name}
-              </p>
-              <p className="text-[10px] opacity-40 font-mono truncate">
-                {value.nspace}
-              </p>
-            </div>
-          </div>
+    <div className={`relative ${size} flex-shrink-0`}>
+      <div className="w-full h-full rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center overflow-hidden">
+        {showImg ? (
+          <img
+            key={attempt}
+            src={asset.logo}
+            alt={asset.symbol}
+            referrerPolicy="no-referrer"
+            className="w-full h-full object-cover"
+            style={
+              asset.symbol === 'NGNS'
+                ? {
+                    objectPosition: '48% 60%',
+                    transform: 'scale(2)',
+                  }
+                : undefined
+            }
+            onError={() => setBroken(true)}
+          />
         ) : (
-          <div className="flex items-center gap-2 opacity-40">
-            <svg
-              className="w-4 h-4 flex-shrink-0"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <circle cx="11" cy="11" r="8" strokeWidth="2" />
-              <path
-                d="m21 21-4.35-4.35"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-            </svg>
-            <span className="text-sm font-bold">{placeholder}</span>
-          </div>
+          <span className="font-black text-[10px] sm:text-xs text-salvaGold">
+            {asset?.symbol?.slice(0, 3)}
+          </span>
         )}
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {value && (
-            <button
-              type="button"
-              onClick={handleClear}
-              className="w-5 h-5 rounded-full bg-white/10 hover:bg-red-500/20 flex items-center justify-center transition-colors"
-            >
-              <span className="text-[10px] text-red-400 font-black leading-none">
-                ✕
-              </span>
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={open ? () => setOpen(false) : handleOpen}
-            className="w-5 h-5 flex items-center justify-center"
-          >
-            <svg
-              className={`w-3 h-3 opacity-40 transition-transform ${open ? "rotate-180" : ""}`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={3}
-                d="M19 9l-7 7-7-7"
-              />
-            </svg>
-          </button>
-        </div>
       </div>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-[200] bottom-full mb-2 w-full bg-zinc-900 border border-white/10 rounded-2xl shadow-2xl shadow-black/60 overflow-hidden"
-          >
-            <div className="p-3 border-b border-white/5">
-              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5">
-                <svg
-                  className="w-3.5 h-3.5 opacity-40 flex-shrink-0"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <circle cx="11" cy="11" r="8" strokeWidth="2.5" />
-                  <path
-                    d="m21 21-4.35-4.35"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                  />
-                </svg>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Type to search…"
-                  className="flex-1 bg-transparent outline-none text-xs font-bold placeholder:opacity-30 text-white"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    className="opacity-40 hover:opacity-80"
-                  >
-                    <span className="text-[10px]">✕</span>
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="max-h-56 overflow-y-auto">
-              {filtered.length === 0 ? (
-                <div className="px-4 py-6 text-center">
-                  <p className="text-xs opacity-40 font-bold">
-                    No wallet services found
-                  </p>
-                </div>
-              ) : (
-                filtered.map((reg) => (
-                  <button
-                    key={reg.registryAddress}
-                    type="button"
-                    onClick={() => handleSelect(reg)}
-                    className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-salvaGold/5 transition-colors text-left ${value?.registryAddress === reg.registryAddress ? "bg-salvaGold/10" : ""}`}
-                  >
-                    <div className="w-9 h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/20 flex items-center justify-center flex-shrink-0">
-                      <span className="text-salvaGold text-sm font-black">
-                        {reg.name.charAt(0).toUpperCase()}
-                      </span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-black text-sm text-white">
-                        {reg.name}
-                      </p>
-                      <p className="text-[10px] font-mono opacity-40">
-                        {reg.nspace}
-                      </p>
-                      {reg.description && (
-                        <p className="text-[10px] opacity-30 truncate">
-                          {reg.description}
-                        </p>
-                      )}
-                    </div>
-                    {value?.registryAddress === reg.registryAddress && (
-                      <span className="text-salvaGold text-sm">✓</span>
-                    )}
-                  </button>
-                ))
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+      {showChainBadge && chain && (
+        <span
+          className="
+            absolute -bottom-0.5 -right-0.5
+            w-3.5 h-3.5 sm:w-4 sm:h-4
+            rounded-full
+            border-2 border-[#0A0A0B]
+            flex items-center justify-center
+            text-[6px] sm:text-[7px]
+            font-black text-white
+          "
+          style={{ background: badgeColor }}
+        >
+          {chain[0].toUpperCase()}
+        </span>
+      )}
     </div>
   );
 };
 
-// ── Notification ───────────────────────────────────────────────────────────
-const SalvaNotification = ({ notification, onClose }) => {
-  const cfgMap = {
-    success: {
-      icon: "✓",
-      accent: "#D4AF37",
-      iconBg: "rgba(212,175,55,0.15)",
-      iconBorder: "rgba(212,175,55,0.35)",
-      iconColor: "#D4AF37",
-      btnBg: "#D4AF37",
-      btnText: "#000",
-      glow: "rgba(212,175,55,0.12)",
-      label: "Success",
-    },
-    error: {
-      icon: "✕",
-      accent: "#EF4444",
-      iconBg: "rgba(239,68,68,0.12)",
-      iconBorder: "rgba(239,68,68,0.30)",
-      iconColor: "#EF4444",
-      btnBg: "#EF4444",
-      btnText: "#fff",
-      glow: "rgba(239,68,68,0.10)",
-      label: "Error",
-    },
-    info: {
-      icon: "ℹ",
-      accent: "#3B82F6",
-      iconBg: "rgba(59,130,246,0.12)",
-      iconBorder: "rgba(59,130,246,0.30)",
-      iconColor: "#3B82F6",
-      btnBg: "rgba(59,130,246,0.20)",
-      btnText: "#93c5fd",
-      glow: "rgba(59,130,246,0.08)",
-      label: "Info",
-    },
-    warning: {
-      icon: "⚠",
-      accent: "#F59E0B",
-      iconBg: "rgba(245,158,11,0.12)",
-      iconBorder: "rgba(245,158,11,0.30)",
-      iconColor: "#F59E0B",
-      btnBg: "#F59E0B",
-      btnText: "#000",
-      glow: "rgba(245,158,11,0.08)",
-      label: "Warning",
-    },
-  };
-  const cfg = cfgMap[notification.type] || cfgMap.info;
-  if (!notification.show) return null;
-  return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
+/* ============================================================================
+   ASSET DETAILS
+============================================================================ */
+
+export const AssetDetailsModal = ({
+  asset,
+  onClose,
+  showBalance,
+  onSend,
+  onReceive,
+  user,
+  showMsg,
+  onSantClaimed,
+}) =>
+  asset && (
+    <div className="fixed inset-0 z-[50] flex items-end sm:items-center justify-center px-0 sm:px-4">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-md" onClick={onClose} />
+
       <motion.div
-        className="absolute inset-0 bg-black/80 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-      />
-      <motion.div
-        className="relative w-full max-w-xs overflow-hidden"
-        style={{
-          borderRadius: "28px",
-          background:
-            "linear-gradient(145deg, rgba(28,28,30,0.98), rgba(18,18,20,0.99))",
-          border: `1px solid rgba(255,255,255,0.07)`,
-          boxShadow: `0 32px 64px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04), inset 0 1px 0 rgba(255,255,255,0.06)`,
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{
+          type: 'spring',
+          damping: 28,
+          stiffness: 220,
         }}
-        initial={{ opacity: 0, scale: 0.88, y: 24 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.88, y: 24 }}
-        transition={{ type: "spring", stiffness: 420, damping: 30 }}
-        onClick={(e) => e.stopPropagation()}
+        className="
+          relative w-full sm:max-w-md
+          rounded-t-[1.5rem] sm:rounded-3xl
+          bg-zinc-950 border border-white/10
+          p-4 sm:p-7
+          shadow-2xl
+          max-h-[88vh] overflow-y-auto
+        "
       >
-        {/* Top accent line */}
-        <div
-          style={{
-            height: 2,
-            background: `linear-gradient(90deg, transparent, ${cfg.accent}, transparent)`,
-          }}
-        />
+        <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
 
-        {/* Glow blob behind icon */}
-        <div
-          className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-32 rounded-full pointer-events-none"
-          style={{ background: cfg.glow, filter: "blur(32px)", top: "-16px" }}
-        />
+        <div className="flex items-center justify-between mb-5 sm:mb-6">
+          <button onClick={onClose} className="text-white/75 hover:text-white text-lg">
+            ‹
+          </button>
 
-        <div className="relative px-7 pt-8 pb-7 text-center">
-          {/* Type label */}
-          <p
-            className="text-[9px] uppercase tracking-[0.45em] font-black mb-4 opacity-60"
-            style={{ color: cfg.accent }}
-          >
-            {cfg.label}
+          <p className="text-[8px] sm:text-[9px] uppercase tracking-[.3em] text-white/70 font-black">
+            Token
           </p>
 
-          {/* Icon */}
-          <motion.div
-            initial={{ scale: 0, rotate: -10 }}
-            animate={{ scale: 1, rotate: 0 }}
-            transition={{
-              type: "spring",
-              stiffness: 500,
-              damping: 22,
-              delay: 0.06,
-            }}
-            className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{
-              background: cfg.iconBg,
-              border: `1.5px solid ${cfg.iconBorder}`,
-              boxShadow: `0 8px 24px ${cfg.glow}`,
-            }}
+          <span className="w-5" />
+        </div>
+
+        <div className="flex flex-col items-center text-center mb-6 sm:mb-7">
+          <AssetLogo asset={asset} size="w-14 h-14 sm:w-16 sm:h-16" showChainBadge />
+
+          <h3 className="font-black text-lg sm:text-xl mt-3">{asset.symbol}</h3>
+
+          <p className="text-[9px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+            {asset.chain || 'Unknown chain'}
+          </p>
+
+          <p className="font-black text-2xl sm:text-3xl mt-3">
+            {showBalance ? formatNumber(asset.balance, { maxDecimals: 8 }) : '••••'}
+          </p>
+
+          <p className="text-[10px] sm:text-[11px] text-white/75 mt-1">{asset.symbol}</p>
+
+          <AssetValueLine
+            asset={asset}
+            className="text-[10px] sm:text-[11px] text-white/75 font-bold mt-1.5"
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-2 mb-6 sm:mb-7">
+          <button
+            onClick={onSend}
+            className="
+              flex flex-col items-center gap-1
+              py-3 sm:py-3.5
+              rounded-xl sm:rounded-2xl
+              bg-salvaGold text-black
+              font-black text-[9px] sm:text-[10px]
+              uppercase tracking-widest
+            "
           >
-            <span
-              className="text-2xl font-black leading-none"
-              style={{ color: cfg.iconColor }}
+            <span className="text-sm sm:text-base leading-none">↑</span>
+            Send
+          </button>
+
+          <button
+            onClick={onReceive}
+            className="
+              flex flex-col items-center gap-1
+              py-3 sm:py-3.5
+              rounded-xl sm:rounded-2xl
+              border border-white/10
+              font-bold text-[9px] sm:text-[10px]
+              uppercase tracking-widest text-white
+            "
+          >
+            <span className="text-sm sm:text-base leading-none">↓</span>
+            Receive
+          </button>
+        </div>
+
+        {asset.isSant && (
+          <SantTab
+            user={user}
+            showMsg={showMsg}
+            santPoints={user?.santPoints ?? 0}
+            onClaimed={onSantClaimed}
+          />
+        )}
+
+        <p className="text-[8px] sm:text-[9px] uppercase tracking-[.25em] text-white/70 font-black mb-2.5">
+          Token details
+        </p>
+
+        <div className="space-y-1.5 sm:space-y-2">
+          {[
+            ['Decimals', asset.decimals],
+            ['Contract', asset.contractAddress],
+            ['Chainlink Price Feed', asset.chainlinkFeedAddress],
+          ].map(([label, value]) => (
+            <div
+              key={label}
+              className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/[0.03] border border-white/[0.06]"
             >
-              {cfg.icon}
-            </span>
-          </motion.div>
+              <p className="text-[7px] sm:text-[8px] uppercase tracking-[.25em] text-white/65 font-black mb-1">
+                {label}
+              </p>
 
-          {/* Message */}
-          <motion.p
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="font-black text-sm leading-relaxed mb-6 text-white/90"
-          >
-            {notification.message}
-          </motion.p>
-
-          {/* Button */}
-          <motion.button
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.14 }}
-            onClick={onClose}
-            className="w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-[0.97] hover:brightness-110"
-            style={{
-              background: cfg.btnBg,
-              color: cfg.btnText,
-              boxShadow: `0 4px 16px ${cfg.glow}`,
-            }}
-          >
-            Got it
-          </motion.button>
+              <p
+                className={`text-[10px] sm:text-xs font-bold break-all ${
+                  label === 'Contract' || label.includes('URL') || label.includes('Feed')
+                    ? 'font-mono text-white/85'
+                    : 'text-white/90'
+                }`}
+              >
+                {value || '—'}
+              </p>
+            </div>
+          ))}
         </div>
       </motion.div>
     </div>
   );
-};
 
-// ── Dual Balance Card ─────────────────────────────────────────────────────────
-const BalanceCard = ({
-  ngnsBalance,
-  cNgnBalance,
-  usdtBalance,
-  usdcBalance,
-  showBalance,
-  balanceLoading,
-  onToggleVisibility,
-  onSend,
-  onReceive,
-  onRefresh,
-  refreshing,
-}) => {
-  const totalNgn = addDecimals(ngnsBalance, cNgnBalance);
-  const totalUsd = addDecimals(usdtBalance, usdcBalance);
-  const MASK = "••••••";
+/* ============================================================================
+   REWARDS
+============================================================================ */
 
-  return (
-    <div className="rounded-2xl sm:rounded-3xl overflow-hidden border border-white/[0.07] bg-white/[0.03] shadow-2xl mb-2.5 sm:mb-5">
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-
-      {/* NGN — TOP */}
-      <div className="px-3 sm:px-7 pt-2 sm:pt-7 pb-2 sm:pb-4 border-b border-white/[0.06]">
-        <div className="flex items-center justify-between mb-1 sm:mb-3">
-          <div className="flex items-center gap-1">
-            <motion.span
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ repeat: Infinity, duration: 2.5 }}
-              className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-salvaGold block"
-            />
-            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-              NGN
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5 sm:gap-3.5">
-            <button
-              onClick={onRefresh}
-              disabled={refreshing}
-              aria-label="Refresh balance"
-              className="text-white/60 hover:text-salvaGold transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg
-                className={`w-3 h-3 sm:w-3.5 sm:h-3.5 ${refreshing ? "animate-spin" : ""}`}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2.4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M21 12a9 9 0 1 1-2.64-6.36" />
-                <polyline points="21 3 21 9 15 9" />
-              </svg>
-            </button>
-            <button
-              onClick={onToggleVisibility}
-              className="text-white/60 hover:text-white/70 transition-colors text-xs sm:text-sm leading-none"
-            >
-              {showBalance ? "👁" : "👁‍🗨"}
-            </button>
-          </div>
-        </div>
-
-        <div className="min-h-[36px] sm:min-h-[44px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
-          {balanceLoading ? (
-            <BalanceSpinner />
-          ) : (
-            <span
-              className="font-black text-white tracking-tight break-all leading-none"
-              style={{
-                fontSize: "clamp(0.95rem, 4.5vw, 1.875rem)",
-              }}
-            >
-              {showBalance ? <SplitBalance value={totalNgn} /> : MASK}
-            </span>
-          )}
-        </div>
-
-        {!balanceLoading && (
-          <div className="text-[10px] text-white/60 font-mono mt-1 sm:mt-2 truncate">
-            {showBalance ? (
-              <>
-                <SplitBalance value={ngnsBalance} inline />{" "}
-                <span className="opacity-60">NGNs</span> ·{" "}
-                <SplitBalance value={cNgnBalance} inline />{" "}
-                <span className="opacity-60">cNGN</span>
-              </>
-            ) : (
-              "•••• NGNs · •••• cNGN"
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* USD — BOTTOM */}
-      <div className="px-3 sm:px-7 pt-2 sm:pt-4 pb-2 sm:pb-6">
-        <div className="flex items-center gap-1 mb-1 sm:mb-3">
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ repeat: Infinity, duration: 2.5, delay: 0.8 }}
-            className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-green-400 block"
-          />
-          <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.35em] text-white/60 font-black">
-            USD
-          </p>
-        </div>
-
-        <div className="min-h-[28px] sm:min-h-[36px] flex items-baseline gap-1.5 flex-wrap overflow-hidden">
-          {balanceLoading ? (
-            <BalanceSpinner />
-          ) : (
-            <span
-              className="font-black text-white tracking-tight break-all leading-none"
-              style={{
-                fontSize: "clamp(0.85rem, 4vw, 1.5rem)",
-              }}
-            >
-              {showBalance ? <SplitBalance value={totalUsd} isusd /> : MASK}
-            </span>
-          )}
-        </div>
-
-        {!balanceLoading && (
-          <div className="text-[10px] text-white/60 font-mono mt-1 sm:mt-2 truncate">
-            {showBalance ? (
-              <>
-                <SplitBalance value={usdtBalance} inline />{" "}
-                <span className="opacity-60">USDT</span> ·{" "}
-                <SplitBalance value={usdcBalance} inline />{" "}
-                <span className="opacity-60">USDC</span>
-              </>
-            ) : (
-              "•••• USDT · •••• USDC"
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Action buttons */}
-      <div className="grid grid-cols-2 gap-1.5 sm:gap-3 px-3 sm:px-7 pb-3 sm:pb-7">
-        <button
-          onClick={onSend}
-          className="bg-salvaGold hover:brightness-110 active:scale-[0.98] transition-all text-black font-black py-1.5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest shadow-lg shadow-salvaGold/20 flex items-center justify-center gap-1.5 sm:gap-2"
-        >
-          <span className="text-sm sm:text-base leading-none">↑</span> Send
-        </button>
-        <button
-          onClick={onReceive}
-          className="border border-white/10 hover:border-salvaGold/40 hover:bg-white/5 active:scale-[0.98] transition-all font-bold py-1.5 sm:py-2.5 rounded-xl text-[10px] sm:text-xs uppercase tracking-widest flex items-center justify-center gap-1.5 sm:gap-2"
-        >
-          <span className="text-sm sm:text-base leading-none">↓</span> Receive
-        </button>
-      </div>
-    </div>
-  );
-};
-
-// ── Link a Name Tab ────────────────────────────────────────────────────────
-// ── Link a Name Tab ────────────────────────────────────────────────────────
-const LinkNameTab = ({ user, registries, showMsg, onSwitchToBuy }) => {
-  const [linkedNames, setLinkedNames] = useState([]);
-  const [loadingNames, setLoadingNames] = useState(true);
-  const [nameInput, setNameInput] = useState("");
-  const [walletInput, setWalletInput] = useState(() => {
-    const pre = window.__salva_pool_prefill || "";
-    window.__salva_pool_prefill = null;
-    return pre;
-  });
-  const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [nameCheckResult, setNameCheckResult] = useState(null);
-  const [checking, setChecking] = useState(false);
-  const [nameError, setNameError] = useState("");
-  const [linkStep, setLinkStep] = useState("form");
-  const [pinInput, setPinInput] = useState("");
-  const [pinLoading, setPinLoading] = useState(false);
-  const [unlinkTarget, setUnlinkTarget] = useState(null);
-  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
-  const [unlinkPinInput, setUnlinkPinInput] = useState("");
-  const [unlinkPinStep, setUnlinkPinStep] = useState(false);
-  const [unlinkLoading, setUnlinkLoading] = useState(false);
-  const [linkFee, setLinkFee] = useState(null);
-  const [feeLoading, setFeeLoading] = useState(false);
-
-  const fetchLinkedNames = useCallback(async () => {
-    if (!user?.email) return;
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/record/${encodeURIComponent(user.email)}`,
-      );
-      const data = await res.json();
-      setLinkedNames(data.data || []);
-    } catch {
-      setLinkedNames([]);
-    } finally {
-      setLoadingNames(false);
-    }
-  }, [user?.email]);
-
-  useEffect(() => {
-    fetchLinkedNames();
-  }, [fetchLinkedNames]);
-
-  const validateNameLocally = (val) => {
-    if (!val) return "Name is required";
-    if (val.includes("0") || val.includes("1"))
-      return "Digits 0 and 1 are not allowed";
-    if (!/^[a-z2-9.]+$/.test(val))
-      return "Only lowercase a–z, digits 2–9, one dot";
-    if ((val.match(/\./g) || []).length > 1) return "Only one dot allowed";
-    if (val.startsWith(".") || val.endsWith("."))
-      return "Cannot start or end with a dot";
-    if (val.length > 32) return "Max 32 characters";
-    if (val.length < 2) return "At least 2 characters required";
-    return "";
-  };
-
-  const selectRegistry = async (reg) => {
-    if (!reg) {
-      setSelectedRegistry(null);
-      return;
-    }
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/registry/findByName/${encodeURIComponent(reg.name)}`,
-      );
-      const data = await res.json();
-      setSelectedRegistry(res.ok ? data : reg);
-    } catch {
-      setSelectedRegistry(reg);
-    }
-    setNameError("");
-  };
-
-  const handleCheckName = async () => {
-    const err = validateNameLocally(nameInput);
-    if (err) {
-      setNameError(err);
-      return;
-    }
-    if (
-      !walletInput ||
-      !walletInput.startsWith("0x") ||
-      walletInput.length !== 42
-    ) {
-      setNameError("Enter a valid 0x wallet address to link to");
-      return;
-    }
-    if (!selectedRegistry) {
-      setNameError("Select which wallet service this name belongs to");
-      return;
-    }
-    setNameError("");
-    setChecking(true);
-    setNameCheckResult(null);
-    setLinkFee(null);
-    try {
-      const welded = `${nameInput}${selectedRegistry.nspace}`;
-      const isAvailRes = await fetch(
-        `${SALVA_API_URL}/api/name/isAvail/${welded}/${selectedRegistry.registryAddress}`,
-      );
-      const isAvailData = await isAvailRes.json();
-      if (isAvailData.status === false && isAvailData.supportEmail) {
-        setNameCheckResult({
-          welded,
-          reservedMessage: isAvailData.message || "This name is reserved.",
-          supportEmail: isAvailData.supportEmail,
-        });
-        setLinkStep("reserved");
-        return;
-      }
-      if (isAvailData.status) {
-        setNameError("This name is already taken. Try another.");
-        return;
-      }
-      setNameCheckResult({ welded });
-      setFeeLoading(true);
-      try {
-        const feeRes = await fetch(`${SALVA_API_URL}/api/user/linkFee`);
-        const feeData = await feeRes.json();
-        console.log(feeData.data);
-        setLinkFee(feeRes.ok && feeData.status ? feeData.data : "0");
-      } catch {
-        setLinkFee("0");
-      } finally {
-        setFeeLoading(false);
-      }
-      setLinkStep("confirm");
-    } catch {
-      setNameError("Network error. Please try again.");
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  const handleExecuteLink = async () => {
-    if (pinInput.length !== 4) return;
-    setPinLoading(true);
-    try {
-      const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          pin: pinInput,
-        }),
-      });
-      const pinData = await pinRes.json();
-      if (!pinRes.ok || !pinData.success) {
-        showMsg(pinData.message || "Invalid PIN", "error");
-        setPinLoading(false);
-        return;
-      }
-      setLinkStep("linking");
-      const linkRes = await fetch(`${SALVA_API_URL}/api/user/link`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          safeAddress: user.safeAddress,
-          privateKey: pinData.privateKey,
-          name: nameInput,
-          address: walletInput,
-          registry: selectedRegistry.registryAddress,
-        }),
-      });
-      const linkData = await linkRes.json();
-      if (!linkRes.ok || !linkData.status) {
-        showMsg("Linking failed", "error");
-        setLinkStep("confirm");
-        return;
-      }
-      setLinkStep("success");
-      await fetchLinkedNames();
-    } catch (err) {
-      showMsg(err.message || "Failed to link name", "error");
-      setLinkStep("confirm");
-    } finally {
-      setPinLoading(false);
-    }
-  };
-
-  const handleExecuteUnlink = async () => {
-    if (unlinkPinInput.length !== 4 || !unlinkTarget) return;
-    setUnlinkLoading(true);
-    try {
-      const pinRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          pin: unlinkPinInput,
-        }),
-      });
-      const pinData = await pinRes.json();
-      if (!pinRes.ok || !pinData.success) {
-        showMsg(pinData.message || "Invalid PIN", "error");
-        setUnlinkLoading(false);
-        return;
-      }
-      const recordRes = await fetch(
-        `${SALVA_API_URL}/api/user/record/${encodeURIComponent(user.email)}?fullName=${encodeURIComponent(unlinkTarget.name)}`,
-      );
-      const recordData = await recordRes.json();
-      if (
-        !recordRes.ok ||
-        !recordData.status ||
-        !recordData.data?.registryAddress
-      ) {
-        showMsg("Could not find that linked name. Try again.", "error");
-        setUnlinkLoading(false);
-        return;
-      }
-      const res = await fetch(`${SALVA_API_URL}/api/user/unlink`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          safeAddress: user.safeAddress,
-          fullName: unlinkTarget.name,
-          privateKey: pinData.privateKey,
-          registry: recordData.data.registryAddress,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.status) {
-        showMsg(`"${unlinkTarget.name}" unlinked successfully!`);
-        setUnlinkPinStep(false);
-        setUnlinkTarget(null);
-        await fetchLinkedNames();
-      } else {
-        showMsg("Unlink failed", "error");
-      }
-    } catch {
-      showMsg("Network error during unlink", "error");
-    } finally {
-      setUnlinkLoading(false);
-    }
-  };
-
-  const resetLinkForm = () => {
-    setLinkStep("form");
-    setNameInput("");
-    setWalletInput("");
-    setNameError("");
-    setNameCheckResult(null);
-    setPinInput("");
-    setSelectedRegistry(null);
-    setLinkFee(null);
-  };
-
-  const feeActive = linkFee !== null && Number(linkFee) > 0;
-  const darkInput =
-    "w-full p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-xs sm:text-sm text-white placeholder:text-white/60 transition-all";
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-4 sm:space-y-6"
-    >
-      {/* ── Linked Names ── */}
-      <div>
-        <div className="flex items-center justify-between mb-2.5 sm:mb-4">
-          <p className="text-[7px] sm:text-[10px] uppercase tracking-[0.3em] font-black text-white/60">
-            Your Linked Names
-          </p>
-          <button
-            onClick={fetchLinkedNames}
-            className="text-[7px] sm:text-[10px] uppercase font-black text-salvaGold/60 hover:text-salvaGold transition-colors"
-          >
-            Refresh
-          </button>
-        </div>
-
-        {loadingNames ? (
-          <div className="flex justify-center py-7 sm:py-10">
-            <div className="w-5 h-5 sm:w-7 sm:h-7 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-          </div>
-        ) : linkedNames.length === 0 ? (
-          <div className="relative overflow-hidden p-4 sm:p-6 rounded-2xl border border-dashed border-white/[0.08] bg-white/[0.02] text-center">
-            <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-2xl bg-salvaGold/10 border border-salvaGold/20 flex items-center justify-center mx-auto mb-2 sm:mb-3">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.75}
-                className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-salvaGold/60"
-              >
-                <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
-                <circle
-                  cx="8.5"
-                  cy="8.5"
-                  r="1.5"
-                  fill="currentColor"
-                  stroke="none"
-                />
-              </svg>
-            </div>
-            <p className="text-[10px] sm:text-sm font-black text-white/60">
-              No names linked yet
-            </p>
-            <p className="text-[7px] sm:text-[10px] text-white/60 mt-0.5 sm:mt-1">
-              Register a name below to get started
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-1.5 sm:space-y-2">
-            {linkedNames.map((alias, i) => (
-              <motion.div
-                key={alias.name + i}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="flex items-center justify-between gap-2.5 sm:gap-4 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/25 hover:bg-salvaGold/[0.03] transition-all"
-              >
-                <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                  <div className="w-6 h-6 sm:w-9 sm:h-9 rounded-xl bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-                    <span className="text-salvaGold text-[9px] sm:text-xs font-black">
-                      {alias.name.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p
-                      className="font-black text-salvaGold text-[10px] sm:text-sm truncate cursor-pointer hover:opacity-80 transition-opacity"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.name);
-                        showMsg("Name copied!");
-                      }}
-                      title="Click to copy"
-                    >
-                      {alias.name}
-                    </p>
-                    <p
-                      className="font-mono text-[7px] sm:text-[10px] text-white/60 truncate mt-0.5 cursor-pointer hover:text-white/50 transition-colors"
-                      onClick={() => {
-                        navigator.clipboard.writeText(alias.wallet);
-                        showMsg("Wallet address copied!");
-                      }}
-                      title="Click to copy wallet"
-                    >
-                      {alias.wallet.slice(0, 10)}…{alias.wallet.slice(-8)}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
-                    setUnlinkTarget(alias);
-                    setShowUnlinkConfirm(true);
-                    setUnlinkPinInput("");
-                    setUnlinkPinStep(false);
-                  }}
-                  className="flex-shrink-0 px-2 py-1 sm:px-3 sm:py-1.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-black text-[7px] sm:text-[10px] uppercase hover:bg-red-500 hover:text-white hover:border-red-500 transition-all"
-                >
-                  Unlink
-                </button>
-              </motion.div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Divider ── */}
-      <div className="relative flex items-center">
-        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-        <span className="mx-2.5 sm:mx-3 text-[7px] sm:text-[9px] uppercase tracking-[0.3em] font-black text-white/60">
-          Register New
-        </span>
-        <div className="flex-1 h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
-      </div>
-
-      {/* ── FORM ── */}
-      {linkStep === "form" && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-2.5 sm:space-y-4"
-        >
-          {/* Name input */}
-          <div>
-            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
-              Name
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="yourname"
-                value={nameInput}
-                onChange={(e) => {
-                  let cleaned = e.target.value
-                    .toLowerCase()
-                    .replace(/[^a-z2-9.]/g, "");
-                  // Allow only one dot
-                  const firstDot = cleaned.indexOf(".");
-                  if (firstDot !== -1) {
-                    cleaned =
-                      cleaned.slice(0, firstDot + 1) +
-                      cleaned.slice(firstDot + 1).replace(/\./g, "");
-                  }
-                  setNameInput(cleaned);
-                  setNameError("");
-                }}
-                maxLength={32}
-                className={darkInput}
-              />
-              {nameInput && selectedRegistry && (
-                <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
-                  <span className="text-salvaGold/50 text-[7px] sm:text-[10px] font-black">
-                    {selectedRegistry.nspace}
-                  </span>
-                </div>
-              )}
-            </div>
-            {nameInput && (
-              <div className="mt-1.5 sm:mt-2 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-salvaGold/5 border border-salvaGold/15 flex items-center gap-1.5 sm:gap-2">
-                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-salvaGold block flex-shrink-0" />
-                <p className="text-[7px] sm:text-[10px] text-salvaGold font-black">
-                  {nameInput}
-                  {selectedRegistry ? selectedRegistry.nspace : "@salva"}
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Wallet input */}
-          <div>
-            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
-              Wallet Address
-            </label>
-            <input
-              type="text"
-              placeholder="0x…"
-              value={walletInput}
-              onChange={(e) => {
-                setWalletInput(e.target.value.trim());
-                setNameError("");
-              }}
-              className={`${darkInput} font-mono text-[10px] sm:text-xs`}
-            />
-          </div>
-
-          {/* Registry dropdown */}
-          <div>
-            <label className="text-[7px] sm:text-[10px] uppercase tracking-[0.25em] text-white/60 font-black block mb-1.5 sm:mb-2">
-              Wallet Service
-            </label>
-            <RegistryDropdown
-              registries={registries}
-              value={selectedRegistry}
-              onChange={selectRegistry}
-              placeholder="Select wallet service…"
-            />
-          </div>
-
-          {nameError && (
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl bg-red-500/8 border border-red-500/20">
-              <span className="text-red-400 text-[10px] sm:text-xs flex-shrink-0">
-                ⚠
-              </span>
-              <p className="text-[9px] sm:text-xs text-red-400 font-bold">
-                {nameError}
-              </p>
-            </div>
-          )}
-
-          <button
-            onClick={handleCheckName}
-            disabled={
-              checking || !nameInput || !walletInput || !selectedRegistry
-            }
-            className="w-full py-2.5 sm:py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-30 disabled:cursor-not-allowed uppercase tracking-widest text-[10px] sm:text-sm flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-salvaGold/20"
-          >
-            {checking && (
-              <span className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-            )}
-            {checking ? "Checking…" : "Check Availability"}
-          </button>
-        </motion.div>
-      )}
-
-      {/* ── RESERVED ── */}
-      {linkStep === "reserved" && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 sm:p-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/5 space-y-3.5 sm:space-y-5"
-        >
-          <div className="flex items-start gap-2.5 sm:gap-4">
-            <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-yellow-500/15 border border-yellow-500/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-sm sm:text-lg">⭐</span>
-            </div>
-            <div>
-              <p className="font-black text-white text-[10px] sm:text-sm">
-                Reserved Name
-              </p>
-              <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 leading-relaxed">
-                {nameCheckResult?.reservedMessage ||
-                  `${nameInput} is reserved.`}
-              </p>
-            </div>
-          </div>
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              onClick={resetLinkForm}
-              className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
-            >
-              Back
-            </button>
-            {nameCheckResult?.supportEmail && (
-              <a
-                href={`mailto:${nameCheckResult.supportEmail}`}
-                className="flex-1 flex items-center justify-center gap-1.5 sm:gap-2 py-2 sm:py-3 rounded-xl bg-yellow-500 text-black font-black text-[10px] sm:text-sm hover:brightness-110 transition-all"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
-                >
-                  <rect x="2" y="4" width="20" height="16" rx="2" />
-                  <path d="m22 6-10 7L2 6" />
-                </svg>
-                Contact Support
-              </a>
-            )}
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── CONFIRM ── */}
-      {linkStep === "confirm" && nameCheckResult && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="space-y-2 sm:space-y-3"
-        >
-          {/* Name badge */}
-          <div className="p-3.5 sm:p-5 rounded-2xl bg-salvaGold/6 border border-salvaGold/20 text-center">
-            <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.3em] font-black text-salvaGold/50 mb-1.5 sm:mb-2">
-              Name Available
-            </p>
-            <p className="text-base sm:text-2xl font-black text-salvaGold">
-              {nameCheckResult.welded}
-            </p>
-          </div>
-
-          {/* Fee */}
-          {feeLoading ? (
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="w-2.5 h-2.5 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin flex-shrink-0" />
-              <p className="text-[9px] sm:text-xs text-white/60 font-bold">
-                Fetching fee…
-              </p>
-            </div>
-          ) : feeActive ? (
-            <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-              <div className="flex items-center gap-1.5 sm:gap-2">
-                <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-red-400 block" />
-                <p className="text-[7px] sm:text-[10px] uppercase font-black text-white/60 tracking-widest">
-                  Linking Fee
-                </p>
-              </div>
-              <p className="font-black text-white text-[10px] sm:text-sm">
-                {Number(linkFee).toLocaleString()}{" "}
-                <span className="text-salvaGold text-[8px] sm:text-xs">
-                  NGNs
-                </span>
-              </p>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-xl bg-green-500/8 border border-green-500/15">
-              <span className="text-green-400 text-[10px] sm:text-sm flex-shrink-0">
-                ✦
-              </span>
-              <p className="text-[9px] sm:text-xs font-black text-green-400">
-                Free Registration — no fee required
-              </p>
-            </div>
-          )}
-
-          <div className="flex gap-2 sm:gap-3 pt-0.5 sm:pt-1">
-            <button
-              onClick={resetLinkForm}
-              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white hover:bg-white/5 transition-all"
-            >
-              Back
-            </button>
-            <button
-              onClick={() => {
-                setLinkStep("pin");
-                setPinInput("");
-              }}
-              disabled={feeLoading}
-              className="flex-2 flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 active:scale-[0.98] disabled:opacity-50 transition-all shadow-lg shadow-salvaGold/20"
-            >
-              Continue →
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── PIN ── */}
-      {linkStep === "pin" && (
-        <motion.div
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="p-4 sm:p-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] space-y-3.5 sm:space-y-5 text-center"
-        >
-          <div className="w-8 h-8 sm:w-12 sm:h-12 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto">
-            <span className="text-sm sm:text-xl">🔐</span>
-          </div>
-          <div>
-            <p className="font-black text-white text-sm sm:text-lg">
-              Transaction PIN
-            </p>
-            <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">
-              Authorise the on-chain name link
-            </p>
-          </div>
-          <input
-            type="password"
-            inputMode="numeric"
-            pattern="\d{4}"
-            maxLength="4"
-            value={pinInput}
-            onChange={(e) => setPinInput(e.target.value.replace(/\D/g, ""))}
-            placeholder="••••"
-            autoFocus
-            className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black text-white"
-          />
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              onClick={() => setLinkStep("confirm")}
-              disabled={pinLoading}
-              className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
-            >
-              Back
-            </button>
-            <button
-              onClick={handleExecuteLink}
-              disabled={pinLoading || pinInput.length !== 4}
-              className="flex-1 py-2 sm:py-3 rounded-xl bg-salvaGold text-black font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
-            >
-              {pinLoading && (
-                <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
-              {pinLoading ? "Signing…" : "Confirm"}
-            </button>
-          </div>
-        </motion.div>
-      )}
-
-      {/* ── LINKING ── */}
-      {linkStep === "linking" && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="py-11 sm:py-16 rounded-2xl border border-white/[0.06] bg-white/[0.02] text-center space-y-2.5 sm:space-y-4"
-        >
-          <div className="relative w-10 h-10 sm:w-14 sm:h-14 mx-auto">
-            <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
-            <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
-            <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-              <span className="text-salvaGold text-[9px] sm:text-sm font-black">
-                ₦
-              </span>
-            </div>
-          </div>
-          <p className="font-black text-white text-xs sm:text-base">
-            Linking on-chain…
-          </p>
-          <p className="text-[9px] sm:text-xs text-white/60">
-            Broadcasting to Base · 30–60 seconds
-          </p>
-        </motion.div>
-      )}
-
-      {/* ── SUCCESS ── */}
-      {linkStep === "success" && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.96 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="py-8 sm:py-12 px-4 sm:px-6 rounded-2xl border border-salvaGold/20 bg-salvaGold/[0.04] text-center space-y-3.5 sm:space-y-5"
-        >
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            transition={{ type: "spring", stiffness: 280, delay: 0.1 }}
-            className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/15 border border-salvaGold/30 rounded-2xl flex items-center justify-center mx-auto"
-          >
-            <span className="text-xl sm:text-3xl">✓</span>
-          </motion.div>
-          <div>
-            <p className="text-base sm:text-xl font-black text-white">
-              Name Linked
-            </p>
-            <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">
-              Your name is now live on Base
-            </p>
-          </div>
-          <button
-            onClick={resetLinkForm}
-            className="w-full py-2.5 sm:py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-salvaGold/20 uppercase tracking-widest text-[10px] sm:text-sm"
-          >
-            Link Another Name
-          </button>
-        </motion.div>
-      )}
-
-      {/* ── UNLINK CONFIRM MODAL ── */}
-      <AnimatePresence>
-        {showUnlinkConfirm && unlinkTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
-            <motion.div
-              onClick={() => setShowUnlinkConfirm(false)}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-5 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="text-center space-y-2 sm:space-y-3">
-                <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                  <span className="text-sm sm:text-xl">⚠️</span>
-                </div>
-                <p className="font-black text-white text-sm sm:text-lg">
-                  Unlink Name?
-                </p>
-                <p className="text-salvaGold font-black text-[10px] sm:text-base">
-                  {unlinkTarget.name}
-                </p>
-                <p className="text-[9px] sm:text-sm text-white/60">
-                  This removes the on-chain link and cannot be undone.
-                </p>
-                <div className="flex gap-2 sm:gap-3 pt-1.5 sm:pt-2">
-                  <button
-                    onClick={() => setShowUnlinkConfirm(false)}
-                    className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowUnlinkConfirm(false);
-                      setUnlinkPinStep(true);
-                      setUnlinkPinInput("");
-                    }}
-                    className="flex-1 py-2 sm:py-3 rounded-xl bg-red-500 text-white font-black text-[10px] sm:text-sm hover:brightness-110 transition-all"
-                  >
-                    Unlink
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ── UNLINK PIN MODAL ── */}
-      <AnimatePresence>
-        {unlinkPinStep && unlinkTarget && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center px-3 sm:px-4">
-            <motion.div
-              onClick={() => {
-                setUnlinkPinStep(false);
-                setUnlinkPinInput("");
-              }}
-              className="absolute inset-0 bg-black/90 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-5 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center space-y-3.5 sm:space-y-5"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="w-8 h-8 sm:w-12 sm:h-12 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center justify-center mx-auto">
-                <span className="text-sm sm:text-xl">🔐</span>
-              </div>
-              <div>
-                <p className="font-black text-white text-sm sm:text-lg">
-                  Enter PIN
-                </p>
-                <p className="text-[8px] sm:text-[11px] text-white/60 mt-0.5 sm:mt-1">
-                  Confirm unlinking{" "}
-                  <span className="text-red-400 font-black">
-                    {unlinkTarget.name}
-                  </span>
-                </p>
-              </div>
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength="4"
-                value={unlinkPinInput}
-                onChange={(e) =>
-                  setUnlinkPinInput(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="••••"
-                autoFocus
-                className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-red-400 outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black text-white"
-              />
-              <div className="flex gap-2 sm:gap-3">
-                <button
-                  onClick={() => {
-                    setUnlinkPinStep(false);
-                    setUnlinkPinInput("");
-                  }}
-                  disabled={unlinkLoading}
-                  className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 font-bold text-[10px] sm:text-sm text-white/60 hover:text-white transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleExecuteUnlink}
-                  disabled={unlinkLoading || unlinkPinInput.length !== 4}
-                  className="flex-1 py-2 sm:py-3 rounded-xl bg-red-500 text-white font-black text-[10px] sm:text-sm hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-1.5 sm:gap-2"
-                >
-                  {unlinkLoading && (
-                    <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  )}
-                  {unlinkLoading ? "Unlinking…" : "Confirm"}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </motion.div>
-  );
-};
-
-// ── Mobile content-scale helpers — reduces only content (font, padding,
-// gaps, icon sizes), never the container itself, and only under 640px. ──
-const smpPx = (n) => `calc(${n}px * var(--smp-scale, 1))`;
-const smpPxs = (...vals) =>
-  vals.map((v) => (typeof v === "number" ? smpPx(v) : v)).join(" ");
-
-const SellerMintScaleStyle = () => (
-  <style>{`
-    .smp-scale { --smp-scale: 1; }
-    @media (max-width: 639px) {
-      .smp-scale { --smp-scale: 0.7; }
-    }
-  `}</style>
-);
-
-// ── Rewards Bar: SANT points summary + referral link ────────────────────────
 const RewardsBar = ({ user, showMsg, refreshKey }) => {
-  const [userSant, setUserSant] = useState(null); // data[0] from /api/user/:email
-  const [pointsRecord, setPointsRecord] = useState(null); // data from /api/sant/points-record
+  const [pointsRecord, setPointsRecord] = useState(null);
 
   useEffect(() => {
-    if (!user?.email) return;
-    fetch(`${SALVA_API_URL}/api/user/${encodeURIComponent(user.email)}`)
-      .then((r) => r.json())
-      .then((d) => setUserSant(d.data?.[0] || null))
-      .catch(() => {});
     fetch(`${SALVA_API_URL}/api/sant/points-record`)
       .then((r) => r.json())
       .then((d) => setPointsRecord(d.data || null))
       .catch(() => {});
-    // refreshKey is bumped by the main balance card's refresh button — including
-    // it here (even though it's unused in the body) forces this effect to re-run
-    // and pull fresh SANT points alongside the NGN/USD balance refresh.
-  }, [user?.email, refreshKey]);
+  }, [refreshKey]);
 
-  const referralCode = userSant?.referralCode || user.referralCode;
-  const referralLink = referralCode
-    ? `https://salva-nexus.org/login?ref=${referralCode}`
-    : null;
+  const santPoints = Number(user?.santPoints) || 0;
+  const referralCode = user?.referralCode;
 
-  const santPoints = userSant?.santPoints ?? 0;
-  // Referral link + points row disappear ONLY once global minting is locked
-  // AND this specific user has redeemed (claimed) all their own points —
-  // not the moment isLocked flips true.
+  const referralLink = referralCode ? `https://salva-nexus.org/login?ref=${referralCode}` : null;
+
   const isFullyRedeemed = pointsRecord?.isLocked === true && santPoints <= 0;
-  const showPointsRow = userSant && !isFullyRedeemed;
+
+  const showPointsRow = santPoints > 0 && !isFullyRedeemed;
+
   const showReferral = referralLink && !isFullyRedeemed;
 
-  if (!showPointsRow && !showReferral) return null;
+  if (!showPointsRow && !showReferral) {
+    return null;
+  }
 
   return (
-    <div className="mb-3 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden divide-y divide-white/[0.05]">
+    <div
+      className={`mb-2.5 sm:mb-5 rounded-xl sm:rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden ${
+        showPointsRow && showReferral ? 'grid grid-cols-2 divide-x divide-white/[0.05]' : ''
+      }`}
+    >
       {showPointsRow && (
-        <div className="flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <span className="w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-[7px] sm:text-[10px] font-black">
-                S
-              </span>
+        <div className="flex items-center justify-between gap-1.5 px-2 py-2 sm:px-4 sm:py-3.5 min-w-0">
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <span className="w-3.5 h-3.5 sm:w-6 sm:h-6 rounded-full bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-salvaGold text-[6px] sm:text-[10px] font-black">S</span>
             </span>
-            <p className="text-[7px] sm:text-[10px] font-black text-white/60 uppercase tracking-wider">
+
+            <p className="min-w-0 text-[6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
               SANT Points
             </p>
           </div>
-          <p className="font-black text-xs sm:text-sm text-salvaGold">
-            {(santPoints * 100).toLocaleString("en-US")}
+
+          <p className="shrink-0 font-black text-[8px] sm:text-sm text-salvaGold">
+            {(santPoints * 100).toLocaleString('en-US')}
           </p>
         </div>
       )}
+
       {showReferral && (
         <button
           onClick={() => {
             navigator.clipboard.writeText(referralLink);
-            showMsg("Referral link copied!");
+            showMsg('Referral link copied!');
           }}
-          className="w-full flex items-center justify-between px-3 py-2 sm:px-4 sm:py-3 hover:bg-white/[0.02] transition-all group"
+          className="flex items-center justify-between gap-1.5 px-2 py-2 sm:px-4 sm:py-3.5 min-w-0 text-left hover:bg-white/[0.02] transition-all group"
         >
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <span className="w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-blue-400 text-[7px] sm:text-[10px] font-black">
-                ↗
-              </span>
+          <div className="flex items-center gap-1 sm:gap-2 min-w-0">
+            <span className="w-3.5 h-3.5 sm:w-6 sm:h-6 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
+              <span className="text-blue-400 text-[6px] sm:text-[10px] font-black">↗</span>
             </span>
-            <p className="text-[7px] sm:text-[10px] font-black text-white/60 uppercase tracking-wider">
+
+            <p className="min-w-0 text-[6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
               Referral Link
             </p>
           </div>
-          <span className="font-mono text-[7px] sm:text-[10px] text-blue-400/70 truncate ml-2 group-hover:text-blue-400 transition-colors">
+
+          <span className="shrink-0 font-mono text-[6px] sm:text-[10px] text-blue-400 truncate whitespace-nowrap max-w-[45%]">
             {referralCode}
           </span>
         </button>
@@ -1721,1631 +811,1194 @@ const RewardsBar = ({ user, showMsg, refreshKey }) => {
   );
 };
 
-// ══════════════════════════════════════════════════════════════════════════════
-// DASHBOARD — Main Component
-// ══════════════════════════════════════════════════════════════════════════════
+/* ============================================================================
+   DASHBOARD
+============================================================================ */
+
+const DASHBOARD_TIMEOUT_MS = 30000;
+
 const Dashboard = () => {
   const navigate = useNavigate();
 
   const [user, setUser] = useState(() => {
     try {
-      const saved = localStorage.getItem("salva_user");
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      if (!parsed || !parsed.safeAddress) return null;
-      return parsed;
+      const raw = localStorage.getItem('salva_user');
+      const parsed = raw ? JSON.parse(raw) : null;
+      return parsed?.safeAddress ? parsed : null;
     } catch {
-      localStorage.removeItem("salva_user");
       return null;
     }
   });
 
-  const [ngnsBalance, setBalance] = useState(null);
-  const [cNgnBalance, setCNgnBalance] = useState(null);
-  const [usdtBalance, setUsdtBalance] = useState(null);
-  const [usdcBalance, setUsdcBalance] = useState(null);
-  const [balanceLoading, setBalanceLoading] = useState(true);
+  const [selectedChain, setSelectedChain] = useState(
+    () => localStorage.getItem('salva_chain') || 'base'
+  );
+
+  const initialCache = readWalletCache(user?.email, selectedChain, LOCAL_LOGOS);
+
+  const [wallet, setWallet] = useState(() => ({
+    assets: initialCache?.assets || [],
+    totalNgn: initialCache?.totalNgn ?? null,
+    updatedAt: initialCache?.at || null,
+    error: null,
+    hasSnapshot: Boolean(initialCache),
+    initialLoading: !initialCache,
+  }));
+
+  const cachedChains = readSupportedChainsCache(user?.email);
+
+  const [chains, setChains] = useState(() => cachedChains?.chains || []);
+  const [chainPage, setChainPage] = useState(false);
+  const [chainMetadataRefreshing, setChainMetadataRefreshing] = useState(false);
+
+  const [showBalance, setShowBalance] = useState(
+    () => localStorage.getItem('salva_show_balance') !== 'false'
+  );
+
+  const [detailsAsset, setDetailsAsset] = useState(null);
+  const [sendAsset, setSendAsset] = useState(null);
+  const [sendRecipient, setSendRecipient] = useState('');
   const [isSendOpen, setIsSendOpen] = useState(false);
   const [isReceiveOpen, setIsReceiveOpen] = useState(false);
+  const [receiveAsset, setReceiveAsset] = useState(null);
   const [isScanOpen, setIsScanOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+
   const [notification, setNotification] = useState({
     show: false,
-    message: "",
-    type: "",
+    message: '',
+    type: 'info',
   });
 
-  const [showBalance, setShowBalance] = useState(() => {
-    try {
-      const saved = localStorage.getItem("salva_show_balance");
-      return saved === null ? true : saved === "true";
-    } catch {
-      return true;
-    }
-  });
+  const [isAccountLocked, setIsAccountLocked] = useState(false);
+  const [lockMessage, setLockMessage] = useState('');
+  const [rewardsRefreshKey, setRewardsRefreshKey] = useState(0);
+  const [govCount, setGovCount] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const toggleShowBalance = useCallback(() => {
-    setShowBalance((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem("salva_show_balance", String(next));
-      } catch {
-        /* ignore */
+  const [pushMeta, setPushMeta] = useState(() => ({
+    known: Boolean(initialCache),
+    sub: initialCache?.pushSubscription ?? null,
+    seen: Boolean(initialCache?.seenPushNotification),
+  }));
+  const [pushPromptOpen, setPushPromptOpen] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const pushPromptShownRef = useRef(false);
+
+  const walletRequestsRef = useRef(new Map());
+  const walletGenerationRef = useRef(new Map());
+  const pollTimerRef = useRef(null);
+  const selectedChainRef = useRef(selectedChain);
+
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    selectedChainRef.current = selectedChain;
+  }, [selectedChain]);
+
+  const prevEmailRef = useRef(user?.email);
+
+  useEffect(() => {
+    if (prevEmailRef.current === user?.email) return;
+
+    prevEmailRef.current = user?.email;
+
+    const cache = readWalletCache(user?.email, selectedChain, LOCAL_LOGOS);
+
+    setWallet({
+      assets: cache?.assets || [],
+      totalNgn: cache?.totalNgn ?? null,
+      updatedAt: cache?.at || null,
+      error: null,
+      hasSnapshot: Boolean(cache),
+      initialLoading: !cache,
+    });
+  }, [user?.email, selectedChain]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+
+      walletRequestsRef.current.forEach(({ controller }) => controller?.abort());
+
+      walletRequestsRef.current.clear();
+
+      if (pollTimerRef.current) {
+        clearTimeout(pollTimerRef.current);
       }
-      return next;
+
+      pollTimerRef.current = null;
+    };
+  }, []);
+
+  const notificationRef = useRef(notification);
+  notificationRef.current = notification;
+
+  const showMsg = useCallback((message, type = 'success', onDismiss = null) => {
+    setNotification({
+      show: true,
+      message,
+      type,
+      onDismiss,
     });
   }, []);
 
-  const [activeTab, setActiveTab] = useState(() => {
-    const urlAction = new URLSearchParams(window.location.search).get("action");
-    if (urlAction === "swap" || urlAction === "pool_swap") return "swap";
-    if (urlAction === "deploy") return "deploy";
-    return "swap";
-  });
-  const [registries, setRegistries] = useState([]);
-  const [feeConfig, setFeeConfig] = useState(null);
-  const [feePreview, setFeePreview] = useState({ feeNGN: 0, feeUsd: 0 });
-  const [amountError, setAmountError] = useState(false);
-  const [feeExceedsAmount, setFeeExceedsAmount] = useState(false);
-  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
-  const [confirmationData, setConfirmationData] = useState(null);
-  const [isPinModalOpen, setIsPinModalOpen] = useState(false);
-  const [transactionPin, setTransactionPin] = useState("");
-  const [pinAttempts, setPinAttempts] = useState(0);
-  const [isAccountLocked, setIsAccountLocked] = useState(false);
-  const [lockMessage, setLockMessage] = useState("");
-  const [recipientInput, setRecipientInput] = useState("");
-  const [transferAmount, setTransferAmount] = useState("");
-  const [transferAmountDisplay, setTransferAmountDisplay] = useState("");
-  const [selectedRegistry, setSelectedRegistry] = useState(null);
-  const [inputType, setInputType] = useState("empty");
-  const [selectedCoin, setSelectedCoin] = useState("NGN");
+  const closeMsg = useCallback(() => {
+    const onDismiss = notificationRef.current.onDismiss;
 
-  const showMsg = useCallback(
-    (msg, type = "success") =>
-      setNotification({ show: true, message: msg, type }),
-    [],
-  );
-  const closeNotif = useCallback(
-    () => setNotification((n) => ({ ...n, show: false })),
-    [],
+    setNotification((n) => ({
+      ...n,
+      show: false,
+      onDismiss: null,
+    }));
+
+    if (typeof onDismiss === 'function') {
+      onDismiss();
+    }
+  }, []);
+
+  const requestJson = useCallback(
+    async (url, options = {}, { timeout = DASHBOARD_TIMEOUT_MS, signal } = {}) => {
+      const controller = new AbortController();
+
+      const onAbort = () => controller.abort();
+
+      if (signal) {
+        if (signal.aborted) {
+          controller.abort();
+        } else {
+          signal.addEventListener('abort', onAbort, {
+            once: true,
+          });
+        }
+      }
+
+      const timer = timeout ? setTimeout(() => controller.abort(), timeout) : null;
+
+      try {
+        const response = await fetch(url, {
+          ...options,
+          signal: controller.signal,
+          headers: {
+            Accept: 'application/json',
+            ...(options.headers || {}),
+          },
+        });
+
+        const text = await response.text();
+        let data = null;
+
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch {
+          throw new Error(`Invalid JSON response (${response.status})`);
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            data?.message || data?.errorMsg || data?.error || `Request failed (${response.status})`
+          );
+        }
+
+        return data;
+      } finally {
+        if (timer) clearTimeout(timer);
+
+        signal?.removeEventListener('abort', onAbort);
+      }
+    },
+    []
   );
 
   useEffect(() => {
-    if (!user) navigate("/login", { replace: true });
+    if (!user) {
+      navigate('/login', { replace: true });
+    }
   }, [user, navigate]);
 
-  // ── Auto-trigger modal from cross-chain URL param ─────────────────────────
-  const _initialUrlAction = useRef(
-    new URLSearchParams(window.location.search).get("action"),
+
+  /* --------------------------------------------------------------------------
+     GOVERNANCE
+  -------------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!user?.isValidator || !user?.safeAddress) {
+      setGovCount(0);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    Promise.all([
+      requestJson(
+        `${SALVA_API_URL}/api/admin/proposalRequests`,
+        {},
+        {
+          signal: controller.signal,
+          timeout: 10000,
+        }
+      ),
+      requestJson(
+        `${SALVA_API_URL}/api/admin/proposals/${encodeURIComponent(user.safeAddress)}`,
+        {},
+        {
+          signal: controller.signal,
+          timeout: 10000,
+        }
+      ),
+    ])
+      .then(([requests, proposals]) => {
+        if (!mountedRef.current) return;
+
+        const a = Array.isArray(requests?.proposalRequests) ? requests.proposalRequests.length : 0;
+
+        const b = Array.isArray(proposals?.proposals)
+          ? proposals.proposals.filter((p) => p?.proposal?.proposalHash).length
+          : 0;
+
+        setGovCount(a + b);
+      })
+      .catch((error) => {
+        if (error?.name !== 'AbortError') {
+          console.warn('[Dashboard] governance refresh failed');
+        }
+      });
+
+    return () => controller.abort();
+  }, [requestJson, user?.isValidator, user?.safeAddress]);
+
+  /* --------------------------------------------------------------------------
+     CHAIN METADATA REFRESH
+     Dashboard is the only component that talks to supportedChains. The result
+     is persisted in walletCache so Chains.jsx never starts its own polling loop.
+  -------------------------------------------------------------------------- */
+
+  const refreshChainMetadata = useCallback(
+    async ({ silent = true } = {}) => {
+      if (!user?.email) return false;
+
+      if (!silent) setChainMetadataRefreshing(true);
+
+      try {
+        const chainsData = await requestJson(
+          `${SALVA_API_URL}/api/user/supportedChains`,
+          {},
+          { timeout: 12000 }
+        );
+
+        const list = Array.isArray(chainsData?.data)
+          ? chainsData.data
+          : Array.isArray(chainsData?.data?.chains)
+          ? chainsData.data.chains
+          : [];
+
+        writeSupportedChainsCache(user.email, list);
+
+        if (mountedRef.current) {
+          setChains(list);
+        }
+
+        return true;
+      } catch (error) {
+        if (error?.name !== 'AbortError') {
+          console.warn('[Dashboard] chain metadata refresh failed:', error?.message || error);
+          if (!silent) {
+            showMsg(error?.message || 'Could not load supported chains', 'error');
+          }
+        }
+        return false;
+      } finally {
+        if (!silent && mountedRef.current) {
+          setChainMetadataRefreshing(false);
+        }
+      }
+    },
+    [requestJson, showMsg, user?.email]
   );
-  useEffect(() => {
-    if (!user) return;
-    const urlAction = _initialUrlAction.current;
-    if (!urlAction) return;
-    _initialUrlAction.current = null;
-    window.history.replaceState({}, "", "/dashboard");
-    if (urlAction === "transfer") {
-      setIsSendOpen(true);
-    } else if (urlAction === "receive") {
-      setIsReceiveOpen(true);
-    }
-  }, [user]);
 
-  const refreshUserStatus = useCallback(async (email, currentUser) => {
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/base/status/${encodeURIComponent(email)}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      const updated = {
-        ...currentUser,
-        isValidator: data.isValidator,
-      };
-      localStorage.setItem("salva_user", JSON.stringify(updated));
-      setUser(updated);
-    } catch {
-      /* silently ignore */
-    }
-  }, []);
+  /* --------------------------------------------------------------------------
+     CACHE -> REACT
+  -------------------------------------------------------------------------- */
 
-  const checkAccountLockStatus = useCallback(async () => {
-    if (!user?.email) return;
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/base/status/${encodeURIComponent(user.email)}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.isLocked) {
-        setIsAccountLocked(true);
-        const h = Math.ceil(
-          (new Date(data.lockedUntil) - new Date()) / (1000 * 60 * 60),
-        );
-        setLockMessage(
-          `Account locked for ${h} more hour${h !== 1 ? "s" : ""}`,
-        );
+  const readSnapshotIntoUI = useCallback(
+    (chain, { preserveError = false } = {}) => {
+      if (!user?.email || !chain || !mountedRef.current) {
+        return null;
       }
-    } catch {
-      /* ignore */
+
+      const snapshot = readWalletCache(user.email, chain, LOCAL_LOGOS);
+
+      if (!snapshot) {
+        setWallet((current) => ({
+          assets: [],
+          totalNgn: null,
+          updatedAt: null,
+          error: preserveError ? current.error : null,
+          hasSnapshot: false,
+          initialLoading: true,
+        }));
+
+        return null;
+      }
+
+      setPushMeta({
+        known: true,
+        sub: snapshot.pushSubscription ?? null,
+        seen: Boolean(snapshot.seenPushNotification),
+      });
+
+      setWallet((current) => ({
+        assets: snapshot.assets || [],
+        totalNgn: snapshot.totalNgn ?? null,
+        updatedAt: snapshot.at,
+        error: preserveError ? current.error : null,
+        hasSnapshot: true,
+        initialLoading: false,
+      }));
+
+      return snapshot;
+    },
+    [user?.email]
+  );
+
+  /* --------------------------------------------------------------------------
+     SERVER POLL -> CACHE -> UI
+  -------------------------------------------------------------------------- */
+
+  const pollWallet = useCallback(
+    async (chain, { force = false, reason = 'poll' } = {}) => {
+      if (!user?.email || !chain) return false;
+
+      const normalizedChain = String(chain).toLowerCase();
+
+      const key = walletKey(user.email, normalizedChain);
+
+      const existing = walletRequestsRef.current.get(key);
+
+      if (existing && !force) {
+        return existing.promise;
+      }
+
+      if (existing && force) {
+        existing.controller?.abort();
+        walletRequestsRef.current.delete(key);
+      }
+
+      const generation = (walletGenerationRef.current.get(key) || 0) + 1;
+
+      walletGenerationRef.current.set(key, generation);
+
+      const controller = new AbortController();
+
+      const promise = (async () => {
+        try {
+          const { meta } = await fetchWalletSnapshot(user.email, normalizedChain, {
+            signal: controller.signal,
+            logoMap: LOCAL_LOGOS,
+            timeout: null,
+          });
+
+          if (
+            mountedRef.current &&
+            selectedChainRef.current === normalizedChain &&
+            walletGenerationRef.current.get(key) === generation
+          ) {
+            readSnapshotIntoUI(normalizedChain);
+          }
+
+          if (meta && mountedRef.current) {
+            const lockedUntil = meta.accountLockedUntil ? new Date(meta.accountLockedUntil) : null;
+
+            if (lockedUntil && lockedUntil.getTime() > Date.now()) {
+              const hours = Math.max(1, Math.ceil((lockedUntil.getTime() - Date.now()) / 3600000));
+              setIsAccountLocked(true);
+              setLockMessage(`Account locked for ${hours} more hour${hours !== 1 ? 's' : ''}`);
+            } else {
+              setIsAccountLocked(false);
+              setLockMessage('');
+            }
+
+            const safeMeta = {
+              username: meta.username,
+              safeAddress: meta.safeAddress,
+              santPoints: meta.santPoints,
+              referralCode: meta.referralCode,
+              isValidator: meta.isValidator,
+              isSeller: meta.isSeller,
+              isNewUser: meta.isNewUser,
+              pinSetupCompleted: meta.pinSetupCompleted,
+            };
+
+            setUser((current) => {
+              if (!current) return current;
+
+              let changed = false;
+              const updated = { ...current };
+
+              Object.entries(safeMeta).forEach(([field, value]) => {
+                if (value !== undefined && updated[field] !== value) {
+                  updated[field] = value;
+                  changed = true;
+                }
+              });
+
+              if (!changed) return current;
+
+              localStorage.setItem('salva_user', JSON.stringify(updated));
+
+              return updated;
+            });
+          }
+
+          console.debug(`[Dashboard] wallet cache updated: ${normalizedChain} (${reason})`);
+
+          return true;
+        } catch (error) {
+          if (error?.name === 'AbortError') {
+            return false;
+          }
+
+          console.error(
+            `[Dashboard] wallet poll failed for ${normalizedChain}:`,
+            error?.message || error
+          );
+
+          if (
+            mountedRef.current &&
+            selectedChainRef.current === normalizedChain &&
+            walletGenerationRef.current.get(key) === generation
+          ) {
+            const cached = readWalletCache(user.email, normalizedChain, LOCAL_LOGOS);
+
+            setWallet((current) => ({
+              ...current,
+              error: error?.message || 'Could not refresh wallet',
+              hasSnapshot: Boolean(cached),
+              initialLoading: !cached,
+            }));
+          }
+
+          return false;
+        } finally {
+          const entry = walletRequestsRef.current.get(key);
+
+          if (entry?.promise === promise) {
+            walletRequestsRef.current.delete(key);
+          }
+        }
+      })();
+
+      walletRequestsRef.current.set(key, {
+        promise,
+        controller,
+        generation,
+      });
+
+      return promise;
+    },
+    [readSnapshotIntoUI, user?.email]
+  );
+
+  /* --------------------------------------------------------------------------
+     WALLET LIFECYCLE
+  -------------------------------------------------------------------------- */
+
+  useEffect(() => {
+    if (!user?.email || !selectedChain) {
+      return undefined;
     }
-  }, [user?.email]);
 
-  const fetchBalance = useCallback(async (address, showSpinner = false) => {
-    if (!address) return;
-    if (showSpinner) setBalanceLoading(true);
-    try {
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/base/balance/${address}`,
-      );
-      if (!res.ok) return;
-      const data = await res.json();
-      setBalance(data.ngnsBalance ?? "0");
-      setCNgnBalance(data.cNgnBalance ?? "0");
-      setUsdtBalance(data.usdtBalance ?? "0");
-      setUsdcBalance(data.usdcBalance ?? "0");
-    } catch {
-      /* keep existing */
-    } finally {
-      if (showSpinner) setBalanceLoading(false);
-    }
-  }, []);
+    const chain = String(selectedChain).toLowerCase();
+    selectedChainRef.current = chain;
 
-  // Bumped every time the balance card's refresh button is tapped — passed
-  // into RewardsBar so a single refresh tap also pulls fresh SANT points,
-  // not just the NGN/USD balance.
-  const [rewardsRefreshKey, setRewardsRefreshKey] = useState(0);
+    readSnapshotIntoUI(chain);
 
-  // Manual refresh — mobile has no pull-to-refresh here, so this button
-  // lets the user force a fresh balance fetch + incoming-tx sync + SANT
-  // points refresh, all on one tap.
-  const handleManualRefresh = useCallback(() => {
-    if (!user?.safeAddress || balanceLoading) return;
-    fetchBalance(user.safeAddress, true);
-    setRewardsRefreshKey((k) => k + 1);
-  }, [user?.safeAddress, balanceLoading, fetchBalance]);
+    pollWallet(chain, {
+      reason: 'initial',
+    });
 
-  useEffect(() => {
-    if (!user?.safeAddress) return;
-    fetchBalance(user.safeAddress, true);
-    refreshUserStatus(user.email, user);
-  }, [user?.safeAddress, refreshUserStatus, fetchBalance]);
-
-  useEffect(() => {
-    if (!user?.email) return;
-    checkAccountLockStatus();
-    fetchMeta();
-  }, [user?.email, checkAccountLockStatus]);
-
-  useEffect(() => {
-    if (!user?.safeAddress) return;
     const tick = () => {
-      if (document.visibilityState === "visible") {
-        fetchBalance(user.safeAddress);
-      }
+      if (document.visibilityState !== 'visible') return;
+
+      pollWallet(chain, {
+        reason: 'interval',
+      });
     };
-    const iv = setInterval(tick, 45000);
-    document.addEventListener("visibilitychange", tick);
+
+    pollTimerRef.current = setInterval(tick, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', tick);
+
     return () => {
-      clearInterval(iv);
-      document.removeEventListener("visibilitychange", tick);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+
+      pollTimerRef.current = null;
+      document.removeEventListener('visibilitychange', tick);
+
+      const key = walletKey(user.email, chain);
+      const request = walletRequestsRef.current.get(key);
+
+      request?.controller?.abort();
+      walletRequestsRef.current.delete(key);
     };
-  }, [user?.safeAddress, fetchBalance]);
+  }, [pollWallet, readSnapshotIntoUI, selectedChain, user?.email]);
 
   useEffect(() => {
-    if (transferAmount) {
-      const amt = parseFloat(transferAmount);
-      if (selectedCoin === "NGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(ngnsBalance ?? "0"));
-      else if (selectedCoin === "CNGN")
-        setAmountError(!isNaN(amt) && amt > parseFloat(cNgnBalance ?? "0"));
-      else if (selectedCoin === "USDT")
-        setAmountError(!isNaN(amt) && amt > parseFloat(usdtBalance ?? "0"));
-      else setAmountError(!isNaN(amt) && amt > parseFloat(usdcBalance ?? "0"));
+    if (!user?.email) return undefined;
 
-      // Sibling-aware fee check — block ONLY when neither the selected coin's
-      // surplus (balance - amount) nor the sibling coin's full balance can cover the fee.
-      const fee =
-        selectedCoin === "NGN" || selectedCoin === "CNGN"
-          ? feePreview.feeNGN
-          : feePreview.feeUsd;
-      const currentBalance =
-        parseFloat(
-          selectedCoin === "NGN"
-            ? (ngnsBalance ?? "0")
-            : selectedCoin === "CNGN"
-              ? (cNgnBalance ?? "0")
-              : selectedCoin === "USDT"
-                ? (usdtBalance ?? "0")
-                : (usdcBalance ?? "0"),
-        ) || 0;
-      const siblingBalance =
-        parseFloat(
-          selectedCoin === "NGN"
-            ? (cNgnBalance ?? "0")
-            : selectedCoin === "CNGN"
-              ? (ngnsBalance ?? "0")
-              : selectedCoin === "USDT"
-                ? (usdcBalance ?? "0")
-                : (usdtBalance ?? "0"),
-        ) || 0;
-      // Backend fallback: if neither same-coin surplus nor sibling can cover
-      // the fee cleanly, the fee is deducted straight out of the amount
-      // (recipientReceives = amount - fee) as long as fee < amount. Only
-      // block when fee >= amount, since then there's nothing left to send.
-      const canCoverFeeFromBalance = currentBalance >= amt + fee;
-      const siblingCoversFee = siblingBalance >= fee;
-      const feeConsumesWholeAmount = fee >= amt;
-      setFeeExceedsAmount(
-        !isNaN(amt) &&
-          amt > 0 &&
-          fee > 0 &&
-          !canCoverFeeFromBalance &&
-          !siblingCoversFee &&
-          feeConsumesWholeAmount,
-      );
-    } else {
-      setAmountError(false);
-      setFeeExceedsAmount(false);
-    }
-  }, [
-    transferAmount,
-    ngnsBalance,
-    cNgnBalance,
-    usdtBalance,
-    usdcBalance,
-    selectedCoin,
-    feePreview,
-  ]);
+    const cachedChainsSnapshot = readSupportedChainsCache(user.email);
 
-  // Family-aware fee check — mirrors backend exactly: amount always comes
-  // from the exact selected coin (no fallback there), but the FEE can be
-  // covered by either member of that coin's family (NGNs↔cNGN or
-  // USDT↔USDC), never crossing between families.
-  const currentFeeAmount =
-    selectedCoin === "NGN" || selectedCoin === "CNGN"
-      ? feePreview.feeNGN
-      : feePreview.feeUsd;
-  const isNGNFamilySelected = selectedCoin === "NGN" || selectedCoin === "CNGN";
-  const selectedCoinBalance =
-    parseFloat(
-      selectedCoin === "NGN"
-        ? (ngnsBalance ?? "0")
-        : selectedCoin === "CNGN"
-          ? (cNgnBalance ?? "0")
-          : selectedCoin === "USDT"
-            ? (usdtBalance ?? "0")
-            : (usdcBalance ?? "0"),
-    ) || 0;
-  const altFamilyBalance = isNGNFamilySelected
-    ? parseFloat((selectedCoin === "NGN" ? cNgnBalance : ngnsBalance) ?? "0") ||
-      0
-    : parseFloat(
-        (selectedCoin === "USDT" ? usdcBalance : usdtBalance) ?? "0",
-      ) || 0;
-  const parsedAmt = parseFloat(transferAmount) || 0;
-  // Same-coin surplus covers amount+fee → fine. Otherwise check the ONE
-  // alt-family coin for the fee alone (amount still must fit in same-coin balance).
-  const feeCoveredBySameCoin =
-    selectedCoinBalance >= parsedAmt + currentFeeAmount;
-  const feeCoveredByAltFamily = altFamilyBalance >= currentFeeAmount;
-  // hasNoFeeFundsForTransfer is intentionally GONE — it was a false alarm.
-  // Backend's /api/transfer Case 3 silently deducts the fee from the send
-  // amount whenever same-coin surplus and alt-family both fall short, as
-  // long as fee < amount. The ONLY two situations where a transfer
-  // genuinely cannot go through are:
-  //   1. fee >= amount (nothing left to deduct it from) — handled by
-  //      `feeExceedsAmount` below.
-  //   2. balance < amount itself — handled by `amountError` below.
-  // Neither needs a second warning banner.
+    setChains(cachedChainsSnapshot?.chains || []);
 
-  const fetchMeta = async () => {
+    let stopped = false;
+
+    const refresh = () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      refreshChainMetadata({ silent: true });
+    };
+
+    refresh();
+    const timer = setInterval(refresh, POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', refresh);
+
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [refreshChainMetadata, user?.email]);
+
+  /* --------------------------------------------------------------------------
+     CHAIN NAVIGATION
+     Chains.jsx owns the selector/deployment presentation. Dashboard only
+     changes the active chain and keeps the server/cache refresh cadence.
+  -------------------------------------------------------------------------- */
+
+  const selectChain = useCallback(
+    (chain) => {
+      const name = String(chain?.chainName || chain?.name || '').toLowerCase();
+      if (!name) return;
+
+      localStorage.setItem('salva_chain', name);
+      selectedChainRef.current = name;
+      setSelectedChain(name);
+      setChainPage(false);
+      readSnapshotIntoUI(name);
+    },
+    [readSnapshotIntoUI]
+  );
+
+  const refresh = useCallback(async () => {
+    setRefreshing(true);
+    setRewardsRefreshKey((key) => key + 1);
+
     try {
-      const [regRes] = await Promise.all([
-        fetch(`${SALVA_API_URL}/api/registry/registries`),
-      ]);
-      const regData = await regRes.json();
-      const regsArray = Array.isArray(regData) ? regData : [];
-      setRegistries(regsArray);
-      if (regsArray.length === 1) setSelectedRegistry(regsArray[0]);
+      await pollWallet(selectedChain, {
+        force: true,
+        reason: 'manual',
+      });
+
+      await refreshChainMetadata({ silent: true });
+    } finally {
+      if (mountedRef.current) {
+        setRefreshing(false);
+      }
+    }
+  }, [pollWallet, refreshChainMetadata, selectedChain]);
+
+  /* --------------------------------------------------------------------------
+     SEND
+  -------------------------------------------------------------------------- */
+
+  const assets = wallet.assets;
+  const totalNgn = wallet.totalNgn;
+  const assetsLoading = wallet.initialLoading && !wallet.hasSnapshot;
+
+  const loadError = wallet.error;
+  const displayedAssets = assets.slice(0, 7);
+
+  const showAllAssetsLink = assets.length > 0;
+
+  const openSend = useCallback(
+    (asset = null) => {
+      if (isAccountLocked) {
+        showMsg(lockMessage || 'Account is locked', 'error');
+        return;
+      }
+
+      if (!asset && assets.length === 0) {
+        showMsg('No assets available on this chain', 'error');
+        return;
+      }
+
+      setSendAsset(asset);
+      setIsSendOpen(true);
+    },
+    [assets.length, isAccountLocked, lockMessage, showMsg]
+  );
+
+  const closeSend = useCallback(() => {
+    setIsSendOpen(false);
+    setSendAsset(null);
+    setSendRecipient('');
+  }, []);
+
+  useEffect(() => {
+    if (pushPromptShownRef.current) return;
+    if (!pushMeta.known || pushMeta.seen) return;
+    if (!VAPID_PUBLIC_KEY || !pushSupported() || window.Notification.permission === 'denied') {
+      return;
+    }
+    pushPromptShownRef.current = true;
+    setPushPromptOpen(true);
+  }, [pushMeta]);
+
+  const postPush = (path, body) =>
+    requestJson(`${SALVA_API_URL}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+  const markPushSeen = async (sub = null) => {
+    try {
+      await postPush('/api/seen-push-notification', { email: user.email });
     } catch {}
+
+    const c = readWalletCache(user.email, selectedChain, LOCAL_LOGOS);
+    if (c) {
+      writeWalletCache(
+        user.email,
+        selectedChain,
+        {
+          ...c,
+          pushSubscription: sub ?? c.pushSubscription ?? null,
+          seenPushNotification: true,
+        },
+        LOCAL_LOGOS
+      );
+    }
+
+    if (mountedRef.current) setPushMeta((m) => ({ ...m, seen: true, sub: sub ?? m.sub }));
   };
 
-  const feeEstimateCache = useRef({});
-
-  const computeFeePreview = useCallback(async (amount, coin) => {
-    const amt = parseFloat(amount);
-    if (isNaN(amt) || !amount || amt <= 0) {
-      setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
-      return;
-    }
-    const cacheKey = `base_${coin}`;
-    const cached = feeEstimateCache.current[cacheKey];
-    if (cached && Date.now() - cached.fetchedAt < 30_000) {
-      setFeePreview({ ...cached.data, loading: false });
-      return;
-    }
-    setFeePreview((prev) => ({ ...prev, loading: true }));
+  const enablePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
     try {
-      const apiCoin = coin === "NGN" ? "NGNS" : coin;
-      const res = await fetch(
-        `${SALVA_API_URL}/api/user/transfer/estimate-fee?chain=base&coin=${apiCoin}`,
-      );
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Fee estimation failed");
-      const preview = {
-        feeNGN: data.feeNGN ?? 0,
-        feeUsd: data.feeUsd ?? 0,
-        loading: false,
-      };
-      feeEstimateCache.current[cacheKey] = {
-        data: preview,
-        fetchedAt: Date.now(),
-      };
-      setFeePreview(preview);
-    } catch (err) {
-      console.error("Fee estimate error:", err.message);
-      setFeePreview({ feeNGN: 0, feeUsd: 0, loading: false });
+      const permission = await window.Notification.requestPermission();
+      if (permission !== 'granted') {
+        showMsg(
+          'Notifications were not allowed. You can enable them in Account Settings.',
+          'error'
+        );
+        await markPushSeen();
+        setPushPromptOpen(false);
+        return;
+      }
+
+      await navigator.serviceWorker.register('/sw.js');
+      const reg = await navigator.serviceWorker.ready;
+
+      const sub =
+        (await reg.pushManager.getSubscription()) ||
+        (await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+        }));
+
+      const subscription = sub.toJSON();
+      await postPush('/api/save-subscription', { email: user.email, subscription });
+
+      await markPushSeen(subscription);
+      setPushPromptOpen(false);
+      showMsg('Transaction alerts enabled');
+    } catch (error) {
+      showMsg(error?.message || 'Could not enable alerts', 'error');
+    } finally {
+      if (mountedRef.current) setPushBusy(false);
+    }
+  };
+
+  const activeChainData = useMemo(
+    () =>
+      chains.find(
+        (chain) => String(chain.chainName || chain.name || '').toLowerCase() === selectedChain
+      ),
+    [chains, selectedChain]
+  );
+
+  useOverlayLayer('chainPage', chainPage, () => setChainPage(false));
+
+  useOverlayLayer('detailsAsset', Boolean(detailsAsset), () => setDetailsAsset(null));
+
+  useOverlayLayer('isSendOpen', isSendOpen, closeSend);
+
+  useOverlayLayer('isReceiveOpen', isReceiveOpen, () => setIsReceiveOpen(false));
+
+  useOverlayLayer('isScanOpen', isScanOpen, () => setIsScanOpen(false));
+
+  useEffect(() => {
+    if (overlayStack.length === 0) {
+      document.body.classList.remove('salva-overlay-open');
     }
   }, []);
 
-  const handleRecipientChange = (val) => {
-    // 1. Lowercase everything
-    let cleaned = val.toLowerCase();
-    // Don't filter 0x wallet addresses
-    if (cleaned.startsWith("0x") || val.startsWith("0x")) {
-      setRecipientInput(val);
-      setInputType("address");
-      setSelectedRegistry(null);
-      return;
-    }
-    // ── Early-exit: full name with @ detected (handles paste) ──
-    // Check BEFORE stripping — if the raw lowercased value already contains @,
-    // treat it as a fullname immediately without waiting for char-by-char typing
-    if (cleaned.includes("@")) {
-      // Still sanitize but preserve the @ and valid chars
-      cleaned = cleaned.replace(/[^a-z2-9.@]/g, "");
-      // Collapse multiple @'s to the first one only
-      const atIndex = cleaned.indexOf("@");
-      if (atIndex !== -1) {
-        cleaned =
-          cleaned.slice(0, atIndex + 1) +
-          cleaned.slice(atIndex + 1).replace(/@/g, "");
+  useEffect(() => {
+    const onPopState = () => {
+      if (suppressPopCount > 0) {
+        suppressPopCount -= 1;
+        return;
       }
-      setRecipientInput(cleaned);
-      setInputType("fullname");
-      setSelectedRegistry(null);
-      return;
-    }
-    // 2. Block 0, 1, and any symbol except a-z, 2-9, _, @
-    cleaned = cleaned.replace(/[^a-z2-9.@]/g, "");
-    // 3. Allow only one underscore
-    const firstDot = cleaned.indexOf(".");
-    if (firstDot !== -1) {
-      cleaned =
-        cleaned.slice(0, firstDot + 1) +
-        cleaned.slice(firstDot + 1).replace(/\./g, "");
-    }
-    // 4. Allow only one @
-    const firstAt = cleaned.indexOf("@");
-    if (firstAt !== -1) {
-      cleaned =
-        cleaned.slice(0, firstAt + 1) +
-        cleaned.slice(firstAt + 1).replace(/@/g, "");
-    }
-    setRecipientInput(cleaned);
-    const type = detectInputType(cleaned);
-    setInputType(type);
-    if (type === "address") setSelectedRegistry(null);
-    else if (type === "fullname") setSelectedRegistry(null);
-    else if (type === "name" && registries.length === 1)
-      setSelectedRegistry(registries[0]);
-  };
 
-  const handleTransferClick = () => {
-    if (isAccountLocked) return showMsg(lockMessage, "error");
-    setIsSendOpen(true);
-  };
+      const top = overlayStack.pop();
 
-  const resetSendForm = () => {
-    setRecipientInput("");
-    setTransferAmount("");
-    setTransferAmountDisplay("");
-    setSelectedRegistry(registries.length === 1 ? registries[0] : null);
-    setInputType("empty");
-    setFeePreview({ feeNGN: 0, feeUsd: 0 });
-    setSelectedCoin("NGN");
-  };
-
-  const resolveAndConfirm = async () => {
-    if (!recipientInput || !transferAmount)
-      return showMsg("Fill all fields", "error");
-    const type = detectInputType(recipientInput);
-    if (type === "name" && !selectedRegistry)
-      return showMsg("Select a wallet service", "error");
-    // fullname: validate it has a non-empty namespace after "@"
-    if (type === "fullname") {
-      const parts = recipientInput.trim().split("@");
-      if (parts.length !== 2 || !parts[0] || !parts[1])
-        return showMsg(
-          "Invalid name format. Use name@wallet (e.g. charles@salva)",
-          "error",
-        );
-    }
-    setLoading(true);
-    try {
-      let resolvedAddress = null;
-      let displayIdentifier = recipientInput.trim();
-      if (type === "address") {
-        resolvedAddress = recipientInput.trim().toLowerCase();
-      } else if (type === "fullname") {
-        // Full name: pass as-is, backend resolves using REGISTRY_CONTRACT_ADDRESS
-        // No welding needed — the full welded name is already in the input
-        const res = await fetch(
-          `${SALVA_API_URL}/api/name/isAvail/${recipientInput.trim()}/0x`,
-        );
-        const data = await res.json();
-        if (!res.ok || !data.address) {
-          showMsg(
-            data.errorMsg || "Recipient not found. Check the name or address.",
-            "error",
-          );
-          return;
-        }
-        resolvedAddress = data.address.toLowerCase();
-        displayIdentifier = recipientInput.trim();
-      } else {
-        // type === "name": fetch full registry data by name, weld, then check availability
-        const registryRes = await fetch(
-          `${SALVA_API_URL}/api/findByName/registry/${selectedRegistry.name}`,
-        );
-        const registryData = await registryRes.json();
-        if (!registryRes.ok || !registryData?.registryAddress) {
-          showMsg("Could not load wallet service. Try again.", "error");
-          return;
-        }
-        const welded = `${recipientInput.trim()}${registryData.nspace}`;
-        const isAvailRes = await fetch(
-          `${SALVA_API_URL}/api/name/isAvail/${welded}/${registryData.registryAddress}`,
-        );
-        const isAvailData = await isAvailRes.json();
-        if (!isAvailData.status || !isAvailData.address) {
-          showMsg(
-            isAvailData.errorMsg ||
-              "Recipient not found. Check the name or address.",
-            "error",
-          );
-          return;
-        }
-        resolvedAddress = isAvailData.address.toLowerCase();
-        displayIdentifier = welded;
+      if (overlayStack.length === 0) {
+        document.body.classList.remove('salva-overlay-open');
       }
-      setConfirmationData({
-        resolvedAddress,
-        displayIdentifier,
-        amount: transferAmount,
-        registryAddress: selectedRegistry?.registryAddress || null,
-        walletName: selectedRegistry?.name || null,
-        inputType: type,
-        rawInput: recipientInput.trim(),
-        feeNGN: feePreview.feeNGN,
-        feeUsd: feePreview.feeUsd,
-        coin: selectedCoin,
-      });
-      setIsConfirmModalOpen(true);
-    } catch {
-      showMsg(
-        "Could not find that recipient. Double-check and try again.",
-        "error",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const executeTransfer = async (privateKey, capturedData) => {
-    setIsPinModalOpen(false);
-    setIsConfirmModalOpen(false);
-    setIsSendOpen(false);
-    resetSendForm();
-    showMsg("Sending…", "info");
-    try {
-      const apiCoin = capturedData.coin === "NGN" ? "NGNS" : capturedData.coin;
-      const res = await fetch(`${SALVA_API_URL}/api/user/transfer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          userPrivateKey: privateKey,
-          safeAddress: user.safeAddress,
-          toAddress: capturedData.resolvedAddress,
-          amount: capturedData.amount,
-          coin: apiCoin,
-          chain: "base",
-        }),
-      });
-      const data = await res.json();
-      if (res.ok && data.status && data.data?.txHash) {
-        showMsg("✅ Transfer Successful!");
-        fetchBalance(user.safeAddress);
-      } else {
-        showMsg(
-          data.message ||
-            data.errorMsg ||
-            "Transaction failed. Please try again.",
-          "error",
-        );
+      if (top) {
+        poppedViaHistory.add(top.id);
+        top.close();
       }
-    } catch {
-      showMsg("Connection error. Check your network and try again.", "error");
-    }
-  };
+    };
 
-  const verifyPinAndProceed = async () => {
-    if (transactionPin.length !== 4)
-      return showMsg("PIN must be 4 digits", "error");
-    setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          pin: transactionPin,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        const capturedData = { ...confirmationData };
-        setTransactionPin("");
-        setPinAttempts(0);
-        setLoading(false);
-        await executeTransfer(data.privateKey, capturedData);
-      } else {
-        const newAttempts = pinAttempts + 1;
-        setPinAttempts(newAttempts);
-        if (newAttempts >= 3) {
-          showMsg(
-            "Too many failed attempts — redirecting to settings",
-            "error",
-          );
-          setLoading(false);
-          setTimeout(() => navigate("/account-settings"), 2000);
-        } else {
-          showMsg(
-            `Incorrect PIN — ${3 - newAttempts} attempt${3 - newAttempts !== 1 ? "s" : ""} left`,
-            "error",
-          );
-          setLoading(false);
-        }
-      }
-    } catch {
-      showMsg("Network error", "error");
-      setLoading(false);
-    }
-  };
+    window.addEventListener('popstate', onPopState);
 
-  if (!user)
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#0A0A0B]">
-        <motion.div
-          animate={{ opacity: [0.3, 1, 0.3] }}
-          transition={{ repeat: Infinity, duration: 2 }}
-          className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]"
-        >
-          Salva
-        </motion.div>
+      <div className="min-h-screen flex items-center justify-center bg-[#080809]">
+        <Spinner />
       </div>
     );
-
-  const tabs = [
-    { id: "swap", label: "Swap" },
-    { id: "sant", label: "$SANT" },
-    { id: "names", label: "Link a Name" },
-    { id: "deploy", label: "Deploy Pool" },
-  ];
-
-  // ── Icon map for the Bybit-style grid nav ─────────────────────────────────
-  const TAB_ICONS = {
-    swap: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M7 16V4m0 0L4 7m3-3 3 3" />
-        <path d="M17 8v12m0 0 3-3m-3 3-3-3" />
-      </svg>
-    ),
-    deploy: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <rect x="2" y="7" width="20" height="14" rx="2" />
-        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-        <line x1="12" y1="12" x2="12" y2="16" />
-        <line x1="10" y1="14" x2="14" y2="14" />
-      </svg>
-    ),
-    names: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        {/* Tag/label shape with a dot hole — universally means "name label" */}
-        <path d="M12 2H6a2 2 0 0 0-2 2v6.17a2 2 0 0 0 .59 1.42l7.83 7.83a2 2 0 0 0 2.83 0l5.17-5.17a2 2 0 0 0 0-2.83L12.41 2.59A2 2 0 0 0 12 2z" />
-        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-    admin: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-        <polyline points="9 12 11 14 15 10" />
-      </svg>
-    ),
-    sant: (
-      <svg
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={1.75}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <circle cx="12" cy="12" r="9" />
-        <path d="M9 9.5c0-1.1 1.3-2 3-2s3 .9 3 2-1.3 1.5-3 2-3 .9-3 2 1.3 2 3 2 3-.9 3-2" />
-      </svg>
-    ),
-  };
-
-  const TAB_SHORT_LABELS = {
-    sant: "$SANT",
-    swap: "Swap",
-    deploy: "Deploy Pool",
-    names: "Link Name",
-    admin: "Admin",
-  };
-
-  const showRegistryDropdown = inputType === "name";
-  const currentCoinBalance =
-    selectedCoin === "NGN"
-      ? (ngnsBalance ?? "0.00")
-      : selectedCoin === "CNGN"
-        ? (cNgnBalance ?? "0.00")
-        : selectedCoin === "USDT"
-          ? (usdtBalance ?? "0.00")
-          : (usdcBalance ?? "0.00");
-  const coinSymbol =
-    selectedCoin === "NGN"
-      ? "NGNs"
-      : selectedCoin === "CNGN"
-        ? "cNGN"
-        : selectedCoin;
-  const recipientNameError = false;
-  const darkInput =
-    "w-full p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none font-bold text-xs sm:text-sm text-white placeholder:text-white/60 transition-all";
+  }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white pt-16 px-4 pb-16 relative overflow-x-hidden">
+    <div className="min-h-screen bg-[#080809] text-white relative overflow-x-hidden pb-24 sm:pb-28 md:pb-10 pt-5 sm:pt-7 md:pt-24">
       <Stars />
-      <div className="max-w-2xl mx-auto relative z-10">
-        {/* ── Header ── */}
-        <header className="mb-5 sm:mb-7 flex items-start justify-between gap-4">
+
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        <div className="absolute top-[-180px] left-1/2 -translate-x-1/2 w-[520px] h-[420px] rounded-full bg-salvaGold/[0.03] blur-[120px]" />
+        <div className="absolute bottom-[-200px] right-[-150px] w-[400px] h-[400px] rounded-full bg-blue-500/[0.02] blur-[120px]" />
+      </div>
+
+      <div className="max-w-4xl mx-auto px-3 sm:px-5 md:px-6 relative z-10">
+        <header className="flex items-center justify-between mb-4 sm:mb-6 md:mb-10">
           <div>
-            <p className="text-[6px] sm:text-[8px] uppercase tracking-[0.35em] text-salvaGold/60 font-black mb-0.5 sm:mb-1">
-              {user.isValidator ? "Salva Validator" : "Salva Citizen"}
-            </p>
-            <h1 className="text-sm sm:text-4xl font-black tracking-tight leading-none">
-              {user.username}
+            <div className="flex items-center gap-1.5 mb-1.5 sm:mb-2">
+              <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-salvaGold" />
+
+              <p className="text-[7px] sm:text-[9px] uppercase tracking-[.26em] text-white/70 font-black">
+                {user.isValidator ? 'Salva Validator' : 'Salva Wallet'}
+              </p>
+            </div>
+
+            <h1 className="text-[1.15rem] sm:text-2xl md:text-4xl font-black tracking-[-0.04em]">
+             {user.username}
             </h1>
           </div>
+
           {user.isValidator && (
-            <a
-              href="/stats"
-              className="flex-shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl border border-salvaGold/30 bg-salvaGold/[0.07] hover:bg-salvaGold/[0.14] hover:border-salvaGold/50 transition-all"
+            <button
+              onClick={() => navigate('/stats')}
+              className="hidden sm:flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border border-salvaGold/15 bg-salvaGold/[0.045] text-[10px] font-black uppercase tracking-widest text-salvaGold"
             >
-              <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-widest text-salvaGold">
-                View Stats
-              </span>
-              <span className="text-salvaGold text-[7px] sm:text-[10px]">
-                ↗
-              </span>
-            </a>
+              <span>Validator</span>
+
+              {govCount > 0 && (
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center">
+                  {govCount > 99 ? '99+' : govCount}
+                </span>
+              )}
+            </button>
           )}
         </header>
 
-        {/* ── Rewards: SANT points + referral link ── */}
-        <RewardsBar
-          user={user}
-          showMsg={showMsg}
-          refreshKey={rewardsRefreshKey}
-        />
+        <section className="relative overflow-hidden rounded-[22px] sm:rounded-[28px] border border-white/[0.08] bg-gradient-to-br from-white/[0.05] to-white/[0.015] shadow-[0_20px_60px_rgba(0,0,0,.25)] mb-3 sm:mb-4">
+          <div className="absolute -top-28 -right-20 w-72 h-72 rounded-full bg-salvaGold/[0.05] blur-[90px] pointer-events-none" />
 
-        {/* ── Balance Card ── */}
-        <BalanceCard
-          ngnsBalance={ngnsBalance ?? "0.00"}
-          cNgnBalance={cNgnBalance ?? "0.00"}
-          usdtBalance={usdtBalance ?? "0.00"}
-          usdcBalance={usdcBalance ?? "0.00"}
-          showBalance={showBalance}
-          balanceLoading={balanceLoading}
-          onToggleVisibility={toggleShowBalance}
-          onSend={handleTransferClick}
-          onReceive={() => setIsReceiveOpen(true)}
-          onRefresh={handleManualRefresh}
-          refreshing={balanceLoading}
-        />
-
-        {/* ── Info Bar: Chain + Wallet + TX History ── */}
-        <div className="mb-3 sm:mb-5 rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
-          {/* Row 1: Chain identifier + switcher */}
-          <div className="flex items-center justify-between px-2 py-2 sm:px-3 sm:py-2.5 border-b border-white/[0.05]">
-            <div className="flex items-center gap-1.5 sm:gap-2">
-              <div className="w-3.5 h-3.5 sm:w-5 sm:h-5 rounded-full bg-[#0052FF] flex items-center justify-center flex-shrink-0">
-                <span className="text-white text-[6px] sm:text-[8px] font-black">
-                  B
-                </span>
-              </div>
-              <span className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-salvaGold">
-                Base Chain
-              </span>
-            </div>
-            <a
-              href="/bnb"
-              className="flex items-center gap-1 sm:gap-1.5 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg border border-white/[0.08] bg-white/[0.03] hover:border-yellow-500/30 hover:bg-yellow-500/[0.04] transition-all"
-            >
-              <img
-                src="https://s2.coinmarketcap.com/static/img/coins/64x64/1839.png"
-                className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 rounded-full"
-                alt="BNB"
-              />
-              <span className="text-[7px] sm:text-[9px] font-black uppercase tracking-widest text-white/50">
-                Switch to BNB
-              </span>
-              <span className="text-white/30 text-[7px] sm:text-[9px]">↗</span>
-            </a>
-          </div>
-
-          {/* Row 2: Wallet address + TX history — side by side */}
-          <div className="flex items-stretch divide-x divide-white/[0.05]">
-            {/* Wallet address */}
-            <div
-              onClick={() => {
-                setIsReceiveOpen(true);
-              }}
-              className="flex-1 flex items-center gap-1.5 sm:gap-2.5 px-2 py-2 sm:px-3 sm:py-2.5 cursor-pointer hover:bg-white/[0.02] transition-all group min-w-0"
-            >
-              <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-lg bg-[#0052FF] flex items-center justify-center flex-shrink-0 overflow-hidden">
-                <svg
-                  viewBox="0 0 111 111"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  className="w-3 h-3 sm:w-4 sm:h-4"
-                >
-                  <path
-                    d="M54.921 110.034C85.359 110.034 110.034 85.359 110.034 54.921C110.034 24.4828 85.359 -0.192139 54.921 -0.192139C24.4828 -0.192139 -0.192139 24.4828 -0.192139 54.921C-0.192139 85.359 24.4828 110.034 54.921 110.034Z"
-                    fill="#0052FF"
-                  />
-                  <path
-                    d="M55.0117 86.2397C72.8728 86.2397 87.4453 71.7357 87.4453 53.9508C87.4453 36.1659 72.8728 21.6619 55.0117 21.6619C38.0973 21.6619 24.1269 34.7532 23.627 51.3438H69.0137V56.5578H23.627C24.1269 73.1483 38.0973 86.2397 55.0117 86.2397Z"
-                    fill="white"
-                  />
-                </svg>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-[6px] sm:text-[8px] uppercase tracking-[0.3em] text-white/40 font-black leading-none mb-0.5">
-                  Address
-                </p>
-                <p className="font-mono text-[7px] sm:text-[10px] text-salvaGold/60 truncate group-hover:text-salvaGold/80 transition-colors">
-                  {showBalance ? (
-                    <>
-                      <span className="lg:hidden">
-                        {user.safeAddress.slice(0, 6)}…
-                        {user.safeAddress.slice(-10)}
-                      </span>
-                      <span className="hidden lg:inline">
-                        {user.safeAddress}
-                      </span>
-                    </>
-                  ) : (
-                    "0x••••••••••••••••••••••••••••••••••••••••"
-                  )}
-                </p>
-              </div>
-              <svg
-                className="w-2 h-2 sm:w-3 sm:h-3 text-white/20 group-hover:text-white/40 flex-shrink-0 transition-colors"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <rect
-                  x="9"
-                  y="9"
-                  width="13"
-                  height="13"
-                  rx="2"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                  strokeWidth="2"
-                />
-              </svg>
-            </div>
-
-            {/* TX History */}
-            <Link
-              to="/transactions"
-              className="w-[50%] flex items-center justify-center gap-1.5 sm:gap-2 px-2 py-2 sm:px-3 sm:py-2.5 hover:bg-white/[0.02] transition-all group"
-            >
-              <p className="text-[7px] sm:text-[9px] font-black text-white/50 group-hover:text-salvaGold transition-colors uppercase tracking-wider whitespace-nowrap">
-                Transaction History
-              </p>
-              <span className="text-salvaGold/50 text-xs sm:text-sm group-hover:text-salvaGold group-hover:translate-x-0.5 transition-all flex-shrink-0">
-                →
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        {/* ── Account locked banner ── */}
-        {isAccountLocked && (
-          <div className="mb-5 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
-            <p className="text-sm font-bold text-red-400">
-              🔒 {lockMessage} — Transactions are disabled.
-            </p>
-          </div>
-        )}
-
-        {/* ══ BYBIT-STYLE ICON GRID NAV ══════════════════════════════════════ */}
-        <div className="mb-7">
-          {/* ── Top separator ── */}
-          <div className="relative flex items-center mb-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
-            <div className="mx-3 flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
-              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/60 block" />
-              <span className="w-1 h-1 rounded-full bg-salvaGold/40 block" />
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent" />
-          </div>
-          <div
-            className={`grid gap-x-1 gap-y-5 ${
-              tabs.length <= 4
-                ? "grid-cols-4"
-                : tabs.length === 5
-                  ? "grid-cols-5"
-                  : "grid-cols-4"
-            }`}
-          >
-            {tabs.map((tab) => {
-              const isActive = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  data-tab={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className="flex flex-col items-center gap-2 group focus:outline-none"
-                >
-                  {/* Circle icon */}
-                  <div
-                    className={`
-                      relative w-9 h-9 rounded-full flex items-center justify-center
-                      transition-all duration-200 active:scale-95
-                      ${
-                        isActive
-                          ? "bg-[#1C1C1E] ring-2 ring-salvaGold shadow-[0_0_18px_rgba(212,175,55,0.18)]"
-                          : "bg-[#1C1C1E] ring-1 ring-white/[0.05] hover:ring-white/15 hover:bg-[#232325]"
-                      }
-                    `}
-                  >
-                    <span
-                      className={`w-[15px] h-[15px] transition-colors duration-200 ${
-                        isActive
-                          ? "text-salvaGold"
-                          : "text-white/60 group-hover:text-white/65"
-                      }`}
-                    >
-                      {TAB_ICONS[tab.id]}
-                    </span>
-                    {/* Active indicator dot beneath circle */}
-                    {isActive && (
-                      <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-salvaGold" />
-                    )}
-                  </div>
-                  {/* Short label */}
-                  <span
-                    className={`
-                      text-[7px] font-black uppercase tracking-[0.06em] leading-tight
-                    text-center max-w-[48px] break-words transition-colors duration-200
-                      ${isActive ? "text-salvaGold" : "text-white/60 group-hover:text-white/50"}
-                    `}
-                  >
-                    {TAB_SHORT_LABELS[tab.id] || tab.label}
+          <div className="relative p-4 sm:p-5 md:p-8">
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
+                  <span className="text-[8px] sm:text-[9px] uppercase tracking-[.28em] text-white/75 font-black">
+                    Total Portfolio
                   </span>
-                </button>
-              );
-            })}
-          </div>
-          {/* ── Bottom separator ── */}
-          <div className="relative flex items-center mt-6">
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
-            <div className="mx-3 flex items-center gap-1.5">
-              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
-              <span className="w-1.5 h-1.5 rounded-full bg-salvaGold/40 block" />
-              <span className="w-1 h-1 rounded-full bg-salvaGold/30 block" />
-            </div>
-            <div className="flex-1 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent" />
-          </div>
-        </div>
-        {/* ══ END ICON GRID NAV ══════════════════════════════════════════════ */}
 
-        {/* ── Tab content ── */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={activeTab}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.15 }}
-          >
-            {activeTab === "sant" && (
-              <SantTab user={user} registries={registries} showMsg={showMsg} />
-            )}
-
-            {activeTab === "names" && (
-              <LinkNameTab
-                user={user}
-                registries={registries}
-                showMsg={showMsg}
-                onSwitchToBuy={() => setActiveTab("buy")}
-              />
-            )}
-
-            {activeTab === "swap" && <SwapTab user={user} showMsg={showMsg} />}
-
-            {activeTab === "deploy" && (
-              <DeployPool
-                user={user}
-                showMsg={showMsg}
-                onSwitchToLinkName={(poolAddress) => {
-                  window.__salva_pool_prefill = poolAddress;
-                  setActiveTab("names");
-                }}
-              />
-            )}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* ══ SEND MODAL ═══════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {isSendOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
-            <motion.div
-              onClick={() => !loading && setIsSendOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-10 rounded-t-[1.75rem] sm:rounded-3xl w-full max-w-lg shadow-2xl"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            >
-              <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
-              <div className="mb-4 sm:mb-6 flex items-start justify-between gap-2.5 sm:gap-4">
-                <div>
-                  <h3 className="text-base sm:text-3xl font-black text-white">
-                    Send
-                  </h3>
-                  <p className="text-[7px] sm:text-[10px] text-salvaGold/60 uppercase tracking-[0.25em] sm:tracking-[0.35em] font-black mt-0.5">
-                    Salva Secure Transfer
-                  </p>
+                  <span className="w-1 h-1 rounded-full bg-salvaGold/60" />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsScanOpen(true)}
-                  className="flex-shrink-0 w-7 h-7 sm:w-10 sm:h-10 rounded-xl bg-white/[0.04] border border-white/10 hover:border-salvaGold/40 hover:bg-salvaGold/[0.06] transition-all flex items-center justify-center group mt-1"
-                >
-                  <svg
-                    className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-white/60 group-hover:text-salvaGold transition-colors"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+
+                <div className="flex items-baseline gap-2 min-h-[38px] sm:min-h-[52px]">
+                  {!wallet.hasSnapshot && assetsLoading ? (
+                    <Spinner />
+                  ) : loadError && totalNgn === null ? (
+                    <span className="text-[1.1rem] sm:text-[1.4rem] font-black text-red-400/90 leading-tight">
+                      Balance unavailable
+                    </span>
+                  ) : showBalance ? (
+                    <span className="text-[1.8rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[-0.055em] leading-none">
+                      ₦
+                      {formatNumber(totalNgn ?? 0, {
+                        minDecimals: 2,
+                        maxDecimals: 2,
+                      })}
+                    </span>
+                  ) : (
+                    <span className="text-[1.8rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[.08em] leading-none">
+                      ••••••••
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2 mt-2 sm:mt-3">
+                  <p
+                    className={`text-[8px] sm:text-[10px] ${
+                      loadError ? 'text-yellow-400/90' : 'text-white/70'
+                    }`}
                   >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={1.8}
-                      d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"
-                    />
-                    <rect
-                      x="7"
-                      y="7"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
-                    <rect
-                      x="13"
-                      y="7"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
-                    <rect
-                      x="7"
-                      y="13"
-                      width="4"
-                      height="4"
-                      rx="0.5"
-                      strokeWidth={1.8}
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeWidth={1.8}
-                      d="M13 13h1v1M17 13v1h-1M13 17h4v-2"
-                    />
-                  </svg>
+                    {loadError
+                      ? wallet.updatedAt
+                        ? `Showing last update from ${new Date(wallet.updatedAt).toLocaleTimeString(
+                            [],
+                            {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            }
+                          )} · retrying…`
+                        : 'Reconnecting…'
+                      : wallet.updatedAt
+                      ? `Updated ${new Date(wallet.updatedAt).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}`
+                      : 'Across your networks'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-0.5 sm:gap-1">
+                <button
+                  onClick={refresh}
+                  disabled={refreshing}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.05] disabled:opacity-60 transition-all"
+                  aria-label="Refresh portfolio"
+                >
+                  <span className={refreshing ? 'inline-block animate-spin' : ''}>↻</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    const value = !showBalance;
+
+                    setShowBalance(value);
+
+                    localStorage.setItem('salva_show_balance', String(value));
+                  }}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center text-white/70 hover:text-white hover:bg-white/[0.05] transition-all"
+                  aria-label="Toggle balance"
+                >
+                  {showBalance ? '◉' : '○'}
                 </button>
               </div>
-              <div className="mb-3.5 sm:mb-5">
-                <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block mb-1.5 sm:mb-2">
-                  Select Token
-                </label>
-                <div className="flex gap-1.5 sm:gap-2">
-                  {["NGN", "CNGN", "USDT", "USDC"].map((coin) => (
-                    <button
-                      key={coin}
-                      onClick={() => {
-                        setSelectedCoin(coin);
-                        setTransferAmount("");
-                        setTransferAmountDisplay("");
-                        setFeePreview({ feeNGN: 0, feeUsd: 0 });
-                      }}
-                      className={`flex-1 py-1.5 sm:py-2.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all border ${
-                        selectedCoin === coin
-                          ? "bg-salvaGold text-black border-salvaGold"
-                          : "border-white/10 text-white/60 hover:text-white/80"
-                      }`}
-                    >
-                      {coin === "NGN" ? "NGNs" : coin}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-[7px] sm:text-[10px] text-white/60 mt-1 sm:mt-1.5">
-                  Balance:{" "}
-                  {balanceLoading
-                    ? "…"
-                    : showBalance
-                      ? formatNumber(currentCoinBalance, {
-                          minDecimals: 3,
-                          maxDecimals: 6,
-                        })
-                      : "••••"}{" "}
-                  {coinSymbol}
-                </p>
-              </div>
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  resolveAndConfirm();
-                }}
-                className="space-y-2.5 sm:space-y-4"
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 mt-5 sm:mt-7">
+              <button
+                onClick={() => openSend(null)}
+                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-salvaGold text-black font-black text-[10px] sm:text-xs uppercase tracking-[.13em] hover:brightness-105 active:scale-[.98] transition-all"
               >
-                <div className="space-y-1.5 sm:space-y-2">
-                  <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block">
-                    Recipient
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    placeholder="Name alias or 0x address"
-                    value={recipientInput}
-                    onChange={(e) => handleRecipientChange(e.target.value)}
-                    className={`${darkInput} ${recipientNameError ? "border-red-500" : ""}`}
-                  />
-                  {inputType !== "empty" && (
-                    <p className="text-[7px] sm:text-[10px] text-white/60 font-bold ml-1">
-                      {inputType === "address"
-                        ? "✓ Wallet address — sending directly"
-                        : inputType === "fullname"
-                          ? "✓ Full name detected — resolving directly"
-                          : "Name alias — select a wallet below"}
-                    </p>
-                  )}
+                ↑ Send
+              </button>
 
-                  {showRegistryDropdown && registries.length > 0 && (
-                    <div>
-                      <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold block mb-1.5 sm:mb-2">
-                        Select Wallet Service
-                      </label>
-                      <RegistryDropdown
-                        registries={registries}
-                        value={selectedRegistry}
-                        onChange={setSelectedRegistry}
-                        placeholder="Search wallet service…"
-                      />
-                    </div>
-                  )}
-                </div>
-                <div>
-                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                    <label className="text-[7px] sm:text-[10px] uppercase text-white/60 font-bold">
-                      Amount ({coinSymbol})
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const raw = String(currentCoinBalance ?? "0");
-                        setTransferAmountDisplay(formatAmountInput(raw));
-                        setTransferAmount(raw);
-                        computeFeePreview(raw, selectedCoin);
-                      }}
-                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest text-salvaGold hover:opacity-80 transition-opacity px-1.5 sm:px-2 py-0.5 rounded-lg bg-salvaGold/10 border border-salvaGold/20 hover:bg-salvaGold/20"
-                    >
-                      Max
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      required
-                      type="text"
-                      inputMode="decimal"
-                      value={transferAmountDisplay}
-                      onChange={(e) => {
-                        const fmt = formatAmountInput(e.target.value);
-                        setTransferAmountDisplay(fmt);
-                        const raw = fmt.replace(/,/g, "");
-                        setTransferAmount(raw);
-                        computeFeePreview(raw, selectedCoin);
-                      }}
-                      className={`${darkInput} text-sm sm:text-lg pr-11 sm:pr-16 ${
-                        amountError ? "border-red-500" : ""
-                      }`}
-                    />
-                    <span className="absolute right-2.5 sm:right-4 top-1/2 -translate-y-1/2 text-salvaGold font-black text-xs sm:text-sm">
-                      {coinSymbol}
-                    </span>
-                  </div>
-                  {amountError && (
-                    <p className="text-[7px] sm:text-[10px] text-red-400 mt-1 font-bold animate-pulse">
-                      ⚠️ Insufficient balance
-                    </p>
-                  )}
-                  {(selectedCoin === "NGN" || selectedCoin === "CNGN") &&
-                    transferAmount &&
-                    !amountError && (
-                      <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
-                          feeExceedsAmount
-                            ? "bg-red-500/8 border-red-500/30"
-                            : "bg-white/[0.03] border-white/[0.06]"
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="text-white/60 uppercase font-bold">
-                            Network Fee
-                          </span>
-                          {feePreview.loading ? (
-                            <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
-                          ) : (
-                            <span className="text-red-400 font-black">
-                              {feePreview.feeNGN > 0
-                                ? `-${formatNumber(feePreview.feeNGN)} ${selectedCoin === "NGN" || selectedCoin === "CNGN" ? "NGN" : "NGN"}`
-                                : "…"}
-                            </span>
-                          )}
-                        </div>
-                        {feeExceedsAmount && (
-                          <p className="text-red-400 font-black animate-pulse">
-                            ⚠ Fee exceeds amount — increase your send amount
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  {(selectedCoin === "USDT" || selectedCoin === "USDC") &&
-                    transferAmount &&
-                    !amountError && (
-                      <div
-                        className={`mt-1.5 sm:mt-2 p-2 sm:p-3 rounded-xl text-[7px] sm:text-[10px] space-y-0.5 sm:space-y-1 border ${
-                          feeExceedsAmount
-                            ? "bg-red-500/8 border-red-500/30"
-                            : "bg-white/[0.03] border-white/[0.06]"
-                        }`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="text-white/60 uppercase font-bold">
-                            Network Fee
-                          </span>
-                          {feePreview.loading ? (
-                            <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
-                          ) : (
-                            <span className="text-red-400 font-black">
-                              {feePreview.feeUsd > 0
-                                ? `-${feePreview.feeUsd} ${selectedCoin === "USDT" || selectedCoin === "USDC" ? "USD" : "USD"}`
-                                : "…"}
-                            </span>
-                          )}
-                        </div>
-                        {feeExceedsAmount && (
-                          <p className="text-red-400 font-black animate-pulse">
-                            ⚠ Fee exceeds amount — increase your send amount
-                          </p>
-                        )}
-                      </div>
-                    )}
-                </div>
-                <button
-                  disabled={
-                    loading ||
-                    amountError ||
-                    feeExceedsAmount ||
-                    !recipientInput ||
-                    recipientNameError ||
-                    feePreview.loading
-                  }
-                  type="submit"
-                  className={`w-full py-2.5 sm:py-4 rounded-2xl font-black transition-all text-xs sm:text-sm uppercase tracking-widest flex items-center justify-center gap-1.5 sm:gap-2 ${
-                    loading ||
-                    amountError ||
-                    !recipientInput ||
-                    feePreview.loading
-                      ? "bg-white/5 text-white/60 cursor-not-allowed border border-white/5"
-                      : "bg-salvaGold text-black hover:brightness-110 active:scale-[0.98] shadow-lg shadow-salvaGold/20"
-                  }`}
-                >
-                  {loading && (
-                    <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  )}
-                  {loading ? "Processing…" : "Review & Send"}
-                </button>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ══ CONFIRM MODAL ════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {isConfirmModalOpen && confirmationData && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => setIsConfirmModalOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-3xl w-full max-w-lg shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
-                  <span className="text-lg sm:text-2xl">⚠️</span>
-                </div>
-                <h3 className="text-base sm:text-xl font-black mb-1 text-white">
-                  Verify Recipient
-                </h3>
-                <p className="text-xs sm:text-sm text-white/60">
-                  Double-check before sending. Blockchain transactions are
-                  irreversible.
-                </p>
-              </div>
-              <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-                <div className="p-2.5 sm:p-4 rounded-2xl bg-salvaGold/5 border border-salvaGold/15">
-                  <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">
-                    Sending To
-                  </p>
-                  <p className="font-black text-xs sm:text-sm text-salvaGold break-all leading-snug">
-                    {confirmationData.displayIdentifier}
-                  </p>
-                  <p className="font-mono text-[7px] sm:text-[10px] text-white/60 mt-1 break-all">
-                    {confirmationData.resolvedAddress}
-                  </p>
-                  {confirmationData.walletName && (
-                    <p className="text-[7px] sm:text-[10px] text-white/60 mt-1 font-bold">
-                      to {confirmationData.walletName}
-                    </p>
-                  )}
-                </div>
-                <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06]">
-                  <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">
-                    You Send
-                  </p>
-                  <p className="font-black text-base sm:text-xl text-white">
-                    {formatNumber(confirmationData.amount, {
-                      minDecimals: 0,
-                      maxDecimals: 6,
-                    })}{" "}
-                    <span className="text-salvaGold">
-                      {confirmationData.coin === "NGN"
-                        ? "NGNs"
-                        : confirmationData.coin}
-                    </span>
-                  </p>
-                </div>
-                {(confirmationData.feeNGN > 0 ||
-                  confirmationData.feeUsd > 0) && (
-                  <div className="p-2.5 sm:p-4 rounded-2xl bg-red-500/5 border border-red-500/10">
-                    <p className="text-[7px] sm:text-[10px] text-white/60 mb-1">
-                      Network Fee
-                    </p>
-                    <p className="font-black text-xs sm:text-base text-red-400">
-                      {(confirmationData.coin === "NGN" ||
-                        confirmationData.coin === "CNGN") &&
-                      confirmationData.feeNGN > 0
-                        ? `-${formatNumber(confirmationData.feeNGN)} NGNs`
-                        : `-${confirmationData.feeUsd} ${confirmationData.coin}`}
-                    </p>
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2 sm:gap-3">
-                <button
-                  onClick={() => setIsConfirmModalOpen(false)}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl border border-white/10 font-bold text-xs sm:text-base text-white hover:bg-white/5 transition-all"
-                >
-                  Go Back
-                </button>
-                <button
-                  onClick={() => {
-                    setIsConfirmModalOpen(false);
-                    setIsPinModalOpen(true);
-                    setTransactionPin("");
-                    setPinAttempts(0);
-                  }}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 transition-all"
-                >
-                  Confirm & Sign
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ══ PIN MODAL ═════════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {isPinModalOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => !loading && setIsPinModalOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-3xl w-full max-w-md shadow-2xl"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="text-center mb-4 sm:mb-6">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-2.5 sm:mb-4">
-                  <span className="text-lg sm:text-2xl">🔐</span>
-                </div>
-                <h3 className="text-base sm:text-2xl font-black mb-1 text-white">
-                  Transaction PIN
-                </h3>
-                <p className="text-xs sm:text-sm text-white/60">
-                  Verify identity to proceed
-                </p>
-              </div>
-              <input
-                type="password"
-                inputMode="numeric"
-                pattern="\d{4}"
-                maxLength="4"
-                value={transactionPin}
-                onChange={(e) =>
-                  setTransactionPin(e.target.value.replace(/\D/g, ""))
-                }
-                placeholder="••••"
-                autoFocus
-                className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-3.5 sm:mb-5 text-white"
-              />
-              {pinAttempts > 0 && (
-                <p className="text-[9px] sm:text-xs text-red-400 text-center mb-3 sm:mb-4 font-bold">
-                  ⚠️ {3 - pinAttempts} attempt{3 - pinAttempts !== 1 ? "s" : ""}{" "}
-                  remaining
-                </p>
-              )}
-              <div className="flex gap-2 sm:gap-3">
-                <button
-                  onClick={() => setIsPinModalOpen(false)}
-                  disabled={loading}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl border border-white/10 font-bold text-xs sm:text-base text-white hover:bg-white/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={verifyPinAndProceed}
-                  disabled={loading || transactionPin.length !== 4}
-                  className="flex-1 py-2.5 sm:py-3 rounded-xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading && (
-                    <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-                  )}
-                  {loading ? "Verifying…" : "Verify"}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Notification ── */}
-      <AnimatePresence>
-        {notification.show && (
-          <SalvaNotification notification={notification} onClose={closeNotif} />
-        )}
-      </AnimatePresence>
-
-      {/* ══ RECEIVE MODAL ════════════════════════════════════════════════════ */}
-      <AnimatePresence>
-        {isReceiveOpen && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center px-0 sm:px-4">
-            <motion.div
-              onClick={() => setIsReceiveOpen(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              className="relative bg-zinc-950 border border-white/10 p-4 sm:p-8 rounded-t-[1.75rem] sm:rounded-3xl w-full max-w-sm shadow-2xl"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            >
-              <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-5 sm:hidden" />
-              <div className="text-center mb-5 sm:mb-7">
-                <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.3em] sm:tracking-[0.45em] text-salvaGold/50 font-black mb-1">
-                  Receive Funds
-                </p>
-                <h3 className="text-base sm:text-2xl font-black text-white">
-                  {user.username}
-                </h3>
-              </div>
-              <div className="flex justify-center mb-4 sm:mb-6">
-                <div
-                  onClick={() => {
-                    navigator.clipboard.writeText(user.safeAddress);
-                    showMsg("Address copied!");
-                  }}
-                  className="relative group cursor-pointer"
-                >
-                  <div className="absolute -inset-1 rounded-2xl bg-gradient-to-br from-salvaGold/40 via-salvaGold/10 to-transparent blur-md group-hover:blur-lg transition-all" />
-                  <div className="relative p-2.5 sm:p-4 rounded-2xl bg-white border-2 border-salvaGold/30 group-hover:border-salvaGold/60 transition-all shadow-2xl shadow-black">
-                    <QRCodeSVG
-                      value={user.safeAddress}
-                      size={132}
-                      bgColor="#FFFFFF"
-                      fgColor="#0A0A0B"
-                      level="M"
-                      includeMargin={false}
-                    />
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
-                    <div className="bg-black/80 text-white text-[7px] sm:text-[10px] font-black uppercase tracking-widest px-2 sm:px-3 py-1 sm:py-1.5 rounded-full">
-                      Tap to copy
-                    </div>
-                  </div>
-                </div>
-              </div>
               <button
                 onClick={() => {
-                  navigator.clipboard.writeText(user.safeAddress);
-                  showMsg("Address copied!");
+                  setReceiveAsset(null);
+                  setIsReceiveOpen(true);
                 }}
-                className="w-full flex items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-2 sm:mb-3"
+                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-white/[0.09] bg-white/[0.025] text-white font-black text-[10px] sm:text-xs uppercase tracking-[.13em] hover:bg-white/[0.055] transition-all"
               >
-                <div className="min-w-0 text-left">
-                  <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.35em] text-white/60 font-black mb-0.5 sm:mb-1">
-                    Wallet Address
-                  </p>
-                  <p className="font-mono text-[7px] sm:text-[10px] text-salvaGold/70 truncate">
-                    {user.safeAddress}
-                  </p>
-                </div>
-                <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
-                  <svg
-                    className="w-2 h-2 sm:w-3 sm:h-3 text-white/60 group-hover:text-salvaGold transition-colors"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <rect
-                      x="9"
-                      y="9"
-                      width="13"
-                      height="13"
-                      rx="2"
-                      strokeWidth="2"
-                    />
-                    <path
-                      d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                      strokeWidth="2"
-                    />
-                  </svg>
-                </div>
+                ↓ Receive
               </button>
-              {user.nameAlias && (
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(user.nameAlias);
-                    showMsg("Name alias copied!");
-                  }}
-                  className="w-full flex items-center justify-between gap-2 sm:gap-3 p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] hover:border-salvaGold/30 hover:bg-salvaGold/[0.03] transition-all group mb-2 sm:mb-3"
-                >
-                  <div className="min-w-0 text-left">
-                    <p className="text-[7px] sm:text-[9px] uppercase tracking-[0.25em] sm:tracking-[0.35em] text-white/60 font-black mb-0.5 sm:mb-1">
-                      Name Alias
-                    </p>
-                    <p className="font-black text-xs sm:text-sm text-salvaGold">
-                      {user.nameAlias}
-                    </p>
-                  </div>
-                  <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-lg bg-white/5 border border-white/10 group-hover:border-salvaGold/30 group-hover:bg-salvaGold/10 flex items-center justify-center flex-shrink-0 transition-all">
-                    <svg
-                      className="w-2 h-2 sm:w-3 sm:h-3 text-white/60 group-hover:text-salvaGold transition-colors"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <rect
-                        x="9"
-                        y="9"
-                        width="13"
-                        height="13"
-                        rx="2"
-                        strokeWidth="2"
+            </div>
+          </div>
+        </section>
+
+        <RewardsBar user={user} showMsg={showMsg} refreshKey={rewardsRefreshKey} />
+
+        <section className="rounded-[18px] sm:rounded-[24px] border border-white/[0.07] bg-white/[0.025] overflow-hidden mb-4 sm:mb-5">
+          <div className="grid grid-cols-2 divide-x divide-white/[0.055]">
+            <div className="flex items-center justify-between gap-1.5 px-2.5 py-2 sm:gap-2 sm:px-4 sm:py-3.5 min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+                <div className="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-white/[0.05] border border-white/[0.07] flex items-center justify-center overflow-hidden flex-shrink-0">
+                  {activeChainData?.logo ? (
+                    <img
+                      src={activeChainData.logo}
+                      alt={activeChainData.chainName || activeChainData.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span className="font-black text-[10px] sm:text-sm text-salvaGold">
+                      {selectedChain[0]?.toUpperCase()}
+                    </span>
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[5px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
+                    Network
+                  </p>
+
+                  <p className="font-black text-[9px] sm:text-sm capitalize truncate">
+                    {activeChainData?.chainName || selectedChain}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setChainPage(true)}
+                disabled={chainMetadataRefreshing}
+                className="shrink-0 px-1.5 py-1 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-white/10 text-[5px] sm:text-[9px] uppercase tracking-widest font-black text-white/75 hover:text-white disabled:opacity-50"
+              >
+                {chainMetadataRefreshing ? '…' : 'Switch'}
+              </button>
+            </div>
+
+            <div className="flex flex-col justify-center px-2.5 py-2 sm:px-4 sm:py-3.5 min-w-0">
+              <p className="text-[6px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
+                Wallet
+              </p>
+
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(user.safeAddress);
+
+                  showMsg('Wallet address copied!');
+                }}
+                className="mt-1 font-mono text-[7px] sm:text-[10px] text-white/80 hover:text-salvaGold text-left"
+              >
+                <span className="block truncate max-w-full sm:hidden">
+                  {truncateAddress(user.safeAddress)}
+                </span>
+
+                <span className="hidden sm:block break-all">{user.safeAddress}</span>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div className="flex items-end justify-between mb-2.5 sm:mb-3 px-0.5">
+            <div>
+              <p className="text-[8px] sm:text-[9px] uppercase tracking-[.3em] text-white/65 font-black">
+                Portfolio
+              </p>
+
+              <h2 className="text-lg sm:text-xl font-black mt-0.5 sm:mt-1">Assets</h2>
+            </div>
+
+            {showAllAssetsLink && (
+              <button
+                onClick={() => navigate('/dashboard/assets')}
+                className="text-[8px] sm:text-[9px] uppercase tracking-widest text-salvaGold font-black"
+              >
+                View all →
+              </button>
+            )}
+          </div>
+
+          <div className="rounded-[20px] sm:rounded-[24px] border border-white/[0.07] bg-white/[0.025] overflow-hidden divide-y divide-white/[0.055]">
+            {!wallet.hasSnapshot && assetsLoading ? (
+              <div className="py-12 sm:py-16 flex flex-col items-center justify-center gap-3">
+                <Spinner />
+
+                <p className="text-[8px] uppercase tracking-widest text-white/70 font-black">
+                  Loading {selectedChain}
+                </p>
+              </div>
+            ) : assets.length === 0 ? (
+              <div className="py-12 sm:py-16 text-center px-6">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                  <span className="text-white/35 text-base sm:text-lg">◈</span>
+                </div>
+
+                <p className="text-xs sm:text-sm font-black text-white/85">
+                  {loadError ? 'Could not load assets' : 'No assets yet'}
+                </p>
+
+                <p className="text-[9px] sm:text-[10px] text-white/75 mt-1">
+                  {loadError || `Assets on ${selectedChain} will appear here.`}
+                </p>
+
+                {loadError && (
+                  <button
+                    onClick={refresh}
+                    className="mt-4 px-4 py-2 rounded-xl bg-salvaGold text-black text-[9px] font-black uppercase tracking-widest"
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                {displayedAssets.map((asset) => (
+                  <button
+                    key={asset._key}
+                    onClick={() => setDetailsAsset(asset)}
+                    className="w-full flex items-center gap-2.5 sm:gap-3.5 px-3 sm:px-4 py-3 sm:py-4 text-left hover:bg-white/[0.035] transition-all group"
+                  >
+                    <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
+
+                    <div className="flex-1 min-w-0">
+                      <p className="font-black text-xs sm:text-sm text-white">{asset.symbol}</p>
+
+                      <p className="text-[8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+                        {asset.chain || selectedChain}
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="font-black text-xs sm:text-sm text-white">
+                        {showBalance
+                          ? formatNumber(asset.balance, {
+                              maxDecimals: 6,
+                            })
+                          : '••••'}
+                      </p>
+
+                      <AssetValueLine
+                        asset={asset}
+                        className="text-[8px] sm:text-[10px] text-white/70 mt-0.5"
                       />
-                      <path
-                        d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                        strokeWidth="2"
-                      />
-                    </svg>
-                  </div>
-                </button>
-              )}
+                    </div>
+
+                    <span className="text-white/30 group-hover:text-salvaGold transition-colors">
+                      ›
+                    </span>
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <AnimatePresence>
+        {chainPage && (
+          <Chains
+            user={user}
+            selectedChain={selectedChain}
+            onSelect={selectChain}
+            onClose={() => setChainPage(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {detailsAsset && (
+          <AssetDetailsModal
+            asset={detailsAsset}
+            showBalance={showBalance}
+            user={user}
+            showMsg={showMsg}
+            onSantClaimed={refresh}
+            onClose={() => setDetailsAsset(null)}
+            onSend={() => {
+              setDetailsAsset(null);
+              openSend(detailsAsset);
+            }}
+            onReceive={() => {
+              setReceiveAsset(detailsAsset);
+              setDetailsAsset(null);
+              setIsReceiveOpen(true);
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isSendOpen && (
+          <SendTransferModal
+            user={user}
+            assets={assets}
+            selectedChain={selectedChain}
+            showBalance={showBalance}
+            initialAsset={sendAsset}
+            onClose={closeSend}
+            showMsg={showMsg}
+            onSuccess={async () => {
+              setRewardsRefreshKey((key) => key + 1);
+
+              await pollWallet(selectedChain, {
+                force: true,
+                reason: 'transaction',
+              });
+
+              await refreshChainMetadata({ silent: true });
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isReceiveOpen && (
+          <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center px-0 sm:px-4">
+            <div
+              className="absolute inset-0 bg-black/95 backdrop-blur-md"
+              onClick={() => setIsReceiveOpen(false)}
+            />
+
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              className="relative w-full max-w-sm bg-zinc-950 border border-white/10 p-3 sm:p-8 rounded-t-[1.5rem] sm:rounded-3xl"
+            >
+              <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
+
+              <div className="text-center mb-4 sm:mb-5">
+                <p className="text-[7px] sm:text-[8px] uppercase tracking-[.35em] text-salvaGold/70 font-black">
+                  Receive Funds
+                </p>
+
+                <h3 className="text-sm sm:text-2xl font-black mt-1">{user.username}</h3>
+
+                <p className="text-[8px] sm:text-[9px] text-white/75 mt-1">
+                  {selectedChain} wallet
+                  {receiveAsset ? ` · ${receiveAsset.symbol}` : ''}
+                </p>
+              </div>
+
+              <div className="flex justify-center mb-4 sm:mb-5">
+                <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white border-2 border-salvaGold/30">
+                  <QRCodeSVG value={user.safeAddress} size={132} bgColor="#fff" fgColor="#0A0A0B" />
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(user.safeAddress);
+
+                  showMsg('Address copied!');
+                }}
+                className="w-full p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white/[.03] border border-white/[.06] text-left"
+              >
+                <p className="text-[7px] sm:text-[8px] uppercase tracking-[.25em] text-white/70 font-black">
+                  Wallet Address
+                </p>
+
+                <p className="font-mono text-[8px] sm:text-[10px] text-salvaGold break-all mt-1">
+                  {user.safeAddress}
+                </p>
+              </button>
+
               <button
                 onClick={() => setIsReceiveOpen(false)}
-                className="w-full py-2.5 sm:py-3.5 rounded-2xl border border-white/10 font-bold text-white/60 hover:text-white hover:border-white/20 hover:bg-white/[0.03] transition-all text-xs sm:text-sm uppercase tracking-widest mt-0.5 sm:mt-1"
+                className="w-full mt-2.5 sm:mt-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-white/10 text-[10px] sm:text-xs font-black uppercase tracking-widest text-white/80"
               >
                 Close
               </button>
@@ -3354,21 +2007,33 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* ══ QR SCANNER MODAL ══════════════════════════════════════════════════ */}
       <AnimatePresence>
         {isScanOpen && (
           <QRScannerModal
             onScan={(address) => {
               setIsScanOpen(false);
-              setTimeout(() => {
-                setRecipientInput(address);
-                handleRecipientChange(address);
-                if (!isSendOpen) setIsSendOpen(true);
-              }, 350);
+              setSendAsset(null);
+              setSendRecipient(address);
+              setIsSendOpen(true);
             }}
             onClose={() => setIsScanOpen(false)}
           />
         )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {pushPromptOpen && (
+          <PushPrompt
+            key="push-prompt"
+            busy={pushBusy}
+            onEnable={enablePush}
+            onDismiss={() => {
+              setPushPromptOpen(false);
+              markPushSeen();
+            }}
+          />
+        )}
+        {notification.show && <Notification notification={notification} onClose={closeMsg} />}
       </AnimatePresence>
     </div>
   );

@@ -1,170 +1,411 @@
-// packages/frontend/src/pages/SwapTab.jsx (NEW)
+/* global BigInt */
+// packages/frontend/src/pages/SwapTab.jsx
+// Permissionless P2P market marketplace.
+//  - Asset dropdown (from supported pairs) + symbol search + pool address / SNS search
+//  - Listings read from utils/swapPoolCache.js (silent 10s poll, cache-first)
+//  - "Proceed to swap": PIN gate -> live-priced swap card -> fee review -> execute
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ArrowDown,
+  BadgeCheck,
+  Check,
+  ChevronDown,
+  ExternalLink,
+  LockKeyhole,
+  RefreshCw,
+  Search,
+  ShieldAlert,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react';
 import { SALVA_API_URL, NODE_ENV } from '../config';
+import ngnLogo from '../assets/ngn-coin.png';
+import santLogo from '../assets/icon-only.png';
+import { useOverlayLayer } from './Dashboard';
+import { formatDisplayNumber, readWalletCache, fetchWalletSnapshot } from '../utils/walletCache';
+import {
+  DEFAULT_BUY_SYMBOL,
+  SWAP_LIVE_POLL_INTERVAL_MS,
+  SWAP_PAIRS_POLL_INTERVAL_MS,
+  SWAP_POLL_INTERVAL_MS,
+  buildAssetList,
+  buildLogoIndex,
+  buildVerifiedIndex,
+  classifyPoolInput,
+  isPairVerified,
+  fetchListings,
+  fetchLivePairListings,
+  fetchSupportedPairs,
+  readListingsCache,
+  readSupportedPairsCache,
+  resolvePoolTarget,
+  swapRequest,
+  truncateDisplay,
+} from '../utils/swapPoolCache';
 
+/* ============================================================================
+   CONSTANTS + HELPERS
+============================================================================ */
 
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+const DEFAULT_SLIPPAGE_PCT = '1';
+const SLIPPAGE_PRESETS = ['0.1', '0.5', '1', '3'];
+const MAX_SLIPPAGE_PCT = 50;
 
-const CHAIN = "base";
-const POLL_MS = 60_000;
-const EXPLORER_TX_BASE =
-  NODE_ENV === "development"
-    ? "https://sepolia.basescan.org/tx/"
-    : "https://basescan.org/tx/";
-const _poolsCache = { buyPools: null, sellPools: null, lastTime: null };
+const LOCAL_LOGOS = { NGNS: ngnLogo, SANT: santLogo };
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-const fmt = (n) => {
-  const num = parseFloat(n || 0);
-  if (!Number.isFinite(num) || num === 0) return "0.00";
-  if (num > 0 && num < 0.01) return "<0.01";
-  const fixed = num.toFixed(2);
-  const [intPart, decPart] = fixed.split(".");
-  return `${Number(intPart).toLocaleString("en-US")}.${decPart}`;
+const getChain = () =>
+  String(localStorage.getItem('salva_chain') || 'base')
+    .trim()
+    .toLowerCase();
+
+const lc = (v) =>
+  String(v ?? '')
+    .trim()
+    .toLowerCase();
+const uc = (v) =>
+  String(v ?? '')
+    .trim()
+    .toUpperCase();
+
+const fmt = (value, max = 6) => formatDisplayNumber(value, max);
+
+const fmtNgn = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n)
+    ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : '—';
 };
 
-const fmtInput = (raw) => {
-  const d = raw.replace(/[^0-9.]/g, "");
-  const p = d.split(".");
-  p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return p.length > 1 ? `${p[0]}.${p[1]}` : p[0];
+const shortAddr = (value) => (value ? `${value.slice(0, 7)}…${value.slice(-5)}` : '—');
+
+const sanitizeAmount = (raw, maxDecimals = 18) => {
+  const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
+  const parts = cleaned.split('.');
+  let out = parts[0];
+  if (parts.length > 1) out += `.${parts.slice(1).join('').slice(0, maxDecimals)}`;
+  if (out.startsWith('.')) out = `0${out}`;
+  return out;
 };
 
-function detectSearchType(v) {
-  const t = v.trim();
-  if (!t) return "empty";
-  if (t.toLowerCase().startsWith("0x")) return "address";
-  if (t.includes("@")) return "fullname";
-  return "invalid";
-}
+const cleanAmount = (value) => String(value ?? '').replace(/\.$/, '');
 
-// Resolves a full SNS name (name@nspace) or 0x address to a target address,
-// via registry namespace lookup + isAvail — same flow for pool search AND
-// receiver resolution.
-async function resolveFullNameOrAddress(input) {
-  const type = detectSearchType(input);
-  if (type === "address") return input.trim();
-  if (type === "fullname") {
-    const name = input.trim();
-    const at = name.indexOf("@");
-    const nspace = name.slice(at);
-    const regRes = await fetch(
-      `${SALVA_API_URL}/api/registry/findByNamespace/${encodeURIComponent(nspace)}`,
-    );
-    const regData = await regRes.json();
-    if (!regRes.ok || !regData?.registryAddress)
-      throw new Error("Wallet service not found");
-    const availRes = await fetch(
-      `${SALVA_API_URL}/api/name/isAvail/${encodeURIComponent(name)}/${regData.registryAddress}`,
-    );
-    const availData = await availRes.json();
-    if (!availRes.ok || !availData.status || !availData.address)
-      throw new Error("Name not found");
-    return availData.address;
+// Backend values may arrive as numbers in scientific notation; always return a plain decimal string.
+const plainDecimal = (value) => {
+  const raw = String(value ?? '').trim();
+  if (!raw) return '';
+  if (!/e/i.test(raw)) return raw;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return '';
+  return n.toFixed(18).replace(/\.?0+$/, '');
+};
+
+const decimalsOf = (value) => (String(value).split('.')[1] || '').length;
+
+const toScaled = (value, d) => {
+  const [i, f = ''] = String(value).split('.');
+  return BigInt(`${i || '0'}${f.padEnd(d, '0').slice(0, d)}`);
+};
+
+const fromScaled = (value, d) => {
+  const s = value.toString().padStart(d + 1, '0');
+  if (d === 0) return s;
+  const int = s.slice(0, -d);
+  const frac = s.slice(-d).replace(/0+$/, '');
+  return frac ? `${int}.${frac}` : int;
+};
+
+// direction 'min' => floor(value * (1 - bps)), direction 'max' => ceil(value * (1 + bps)).
+// The result keeps the same number of decimals as the previewed value.
+const applySlippage = (preview, bps, direction) => {
+  const clean = plainDecimal(preview);
+  if (!clean) return null;
+  const d = Math.max(decimalsOf(clean), 6);
+  const v = toScaled(clean, d);
+
+  const result =
+    direction === 'min'
+      ? (v * BigInt(10000 - bps)) / 10000n
+      : (v * BigInt(10000 + bps) + 9999n) / 10000n;
+
+  return fromScaled(result, d);
+};
+
+const getLocalLogo = (symbol) => LOCAL_LOGOS[uc(symbol)] || null;
+
+const pickLogo = (symbol, address, own, index) =>
+  getLocalLogo(symbol) ||
+  (own ? String(own).trim() : null) ||
+  index.byAddress.get(lc(address)) ||
+  index.bySymbol.get(uc(symbol)) ||
+  null;
+
+const findWalletAsset = (assets, address, symbol) => {
+  const addr = lc(address);
+  const isNative = !addr || addr === ZERO_ADDRESS;
+
+  if (!isNative) {
+    const byAddress = assets.find((a) => lc(a.contractAddress) === addr);
+    if (byAddress) return byAddress;
   }
-  throw new Error("Enter a full name (name@namespace) or a 0x address");
-}
 
-// Attaches live balance + rate data to a bare pool record.
-async function hydratePool(pool) {
-  const [balRes, rateRes] = await Promise.all([
-    fetch(`${SALVA_API_URL}/api/user/${CHAIN}/balance/${pool.poolAddress}`),
-    fetch(`${SALVA_API_URL}/api/pool/rate/${pool.poolAddress}/${CHAIN}`),
-  ]);
-  const bal = await balRes.json();
-  const rateJson = await rateRes.json();
-  const rate = rateJson?.rate || {};
+  return assets.find((a) => uc(a.symbol) === uc(symbol)) || null;
+};
+
+// User's balance of an asset, read from walletCache (same data the Dashboard shows).
+const getUserBalance = (email, chain, address, symbol) => {
+  const snapshot = readWalletCache(email, chain);
+  if (!snapshot) return { known: false, balance: '0', decimals: 18 };
+
+  const asset = findWalletAsset(snapshot.assets || [], address, symbol);
+
   return {
-    ...pool,
-    ngnsLiquidity: bal.ngnsBalance ?? "0",
-    cNgnLiquidity: bal.cNgnBalance ?? "0",
-    usdtLiquidity: bal.usdtBalance ?? "0",
-    usdcLiquidity: bal.usdcBalance ?? "0",
-    buyRate: rate.buyRate ?? "0",
-    sellRate: rate.sellRate ?? "0",
+    known: true,
+    balance: asset ? String(asset.balanceFull ?? asset.balance ?? '0') : '0',
+    decimals: Number(asset?.decimals) || 18,
   };
-}
+};
 
-// ── PIN Modal ────────────────────────────────────────────────────────────
-const PinModal = ({
-  title,
-  subtitle,
-  onConfirm,
-  onCancel,
-  loading,
-  feeInfo,
-}) => {
-  const [pin, setPin] = useState("");
+const explorerTxUrl = (chain, hash) => {
+  const dev = NODE_ENV === 'development';
+  const base =
+    chain === 'bnb'
+      ? dev
+        ? 'https://testnet.bscscan.com/tx/'
+        : 'https://bscscan.com/tx/'
+      : dev
+      ? 'https://sepolia.basescan.org/tx/'
+      : 'https://basescan.org/tx/';
+  return `${base}${hash}`;
+};
+
+const inputCls =
+  'w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2.5 sm:py-3 text-[11px] sm:text-sm font-bold text-white placeholder:text-white/55 outline-none transition focus:border-salvaGold/40';
+
+/* ============================================================================
+   SMALL UI
+============================================================================ */
+
+const Spinner = ({ className = 'h-3.5 w-3.5' }) => (
+  <span
+    className={`inline-block ${className} animate-spin rounded-full border-2 border-salvaGold/25 border-t-salvaGold`}
+  />
+);
+
+const AssetLogo = ({ symbol, logo, size = 'h-9 w-9', className = '' }) => {
+  const [failed, setFailed] = useState(false);
+  const resolved = getLocalLogo(symbol) || logo || null;
+  const isNgns = uc(symbol) === 'NGNS';
+
+  useEffect(() => {
+    setFailed(false);
+  }, [resolved]);
+
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
-      <motion.div
-        className="absolute inset-0 bg-black/95 backdrop-blur-md"
+    <div
+      className={`relative flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/[0.10] bg-white/[0.055] ${size} ${className}`}
+    >
+      {resolved && !failed ? (
+        <img
+          src={resolved}
+          alt={symbol || 'Token'}
+          className={`h-full w-full object-cover ${isNgns ? 'scale-[2]' : ''}`}
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="text-[9px] font-black tracking-tight text-salvaGold">
+          {uc(symbol || '?').slice(0, 3)}
+        </span>
+      )}
+    </div>
+  );
+};
+
+const PairLogo = ({ baseSymbol, baseLogo, quoteSymbol, quoteLogo, size = 'h-11 w-11' }) => (
+  <div className={`relative shrink-0 ${size}`}>
+    <AssetLogo symbol={baseSymbol} logo={baseLogo} size="h-full w-full" className="relative z-10" />
+    <div className="absolute -bottom-0.5 -right-0.5 z-20 flex h-[58%] w-[58%] items-center justify-center rounded-full bg-[#0b0c10] p-[2px]">
+      <AssetLogo symbol={quoteSymbol} logo={quoteLogo} size="h-full w-full" />
+    </div>
+  </div>
+);
+
+/* ============================================================================
+   ASSET DROPDOWN  (select asset to buy)
+============================================================================ */
+
+const AssetDropdown = ({ assets, value, onChange, logoIndex }) => {
+  const [open, setOpen] = useState(false);
+  const current = assets.find((a) => a.symbol === value) || { symbol: value };
+
+  return (
+    <div className="relative z-30">
+      <p className="mb-1.5 text-[7px] sm:text-[9px] font-black uppercase tracking-[.28em] text-white/72">
+        Asset to buy
+      </p>
+
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full min-w-[150px] items-center justify-between gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-3 py-2 sm:py-2.5 transition hover:border-salvaGold/30"
+      >
+        <span className="flex items-center gap-2">
+          <AssetLogo
+            symbol={current.symbol}
+            logo={pickLogo(current.symbol, current.address, current.logo, logoIndex)}
+            size="h-7 w-7"
+          />
+          <span className="text-xs sm:text-sm font-black">{current.symbol}</span>
+        </span>
+        <ChevronDown
+          className={`h-3.5 w-3.5 text-white/74 transition ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <>
+            <button
+              type="button"
+              aria-label="Close asset list"
+              className="fixed inset-0 z-40 cursor-default"
+              onClick={() => setOpen(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+              transition={{ duration: 0.16 }}
+              className="absolute left-0 top-full z-50 mt-2 w-64 max-w-[80vw] overflow-hidden rounded-2xl border border-white/[0.09] bg-[#0b0c10] shadow-2xl"
+            >
+              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/60 to-transparent" />
+              <div className="max-h-72 overflow-y-auto p-1.5">
+                {assets.map((asset) => {
+                  const selected = asset.symbol === value;
+                  return (
+                    <button
+                      key={`${asset.symbol}:${asset.address || 'native'}`}
+                      type="button"
+                      onClick={() => {
+                        setOpen(false);
+                        onChange(asset.symbol);
+                      }}
+                      className={`flex w-full items-center justify-between rounded-xl px-2.5 py-2.5 text-left transition hover:bg-white/[0.05] ${
+                        selected ? 'bg-white/[0.04]' : ''
+                      }`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <AssetLogo
+                          symbol={asset.symbol}
+                          logo={pickLogo(asset.symbol, asset.address, asset.logo, logoIndex)}
+                          size="h-8 w-8"
+                        />
+                        <span className="text-xs font-black">{asset.symbol}</span>
+                      </span>
+                      {selected && <Check className="h-4 w-4 text-salvaGold" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+/* ============================================================================
+   PIN GATE  (must pass before the swap card opens)
+============================================================================ */
+
+const PinGateModal = ({ listing, email, onVerified, onCancel }) => {
+  const [pin, setPin] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    if (pin.length !== 4 || loading) return;
+    setLoading(true);
+    setError('');
+
+    try {
+      const data = await swapRequest(`${SALVA_API_URL}/api/user/verify-pin`, {
+        method: 'POST',
+        body: { email, pin },
+      });
+
+      if (!data?.success) throw new Error('Invalid PIN');
+      onVerified(pin);
+    } catch (err) {
+      setError(err?.message || 'PIN verification failed');
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[150] flex items-center justify-center px-4">
+      <motion.button
+        aria-label="Close"
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         onClick={() => !loading && onCancel()}
       />
       <motion.div
-        className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-        initial={{ opacity: 0, scale: 0.92, y: 16 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.92 }}
-        transition={{ type: "spring", stiffness: 380, damping: 28 }}
-        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-sm overflow-hidden rounded-[26px] border border-white/[0.09] bg-[#0b0c10] shadow-2xl"
+        initial={{ opacity: 0, y: 14, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 14, scale: 0.97 }}
+        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
       >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-        <div className="p-5 sm:p-8 text-center">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-            <span className="text-base sm:text-2xl">🔐</span>
+        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/70 to-transparent" />
+        <div className="p-5 text-center sm:p-7">
+          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-salvaGold/20 bg-salvaGold/10">
+            <LockKeyhole className="h-5 w-5 text-salvaGold" />
           </div>
-          <h3 className="text-sm sm:text-xl font-black mb-1 text-white">
-            {title}
-          </h3>
-          <p className="text-[9px] sm:text-xs text-white/60 mb-4 sm:mb-6 leading-relaxed">
-            {subtitle}
+          <p className="text-[8px] font-black uppercase tracking-[.32em] text-salvaGold/65">
+            Secure access
           </p>
+          <h3 className="mt-1 text-lg font-black">Enter your PIN</h3>
+          <p className="mx-auto mt-1.5 max-w-xs text-[10px] sm:text-[11px] leading-relaxed text-white/80">
+            Verify your PIN to open the {listing.baseSymbol}/{listing.quoteSymbol} swap.
+          </p>
+
           <input
+            autoFocus
             type="password"
             inputMode="numeric"
-            maxLength="4"
+            maxLength={4}
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
             placeholder="••••"
-            autoFocus
-            className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-xl sm:text-3xl tracking-[0.7em] sm:tracking-[1em] font-black mb-4 sm:mb-6 text-white transition-all"
+            onChange={(e) => {
+              setError('');
+              setPin(e.target.value.replace(/\D/g, ''));
+            }}
+            onKeyDown={(e) => e.key === 'Enter' && submit()}
+            className="mt-5 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-center text-2xl font-black tracking-[.65em] text-white outline-none transition focus:border-salvaGold/45"
           />
-          <div className="-mt-2 mb-4 sm:-mt-3 sm:mb-6 px-2.5 py-2 sm:px-3 sm:py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-between text-[9px] sm:text-xs">
-            <span className="uppercase tracking-widest text-white/60 font-black">
-              Network Fee
-            </span>
-            {feeInfo.loading ? (
-              <span className="w-2.5 h-2.5 sm:w-3 sm:h-3 border border-white/20 border-t-salvaGold rounded-full animate-spin inline-block" />
-            ) : feeInfo.feeNGN != null ? (
-              <span className="text-red-400 font-black">
-                ₦{fmt(feeInfo.feeNGN)} ($
-                {Number(feeInfo.feeUsd || 0).toFixed(4)})
-              </span>
-            ) : (
-              <span className="text-white/30">—</span>
-            )}
-          </div>
-          <div className="flex gap-2 sm:gap-3">
+
+          {error && <p className="mt-2 text-[10px] font-bold text-red-400">{error}</p>}
+
+          <div className="mt-4 grid grid-cols-2 gap-2">
             <button
               onClick={onCancel}
               disabled={loading}
-              className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
+              className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/80 disabled:opacity-40"
             >
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(pin)}
+              onClick={submit}
               disabled={loading || pin.length !== 4}
-              className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 disabled:opacity-40 flex items-center justify-center gap-1.5 sm:gap-2 shadow-lg shadow-salvaGold/20 transition-all"
+              className="flex items-center justify-center rounded-xl bg-salvaGold py-3 text-xs font-black text-black disabled:opacity-40"
             >
-              {loading && (
-                <span className="w-2 h-2 sm:w-3 sm:h-3 border-2 border-black/30 border-t-black rounded-full animate-spin" />
-              )}
-              {loading ? "Verifying…" : "Confirm"}
+              {loading ? <Spinner className="h-4 w-4" /> : 'Verify PIN'}
             </button>
           </div>
         </div>
@@ -173,76 +414,84 @@ const PinModal = ({
   );
 };
 
-// ── Trust Modal ──────────────────────────────────────────────────────────
-const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
-  <div className="fixed inset-0 z-[85] flex items-center justify-center px-4">
-    <motion.div
-      className="absolute inset-0 bg-black/95 backdrop-blur-md"
+/* ============================================================================
+   LISTING CARD
+============================================================================ */
+
+const UnverifiedPairWarning = ({ listing, onContinue, onCancel }) => (
+  <div className="fixed inset-0 z-[150] flex items-center justify-center px-4">
+    <motion.button
+      aria-label="Close"
+      className="absolute inset-0 bg-black/85 backdrop-blur-md"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       onClick={onCancel}
     />
     <motion.div
-      className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-      initial={{ opacity: 0, scale: 0.92, y: 16 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.92 }}
-      transition={{ type: "spring", stiffness: 380, damping: 28 }}
-      onClick={(e) => e.stopPropagation()}
+      className="relative w-full max-w-sm overflow-hidden rounded-[26px] border border-white/[0.09] bg-[#0b0c10] shadow-2xl"
+      initial={{ opacity: 0, y: 14, scale: 0.97 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 14, scale: 0.97 }}
+      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
     >
-      <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-      <div className="p-5 sm:p-8">
-        <div className="text-center mb-4 sm:mb-6">
-          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-            <span className="text-base sm:text-2xl">🔓</span>
-          </div>
-          <h3 className="text-sm sm:text-xl font-black text-white mb-1">
-            Trust This Pool?
-          </h3>
-          <p className="text-[9px] sm:text-xs text-white/60">
-            <span className="text-salvaGold font-black">
-              {pool.poolName || `${pool.poolAddress.slice(0, 12)}…`}
+      <div className="h-px bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
+      <div className="p-5 sm:p-7">
+        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/25 bg-amber-400/10">
+          <ShieldAlert className="h-5 w-5 text-amber-400" />
+        </div>
+
+        <p className="text-center text-[8px] font-black uppercase tracking-[.32em] text-amber-400/80">
+          Not verified by Salva
+        </p>
+        <h3 className="mt-1 text-center text-lg font-black">Individually configured pair</h3>
+
+        <p className="mt-3 text-center text-[10px] sm:text-[11px] leading-relaxed text-white/85">
+          {listing.baseSymbol}/{listing.quoteSymbol} was set up by an independent pool owner. Salva
+          has not reviewed this pair, its pool or its pricing, so we can't vouch for it.
+        </p>
+        <p className="mt-2 text-center text-[10px] sm:text-[11px] leading-relaxed text-white/85">
+          That doesn't mean it's unsafe. Many individual pairs are perfectly legitimate, but you
+          would be swapping at your own risk.
+        </p>
+
+        <div className="mt-4 divide-y divide-white/[0.05] rounded-2xl border border-white/[0.07] bg-white/[0.025] px-3">
+          <div className="flex items-center justify-between gap-3 py-2">
+            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.18em] text-white/74">
+              Rate
             </span>
-          </p>
-        </div>
-        <div className="space-y-2 sm:space-y-3 mb-4 sm:mb-6">
-          <div className="p-3 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-            <p className="text-[9px] sm:text-xs font-black text-white/60 mb-1">
-              ✅ This swap only — Recommended
-            </p>
-            <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
-              Approve exact amount for this swap. You'll be asked again next
-              time.
-            </p>
+            <span className="text-right text-[10px] sm:text-xs font-black">
+              1 {listing.baseSymbol} = {truncateDisplay(listing.price)} {listing.quoteSymbol}
+            </span>
           </div>
-          <div className="p-3 sm:p-4 rounded-xl bg-yellow-500/5 border border-yellow-500/20">
-            <p className="text-[9px] sm:text-xs font-black text-yellow-400 mb-1">
-              ⚠️ Trust Pool — Use with caution
-            </p>
-            <p className="text-[8px] sm:text-[11px] text-white/60 leading-relaxed">
-              Approve unlimited {tokenLabel} spending. Future swaps skip the
-              approval step.
-            </p>
+          <div className="flex items-center justify-between gap-3 py-2">
+            <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.18em] text-white/74">
+              Pool
+            </span>
+            <span className="font-mono text-[10px] sm:text-xs font-black text-white/90">
+              {shortAddr(listing.poolAddress)}
+            </span>
           </div>
         </div>
-        <div className="flex gap-1.5 sm:gap-2">
+
+        <ul className="mt-4 space-y-1.5 text-[10px] sm:text-[11px] leading-relaxed text-white/85">
+          <li>• Compare the rate with the current market price.</li>
+          <li>• Only continue if you trust the pool owner.</li>
+          <li>• Try a small amount first. Swaps can't be reversed once confirmed.</li>
+        </ul>
+
+        <div className="mt-5 grid grid-cols-2 gap-2">
           <button
             onClick={onCancel}
-            className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
+            className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/80"
           >
             Cancel
           </button>
           <button
-            onClick={onSkip}
-            className="py-2.5 px-3 sm:py-3.5 sm:px-4 rounded-xl border border-white/10 text-white/60 font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
+            onClick={onContinue}
+            className="rounded-xl bg-salvaGold py-3 text-xs font-black text-black transition hover:brightness-110"
           >
-            Skip
-          </button>
-          <button
-            onClick={onTrust}
-            className="flex-1 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
-          >
-            Trust
+            I understand, continue
           </button>
         </div>
       </div>
@@ -250,1299 +499,1457 @@ const TrustModal = ({ pool, tokenLabel, onTrust, onSkip, onCancel }) => (
   </div>
 );
 
-// ── Token Pills ──────────────────────────────────────────────────────────
-const TokenPills = ({ options, value, onChange, accentColor }) => (
-  <div className="flex gap-1.5 sm:gap-2">
-    {options.map((t) => (
-      <button
-        key={t}
-        onClick={() => onChange(t)}
-        className="flex-1 py-1.5 sm:py-2.5 rounded-xl text-[9px] sm:text-xs font-black uppercase tracking-widest border transition-all"
-        style={
-          value === t
-            ? {
-                background: accentColor,
-                color: "#000",
-                borderColor: accentColor,
-                boxShadow: `0 4px 16px ${accentColor}33`,
-              }
-            : {
-                borderColor: "rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.03)",
-                color: "rgba(255,255,255,0.3)",
-              }
-        }
-      >
-        {t}
-      </button>
-    ))}
-  </div>
-);
-
-// ── Swap Modal ───────────────────────────────────────────────────────────
-const SwapModal = ({
-  pool,
-  section,
-  user,
-  onClose,
-  showMsg,
-  onSwapComplete,
-}) => {
-  const [swapType, setSwapType] = useState("exact_in");
-  const [amountDisplay, setAmountDisplay] = useState("");
-  const [amountRaw, setAmountRaw] = useState(0);
-
-  const hasUSDT = parseFloat(pool.usdtLiquidity || 0) > 0;
-  const hasNGNs = parseFloat(pool.ngnsLiquidity || 0) > 0;
-  const [stableToken, setStableToken] = useState(hasUSDT ? "USDT" : "USDC");
-  const [ngnToken, setNgnToken] = useState(hasNGNs ? "NGNS" : "CNGN");
-  const ngnLabel = ngnToken === "CNGN" ? "cNGN" : "NGNs";
-
-  const tokenIn = section === "buy" ? ngnToken : stableToken;
-  const tokenOut = section === "buy" ? stableToken : ngnToken;
-  const inputLabelTok = section === "buy" ? ngnLabel : stableToken;
-  const outputLabelTok = section === "buy" ? stableToken : ngnLabel;
-  const rate = section === "buy" ? pool.buyRate : pool.sellRate;
-  const accentColor = section === "buy" ? "#D4AF37" : "#22c55e";
-
-  const [trustChecked, setTrustChecked] = useState(false);
-  const [isTrusted, setIsTrusted] = useState(false);
-  const [showTrust, setShowTrust] = useState(false);
-  const [pinVisible, setPinVisible] = useState(false);
-  const [pinLoading, setPinLoading] = useState(false);
-  const [step, setStep] = useState("input");
-  const [receipt, setReceipt] = useState(null);
-  const [quote, setQuote] = useState(null);
-  const [quoteLoading, setQuoteLoading] = useState(false);
-  const quoteTimer = useRef(null);
-  const [receivedAmount, setReceivedAmount] = useState(null);
-  const pendingTrustRef = useRef(false);
-
-  const defaultReceiver = user?.safeAddress || "";
-  const [receiverRaw, setReceiverRaw] = useState(defaultReceiver);
-  const [receiverInputType, setReceiverInputType] = useState("address");
-  const [receiverError, setReceiverError] = useState("");
-  const [receiverResolved, setReceiverResolved] = useState(defaultReceiver);
-  const [receiverResolving, setReceiverResolving] = useState(false);
-  const receiverResolveTimer = useRef(null);
-  const [showReceiverConfirm, setShowReceiverConfirm] = useState(false);
-  const [receiverConfirmed, setReceiverConfirmed] = useState(false);
-
-  const handleReceiverChange = (val) => {
-    setReceiverError("");
-    setReceiverConfirmed(false);
-    if (val.toLowerCase().startsWith("0x")) {
-      setReceiverRaw(val);
-      setReceiverInputType("address");
-      setReceiverResolved(val.trim());
-      return;
-    }
-    let cleaned = val.toLowerCase().replace(/[^a-z2-9.@]/g, "");
-    if (!cleaned) {
-      setReceiverRaw("");
-      setReceiverInputType("empty");
-      setReceiverResolved(defaultReceiver);
-      return;
-    }
-    if (!cleaned.includes("@")) {
-      setReceiverRaw(cleaned);
-      setReceiverInputType("invalid");
-      setReceiverResolved("");
-      setReceiverError(
-        "Must use full SNS name (e.g. charles@salva) or a 0x address",
-      );
-      return;
-    }
-    setReceiverRaw(cleaned);
-    setReceiverInputType("fullname");
-    setReceiverResolved("");
-    clearTimeout(receiverResolveTimer.current);
-    receiverResolveTimer.current = setTimeout(async () => {
-      setReceiverResolving(true);
-      try {
-        const addr = await resolveFullNameOrAddress(cleaned);
-        setReceiverResolved(addr);
-        setShowReceiverConfirm(true);
-      } catch (err) {
-        setReceiverResolved("");
-        setReceiverError(err.message || "Name not found");
-      } finally {
-        setReceiverResolving(false);
-      }
-    }, 600);
-  };
-
-  // ── User balance ──
-  const [userBal, setUserBal] = useState({});
-  const [userBalRaw, setUserBalRaw] = useState({});
-  const [userBalLoading, setUserBalLoading] = useState(true);
-  useEffect(() => {
-    if (!user?.safeAddress) return;
-    setUserBalLoading(true);
-    fetch(`${SALVA_API_URL}/api/user/${CHAIN}/balance/${user.safeAddress}`)
-      .then((r) => r.json())
-      .then((d) => {
-        setUserBal({
-          NGNS: parseFloat(d.ngnsBalance || 0),
-          CNGN: parseFloat(d.cNgnBalance || 0),
-          USDT: parseFloat(d.usdtBalance || 0),
-          USDC: parseFloat(d.usdcBalance || 0),
-        });
-        setUserBalRaw({
-          NGNS: String(d.ngnsBalance ?? "0"),
-          CNGN: String(d.cNgnBalance ?? "0"),
-          USDT: String(d.usdtBalance ?? "0"),
-          USDC: String(d.usdcBalance ?? "0"),
-        });
-      })
-      .catch(() => {})
-      .finally(() => setUserBalLoading(false));
-  }, [user?.safeAddress]);
-
-  const userSendBal = userBal[tokenIn] ?? null;
-  const poolReceiveBal =
-    tokenOut === "USDT"
-      ? parseFloat(pool.usdtLiquidity || 0)
-      : tokenOut === "USDC"
-        ? parseFloat(pool.usdcLiquidity || 0)
-        : tokenOut === "CNGN"
-          ? parseFloat(pool.cNgnLiquidity || 0)
-          : parseFloat(pool.ngnsLiquidity || 0);
-  const poolReceiveBalRaw =
-    tokenOut === "USDT"
-      ? String(pool.usdtLiquidity ?? "0")
-      : tokenOut === "USDC"
-        ? String(pool.usdcLiquidity ?? "0")
-        : tokenOut === "CNGN"
-          ? String(pool.cNgnLiquidity ?? "0")
-          : String(pool.ngnsLiquidity ?? "0");
-
-  const handleMaxClick = () => {
-    const raw =
-      swapType === "exact_in"
-        ? (userBalRaw[tokenIn] ?? "0")
-        : poolReceiveBalRaw;
-    setAmountDisplay(fmtInput(raw));
-    setAmountRaw(parseFloat(raw) || 0);
-  };
-  const maxDisabled = swapType === "exact_in" && userBalLoading;
-
-  // ── Trust check ──
-  useEffect(() => {
-    setTrustChecked(false);
-    setIsTrusted(false);
-    fetch(
-      `${SALVA_API_URL}/api/user/swap/isTrusted/${user.safeAddress}/${pool.poolAddress}/${tokenIn}/${CHAIN}`,
-    )
-      .then((r) => r.json())
-      .then((d) => {
-        setIsTrusted(!!d.isTrusted);
-        setTrustChecked(true);
-      })
-      .catch(() => setTrustChecked(true));
-  }, [pool.poolAddress, tokenIn, user.safeAddress]);
-
-  // ── Quote ──
-  useEffect(() => {
-    if (amountRaw <= 0) {
-      setQuote(null);
-      return;
-    }
-    clearTimeout(quoteTimer.current);
-    quoteTimer.current = setTimeout(async () => {
-      setQuoteLoading(true);
-      try {
-        if (swapType === "exact_in") {
-          const url = `${SALVA_API_URL}/api/user/swap/amount-Out?poolAddress=${pool.poolAddress}&tokenOut=${tokenOut}&tokenIn=${tokenIn}&amount=${amountRaw}&rate=${rate}&chain=${CHAIN}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          setQuote(res.ok && data.status ? String(data.amountOut) : null);
-        } else {
-          const url = `${SALVA_API_URL}/api/user/swap/amount-In?poolAddress=${pool.poolAddress}&usdToken=${stableToken}&inToken=${tokenIn}&outToken=${tokenOut}&outAmount=${amountRaw}&rate=${rate}&chain=${CHAIN}`;
-          const res = await fetch(url);
-          const data = await res.json();
-          setQuote(res.ok && data.status ? String(data.amountIn) : null);
-        }
-      } catch {
-        setQuote(null);
-      } finally {
-        setQuoteLoading(false);
-      }
-    }, 500);
-    return () => clearTimeout(quoteTimer.current);
-  }, [
-    amountRaw,
-    swapType,
-    pool.poolAddress,
-    tokenIn,
-    tokenOut,
-    stableToken,
-    rate,
-  ]);
-
-  const sendAmt =
-    swapType === "exact_in" ? amountRaw : quote ? parseFloat(quote) : 0;
-  const receiveAmt =
-    swapType === "exact_out" ? amountRaw : quote ? parseFloat(quote) : 0;
-  const userCantAfford =
-    userSendBal !== null && sendAmt > 0 && userSendBal < sendAmt;
-  const poolCantCover = receiveAmt > 0 && poolReceiveBal < receiveAmt;
-  const poolEmpty = poolReceiveBal <= 0;
-
-  // ── Fee estimate (only fetched once PIN modal opens) ──
-  const [swapFee, setSwapFee] = useState({
-    feeNGN: null,
-    feeUsd: null,
-    loading: false,
-  });
-  const fetchFeeForPin = useCallback((trustedFlag) => {
-    setSwapFee({ feeNGN: null, feeUsd: null, loading: true });
-    fetch(
-      `${SALVA_API_URL}/api/user/swap/estimate-swap-fee/${CHAIN}/${trustedFlag}`,
-    )
-      .then((r) => r.json())
-      .then((d) =>
-        setSwapFee({
-          feeNGN: d?.fee?.feeNGN ?? null,
-          feeUsd: d?.fee?.feeUsd ?? null,
-          loading: false,
-        }),
-      )
-      .catch(() => setSwapFee({ feeNGN: null, feeUsd: null, loading: false }));
-  }, []);
-
-  const swapTypeParam = (() => {
-    if (section === "buy")
-      return swapType === "exact_in"
-        ? "swapExactNGNAmountForUSD"
-        : "swapForExactUSDAmount";
-    return swapType === "exact_in"
-      ? "swapExactUSDAmountForNGN"
-      : "swapForExactNGNAmount";
-  })();
-
-  const handleContinue = () => {
-    if (amountRaw <= 0) return;
-    if (!isTrusted) {
-      setShowTrust(true);
-      return;
-    }
-    pendingTrustRef.current = false;
-    fetchFeeForPin(isTrusted);
-    setPinVisible(true);
-  };
-
-  const handlePinConfirm = async (pin) => {
-    setPinLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        showMsg(data.message || "Invalid PIN", "error");
-        return;
-      }
-      setPinVisible(false);
-      setStep("loading");
-      await executeSwap(data.privateKey, pendingTrustRef.current);
-    } catch {
-      showMsg("Network error", "error");
-    } finally {
-      setPinLoading(false);
-    }
-  };
-
-  const executeSwap = async (pkey, trustPool) => {
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/user/swap/execute-swap`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: user.email,
-          pkey,
-          poolAddress: pool.poolAddress,
-          receiver: receiverResolved || user.safeAddress,
-          usdToken: stableToken,
-          ngnToken,
-          amount: String(amountRaw),
-          chain: CHAIN,
-          trustPool,
-          type: swapTypeParam,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.status)
-        throw new Error(data.message || "Swap failed");
-      if (trustPool) setIsTrusted(true);
-      setReceipt(data.receipt || null);
-      const outAmt =
-        swapType === "exact_in"
-          ? quote !== null
-            ? parseFloat(quote)
-            : null
-          : amountRaw;
-      setReceivedAmount(outAmt);
-      setStep("done");
-      onSwapComplete?.();
-    } catch (err) {
-      showMsg(err.message || "Swap failed — please try again", "error");
-      setStep("input");
-    }
-  };
-
-  const amountLabel =
-    swapType === "exact_in"
-      ? `${inputLabelTok} to spend`
-      : `${outputLabelTok} to receive`;
-  const amountSuffix = swapType === "exact_in" ? inputLabelTok : outputLabelTok;
-  const quoteLabel =
-    swapType === "exact_in" ? "You receive" : "You need to send";
-  const quoteSuffix = swapType === "exact_in" ? outputLabelTok : inputLabelTok;
-
-  return (
-    <>
-      <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center px-0 sm:px-4">
-        <motion.div
-          className="absolute inset-0 bg-black/95 backdrop-blur-md"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          onClick={step !== "loading" ? onClose : undefined}
-        />
-        <motion.div
-          className="relative bg-zinc-950 border border-white/10 rounded-t-[2.5rem] sm:rounded-3xl w-full max-w-md shadow-2xl flex flex-col max-h-[92vh] sm:max-h-[88vh]"
-          initial={{ y: "100%" }}
-          animate={{ y: 0 }}
-          exit={{ y: "100%" }}
-          transition={{ type: "spring", damping: 25, stiffness: 200 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div
-            className="h-px"
-            style={{
-              background: `linear-gradient(90deg, transparent, ${accentColor}66, transparent)`,
-            }}
-          />
-          <div className="overflow-y-auto flex-1 overscroll-contain px-3 pt-3 pb-2 sm:px-6 sm:pt-5">
-            <div className="w-10 h-1 bg-white/10 rounded-full mx-auto mb-3 sm:mb-4 sm:hidden" />
-
-            {step === "input" && (
-              <motion.div
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="space-y-3"
-              >
-                <div className="flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3.5 rounded-2xl border border-white/[0.06] bg-white/[0.02]">
-                  <div
-                    className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 text-xs sm:text-base font-black"
-                    style={{
-                      background: `${accentColor}1A`,
-                      color: accentColor,
-                    }}
-                  >
-                    {section === "buy" ? "↑$" : "$↑"}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                      <p className="font-black text-[10px] sm:text-sm text-white truncate">
-                        {pool.poolName || "Anonymous Pool"}
-                      </p>
-                      {trustChecked && isTrusted && (
-                        <span className="px-1.5 py-0.5 sm:px-2 rounded-full text-[7px] sm:text-[9px] font-black border border-green-500/30 bg-green-500/10 text-green-400 flex-shrink-0">
-                          ✓ Trusted
-                        </span>
-                      )}
-                    </div>
-                    <p className="font-mono text-[7px] sm:text-[9px] text-white/40 truncate mt-0.5">
-                      {pool.poolAddress.slice(0, 18)}…
-                      {pool.poolAddress.slice(-6)}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-stretch gap-2 sm:gap-3">
-                  {section === "buy" ? (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                          NGN to Send
-                        </label>
-                        <TokenPills
-                          options={["NGNS", "CNGN"]}
-                          value={ngnToken}
-                          onChange={setNgnToken}
-                          accentColor={accentColor}
-                        />
-                      </div>
-                      <div className="w-px bg-white/10 self-stretch flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                          USD to Receive
-                        </label>
-                        <TokenPills
-                          options={["USDT", "USDC"]}
-                          value={stableToken}
-                          onChange={setStableToken}
-                          accentColor={accentColor}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="flex-1 min-w-0">
-                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                          USD to Send
-                        </label>
-                        <TokenPills
-                          options={["USDT", "USDC"]}
-                          value={stableToken}
-                          onChange={setStableToken}
-                          accentColor={accentColor}
-                        />
-                      </div>
-                      <div className="w-px bg-white/10 self-stretch flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <label className="text-[7px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black block mb-1 sm:mb-1.5">
-                          NGN to Receive
-                        </label>
-                        <TokenPills
-                          options={["NGNS", "CNGN"]}
-                          value={ngnToken}
-                          onChange={setNgnToken}
-                          accentColor={accentColor}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                <div className="flex gap-1.5 sm:gap-2 p-0.5 sm:p-1 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                  {[
-                    { id: "exact_in", label: "Exact Input" },
-                    { id: "exact_out", label: "Exact Output" },
-                  ].map(({ id, label }) => (
-                    <button
-                      key={id}
-                      onClick={() => {
-                        setSwapType(id);
-                        setAmountDisplay("");
-                        setAmountRaw(0);
-                        setQuote(null);
-                      }}
-                      className={`flex-1 py-1.5 sm:py-2 rounded-lg text-[7px] sm:text-[10px] font-black uppercase tracking-widest transition-all ${swapType === id ? "bg-white/10 text-white shadow-sm" : "text-white/30 hover:text-white/50"}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="grid grid-cols-2 gap-1.5 sm:gap-2">
-                  <div
-                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${userCantAfford ? "border-red-500/30 bg-red-500/5" : "border-white/[0.06] bg-white/[0.02]"}`}
-                  >
-                    <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
-                      Your Balance
-                    </p>
-                    {userBalLoading ? (
-                      <span className="w-2 h-2 sm:w-3 sm:h-3 border border-white/20 border-t-white/60 rounded-full animate-spin inline-block" />
-                    ) : (
-                      <p
-                        className={`text-[9px] sm:text-xs font-black truncate ${userCantAfford ? "text-red-400" : "text-white"}`}
-                      >
-                        {userSendBal !== null ? fmt(userSendBal) : "—"}{" "}
-                        <span className="text-white/40 font-normal text-[7px] sm:text-[9px]">
-                          {inputLabelTok}
-                        </span>
-                      </p>
-                    )}
-                  </div>
-                  <div
-                    className={`px-2 py-1.5 sm:px-3 sm:py-2.5 rounded-xl border ${poolEmpty || poolCantCover ? "border-red-500/30 bg-red-500/5" : "border-white/[0.06] bg-white/[0.02]"}`}
-                  >
-                    <p className="text-[6px] sm:text-[8px] uppercase tracking-widest text-white/30 font-black mb-0.5">
-                      Pool Has
-                    </p>
-                    <p
-                      className={`text-[9px] sm:text-xs font-black truncate ${poolEmpty || poolCantCover ? "text-red-400" : "text-white"}`}
-                    >
-                      {fmt(poolReceiveBal)}{" "}
-                      <span className="text-white/40 font-normal text-[7px] sm:text-[9px]">
-                        {outputLabelTok}
-                      </span>
-                    </p>
-                  </div>
-                </div>
-                {userCantAfford && (
-                  <p className="text-[7px] sm:text-[10px] text-red-400 font-bold -mt-1">
-                    ⚠ Insufficient balance to send
-                  </p>
-                )}
-                {(poolEmpty || poolCantCover) && (
-                  <p className="text-[7px] sm:text-[10px] text-red-400 font-bold -mt-1">
-                    {poolEmpty
-                      ? `⚠ Pool has no ${outputLabelTok} liquidity`
-                      : `⚠ Pool only has ${fmt(poolReceiveBal)} ${outputLabelTok}`}
-                  </p>
-                )}
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                    <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
-                      {amountLabel}
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleMaxClick}
-                      disabled={maxDisabled}
-                      className="text-[7px] sm:text-[10px] font-black uppercase tracking-widest hover:opacity-80 transition-opacity px-1.5 py-0.5 sm:px-2 rounded-lg border disabled:opacity-30 disabled:cursor-not-allowed"
-                      style={{
-                        color: accentColor,
-                        borderColor: `${accentColor}33`,
-                        background: `${accentColor}1A`,
-                      }}
-                    >
-                      Max
-                    </button>
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      placeholder="0.00"
-                      value={amountDisplay}
-                      onChange={(e) => {
-                        const f = fmtInput(e.target.value);
-                        setAmountDisplay(f);
-                        setAmountRaw(parseFloat(f.replace(/,/g, "")) || 0);
-                      }}
-                      className="w-full p-3 sm:p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-sm sm:text-xl font-black text-white transition-all pr-16 sm:pr-20"
-                    />
-                    <span
-                      className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 font-black text-[10px] sm:text-sm"
-                      style={{ color: accentColor }}
-                    >
-                      {amountSuffix}
-                    </span>
-                  </div>
-                </div>
-
-                {(quote !== null || quoteLoading) && amountRaw > 0 && (
-                  <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/5 border border-white/10">
-                    <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
-                      {quoteLabel}
-                    </span>
-                    {quoteLoading ? (
-                      <span className="w-4 h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-                    ) : (
-                      <span
-                        className="font-black text-sm"
-                        style={{ color: accentColor }}
-                      >
-                        {quote !== null ? fmt(quote) : "—"} {quoteSuffix}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between p-2.5 sm:p-4 rounded-xl bg-white/[0.03] border border-white/[0.06]">
-                  <span className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
-                    Exchange Rate
-                  </span>
-                  <span className="font-black text-[9px] sm:text-sm text-white">
-                    ₦{fmt(rate)}
-                    <span className="text-white/60 font-normal text-[8px] sm:text-xs">
-                      {" "}
-                      / USD
-                    </span>
-                  </span>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                    <label className="text-[7px] sm:text-[10px] uppercase tracking-widest text-white/60 font-black">
-                      Receiver
-                    </label>
-                    {receiverRaw !== defaultReceiver && (
-                      <button
-                        onClick={() => {
-                          setReceiverRaw(defaultReceiver);
-                          setReceiverInputType("address");
-                          setReceiverResolved(defaultReceiver);
-                          setReceiverError("");
-                          setReceiverConfirmed(false);
-                        }}
-                        className="text-[6px] sm:text-[9px] font-black uppercase tracking-widest text-white/40 hover:text-white/70 transition-colors"
-                      >
-                        Reset ↺
-                      </button>
-                    )}
-                  </div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={receiverRaw}
-                      onChange={(e) => handleReceiverChange(e.target.value)}
-                      placeholder="0x… or charles@salva"
-                      className={`w-full p-2 sm:p-3 rounded-xl bg-white/5 border outline-none text-[9px] sm:text-xs font-mono text-white/80 placeholder:text-white/30 transition-all pr-8 ${
-                        receiverError
-                          ? "border-red-500/60"
-                          : receiverInputType === "fullname" &&
-                              receiverResolved &&
-                              receiverConfirmed
-                            ? "border-green-500/40"
-                            : receiverInputType === "fullname" &&
-                                receiverResolved &&
-                                !receiverConfirmed
-                              ? "border-yellow-500/40"
-                              : "border-white/10 focus:border-salvaGold"
-                      }`}
-                    />
-                    {receiverResolving && (
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-white/60 rounded-full animate-spin" />
-                    )}
-                  </div>
-                  {receiverError && (
-                    <p className="text-[7px] sm:text-[10px] text-red-400 font-bold mt-1 sm:mt-1.5">
-                      ⚠ {receiverError}
-                    </p>
-                  )}
-                  {receiverInputType === "fullname" &&
-                    receiverResolved &&
-                    !receiverConfirmed &&
-                    !receiverError && (
-                      <button
-                        onClick={() => setShowReceiverConfirm(true)}
-                        className="text-[10px] text-yellow-400 underline underline-offset-2 mt-1.5"
-                      >
-                        ⚠ Tap to confirm recipient
-                      </button>
-                    )}
-                  {receiverInputType === "fullname" &&
-                    receiverResolved &&
-                    receiverConfirmed && (
-                      <p className="text-[10px] text-green-400 font-bold mt-1.5">
-                        ✓ Confirmed → {receiverResolved.slice(0, 10)}…
-                        {receiverResolved.slice(-8)}
-                      </p>
-                    )}
-                </div>
-              </motion.div>
-            )}
-
-            {step === "loading" && (
-              <div className="text-center py-9 sm:py-14">
-                <div className="relative w-10 h-10 sm:w-14 sm:h-14 mx-auto mb-4 sm:mb-6">
-                  <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
-                  <div className="absolute inset-0 rounded-full border-2 border-t-salvaGold animate-spin" />
-                  <div className="absolute inset-2 rounded-full bg-salvaGold/10 flex items-center justify-center">
-                    <span className="text-salvaGold text-[9px] sm:text-sm font-black">
-                      ₦
-                    </span>
-                  </div>
-                </div>
-                <p className="font-black text-sm sm:text-lg text-white">
-                  Executing swap…
-                </p>
-                <p className="text-[9px] sm:text-xs text-white/60 mt-1.5 sm:mt-2">
-                  Broadcasting via your Safe wallet. Please wait.
-                </p>
-              </div>
-            )}
-
-            {step === "done" && (
-              <div className="text-center py-5 sm:py-8">
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: "spring", stiffness: 300 }}
-                  className="w-11 h-11 sm:w-16 sm:h-16 bg-green-500/10 border border-green-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3.5 sm:mb-5"
-                >
-                  <span className="text-xl sm:text-3xl">🎉</span>
-                </motion.div>
-                <h3 className="text-sm sm:text-xl font-black mb-1 text-white">
-                  Swap Complete!
-                </h3>
-                {receivedAmount !== null && (
-                  <p className="text-[9px] sm:text-sm text-white/60 mb-3 sm:mb-4">
-                    You received{" "}
-                    <span className="font-black text-white">
-                      {fmt(receivedAmount)}
-                    </span>{" "}
-                    <span className="font-black" style={{ color: accentColor }}>
-                      {outputLabelTok}
-                    </span>
-                  </p>
-                )}
-                {receipt?.blockHash && (
-                  <a
-                    href={`${EXPLORER_TX_BASE}${receipt.blockHash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block text-[8px] sm:text-[11px] font-mono break-all text-salvaGold underline underline-offset-2 hover:text-salvaGold/80 transition-colors mb-2"
-                  >
-                    View on Explorer ↗
-                  </a>
-                )}
-                <button
-                  onClick={onClose}
-                  className="w-full mt-3.5 sm:mt-5 py-2.5 sm:py-3.5 rounded-xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
-                >
-                  Done
-                </button>
-              </div>
-            )}
-          </div>
-
-          {step === "input" && (
-            <div className="flex-shrink-0 px-3 pb-4 pt-2.5 sm:px-6 sm:pb-5 sm:pt-3 border-t border-white/[0.06] bg-zinc-950">
-              <div className="flex gap-2 sm:gap-3">
-                <button
-                  onClick={onClose}
-                  className="flex-1 py-2.5 sm:py-3.5 rounded-xl border border-white/10 text-white font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleContinue}
-                  disabled={
-                    amountRaw <= 0 ||
-                    !trustChecked ||
-                    userCantAfford ||
-                    poolCantCover ||
-                    poolEmpty ||
-                    userBalLoading ||
-                    !!receiverError ||
-                    receiverResolving ||
-                    (receiverInputType === "fullname" && !receiverResolved) ||
-                    (receiverInputType === "fullname" &&
-                      receiverResolved &&
-                      !receiverConfirmed) ||
-                    receiverInputType === "invalid"
-                  }
-                  className="flex-1 py-2.5 sm:py-3.5 rounded-xl font-black text-xs sm:text-sm disabled:opacity-40 transition-all hover:brightness-110 active:scale-[0.98]"
-                  style={{
-                    background: accentColor,
-                    color: "#000",
-                    boxShadow: `0 8px 24px ${accentColor}33`,
-                  }}
-                >
-                  {!trustChecked ? "Checking…" : "Continue →"}
-                </button>
-              </div>
-            </div>
-          )}
-        </motion.div>
-      </div>
-
-      <AnimatePresence>
-        {showReceiverConfirm && receiverResolved && (
-          <div className="fixed inset-0 z-[95] flex items-center justify-center px-4">
-            <motion.div
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowReceiverConfirm(false)}
-            />
-            <motion.div
-              className="relative bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-sm shadow-2xl overflow-hidden"
-              initial={{ opacity: 0, scale: 0.92, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92 }}
-              transition={{ type: "spring", stiffness: 380, damping: 28 }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-              <div className="p-5 sm:p-7 text-center">
-                <div className="w-10 h-10 sm:w-14 sm:h-14 bg-yellow-500/10 border border-yellow-500/20 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <span className="text-base sm:text-2xl">🔍</span>
-                </div>
-                <h3 className="text-sm sm:text-lg font-black text-white mb-1">
-                  Confirm Recipient
-                </h3>
-                <p className="text-[8px] sm:text-[11px] text-white/50 mb-3.5 sm:mb-5 leading-relaxed">
-                  SNS resolved successfully. Verify this is the correct
-                  recipient before swapping.
-                </p>
-                <div className="p-2.5 sm:p-4 rounded-2xl bg-white/[0.03] border border-white/[0.06] mb-2 text-left space-y-2 sm:space-y-3">
-                  <div>
-                    <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
-                      SNS Name
-                    </p>
-                    <p className="font-black text-salvaGold text-[9px] sm:text-sm">
-                      {receiverRaw}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[6px] sm:text-[9px] uppercase tracking-widest text-white/40 font-black mb-1">
-                      Resolved Address
-                    </p>
-                    <p className="font-mono text-[8px] sm:text-[11px] text-white/70 break-all">
-                      {receiverResolved}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-2 sm:gap-3 mt-4">
-                  <button
-                    onClick={() => setShowReceiverConfirm(false)}
-                    className="flex-1 py-2 sm:py-3 rounded-xl border border-white/10 text-white/60 font-bold text-xs sm:text-sm hover:bg-white/5 transition-all"
-                  >
-                    Go Back
-                  </button>
-                  <button
-                    onClick={() => {
-                      setReceiverConfirmed(true);
-                      setShowReceiverConfirm(false);
-                    }}
-                    className="flex-1 py-2 sm:py-3 rounded-xl bg-salvaGold text-black font-black text-xs sm:text-sm hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
-                  >
-                    ✓ Confirm
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {showTrust && (
-          <TrustModal
-            pool={pool}
-            tokenLabel={inputLabelTok}
-            onTrust={() => {
-              pendingTrustRef.current = true;
-              setShowTrust(false);
-              fetchFeeForPin(true);
-              setPinVisible(true);
-            }}
-            onSkip={() => {
-              pendingTrustRef.current = false;
-              setShowTrust(false);
-              fetchFeeForPin(false);
-              setPinVisible(true);
-            }}
-            onCancel={() => setShowTrust(false)}
-          />
-        )}
-      </AnimatePresence>
-      <AnimatePresence>
-        {pinVisible && (
-          <PinModal
-            title="Confirm Swap"
-            subtitle="Enter your PIN to authorize this transaction via your Safe"
-            onConfirm={handlePinConfirm}
-            onCancel={() => setPinVisible(false)}
-            loading={pinLoading}
-            feeInfo={swapFee}
-          />
-        )}
-      </AnimatePresence>
-    </>
+const ListingCard = ({ listing, index, logoIndex, verified, onProceed }) => {
+  const baseLogo = pickLogo(listing.baseSymbol, listing.baseAddress, listing.baseLogo, logoIndex);
+  const quoteLogo = pickLogo(
+    listing.quoteSymbol,
+    listing.quoteAddress,
+    listing.quoteLogo,
+    logoIndex
   );
-};
 
-// ── Pool Card ────────────────────────────────────────────────────────────
-const PoolCard = ({ pool, section, onSwap, index }) => {
-  const rate = section === "buy" ? pool.buyRate : pool.sellRate;
-  const accentColor = section === "buy" ? "#D4AF37" : "#22c55e";
+  const priceOk = Number(listing.price) > 0;
+  const liquidityOk = Number(listing.baseBalance) > 0;
+  const disabled = !priceOk || !liquidityOk;
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
+    <motion.article
+      layout
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04 }}
-      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] overflow-hidden hover:border-white/[0.14] transition-all"
+      transition={{ delay: Math.min(index, 8) * 0.03, duration: 0.25 }}
+      className="group overflow-hidden rounded-[22px] border border-white/[0.08] bg-[#101217]/95 shadow-[0_12px_35px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:border-salvaGold/25 hover:shadow-[0_18px_45px_rgba(0,0,0,0.24)]"
     >
       <div className="h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-      <div className="p-2.5 sm:p-3.5">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="min-w-0">
-            <p className="font-black text-sm text-white truncate">
-              {pool.poolName || "Anonymous Pool"}
-            </p>
-            <p className="font-mono text-[10px] text-white/60 truncate mt-0.5">
-              {pool.poolAddress}
-            </p>
+      <div className="p-3.5 sm:p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
+            <PairLogo
+              baseSymbol={listing.baseSymbol}
+              baseLogo={baseLogo}
+              quoteSymbol={listing.quoteSymbol}
+              quoteLogo={quoteLogo}
+              size="h-10 w-10 sm:h-12 sm:w-12"
+            />
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <p className="truncate text-xs sm:text-sm font-black">
+                  Buy {listing.baseSymbol}
+                  <span className="mx-1 text-white/60">·</span>
+                  <span className="text-white/88">pay {listing.quoteSymbol}</span>
+                </p>
+                {verified && (
+                  <BadgeCheck
+                    aria-label="Verified by Salva"
+                    className="h-3.5 w-3.5 shrink-0 text-salvaGold sm:h-4 sm:w-4"
+                  />
+                )}
+              </div>
+              <p className="mt-0.5 truncate font-mono text-[8px] sm:text-[10px] text-white/72">
+                Pool {shortAddr(listing.poolAddress)}
+              </p>
+            </div>
           </div>
-          <div
-            className="flex-shrink-0 px-2.5 py-1 rounded-lg border text-[9px] font-black uppercase tracking-widest"
-            style={{
-              borderColor: `${accentColor}40`,
-              color: accentColor,
-              background: `${accentColor}0D`,
-            }}
+
+          <span
+            className={`hidden shrink-0 rounded-lg border px-2 py-1 text-[8px] font-black uppercase tracking-widest sm:block ${
+              disabled
+                ? 'border-white/10 text-white/60'
+                : 'border-emerald-400/25 bg-emerald-400/[0.06] text-emerald-400'
+            }`}
           >
-            {section === "buy" ? "GET USD" : "GET NGN"}
-          </div>
-        </div>
-        <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06] mb-3">
-          <p className="text-[9px] uppercase tracking-[0.3em] text-white/60 font-black">
-            Rate
-          </p>
-          <span className="font-black text-sm text-white">
-            ₦{fmt(rate)}
-            <span className="text-[10px] text-white/40 font-normal">/USD</span>
+            {disabled ? 'Inactive' : 'Live'}
           </span>
         </div>
-        {section === "buy" ? (
-          <div className="flex flex-col gap-1.5 mb-4">
-            {parseFloat(pool.usdtLiquidity) > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
-                  USDT
-                </p>
-                <span className="font-black text-sm text-white">
-                  {fmt(pool.usdtLiquidity)}
-                </span>
-              </div>
-            )}
-            {parseFloat(pool.usdcLiquidity) > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
-                  USDC
-                </p>
-                <span className="font-black text-sm text-white">
-                  {fmt(pool.usdcLiquidity)}
-                </span>
-              </div>
-            )}
+
+        <div className="mt-3 grid grid-cols-2 gap-2.5">
+          <div className="rounded-2xl border border-white/[0.07] bg-black/25 p-2.5 sm:p-3">
+            <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-[.22em] text-white/72">
+              Rate
+            </p>
+            <p className="mt-1 truncate text-sm sm:text-lg font-black tracking-tight">
+              {priceOk ? truncateDisplay(listing.price) : '—'}
+            </p>
+            <p className="mt-0.5 truncate text-[8px] sm:text-[10px] text-white/76">
+              {listing.quoteSymbol} per 1 {listing.baseSymbol}
+            </p>
           </div>
-        ) : (
-          <div className="flex flex-col gap-1.5 mb-4">
-            {parseFloat(pool.ngnsLiquidity) > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
-                  NGNs
-                </p>
-                <span className="font-black text-sm text-white">
-                  {fmt(pool.ngnsLiquidity)}
-                </span>
-              </div>
-            )}
-            {parseFloat(pool.cNgnLiquidity) > 0 && (
-              <div className="flex items-center justify-between px-2 py-1.5 sm:px-3 sm:py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
-                <p className="text-[9px] uppercase tracking-[0.3em] text-white/50 font-black">
-                  cNGN
-                </p>
-                <span className="font-black text-sm text-white">
-                  {fmt(pool.cNgnLiquidity)}
-                </span>
-              </div>
-            )}
+
+          <div className="rounded-2xl border border-white/[0.07] bg-black/25 p-2.5 sm:p-3">
+            <p className="text-[7px] sm:text-[8px] font-black uppercase tracking-[.22em] text-white/72">
+              Available
+            </p>
+            <p className="mt-1 truncate text-sm sm:text-lg font-black tracking-tight">
+              {truncateDisplay(listing.baseBalance)}
+            </p>
+            <p className="mt-0.5 truncate text-[8px] sm:text-[10px] text-white/76">
+              {listing.baseSymbol} in pool
+            </p>
           </div>
-        )}
+        </div>
+
         <button
-          onClick={() => onSwap(pool)}
-          className="w-full py-2.5 sm:py-3.5 rounded-xl font-black text-[9px] sm:text-xs uppercase tracking-widest transition-all hover:brightness-110 active:scale-[0.98]"
-          style={{
-            background: accentColor,
-            color: "#000",
-            boxShadow: `0 4px 16px ${accentColor}33`,
-          }}
+          type="button"
+          disabled={disabled}
+          onClick={() => onProceed(listing)}
+          className="mt-3 w-full rounded-2xl bg-salvaGold py-2.5 sm:py-3 text-[9px] sm:text-xs font-black uppercase tracking-widest text-black shadow-lg shadow-salvaGold/10 transition hover:brightness-110 active:scale-[.99] disabled:cursor-not-allowed disabled:opacity-35"
         >
-          Proceed to Swap →
+          {!liquidityOk ? 'No liquidity' : !priceOk ? 'Price unavailable' : 'Proceed to swap →'}
         </button>
       </div>
-    </motion.div>
+    </motion.article>
   );
 };
 
-// ── Main SwapTab ─────────────────────────────────────────────────────────
-const SwapTab = ({ user, showMsg }) => {
-  const [section, setSection] = useState("buy");
-  const [buyPools, setBuyPools] = useState(_poolsCache.buyPools || []);
-  const [sellPools, setSellPools] = useState(_poolsCache.sellPools || []);
-  const [search, setSearch] = useState("");
-  const [loading, setLoading] = useState(_poolsCache.buyPools === null);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastTime, setLastTime] = useState(_poolsCache.lastTime);
-  const [selected, setSelected] = useState(null);
-  const pollRef = useRef(null);
+/* ============================================================================
+   SWAP SHEET  (live-priced swap card)
+============================================================================ */
 
-  const [searchPool, setSearchPool] = useState(null);
-  const [searchLoading, setSearchLoading] = useState(false);
-  const [searchError, setSearchError] = useState("");
+const SwapSheet = ({
+  listing,
+  pin,
+  user,
+  chain,
+  logoIndex,
+  walletTick,
+  onClose,
+  onSwapComplete,
+}) => {
+  const [mode, setMode] = useState('exact_in'); // exact_in | exact_out
+  const [amount, setAmount] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [slippage, setSlippage] = useState('');
+  const [live, setLive] = useState(listing);
+  const [missing, setMissing] = useState(false);
+  const [localTick, setLocalTick] = useState(0);
+  const [preview, setPreview] = useState({ value: null, loading: false, error: '' });
+  const [step, setStep] = useState('input'); // input | review | processing | done
+  const [feeLoading, setFeeLoading] = useState(false);
+  const [fee, setFee] = useState(null);
+  const [snapshot, setSnapshot] = useState(null);
+  const [result, setResult] = useState(null);
+  const [actionError, setActionError] = useState('');
 
-  // Auto-list of subscribed pools — polled every 60s.
-  const fetchPools = useCallback(async (silent = false) => {
-    silent ? setRefreshing(true) : setLoading(true);
-    try {
-      const res = await fetch(`${SALVA_API_URL}/api/pool/all-pools/${CHAIN}`);
-      const data = await res.json();
-      const rawPools = data.pools || [];
-      const hydrated = (
-        await Promise.all(rawPools.map((p) => hydratePool(p).catch(() => null)))
-      ).filter(Boolean);
-      const buys = hydrated
-        .filter(
-          (p) =>
-            (parseFloat(p.usdtLiquidity) > 0 ||
-              parseFloat(p.usdcLiquidity) > 0) &&
-            parseFloat(p.buyRate) > 0,
-        )
-        .sort((a, b) => parseFloat(a.buyRate) - parseFloat(b.buyRate));
-      const sells = hydrated
-        .filter(
-          (p) =>
-            (parseFloat(p.ngnsLiquidity) > 0 ||
-              parseFloat(p.cNgnLiquidity) > 0) &&
-            parseFloat(p.sellRate) > 0,
-        )
-        .sort((a, b) => parseFloat(b.sellRate) - parseFloat(a.sellRate));
-      setBuyPools(buys);
-      setSellPools(sells);
-      setLastTime(new Date());
-      _poolsCache.buyPools = buys;
-      _poolsCache.sellPools = sells;
-      _poolsCache.lastTime = new Date();
-    } catch {
-      /* keep existing */
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
+  const openPriceRef = useRef(Number(listing.price));
+  const reviewPriceRef = useRef(null);
+  const stepRef = useRef(step);
+  stepRef.current = step;
+
+  const inv = live;
+  const baseSymbol = inv.baseSymbol;
+  const quoteSymbol = inv.quoteSymbol;
+  const baseLogo = pickLogo(baseSymbol, inv.baseAddress, inv.baseLogo, logoIndex);
+  const quoteLogo = pickLogo(quoteSymbol, inv.quoteAddress, inv.quoteLogo, logoIndex);
+
+  /* ---------- LIVE PRICE POLL (never cached) ---------- */
+  useEffect(() => {
+    let stopped = false;
+    let controller = null;
+
+    const tick = async () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+
+      controller?.abort();
+      controller = new AbortController();
+
+      try {
+        const list = await fetchLivePairListings(chain, listing.baseSymbol, listing.quoteSymbol, {
+          signal: controller.signal,
+        });
+        if (stopped) return;
+
+        const match = list.find((l) => l.key === listing.key);
+
+        if (match) {
+          setLive((prev) => ({
+            ...match,
+            baseLogo: match.baseLogo || prev.baseLogo,
+            quoteLogo: match.quoteLogo || prev.quoteLogo,
+          }));
+          setMissing(false);
+        } else {
+          setMissing(true);
+        }
+
+        setLocalTick((t) => t + 1);
+      } catch {
+        // keep the last good price; the next tick will retry
+      }
+    };
+
+    tick();
+    const id = setInterval(tick, SWAP_LIVE_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', tick);
+
+    return () => {
+      stopped = true;
+      controller?.abort();
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+    };
+  }, [chain, listing.key, listing.baseSymbol, listing.quoteSymbol]);
+
+  /* ---------- DERIVED ---------- */
+  const userBal = useMemo(
+    () => getUserBalance(user.email, chain, inv.quoteAddress, quoteSymbol),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [user.email, chain, inv.quoteAddress, quoteSymbol, walletTick, localTick]
+  );
+
+  const amountDecimals = mode === 'exact_in' ? userBal.decimals || 18 : 18;
+  const amountNum = Number(amount) || 0;
+  const priceNum = Number(inv.price);
+  const priceOk = priceNum > 0;
+  const poolBase = Number(inv.baseBalance) || 0;
+  const previewNum = preview.value ? Number(preview.value) : 0;
+
+  const payAmt = mode === 'exact_in' ? amountNum : previewNum;
+  const recvAmt = mode === 'exact_in' ? previewNum : amountNum;
+
+  const insufficientUser = userBal.known && payAmt > 0 && payAmt > Number(userBal.balance);
+  const poolShort = recvAmt > 0 && recvAmt > poolBase;
+
+  // Nothing selected / empty custom field => default 1%.
+  const effectiveSlippage = slippage === '' ? DEFAULT_SLIPPAGE_PCT : slippage;
+  const slipNum = Number(effectiveSlippage);
+  const slipInvalid = !Number.isFinite(slipNum) || slipNum > MAX_SLIPPAGE_PCT;
+  const bps = slipInvalid ? 0 : Math.round(slipNum * 100);
+
+  // exact_in  -> minAmountOut = preview - slippage (default 1%)
+  // exact_out -> maxAmountIn  = preview + slippage (default 1%)
+  const protection = useMemo(() => {
+    if (!preview.value || slipInvalid) return null;
+    return applySlippage(preview.value, bps, mode === 'exact_in' ? 'min' : 'max');
+  }, [preview.value, mode, bps, slipInvalid]);
+
+  const movePct =
+    openPriceRef.current > 0 ? ((priceNum - openPriceRef.current) / openPriceRef.current) * 100 : 0;
+  const showMove = Math.abs(movePct) >= 0.01;
+  const priceMovedSinceReview =
+    step === 'review' && reviewPriceRef.current !== null && inv.price !== reviewPriceRef.current;
+
+  /* ---------- PREVIEW ---------- */
+  useEffect(() => {
+    if (!(amountNum > 0) || !priceOk) {
+      setPreview({ value: null, loading: false, error: '' });
+      return undefined;
     }
+
+    let cancelled = false;
+    setPreview((p) => ({ ...p, loading: true, error: '' }));
+
+    const timer = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          poolAddress: inv.poolAddress,
+          assetIn: quoteSymbol,
+          assetOut: baseSymbol,
+          amount: cleanAmount(amount),
+          chain,
+        });
+
+        const endpoint = mode === 'exact_in' ? 'amount-out' : 'amount-in';
+        const data = await swapRequest(`${SALVA_API_URL}/api/user/swap/${endpoint}?${params}`);
+        if (cancelled) return;
+
+        const value = plainDecimal(mode === 'exact_in' ? data?.amountOut : data?.amountIn);
+        if (!value) throw new Error('Quote unavailable');
+
+        setPreview({ value, loading: false, error: '' });
+      } catch (err) {
+        if (!cancelled) {
+          setPreview({ value: null, loading: false, error: err?.message || 'Quote unavailable' });
+        }
+      }
+    }, 450);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [
+    amount,
+    amountNum,
+    mode,
+    priceOk,
+    inv.price,
+    inv.poolAddress,
+    quoteSymbol,
+    baseSymbol,
+    chain,
+  ]);
+
+  /* ---------- ACTIONS ---------- */
+  const switchMode = (next) => {
+    if (next === mode) return;
+    setMode(next);
+    setAmount('');
+    setPreview({ value: null, loading: false, error: '' });
+    setActionError('');
+  };
+
+  const handleMax = () => {
+    if (mode === 'exact_in') {
+      if (!userBal.known) return;
+      setAmount(sanitizeAmount(userBal.balance, amountDecimals));
+    } else {
+      setAmount(sanitizeAmount(inv.baseBalance, 18));
+    }
+  };
+
+  const canReview =
+    step === 'input' &&
+    amountNum > 0 &&
+    Boolean(preview.value) &&
+    !preview.loading &&
+    !preview.error &&
+    priceOk &&
+    !missing &&
+    !slipInvalid &&
+    !insufficientUser &&
+    !poolShort &&
+    !feeLoading;
+
+  const estimateFeeAndReview = async () => {
+    if (!canReview) return;
+    setActionError('');
+    setFeeLoading(true);
+
+    const payAmount = mode === 'exact_in' ? cleanAmount(amount) : preview.value;
+    const receiveAmount = mode === 'exact_in' ? preview.value : cleanAmount(amount);
+
+    try {
+      const body =
+        mode === 'exact_in'
+          ? {
+              safe: user.safeAddress,
+              pin,
+              poolAddress: inv.poolAddress,
+              assetIn: quoteSymbol,
+              assetOut: baseSymbol,
+              amountIn: payAmount,
+              minAmountOut: protection,
+              chain,
+            }
+          : {
+              safe: user.safeAddress,
+              pin,
+              poolAddress: inv.poolAddress,
+              assetIn: quoteSymbol,
+              assetOut: baseSymbol,
+              amountOut: receiveAmount,
+              maxAmountIn: protection,
+              chain,
+            };
+
+      const endpoint =
+        mode === 'exact_in' ? 'estimate-exact-input-fee' : 'estimate-exact-output-fee';
+
+      const data = await swapRequest(`${SALVA_API_URL}/api/user/swap/${endpoint}`, {
+        method: 'POST',
+        body,
+      });
+
+      const feeNGN = data?.data?.feeNGN;
+      const feeUsd = data?.data?.feeUsd;
+      if (feeNGN === undefined && feeUsd === undefined) {
+        throw new Error('Fee estimate was not returned by the server');
+      }
+
+      setFee({ feeNGN, feeUsd });
+      setSnapshot({ mode, payAmount, receiveAmount, protection, bps });
+      reviewPriceRef.current = inv.price;
+      setStep('review');
+    } catch (err) {
+      setActionError(err?.message || 'Could not estimate the network fee');
+    } finally {
+      setFeeLoading(false);
+    }
+  };
+
+  const executeSwap = async () => {
+    if (!snapshot || priceMovedSinceReview) return;
+    setActionError('');
+    setStep('processing');
+
+    try {
+      const body =
+        snapshot.mode === 'exact_in'
+          ? {
+              email: user.email,
+              pin,
+              poolAddress: inv.poolAddress,
+              assetIn: quoteSymbol,
+              assetOut: baseSymbol,
+              amountIn: snapshot.payAmount,
+              minAmountOut: snapshot.protection,
+              chain,
+            }
+          : {
+              email: user.email,
+              pin,
+              poolAddress: inv.poolAddress,
+              assetIn: quoteSymbol,
+              assetOut: baseSymbol,
+              amountOut: snapshot.receiveAmount,
+              maxAmountIn: snapshot.protection,
+              chain,
+            };
+
+      const endpoint =
+        snapshot.mode === 'exact_in' ? 'execute-exact-input' : 'execute-exact-output';
+
+      const data = await swapRequest(`${SALVA_API_URL}/api/user/swap/${endpoint}`, {
+        method: 'POST',
+        body,
+      });
+
+      const receipt = data?.receipt || {};
+      setResult({
+        hash: receipt.transactionHash || receipt.hash || receipt.blockHash || null,
+        paid: snapshot.payAmount,
+        received: snapshot.receiveAmount,
+        approx: snapshot.mode === 'exact_in' ? 'received' : 'paid',
+      });
+      setStep('done');
+      onSwapComplete?.();
+    } catch (err) {
+      setActionError(err?.message || 'Swap failed. Please try again.');
+      setStep('review');
+    }
+  };
+
+  const guardedClose = () => {
+    if (stepRef.current === 'processing') return;
+    onClose();
+  };
+
+  useOverlayLayer('swapSheet', true, guardedClose);
+
+  /* ---------- RENDER HELPERS ---------- */
+  const rateLine = `1 ${baseSymbol} = ${priceOk ? truncateDisplay(inv.price) : '—'} ${quoteSymbol}`;
+
+  const amountSymbol = mode === 'exact_in' ? quoteSymbol : baseSymbol;
+  const amountLabel =
+    mode === 'exact_in' ? `You pay (${quoteSymbol})` : `You receive (${baseSymbol})`;
+  const previewLabel = mode === 'exact_in' ? `You receive (est.)` : `You pay (est.)`;
+  const previewSymbol = mode === 'exact_in' ? baseSymbol : quoteSymbol;
+
+  const protectionLabel = mode === 'exact_in' ? 'Minimum to receive' : 'Maximum to pay';
+  const protectionSymbol = mode === 'exact_in' ? baseSymbol : quoteSymbol;
+  const protectionValue = protection ? `${fmt(protection, 8)} ${protectionSymbol}` : '—';
+
+  const Row = ({ label, children }) => (
+    <div className="flex items-center justify-between gap-3 py-2">
+      <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.18em] text-white/74">
+        {label}
+      </span>
+      <span className="text-right text-[10px] sm:text-xs font-black">{children}</span>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-[140] flex items-end justify-center sm:items-center sm:px-4">
+      <motion.button
+        aria-label="Close swap"
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={guardedClose}
+      />
+
+      <motion.div
+        className="relative flex max-h-[94vh] w-full max-w-md flex-col overflow-hidden rounded-t-[26px] border border-white/[0.10] bg-[#0b0d11] shadow-[0_30px_90px_rgba(0,0,0,0.55)] sm:rounded-[26px]"
+        initial={{ y: '100%' }}
+        animate={{ y: 0 }}
+        exit={{ y: '100%' }}
+        transition={{ type: 'spring', damping: 28, stiffness: 240 }}
+      >
+        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/70 to-transparent" />
+
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-4 sm:px-6 sm:pt-5">
+          <div className="flex min-w-0 items-center gap-3">
+            <PairLogo
+              baseSymbol={baseSymbol}
+              baseLogo={baseLogo}
+              quoteSymbol={quoteSymbol}
+              quoteLogo={quoteLogo}
+              size="h-10 w-10"
+            />
+            <div className="min-w-0">
+              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/65">
+                P2P swap
+              </p>
+              <h3 className="truncate text-base sm:text-lg font-black">
+                {baseSymbol}
+                <span className="mx-1 text-white/60">/</span>
+                {quoteSymbol}
+              </h3>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={guardedClose}
+            disabled={step === 'processing'}
+            className="rounded-lg border border-white/10 p-2 text-white/76 transition hover:text-white disabled:opacity-30"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 pb-3 sm:px-6">
+          {/* Live rate strip */}
+          {(step === 'input' || step === 'review') && (
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-xl border border-white/[0.06] bg-black/25 px-3 py-2.5">
+              <div className="min-w-0">
+                <p className="flex items-center gap-1.5 text-[7px] sm:text-[8px] font-black uppercase tracking-[.22em] text-white/72">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span
+                      className={`absolute inline-flex h-full w-full animate-ping rounded-full ${
+                        missing ? 'bg-red-400' : 'bg-emerald-400'
+                      } opacity-60`}
+                    />
+                    <span
+                      className={`relative inline-flex h-1.5 w-1.5 rounded-full ${
+                        missing ? 'bg-red-400' : 'bg-emerald-400'
+                      }`}
+                    />
+                  </span>
+                  {missing ? 'Market unavailable' : 'Live rate'}
+                </p>
+                <p className="mt-1 truncate text-xs sm:text-sm font-black">{rateLine}</p>
+              </div>
+
+              {showMove && (
+                <span
+                  className={`shrink-0 rounded-lg px-2 py-1 text-[9px] font-black ${
+                    movePct > 0
+                      ? 'bg-red-500/10 text-red-400'
+                      : 'bg-emerald-500/10 text-emerald-400'
+                  }`}
+                >
+                  {movePct > 0 ? '▲' : '▼'} {Math.abs(movePct).toFixed(2)}%
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* ---------------- INPUT STEP ---------------- */}
+          {step === 'input' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/[0.06] bg-white/[0.03] p-1">
+                {[
+                  { id: 'exact_in', label: 'Exact input' },
+                  { id: 'exact_out', label: 'Exact output' },
+                ].map(({ id, label }) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => switchMode(id)}
+                    className={`rounded-lg py-2 text-[8px] sm:text-[10px] font-black uppercase tracking-widest transition ${
+                      mode === id ? 'bg-white/10 text-white' : 'text-white/60 hover:text-white/80'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="rounded-[20px] border border-white/[0.08] bg-[#11141a] p-3.5 shadow-inner shadow-white/[0.015]">
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.2em] text-white/80">
+                    {amountLabel}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleMax}
+                    disabled={mode === 'exact_in' && !userBal.known}
+                    className="rounded-md border border-salvaGold/25 bg-salvaGold/[0.07] px-2 py-1 text-[8px] font-black uppercase tracking-widest text-salvaGold transition hover:bg-salvaGold/15 disabled:opacity-30"
+                  >
+                    Max
+                  </button>
+                </div>
+
+                <div className="relative">
+                  <input
+                    autoFocus
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={amount}
+                    onChange={(e) => {
+                      setActionError('');
+                      setAmount(sanitizeAmount(e.target.value, amountDecimals));
+                    }}
+                    className="w-full rounded-2xl border border-white/[0.09] bg-black/30 px-3.5 py-3.5 pr-20 text-base sm:text-xl font-black text-white outline-none transition focus:border-salvaGold/40"
+                  />
+                  <span className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+                    <AssetLogo
+                      symbol={amountSymbol}
+                      logo={mode === 'exact_in' ? quoteLogo : baseLogo}
+                      size="h-5 w-5"
+                    />
+                    <span className="text-[10px] sm:text-xs font-black text-salvaGold">
+                      {amountSymbol}
+                    </span>
+                  </span>
+                </div>
+
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[8px] sm:text-[10px]">
+                  <p className={insufficientUser ? 'font-bold text-red-400' : 'text-white/76'}>
+                    Your {quoteSymbol}:{' '}
+                    <span className="font-black text-white/85">
+                      {userBal.known ? fmt(userBal.balance, 6) : '—'}
+                    </span>
+                  </p>
+                  <p
+                    className={`text-right ${
+                      poolShort ? 'font-bold text-red-400' : 'text-white/76'
+                    }`}
+                  >
+                    Pool {baseSymbol}:{' '}
+                    <span className="font-black text-white/85">
+                      {truncateDisplay(inv.baseBalance)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-center">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full border border-white/[0.09] bg-white/[0.04]">
+                  <ArrowDown className="h-3.5 w-3.5 text-white/76" />
+                </div>
+              </div>
+
+              <div className="rounded-[20px] border border-white/[0.08] bg-[#11141a] p-3.5 shadow-inner shadow-white/[0.015]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.2em] text-white/80">
+                    {previewLabel}
+                  </p>
+                  {preview.loading && <Spinner />}
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="truncate text-lg sm:text-2xl font-black tracking-tight text-white">
+                    {preview.value ? fmt(preview.value, 8) : '—'}
+                  </p>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <AssetLogo
+                      symbol={previewSymbol}
+                      logo={mode === 'exact_in' ? baseLogo : quoteLogo}
+                      size="h-5 w-5"
+                    />
+                    <span className="text-[10px] sm:text-xs font-black">{previewSymbol}</span>
+                  </span>
+                </div>
+                {preview.error && (
+                  <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-red-400">
+                    {preview.error}
+                  </p>
+                )}
+              </div>
+
+              {(insufficientUser || poolShort) && (
+                <p className="text-[9px] sm:text-[10px] font-bold text-red-400">
+                  {insufficientUser
+                    ? `Insufficient ${quoteSymbol} balance for this swap.`
+                    : `This pool only has ${truncateDisplay(inv.baseBalance)} ${baseSymbol}.`}
+                </p>
+              )}
+
+              {/* Advanced */}
+              <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.02]">
+                <button
+                  type="button"
+                  onClick={() => setAdvancedOpen((o) => !o)}
+                  className="flex w-full items-center justify-between px-3 py-2.5"
+                >
+                  <span className="flex items-center gap-2 text-[9px] sm:text-[11px] font-black uppercase tracking-widest text-white/88">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-salvaGold" />
+                    Advanced
+                    <span className="rounded-md bg-salvaGold/10 px-1.5 py-0.5 text-[8px] text-salvaGold">
+                      {effectiveSlippage}% slippage
+                    </span>
+                  </span>
+                  <ChevronDown
+                    className={`h-3.5 w-3.5 text-white/72 transition ${
+                      advancedOpen ? 'rotate-180' : ''
+                    }`}
+                  />
+                </button>
+
+                <AnimatePresence initial={false}>
+                  {advancedOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-white/[0.06] px-3 pb-3 pt-3">
+                        <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.2em] text-white/76">
+                          Slippage tolerance
+                        </p>
+
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {SLIPPAGE_PRESETS.map((p) => (
+                            <button
+                              key={p}
+                              type="button"
+                              onClick={() => setSlippage((s) => (s === p ? '' : p))}
+                              className={`rounded-lg border px-2.5 py-1.5 text-[9px] sm:text-[10px] font-black transition ${
+                                effectiveSlippage === p
+                                  ? 'border-salvaGold/40 bg-salvaGold/10 text-salvaGold'
+                                  : 'border-white/[0.08] bg-white/[0.03] text-white/80 hover:text-white'
+                              }`}
+                            >
+                              {p}%
+                            </button>
+                          ))}
+
+                          <div className="relative min-w-[84px] flex-1">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="Custom"
+                              value={slippage}
+                              onChange={(e) => setSlippage(sanitizeAmount(e.target.value, 2))}
+                              className="w-full rounded-lg border border-white/[0.08] bg-black/25 py-1.5 pl-2.5 pr-6 text-[10px] font-black text-white outline-none focus:border-salvaGold/40"
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/72">
+                              %
+                            </span>
+                          </div>
+                        </div>
+
+                        {slipInvalid ? (
+                          <p className="mt-2 text-[9px] font-bold text-red-400">
+                            Slippage cannot exceed {MAX_SLIPPAGE_PCT}%.
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-[8px] sm:text-[10px] leading-relaxed text-white/72">
+                            {mode === 'exact_in'
+                              ? 'Sets the minimum amount you will accept to receive. Defaults to 1% below the quote.'
+                              : 'Sets the maximum amount you are willing to pay. Defaults to 1% above the quote.'}
+                          </p>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {preview.value && (
+                <div className="divide-y divide-white/[0.05] rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3">
+                  <Row label="Rate">{rateLine}</Row>
+                  <Row label={protectionLabel}>{protectionValue}</Row>
+                </div>
+              )}
+
+              {missing && (
+                <p className="text-[9px] sm:text-[10px] font-bold text-red-400">
+                  This market is no longer available in the pool.
+                </p>
+              )}
+              {actionError && (
+                <p className="text-[9px] sm:text-[10px] font-bold text-red-400">{actionError}</p>
+              )}
+            </div>
+          )}
+
+          {/* ---------------- REVIEW STEP ---------------- */}
+          {step === 'review' && snapshot && fee && (
+            <div className="space-y-3">
+              <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 sm:p-4">
+                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.2em] text-white/74">
+                  You pay{snapshot.mode === 'exact_out' ? ' (est.)' : ''}
+                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-3">
+                  <p className="truncate text-lg sm:text-2xl font-black">
+                    {fmt(snapshot.payAmount, 8)}
+                  </p>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <AssetLogo symbol={quoteSymbol} logo={quoteLogo} size="h-6 w-6" />
+                    <span className="text-xs font-black">{quoteSymbol}</span>
+                  </span>
+                </div>
+
+                <div className="my-3 flex items-center gap-2">
+                  <div className="h-px flex-1 bg-white/[0.07]" />
+                  <ArrowDown className="h-3.5 w-3.5 text-white/72" />
+                  <div className="h-px flex-1 bg-white/[0.07]" />
+                </div>
+
+                <p className="text-[8px] sm:text-[10px] font-black uppercase tracking-[.2em] text-white/74">
+                  You receive{snapshot.mode === 'exact_in' ? ' (est.)' : ''}
+                </p>
+                <div className="mt-1.5 flex items-center justify-between gap-3">
+                  <p className="truncate text-lg sm:text-2xl font-black text-salvaGold">
+                    {fmt(snapshot.receiveAmount, 8)}
+                  </p>
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    <AssetLogo symbol={baseSymbol} logo={baseLogo} size="h-6 w-6" />
+                    <span className="text-xs font-black">{baseSymbol}</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="divide-y divide-white/[0.05] rounded-2xl border border-white/[0.06] bg-white/[0.02] px-3">
+                <Row label="Rate">{rateLine}</Row>
+                <Row label={snapshot.mode === 'exact_in' ? 'Minimum received' : 'Maximum paid'}>
+                  {`${fmt(snapshot.protection, 8)} ${
+                    snapshot.mode === 'exact_in' ? baseSymbol : quoteSymbol
+                  }`}
+                </Row>
+                <Row label="Network fee">
+                  <span className="text-red-400">
+                    ₦{fmtNgn(fee.feeNGN)}{' '}
+                    <span className="text-white/72">(${Number(fee.feeUsd || 0).toFixed(4)})</span>
+                  </span>
+                </Row>
+                <Row label="Receiver">
+                  <span className="font-mono text-white/90">
+                    {shortAddr(user.safeAddress)} · You
+                  </span>
+                </Row>
+                <Row label="Pool">
+                  <span className="font-mono text-white/90">{shortAddr(inv.poolAddress)}</span>
+                </Row>
+              </div>
+
+              {priceMovedSinceReview && (
+                <div className="rounded-xl border border-salvaGold/25 bg-salvaGold/[0.06] px-3 py-2.5">
+                  <p className="text-[10px] sm:text-xs font-black text-salvaGold">
+                    The rate just moved
+                  </p>
+                  <p className="mt-0.5 text-[9px] sm:text-[10px] leading-relaxed text-white/82">
+                    New rate: {rateLine}. Update the quote to continue.
+                  </p>
+                </div>
+              )}
+
+              {actionError && (
+                <p className="text-[9px] sm:text-[10px] font-bold text-red-400">{actionError}</p>
+              )}
+            </div>
+          )}
+
+          {/* ---------------- PROCESSING ---------------- */}
+          {step === 'processing' && (
+            <div className="py-14 text-center">
+              <div className="relative mx-auto mb-5 h-14 w-14">
+                <div className="absolute inset-0 rounded-full border-2 border-salvaGold/20" />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-salvaGold" />
+                <div className="absolute inset-2 flex items-center justify-center rounded-full bg-salvaGold/10">
+                  <span className="text-sm font-black text-salvaGold">⇄</span>
+                </div>
+              </div>
+              <p className="text-base sm:text-lg font-black">Executing swap…</p>
+              <p className="mt-1.5 text-[10px] sm:text-xs text-white/76">
+                Broadcasting through your Safe. Please keep this open.
+              </p>
+            </div>
+          )}
+
+          {/* ---------------- DONE ---------------- */}
+          {step === 'done' && result && (
+            <div className="py-8 text-center">
+              <motion.div
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 360, damping: 22 }}
+                className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-400/10"
+              >
+                <Check className="h-7 w-7 text-emerald-400" strokeWidth={2.5} />
+              </motion.div>
+              <p className="mt-4 text-[8px] font-black uppercase tracking-[.32em] text-emerald-400/70">
+                Swap complete
+              </p>
+              <h3 className="mt-1.5 text-xl font-black">
+                {fmt(result.received, 8)} {baseSymbol}
+              </h3>
+              <p className="mt-1.5 text-[10px] sm:text-xs text-white/76">
+                for {fmt(result.paid, 8)} {quoteSymbol}
+              </p>
+
+              {result.hash && (
+                <a
+                  href={explorerTxUrl(chain, result.hash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-black text-salvaGold underline underline-offset-2"
+                >
+                  View on explorer <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {step === 'input' && (
+          <div className="grid grid-cols-2 gap-2 border-t border-white/[0.06] bg-[#0b0c10] px-4 pb-4 pt-3 sm:px-6 sm:pb-5">
+            <button
+              onClick={guardedClose}
+              className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/82 transition hover:bg-white/[0.04]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={estimateFeeAndReview}
+              disabled={!canReview}
+              className="flex items-center justify-center gap-2 rounded-xl bg-salvaGold py-3 text-xs font-black text-black shadow-lg shadow-salvaGold/15 transition hover:brightness-110 disabled:opacity-40"
+            >
+              {feeLoading ? (
+                <>
+                  <Spinner className="h-3.5 w-3.5" /> …
+                </>
+              ) : (
+                'Review swap →'
+              )}
+            </button>
+          </div>
+        )}
+
+        {step === 'review' && (
+          <div className="grid grid-cols-2 gap-2 border-t border-white/[0.06] bg-[#0b0c10] px-4 pb-4 pt-3 sm:px-6 sm:pb-5">
+            <button
+              onClick={() => {
+                setActionError('');
+                setStep('input');
+              }}
+              className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/82 transition hover:bg-white/[0.04]"
+            >
+              Back
+            </button>
+            {priceMovedSinceReview ? (
+              <button
+                onClick={() => {
+                  setActionError('');
+                  setStep('input');
+                }}
+                className="rounded-xl bg-salvaGold py-3 text-xs font-black text-black transition hover:brightness-110"
+              >
+                Update quote
+              </button>
+            ) : (
+              <button
+                onClick={executeSwap}
+                className="rounded-xl bg-salvaGold py-3 text-xs font-black text-black shadow-lg shadow-salvaGold/15 transition hover:brightness-110"
+              >
+                Confirm swap
+              </button>
+            )}
+          </div>
+        )}
+
+        {step === 'done' && (
+          <div className="border-t border-white/[0.06] bg-[#0b0c10] px-4 pb-4 pt-3 sm:px-6 sm:pb-5">
+            <button
+              onClick={onClose}
+              className="w-full rounded-xl bg-salvaGold py-3 text-xs font-black text-black shadow-lg shadow-salvaGold/15 transition hover:brightness-110"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
+};
+
+/* ============================================================================
+   MAIN SWAP TAB
+============================================================================ */
+
+const SwapTab = ({ user }) => {
+  const chain = useMemo(() => getChain(), []);
+
+  const [pairs, setPairs] = useState(() => readSupportedPairsCache(chain)?.pairs || []);
+  const [dropdownAsset, setDropdownAsset] = useState(DEFAULT_BUY_SYMBOL);
+  const [query, setQuery] = useState({ mode: 'base', base: DEFAULT_BUY_SYMBOL });
+
+  const [listings, setListings] = useState([]);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+
+  const [buyInput, setBuyInput] = useState('');
+  const [sellInput, setSellInput] = useState('');
+  const [assetSearchError, setAssetSearchError] = useState('');
+  const [poolInput, setPoolInput] = useState('');
+  const [poolSearchError, setPoolSearchError] = useState('');
+  const [poolResolving, setPoolResolving] = useState(false);
+
+  const [pinListing, setPinListing] = useState(null);
+  const [warnListing, setWarnListing] = useState(null);
+  const [session, setSession] = useState(null); // { listing, pkey }
+  const [walletTick, setWalletTick] = useState(0);
+
+  const mountedRef = useRef(true);
+  const requestRef = useRef(null);
+  const resolveRef = useRef(null);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestRef.current?.abort();
+      resolveRef.current?.abort();
+    };
   }, []);
 
-  useEffect(() => {
-    fetchPools(_poolsCache.buyPools !== null);
-    pollRef.current = setInterval(() => fetchPools(true), POLL_MS);
-    return () => clearInterval(pollRef.current);
-  }, [fetchPools]);
+  const assets = useMemo(() => {
+    const list = buildAssetList(pairs);
+    return list.length ? list : [{ symbol: DEFAULT_BUY_SYMBOL, address: null, logo: null }];
+  }, [pairs]);
 
-  // Search — resolves a full name (name@wallet) or 0x address to a single pool.
+  const logoIndex = useMemo(() => buildLogoIndex(pairs), [pairs]);
+  const verifiedIndex = useMemo(() => buildVerifiedIndex(pairs), [pairs]);
+
+  /* ---------- SUPPORTED PAIRS ---------- */
+  const refreshPairs = useCallback(async () => {
+    try {
+      const result = await fetchSupportedPairs(chain);
+      if (mountedRef.current && result) setPairs(result.pairs);
+    } catch {
+      // keep cached pairs
+    }
+  }, [chain]);
+
   useEffect(() => {
-    if (!search.trim()) {
-      setSearchPool(null);
-      setSearchError("");
-      return;
-    }
-    const type = detectSearchType(search);
-    if (type === "invalid") {
-      setSearchPool(null);
-      setSearchError("Enter a full name (name@namespace) or a 0x address");
-      return;
-    }
-    setSearchError("");
-    const t = setTimeout(async () => {
-      setSearchLoading(true);
+    refreshPairs();
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshPairs();
+    }, SWAP_PAIRS_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [refreshPairs]);
+
+  /* ---------- LISTINGS: fetch -> cache -> UI ---------- */
+  const fetchActive = useCallback(
+    async (activeQuery, { manual = false } = {}) => {
+      requestRef.current?.abort();
+      const controller = new AbortController();
+      requestRef.current = controller;
+
+      if (manual) setRefreshing(true);
+
       try {
-        const addr = await resolveFullNameOrAddress(search);
-        const sRes = await fetch(
-          `${SALVA_API_URL}/api/user/swap/single-pool/${addr}/${CHAIN}`,
-        );
-        const sData = await sRes.json();
-        if (!sRes.ok || !sData.status || !sData.pool)
-          throw new Error("Pool not found");
-        const hydrated = await hydratePool(sData.pool);
-        setSearchPool(hydrated);
-      } catch (err) {
-        setSearchPool(null);
-        setSearchError(err.message || "Pool not found");
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 500);
-    return () => clearTimeout(t);
-  }, [search]);
+        const result = await fetchListings(chain, activeQuery, { signal: controller.signal });
+        if (controller.signal.aborted || !mountedRef.current) return;
 
-  const isSearching = !!search.trim();
-  const activePools = isSearching
-    ? searchPool
-      ? section === "buy"
-        ? (parseFloat(searchPool.usdtLiquidity) > 0 ||
-            parseFloat(searchPool.usdcLiquidity) > 0) &&
-          parseFloat(searchPool.buyRate) > 0
-          ? [searchPool]
-          : []
-        : (parseFloat(searchPool.ngnsLiquidity) > 0 ||
-              parseFloat(searchPool.cNgnLiquidity) > 0) &&
-            parseFloat(searchPool.sellRate) > 0
-          ? [searchPool]
-          : []
-      : []
-    : section === "buy"
-      ? buyPools
-      : sellPools;
+        setListings(result.listings);
+        setUpdatedAt(result.at);
+        setError('');
+      } catch (err) {
+        if (err?.name === 'AbortError' || !mountedRef.current) return;
+        setError(err?.message || 'Could not load pools');
+      } finally {
+        if (requestRef.current === controller) {
+          requestRef.current = null;
+          if (mountedRef.current) {
+            setLoading(false);
+            setRefreshing(false);
+          }
+        }
+      }
+    },
+    [chain]
+  );
+
+  useEffect(() => {
+    const cached = readListingsCache(chain, query);
+
+    if (cached) {
+      setListings(cached.listings);
+      setUpdatedAt(cached.at);
+      setLoading(false);
+    } else {
+      setListings([]);
+      setUpdatedAt(null);
+      setLoading(true);
+    }
+    setError('');
+
+    fetchActive(query);
+
+    const tick = () => {
+      if (document.visibilityState === 'visible') fetchActive(query);
+    };
+
+    const id = setInterval(tick, SWAP_POLL_INTERVAL_MS);
+    document.addEventListener('visibilitychange', tick);
+
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', tick);
+      requestRef.current?.abort();
+    };
+  }, [chain, query, fetchActive]);
+
+  /* ---------- HANDLERS ---------- */
+  const handleDropdownChange = (symbol) => {
+    setDropdownAsset(symbol);
+    setBuyInput('');
+    setSellInput('');
+    setPoolInput('');
+    setAssetSearchError('');
+    setPoolSearchError('');
+    setQuery({ mode: 'base', base: symbol });
+  };
+
+  const submitAssetSearch = () => {
+    const buy = uc(buyInput);
+    const sell = uc(sellInput);
+
+    // Asset to buy is mandatory. Without it, searching silently does nothing.
+    if (!buy) return;
+
+    if (buy.startsWith('0X') || sell.startsWith('0X')) {
+      setAssetSearchError('Use token symbols here. Use pool lookup for addresses.');
+      return;
+    }
+
+    setAssetSearchError('');
+    setPoolSearchError('');
+    setPoolInput('');
+
+    if (sell) setQuery({ mode: 'pair', base: buy, quote: sell });
+    else setQuery({ mode: 'base', base: buy });
+  };
+
+  const submitPoolSearch = async () => {
+    const type = classifyPoolInput(poolInput);
+    if (type === 'empty') return;
+
+    if (type === 'invalid') {
+      setPoolSearchError('Enter a 0x pool address or a name containing @');
+      return;
+    }
+
+    setPoolSearchError('');
+    setAssetSearchError('');
+    resolveRef.current?.abort();
+    const controller = new AbortController();
+    resolveRef.current = controller;
+    setPoolResolving(true);
+
+    try {
+      const { address, label } = await resolvePoolTarget(poolInput, { signal: controller.signal });
+      if (controller.signal.aborted || !mountedRef.current) return;
+      setBuyInput('');
+      setSellInput('');
+      setQuery({ mode: 'address', poolAddress: address, label });
+    } catch (err) {
+      if (err?.name === 'AbortError' || !mountedRef.current) return;
+      setPoolSearchError(err?.message || 'Pool not found');
+    } finally {
+      if (mountedRef.current && resolveRef.current === controller) setPoolResolving(false);
+    }
+  };
+
+  const resetSearch = () => {
+    setBuyInput('');
+    setSellInput('');
+    setPoolInput('');
+    setAssetSearchError('');
+    setPoolSearchError('');
+    setQuery({ mode: 'base', base: dropdownAsset });
+  };
+
+  const handleManualRefresh = () => {
+    setWalletTick((t) => t + 1);
+    refreshPairs();
+    fetchActive(query, { manual: true });
+  };
+
+  const handleProceed = (listing) => {
+    if (isPairVerified(verifiedIndex, listing.baseAddress, listing.quoteAddress)) {
+      setPinListing(listing);
+    } else {
+      setWarnListing(listing);
+    }
+  };
+
+  const handleWarnContinue = () => {
+    setPinListing(warnListing);
+    setWarnListing(null);
+  };
+
+  const handlePinVerified = (verifiedPin) => {
+    setSession({ listing: pinListing, pin: verifiedPin });
+    setPinListing(null);
+  };
+
+  const closeSession = useCallback(() => setSession(null), []);
+
+  const handleSwapComplete = useCallback(async () => {
+    await Promise.allSettled([
+      fetchActive(query),
+      user?.email ? fetchWalletSnapshot(user.email, chain, { logoMap: LOCAL_LOGOS }) : null,
+    ]);
+    if (mountedRef.current) setWalletTick((t) => t + 1);
+  }, [fetchActive, query, user?.email, chain]);
+
+  useOverlayLayer('swapWarn', Boolean(warnListing), () => setWarnListing(null));
+  useOverlayLayer('swapPin', Boolean(pinListing), () => setPinListing(null));
+
+  /* ---------- RENDER ---------- */
+  const isDefaultQuery = query.mode === 'base' && query.base === dropdownAsset;
+
+  const queryTitle =
+    query.mode === 'pair'
+      ? `Buying ${query.base} with ${query.quote}`
+      : query.mode === 'address'
+      ? `Pool ${
+          query.label && query.label.includes('@') ? query.label : shortAddr(query.poolAddress)
+        }`
+      : `Buying ${query.base}`;
 
   return (
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="space-y-3.5 sm:space-y-5 relative"
+      className="relative space-y-3 sm:space-y-5 max-sm:[zoom:0.9]"
     >
-      <div className="flex items-start justify-between gap-3 sm:gap-4">
-        <div>
-          <h2 className="text-sm sm:text-xl font-black tracking-tight">
-            Liquidity Marketplace
-          </h2>
-        </div>
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0 mt-1">
-          <a
-            href="/bnb"
-            className="flex items-center gap-0.5 sm:gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl border border-blue-500/30 bg-blue-500/[0.07] hover:bg-blue-500/[0.14] hover:border-blue-500/50 transition-all"
-          >
-            <span className="text-[6px] sm:text-[8px] font-black uppercase tracking-widest text-blue-400">
-              BSC
-            </span>
-            <span className="text-blue-400 text-[6px] sm:text-[9px]">↗</span>
-          </a>
-          {lastTime && (
-            <p className="text-[9px] text-white/60 font-bold uppercase tracking-widest hidden sm:block">
-              {lastTime.toLocaleTimeString()}
+      {/* Header + dropdown */}
+      <div className="flex items-end justify-between gap-3">
+        <AssetDropdown
+          assets={assets}
+          value={dropdownAsset}
+          onChange={handleDropdownChange}
+          logoIndex={logoIndex}
+        />
+
+        <div className="flex items-center gap-2">
+          <div className="hidden text-right sm:block">
+            <p className="text-[7px] font-black uppercase tracking-[.3em] text-white/55">Updated</p>
+            <p className="mt-0.5 text-[10px] font-black text-white/88">
+              {updatedAt
+                ? new Date(updatedAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                  })
+                : '—'}
             </p>
-          )}
+          </div>
           <button
-            onClick={() => fetchPools(true)}
+            type="button"
+            onClick={handleManualRefresh}
             disabled={refreshing}
-            className="w-7 h-7 sm:w-10 sm:h-10 rounded-xl border border-white/[0.07] bg-white/[0.03] flex items-center justify-center hover:border-salvaGold/30 transition-all"
+            aria-label="Refresh pools"
+            className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-white/80 transition hover:border-salvaGold/30 hover:text-white disabled:opacity-60 sm:h-10 sm:w-10"
           >
-            {refreshing ? (
-              <span className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-            ) : (
-              <span className="text-salvaGold text-xs sm:text-lg leading-none">
-                ↻
-              </span>
-            )}
+            <RefreshCw
+              className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''}`}
+            />
           </button>
         </div>
       </div>
 
-      <div className="relative">
-        <svg
-          className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-3 h-3 sm:w-4 sm:h-4 text-white/60"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <circle cx="11" cy="11" r="8" strokeWidth="2" />
-          <path d="m21 21-4.35-4.35" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search by full name (name@namespace) or 0x address…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-8 sm:pl-11 pr-8 sm:pr-10 py-2.5 sm:py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[10px] sm:text-sm text-white placeholder:text-white/60 focus:outline-none focus:border-salvaGold/30 transition-all"
-        />
-        {searchLoading && (
-          <span className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 w-3 h-3 border border-white/20 border-t-salvaGold rounded-full animate-spin" />
-        )}
-        {!searchLoading && search && (
-          <button
-            onClick={() => setSearch("")}
-            className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 text-white/60 hover:text-white/80 transition-colors text-[9px] sm:text-xs font-black"
-          >
-            ✕
-          </button>
-        )}
+      {/* Search */}
+      <div className="space-y-2.5 rounded-[20px] border border-white/[0.07] bg-white/[0.025] p-3 sm:p-4">
+        <div>
+          <p className="mb-1.5 text-[7px] sm:text-[9px] font-black uppercase tracking-[.28em] text-white/72">
+            Search inventory
+          </p>
+          <div className="grid grid-cols-[1fr_1fr_auto] gap-2">
+            <input
+              value={buyInput}
+              onChange={(e) => {
+                setAssetSearchError('');
+                setBuyInput(e.target.value);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submitAssetSearch()}
+              placeholder="Buy e.g. NGNS"
+              className={inputCls}
+            />
+            <input
+              value={sellInput}
+              onChange={(e) => {
+                setAssetSearchError('');
+                setSellInput(e.target.value);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submitAssetSearch()}
+              placeholder="Pay with (optional)"
+              className={inputCls}
+            />
+            <button
+              type="button"
+              onClick={submitAssetSearch}
+              aria-label="Search Inventory"
+              className="flex items-center justify-center rounded-xl bg-salvaGold px-3.5 text-black transition hover:brightness-110"
+            >
+              <Search className="h-4 w-4" />
+            </button>
+          </div>
+          {assetSearchError && (
+            <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-red-400">
+              {assetSearchError}
+            </p>
+          )}
+        </div>
+
+        <div className="border-t border-white/[0.05] pt-2.5">
+          <p className="mb-1.5 text-[7px] sm:text-[9px] font-black uppercase tracking-[.28em] text-white/72">
+            Pool lookup
+          </p>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <input
+              value={poolInput}
+              onChange={(e) => {
+                setPoolSearchError('');
+                setPoolInput(e.target.value);
+              }}
+              onKeyDown={(e) => e.key === 'Enter' && submitPoolSearch()}
+              placeholder="0x pool address or name@namespace"
+              className={`${inputCls} font-mono`}
+            />
+            <button
+              type="button"
+              onClick={submitPoolSearch}
+              disabled={poolResolving}
+              aria-label="Search pool"
+              className="flex w-11 items-center justify-center rounded-xl bg-salvaGold text-black transition hover:brightness-110 disabled:opacity-60"
+            >
+              {poolResolving ? (
+                <Spinner className="h-4 w-4 border-black/30 border-t-black" />
+              ) : (
+                <Search className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+          {poolSearchError && (
+            <p className="mt-1.5 text-[9px] sm:text-[10px] font-bold text-red-400">
+              {poolSearchError}
+            </p>
+          )}
+        </div>
       </div>
-      {isSearching && searchError && (
-        <p className="text-[10px] text-red-400 font-bold -mt-2">
-          ⚠ {searchError}
+
+      {/* Active query bar */}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-2.5">
+        <div className="min-w-0">
+          <p className="text-[7px] sm:text-[9px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+            Marketplace
+          </p>
+          <h2 className="mt-0.5 truncate text-sm sm:text-lg font-black">{queryTitle}</h2>
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {listings.length > 0 && (
+            <span className="rounded-md bg-white/[0.06] px-2 py-1 text-[8px] sm:text-[10px] font-black text-white/82">
+              {listings.length} {listings.length === 1 ? 'market' : 'markets'}
+            </span>
+          )}
+          {!isDefaultQuery && (
+            <button
+              type="button"
+              onClick={resetSearch}
+              className="rounded-md border border-white/10 px-2 py-1 text-[8px] sm:text-[10px] font-black uppercase tracking-widest text-white/80 transition hover:text-white"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && listings.length > 0 && (
+        <p className="-mt-2 px-0.5 text-[9px] sm:text-[10px] font-bold text-yellow-400/90">
+          Showing last update · reconnecting…
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-2 sm:gap-3">
-        {[
-          {
-            id: "buy",
-            label: "NGN → USD",
-            sub: "Spend NGN, get USD",
-            count: buyPools.length,
-            color: "#D4AF37",
-          },
-          {
-            id: "sell",
-            label: "USD → NGN",
-            sub: "Spend USD, get NGN",
-            count: sellPools.length,
-            color: "#22c55e",
-          },
-        ].map(({ id, label, sub, count, color }) => (
-          <button
-            key={id}
-            onClick={() => setSection(id)}
-            className={`py-2.5 px-3 sm:py-4 sm:px-4 rounded-2xl border transition-all text-left ${section === id ? "border-transparent" : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.12]"}`}
-            style={
-              section === id
-                ? { background: `${color}18`, borderColor: `${color}40` }
-                : {}
-            }
-          >
-            <div className="flex items-center justify-between mb-0.5">
-              <span
-                className="font-black text-[10px] sm:text-sm"
-                style={{
-                  color: section === id ? color : "rgba(255,255,255,0.85)",
-                }}
-              >
-                {label}
-              </span>
-              {!isSearching && (
-                <span
-                  className="text-[7px] sm:text-[9px] font-black px-1 py-0.5 sm:px-1.5 rounded-md"
-                  style={
-                    section === id
-                      ? { background: `${color}20`, color }
-                      : {
-                          background: "rgba(255,255,255,0.07)",
-                          color: "rgba(255,255,255,0.5)",
-                        }
-                  }
-                >
-                  {count}
-                </span>
-              )}
-            </div>
-            <p className="text-[7px] sm:text-[10px] text-white/60">{sub}</p>
-          </button>
-        ))}
-      </div>
-
-      {loading && !isSearching ? (
-        <div className="flex justify-center py-14 sm:py-20">
-          <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-salvaGold/20 border-t-salvaGold rounded-full animate-spin" />
+      {/* List */}
+      {loading ? (
+        <div className="space-y-2.5">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-44 animate-pulse rounded-[20px] bg-white/[0.025]" />
+          ))}
         </div>
-      ) : activePools.length === 0 ? (
+      ) : listings.length === 0 ? (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="py-14 sm:py-20 rounded-3xl border border-dashed border-white/[0.06] text-center"
+          className="rounded-[22px] border border-dashed border-white/[0.10] bg-white/[0.015] px-5 py-14 text-center"
         >
-          <div className="w-10 h-10 sm:w-14 sm:h-14 bg-white/5 border border-white/10 rounded-2xl flex items-center justify-center mx-auto mb-3 sm:mb-4">
-            <span className="text-base sm:text-2xl">🏊</span>
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+            <Search className="h-5 w-5 text-white/65" />
           </div>
-          <p className="font-black text-white/60 text-[10px] sm:text-sm">
-            {isSearching
-              ? "No matching pool for this section."
-              : "No active pools in this section."}
+          <p className="text-xs sm:text-sm font-black text-white/80">
+            {error ? 'Could not load pools' : 'No pools found'}
           </p>
+          <p className="mx-auto mt-1.5 max-w-xs text-[10px] sm:text-xs leading-relaxed text-white/74">
+            {error ||
+              (query.mode === 'pair'
+                ? `No pool is currently selling ${query.base} for ${query.quote}.`
+                : query.mode === 'address'
+                ? 'This pool has no published inventories.'
+                : `No pool is currently selling ${query.base}.`)}
+          </p>
+          {error && (
+            <button
+              onClick={handleManualRefresh}
+              className="mt-4 rounded-xl bg-salvaGold px-4 py-2 text-[9px] font-black uppercase tracking-widest text-black"
+            >
+              Try again
+            </button>
+          )}
         </motion.div>
       ) : (
-        <div className="space-y-2 sm:space-y-3">
-          {activePools.map((pool, i) => (
-            <PoolCard
-              key={pool.poolAddress}
-              pool={pool}
-              section={section}
-              onSwap={setSelected}
+        <div className="grid gap-2.5 sm:gap-3">
+          {listings.map((listing, i) => (
+            <ListingCard
+              key={listing.key}
+              listing={listing}
               index={i}
+              logoIndex={logoIndex}
+              verified={isPairVerified(verifiedIndex, listing.baseAddress, listing.quoteAddress)}
+              onProceed={handleProceed}
             />
           ))}
         </div>
       )}
 
       <AnimatePresence>
-        {selected && (
-          <SwapModal
-            pool={selected}
-            section={section}
+        {warnListing && (
+          <UnverifiedPairWarning
+            listing={warnListing}
+            onContinue={handleWarnContinue}
+            onCancel={() => setWarnListing(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* PIN gate -> swap sheet */}
+      <AnimatePresence>
+        {pinListing && (
+          <PinGateModal
+            listing={pinListing}
+            email={user?.email}
+            onVerified={handlePinVerified}
+            onCancel={() => setPinListing(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {session && (
+          <SwapSheet
+            key={session.listing.key}
+            listing={session.listing}
+            pin={session.pin}
             user={user}
-            showMsg={showMsg}
-            onClose={() => setSelected(null)}
-            onSwapComplete={() => fetchPools(true)}
+            chain={chain}
+            logoIndex={logoIndex}
+            walletTick={walletTick}
+            onClose={closeSession}
+            onSwapComplete={handleSwapComplete}
           />
         )}
       </AnimatePresence>

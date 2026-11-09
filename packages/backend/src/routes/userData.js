@@ -1,4 +1,4 @@
-import { User, UserBNB } from "../models/Users.js";
+import { User } from "../models/Users.js";
 import express from "express";
 import {
   updateUsername,

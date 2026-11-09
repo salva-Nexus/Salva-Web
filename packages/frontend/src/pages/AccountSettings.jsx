@@ -16,6 +16,16 @@ import {
   EyeOff,
 } from 'lucide-react';
 import Stars from '../components/Stars';
+import { readWalletCache, writeWalletCache } from '../utils/walletCache';
+
+const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY || '';
+
+const urlBase64ToUint8Array = (b64) => {
+  const padding = '='.repeat((4 - (b64.length % 4)) % 4);
+  const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+};
 
 
 const AccountSettings = () => {
@@ -38,12 +48,11 @@ const AccountSettings = () => {
     new: false,
     confirm: false,
   });
-  const [accountStatus, setAccountStatus] = useState({
-    lockedUntil: null,
-    loading: true,
-    error: false,
-  });
-  const [lockCountdown, setLockCountdown] = useState('');
+
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpBusy, setOtpBusy] = useState(false);
 
   // New State for Modern Confirmation Cards
   const [confirmDialog, setConfirmDialog] = useState({
@@ -63,32 +72,17 @@ const AccountSettings = () => {
   });
   const backPath = location === 'bnb' ? '/bnb' : '/dashboard';
 
-  // Retries transient network/server hiccups before giving up — prevents a
-  // single dropped request from permanently mislabeling PIN status.
-  const fetchJsonWithRetry = async (url, { retries = 2, delayMs = 700 } = {}) => {
-    let lastErr;
-    for (let attempt = 0; attempt <= retries; attempt++) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Request failed (${res.status})`);
-        return await res.json();
-      } catch (err) {
-        lastErr = err;
-        if (attempt < retries) {
-          await new Promise((r) => setTimeout(r, delayMs * (attempt + 1)));
-        }
-      }
-    }
-    throw lastErr;
-  };
-
   useEffect(() => {
     const savedUser = localStorage.getItem('salva_user');
     if (savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
         setUser(parsedUser);
-        checkAccountStatus(parsedUser.email);
+        const cached = readWalletCache(
+          parsedUser.email,
+          (localStorage.getItem('salva_chain') || 'base').toLowerCase()
+        );
+        setPushOn(Boolean(cached?.pushSubscription));
       } catch (error) {
         navigate('/login');
       }
@@ -97,41 +91,7 @@ const AccountSettings = () => {
     }
   }, [navigate]);
 
-  // Poll lock status while the user stays on this page.
-  useEffect(() => {
-    if (!user?.email) return;
-    const interval = setInterval(() => checkAccountStatus(user.email), 60000);
-    return () => clearInterval(interval);
-  }, [user]);
 
-  // Hours while far out, minutes once under an hour, seconds once under a minute.
-  useEffect(() => {
-    if (!accountStatus.lockedUntil) {
-      setLockCountdown('');
-      return;
-    }
-    const tick = () => {
-      const diffMs = new Date(accountStatus.lockedUntil).getTime() - Date.now();
-      if (diffMs <= 0) {
-        setLockCountdown('');
-        setAccountStatus((prev) => ({ ...prev, lockedUntil: null }));
-        return;
-      }
-      const totalSeconds = Math.floor(diffMs / 1000);
-      if (totalSeconds >= 3600) {
-        const hours = Math.ceil(totalSeconds / 3600);
-        setLockCountdown(`${hours} hour${hours === 1 ? '' : 's'}`);
-      } else if (totalSeconds >= 60) {
-        const minutes = Math.ceil(totalSeconds / 60);
-        setLockCountdown(`${minutes} minute${minutes === 1 ? '' : 's'}`);
-      } else {
-        setLockCountdown(`${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`);
-      }
-    };
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [accountStatus.lockedUntil]);
 
   useEffect(() => {
     if (notification.show) {
@@ -142,31 +102,124 @@ const AccountSettings = () => {
 
   const showMsg = (msg, type = 'success') => setNotification({ show: true, message: msg, type });
 
-  const checkAccountStatus = async (email) => {
-    setAccountStatus((prev) => ({ ...prev, loading: true, error: false }));
-    try {
-      const data = await fetchJsonWithRetry(
-        `${SALVA_API_URL}/api/data/account-status/${encodeURIComponent(email)}`
-      );
-      setAccountStatus({
-        lockedUntil: data.status || null,
-        loading: false,
-        error: false,
+
+
+  const togglePush = async () => {
+    if (pushBusy || !user) return;
+    setPushBusy(true);
+
+    const chain = (localStorage.getItem('salva_chain') || 'base').toLowerCase();
+    const post = async (path, body) => {
+      const res = await fetch(`${SALVA_API_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
       });
+      const data = await res.json();
+      if (!res.ok || data.status === false) throw new Error(data.errorMsg || 'Request failed');
+      return data;
+    };
+    const syncCache = (sub) => {
+      const c = readWalletCache(user.email, chain);
+      if (c) writeWalletCache(user.email, chain, { ...c, pushSubscription: sub }, {});
+    };
+
+    try {
+      if (!pushOn) {
+        if (!VAPID_PUBLIC_KEY || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+          throw new Error('Push notifications are not supported on this device');
+        }
+        const permission = await window.Notification.requestPermission();
+        if (permission !== 'granted') {
+          throw new Error('Notifications are blocked in your browser settings');
+        }
+
+        await navigator.serviceWorker.register('/sw.js');
+        const reg = await navigator.serviceWorker.ready;
+        const sub =
+          (await reg.pushManager.getSubscription()) ||
+          (await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+          }));
+
+        const subscription = sub.toJSON();
+        await post('/api/save-subscription', { email: user.email, subscription });
+        syncCache(subscription);
+        setPushOn(true);
+        showMsg('Push notifications enabled');
+      } else {
+        const reg = await navigator.serviceWorker.getRegistration();
+        const sub = reg ? await reg.pushManager.getSubscription() : null;
+        if (sub) await sub.unsubscribe();
+
+        await post('/api/remove-subscription', { email: user.email });
+        syncCache(null);
+        setPushOn(false);
+        showMsg('Push notifications disabled');
+      }
     } catch (err) {
-      console.error('❌ Failed to check account lock status:', err.message);
-      setAccountStatus((prev) => ({ ...prev, loading: false, error: true }));
+      showMsg(err?.message || 'Could not update notifications', 'error');
+    } finally {
+      setPushBusy(false);
     }
   };
 
+    const sendChangeOtp = async () => {
+      if (otpBusy) return;
+      setOtpBusy(true);
+      try {
+        const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.message || 'Failed to send verification code');
+        }
+        setOtpCode('');
+        setModalStep(2);
+        showMsg('Verification code sent to your email');
+      } catch (err) {
+        showMsg(err?.message || 'Failed to send verification code', 'error');
+      } finally {
+        setOtpBusy(false);
+      }
+    };
+
+    const verifyChangeOtp = async () => {
+      if (otpBusy || !/^\d{6}$/.test(otpCode)) return;
+      setOtpBusy(true);
+      try {
+        const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, code: otpCode }),
+        });
+        if (!res.ok) {
+          setOtpCode('');
+          return showMsg('Invalid or expired verification code', 'error');
+        }
+        setModalStep(3);
+      } catch {
+        showMsg('Network error', 'error');
+      } finally {
+        setOtpBusy(false);
+      }
+    };
+
   const openModal = (type) => {
+    setOtpCode('');
     setActiveModal(type);
-    setModalStep(type === 'username' ? 3 : 1);
+    setModalStep(type === 'username' ? 3 : 2);
+    if (type !== 'username') sendChangeOtp();
     setFormData({ oldPin: '', newValue: '', confirmValue: '' });
     setVisibility({ old: false, new: false, confirm: false });
   };
 
   const closeModal = () => {
+    setOtpCode('');
     setActiveModal(null);
     setModalStep(1);
     setFormData({ oldPin: '', newValue: '', confirmValue: '' });
@@ -237,17 +290,12 @@ const AccountSettings = () => {
       const data = await res.json();
 
       if (res.ok && data.status) {
-        showMsg(data.message || 'Updated successfully!');
-
-        // Track the email this status check should run against — avoids
-        // querying the old address before the setUser closure updates.
-        let statusEmail = user.email;
+        showMsg('Updated successfully!');
 
         if (activeModal === 'email') {
           const updatedUser = { ...user, email: formData.newValue };
           localStorage.setItem('salva_user', JSON.stringify(updatedUser));
           setUser(updatedUser);
-          statusEmail = formData.newValue;
         } else if (activeModal === 'username') {
           const updatedUser = { ...user, username: formData.newValue };
           localStorage.setItem('salva_user', JSON.stringify(updatedUser));
@@ -255,11 +303,6 @@ const AccountSettings = () => {
         }
 
         closeModal();
-
-        // Email, password, and PIN changes trigger a 24h lockdown.
-        if (['email', 'password', 'pin'].includes(activeModal)) {
-          checkAccountStatus(statusEmail);
-        }
       } else {
         showMsg(data.message || 'Update failed', 'error');
       }
@@ -294,20 +337,6 @@ const AccountSettings = () => {
           <h1 className="text-2xl sm:text-4xl font-black mb-1 sm:mb-2">Account Settings</h1>
           <p className="text-[10px] sm:text-sm opacity-60">Manage your Salva account preferences</p>
         </header>
-
-        {accountStatus.lockedUntil && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-4 sm:mb-6 p-2.5 sm:p-4 bg-red-500/10 border border-red-500 rounded-2xl"
-          >
-            <p className="text-[10px] sm:text-sm font-bold text-red-500 flex items-center gap-1.5 sm:gap-2">
-              <Lock size={11} className="sm:hidden flex-shrink-0" />
-              <Lock size={16} className="hidden sm:block flex-shrink-0" />
-              Account Locked: Transactions disabled for {lockCountdown || 'a moment'} more
-            </p>
-          </motion.div>
-        )}
 
         <div className="space-y-3 sm:space-y-4">
           {/* Username */}
@@ -385,6 +414,34 @@ const AccountSettings = () => {
               </div>
             </div>
           </button>
+
+          {/* Push notifications */}
+          <div className="bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5">
+            <div className="flex justify-between items-center gap-3">
+              <div>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Notifications
+                </p>
+                <p className="text-sm sm:text-lg font-black">Push Notifications</p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={pushOn}
+                onClick={togglePush}
+                disabled={pushBusy}
+                className={`relative w-11 h-6 sm:w-14 sm:h-8 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                  pushOn ? 'bg-salvaGold' : 'bg-gray-300 dark:bg-white/10'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white shadow transition-transform ${
+                    pushOn ? 'translate-x-5 sm:translate-x-6' : ''
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -449,32 +506,50 @@ const AccountSettings = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
               >
-                {/* Step 1: Warning */}
-                {modalStep === 1 && requiresWarning && (
+
+                {/* Step 2: OTP verification */}
+                {modalStep === 2 && requiresWarning && (
                   <div className="text-center">
                     <div className="w-11 h-11 sm:w-16 sm:h-16 bg-salvaGold/10 rounded-full flex items-center justify-center mb-4 sm:mb-6 mx-auto">
-                      <AlertTriangle className="text-salvaGold" size={22} />
+                      <Mail className="text-salvaGold" size={22} />
                     </div>
-                    <h3 className="text-base sm:text-2xl font-black mb-2.5 sm:mb-4">
-                      Security Protocol
-                    </h3>
-                    <p className="text-[10px] sm:text-sm opacity-80 mb-5 sm:mb-8 leading-relaxed">
-                      Changing your <span className="text-salvaGold font-bold">{activeModal}</span>{' '}
-                      will trigger a security cooldown. Your account will be{' '}
-                      <strong className="text-white">locked for 24 hours</strong>.
+                    <h3 className="text-base sm:text-2xl font-black mb-2">Verify it's you</h3>
+                    <p className="text-[10px] sm:text-sm opacity-70 mb-5 sm:mb-6">
+                      Enter the 6-digit code sent to {user.email}.
                     </p>
+                    <input
+                      autoFocus
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="000000"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
+                      onKeyDown={(e) => e.key === 'Enter' && verifyChangeOtp()}
+                      className="w-full p-3 sm:p-5 rounded-2xl bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/5 focus:border-salvaGold outline-none font-black text-center text-lg sm:text-2xl tracking-widest mb-3"
+                      autoComplete="one-time-code"
+                    />
+                    <button
+                      type="button"
+                      onClick={sendChangeOtp}
+                      disabled={otpBusy}
+                      className="text-[10px] sm:text-xs text-salvaGold font-bold mb-5 disabled:opacity-40"
+                    >
+                      Resend code
+                    </button>
                     <div className="flex gap-2 sm:gap-3">
                       <button
                         onClick={closeModal}
-                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base hover:bg-gray-200 dark:hover:bg-white/10"
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-gray-100 dark:bg-white/5 font-bold text-xs sm:text-base"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={() => setModalStep(3)}
-                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base hover:brightness-110 shadow-lg shadow-salvaGold/20 transition-all"
+                        onClick={verifyChangeOtp}
+                        disabled={otpBusy || otpCode.length !== 6}
+                        className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-salvaGold text-black font-bold text-xs sm:text-base disabled:opacity-40"
                       >
-                        I Understand
+                        {otpBusy ? 'Verifying...' : 'Verify'}
                       </button>
                     </div>
                   </div>

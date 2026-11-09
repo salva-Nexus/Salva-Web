@@ -2,7 +2,7 @@ import authLimiter from "../middleware/authLimiter.js";
 import express from "express";
 import validator from "validator";
 import { setPin, verify_Pin } from "../services/pinService.js";
-import { User, UserBNB } from "../models/Users.js";
+import { User } from "../models/Users.js";
 
 const router = express.Router();
 
@@ -73,7 +73,6 @@ router.post("/verify-pin", authLimiter, async (req, res) => {
 
     res.json({
       success: data.status,
-      privateKey: data.privateKey,
     });
   } catch (error) {
     console.error("❌ Verify PIN error:", error);
@@ -81,51 +80,6 @@ router.post("/verify-pin", authLimiter, async (req, res) => {
       success: false,
       message: `Invalid PIN or ${error}`,
     });
-  }
-});
-
-router.get("/base/status/:email", async (req, res) => {
-  try {
-    const email = sanitizeData(req.params.email, true);
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.json({
-      hasPin: !!user.transactionPin,
-      pinSetupCompleted: user.pinSetupCompleted || false,
-      isLocked:
-        user.accountLockedUntil &&
-        new Date(user.accountLockedUntil) > new Date(),
-      lockedUntil: user.accountLockedUntil,
-      isValidator: user.isValidator,
-    });
-  } catch (error) {
-    return handleError(error, res, "Failed to check PIN status");
-  }
-});
-
-router.get("/bnb/status/:email", async (req, res) => {
-  try {
-    const email = sanitizeData(req.params.email, true);
-    const user = await UserBNB.findOne({ email });
-
-    if (user) {
-      res.json({
-        deployed: true,
-        safeAddress: user.safeAddress,
-        hasPin: !!user.transactionPin,
-        nameAlias: user.nameAlias || null,
-      });
-    } else {
-      res.json({
-        deployed: false,
-      });
-    }
-  } catch (error) {
-    res.status(500).json({ message: err.message });
   }
 });
 

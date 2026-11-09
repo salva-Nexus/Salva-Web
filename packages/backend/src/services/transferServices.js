@@ -1,517 +1,294 @@
 import { ethers } from 'ethers';
-import { User, UserBNB } from '../models/Users.js';
-import { ERC20, SAFE, MULTISEND } from '../utils/abi.js';
-import { estimateTransferFee, _getTransactionHash, _appendSafeReq } from './estimateFee.js';
-import { _getBalance, balance } from './balanceServices.js';
+import { User } from '../models/Users.js';
+import { ERC20 } from '../utils/abi.js';
+import {
+  estimateDeploymentFee,
+  estimateTransferFee,
+  _getTransactionHash,
+  _appendSafeReq,
+  _getFeeAndToken,
+  _buildTransferData,
+} from './estimateFee.js';
+import { _getBalance } from './balanceServices.js';
 import { sendTransactionEmailToSender, sendTransactionEmailToReceiver } from './emailService.js';
 import Transaction from '../models/Transaction.js';
-import { PointsRecord, pointsDistribution } from '../models/PointsState.js';
-import { basePool, bnbPool } from '../models/Pool.js';
+import { Pool } from '../models/Pool.js';
 import { keyValue, mode } from '../utils/vars.js';
-
-// Accessing environment variables properly via the keyValue getter function
-const baseRpcUrl = keyValue('baseRpcUrl');
-const bnbRpcUrl = keyValue('bnbRpcUrl');
-const usdtBnbAddress = keyValue('usdtBnbAddress');
-const usdcBnbAddress = keyValue('usdcBnbAddress');
-const cngnBnbAddress = keyValue('cngnBnbAddress');
-const ngnsBnbAddress = keyValue('ngnsBnbAddress');
-const usdtBaseAddress = keyValue('usdtBaseAddress');
-const usdcBaseAddress = keyValue('usdcBaseAddress');
-const cngnBaseAddress = keyValue('cngnBaseAddress');
-const ngnsBaseAddress = keyValue('ngnsBaseAddress');
-const santAddress = keyValue('santAddress');
-const treasury = keyValue('treasury');
-const sponsorKey = keyValue('sponsorKey');
-const MULTI_SEND_BASE_ADDRESS = keyValue('MULTI_SEND_BASE_ADDRESS');
-const MULTI_SEND_BNB_ADDRESS = keyValue('MULTI_SEND_BNB_ADDRESS');
-
-function validateAmount(amount) {
-  const num = parseFloat(amount);
-  if (!Number.isFinite(num) || num <= 0 || num > 1000000000) {
-    throw new Error('Invalid amount');
-  }
-  return num;
-}
+import { getRpcUrlByChain } from '../utils/rpcUrls.js';
+import points from '../utils/points.js';
+import { PointsRecord } from '../models/PointsState.js';
+import { _deploySafe } from './deployment.js';
+import { sendAlertToUser } from '../services/notificationServices.js';
+import { verify_Pin } from './pinService.js';
 
 async function getBalance(token, address, chain) {
-  const balanceProvider =
-    chain === 'base'
-      ? new ethers.JsonRpcProvider(baseRpcUrl)
-      : new ethers.JsonRpcProvider(bnbRpcUrl);
+  const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  if (token !== ethers.ZeroAddress) {
+    const tokenContract = new ethers.Contract(token, ERC20, balanceProvider);
 
-  const tokenContract = new ethers.Contract(token, ERC20, balanceProvider);
-
-  return await _getBalance(tokenContract, address);
+    return await _getBalance(tokenContract, address);
+  } else {
+    const ethBal = balanceProvider.getBalance(address);
+    return { balance: ethBal, decimals: 18 };
+  }
 }
 
-const coinSibling = (coin, chain) => {
-  if (chain === 'bnb') {
-    return coin === 'USDT'
-      ? { siblingSymbol: 'USDC', token: usdcBnbAddress }
-      : coin === 'USDC'
-        ? { siblingSymbol: 'USDT', token: usdtBnbAddress }
-        : coin === 'CNGN'
-          ? { siblingSymbol: 'NGNS', token: ngnsBnbAddress }
-          : { siblingSymbol: 'CNGN', token: cngnBnbAddress };
-  } else {
-    return coin === 'USDT'
-      ? { siblingSymbol: 'USDC', token: usdcBaseAddress }
-      : coin === 'USDC'
-        ? { siblingSymbol: 'USDT', token: usdtBaseAddress }
-        : coin === 'CNGN'
-          ? { siblingSymbol: 'NGNS', token: ngnsBaseAddress }
-          : { siblingSymbol: 'CNGN', token: cngnBaseAddress };
-  }
-};
+async function executeTransfer(
+  email,
+  safeAddress,
+  pin,
+  to,
+  amount,
+  tokenSymbol,
+  tokenAddress,
+  chain
+) {
+  const token = tokenSymbol.toUpperCase();
+  const normchain = chain.toLowerCase();
+  const pinData = await verify_Pin(email, pin);
+  const pKey = pinData.privateKey;
 
-async function executeTransfer(email, safeAddress, pKey, to, amount, coin, chain) {
-  validateAmount(amount);
-  let tokenAddress;
-  if (chain === 'bnb') {
-    if (coin === 'USDT') tokenAddress = usdtBnbAddress;
-    else if (coin === 'USDC') tokenAddress = usdcBnbAddress;
-    else if (coin === 'CNGN') tokenAddress = cngnBnbAddress;
-    else if (coin === 'NGNS') tokenAddress = ngnsBnbAddress;
-  } else {
-    if (coin === 'USDT') tokenAddress = usdtBaseAddress;
-    else if (coin === 'USDC') tokenAddress = usdcBaseAddress;
-    else if (coin === 'CNGN') tokenAddress = cngnBaseAddress;
-    else if (coin === 'NGNS') tokenAddress = ngnsBaseAddress;
-    else tokenAddress = santAddress;
-  }
-
-  if (!tokenAddress) {
+  if (!tokenAddress || !token || !chain) {
     return {
       status: false,
-      errorMsg: `Token address not configured for coin: ${coin}`,
+      errorMsg: `Token Config Error: ${token}`,
     };
   }
 
   const recipientAddress = ethers.getAddress(to);
-
-  const fee = await estimateTransferFee(chain, true);
-  const amountNum = parseFloat(amount);
-  const tokenData = await getBalance(tokenAddress, safeAddress, chain);
-  const balanceNum = parseFloat(ethers.formatUnits(tokenData.balance, tokenData.decimals));
-
-  if (balanceNum < amountNum) {
-    throw Error('Insufficient balance');
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(normchain));
+  const code = await provider.getCode(safeAddress);
+  const isDeployed = code !== '0x';
+  let fee = !isDeployed
+    ? await estimateDeploymentFee(safeAddress, normchain)
+    : await estimateTransferFee(pKey, safeAddress, tokenAddress, to, amount, normchain);
+  const balanceData = await getBalance(tokenAddress, safeAddress, normchain);
+  const amountToWei = ethers.parseUnits(amount, balanceData.decimals);
+  if (balanceData.balance < amountToWei) {
+    throw Error('❌ Insufficient balance');
   }
 
-  let feeHuman;
-  let fToken;
-  if (coin === 'NGN' || coin === 'CNGN') {
-    feeHuman = fee.data.feeNGN;
-    fToken = coin === 'NGNS' ? 'NGNS' : 'CNGN;';
-  } else if (coin === 'USDT' || coin === 'USDC') {
-    feeHuman = fee.data.feeUsd;
-    fToken = coin === 'USDT' ? 'USDT' : 'USDC;';
-  } else {
-    const balances = await balance(safeAddress, 'base');
-    if (
-      balances.data.ngnsBalance >= fee.data.feeNGN ||
-      balances.data.cNgnBalance >= fee.data.feeNGN
-    ) {
-      feeHuman = fee.data.feeNGN;
-      fToken = balances.data.ngnsBalance >= fee.data.feeNGN ? 'NGNS' : 'CNGN';
-    } else if (
-      balances.data.usdtBalance >= fee.data.feeUsd ||
-      balances.data.usdcBalance >= fee.data.feeUsd
-    ) {
-      feeHuman = fee.data.feeUsd;
-      fToken = balances.data.usdtBalance >= fee.data.feeUsd ? 'USDT' : 'USDC';
-    } else {
-      return { status: false };
+  const user = await User.findOne({
+    email: email,
+  });
+
+  let transferFee;
+  if (!isDeployed) {
+    transferFee = await estimateTransferFee(pKey, safeAddress, tokenAddress, to, amount, normchain);
+    const initFeeData = await _getFeeAndToken(safeAddress, fee, normchain);
+    const initTransferFeeData = await _getFeeAndToken(safeAddress, transferFee, normchain);
+
+    if (!initFeeData.status || !initTransferFeeData.status) {
+      throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
     }
+
+    // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
+    if (initFeeData.data.feeToken === tokenSymbol) {
+      const totalRequired =
+        amountToWei + BigInt(initFeeData.data.feeToWei) + BigInt(initTransferFeeData.data.feeToWei);
+      console.log(balanceData.balance);
+      console.log(totalRequired);
+      if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
+        throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
+      }
+    }
+    await _deploySafe(safeAddress, pKey, provider, normchain);
   }
 
-  let actualAmountWei = ethers.parseUnits(
-    Number(amount).toFixed(tokenData.decimals).toString(),
-    tokenData.decimals
-  );
+  if (transferFee) {
+    fee.data.feeEth += transferFee.data.feeEth;
+    fee.data.feeNGN += transferFee.data.feeNGN;
+    fee.data.feeUsd += transferFee.data.feeUsd;
+  }
+  const feeData = await _getFeeAndToken(safeAddress, fee, normchain);
 
-  let recipientReceives = actualAmountWei;
-  // sant is only on base
-  let feeTokenAddress =
-    chain === 'bnb'
-      ? fToken === 'NGNS'
-        ? ngnsBnbAddress
-        : fToken === 'CNGN'
-          ? cngnBnbAddress
-          : fToken === 'USDC'
-            ? usdcBnbAddress
-            : usdtBnbAddress
-      : fToken === 'NGNS'
-        ? ngnsBaseAddress
-        : fToken === 'CNGN'
-          ? cngnBaseAddress
-          : fToken === 'USDC'
-            ? usdcBaseAddress
-            : fToken === 'USDT'
-              ? usdtBaseAddress
-              : tokenAddress;
-
-  let feeWei;
-  let feeTokenDecimals;
-  const fTokenData = await getBalance(feeTokenAddress, safeAddress, chain);
-  if (coin !== 'SANT') {
-    feeWei =
-      coin === 'NGNS' || coin === 'CNGN'
-        ? ethers.parseUnits(fee.data.feeNGN.toString(), tokenData.decimals)
-        : ethers.parseUnits(fee.data.feeUsd.toString(), tokenData.decimals);
-    feeTokenDecimals = tokenData.decimals;
-  } else {
-    feeWei =
-      fToken === 'NGNS' || fToken === 'CNGN'
-        ? ethers.parseUnits(fee.data.feeNGN.toString(), fTokenData.decimals)
-        : ethers.parseUnits(fee.data.feeUsd.toString(), fTokenData.decimals);
-    feeTokenDecimals = fTokenData.decimals;
+  if (!feeData.status) {
+    throw Error('❌ Insufficient balance: Cannot Cover Fee');
   }
 
-  let actualFeeWei = feeWei;
-
-  // ===========FEE====================================
-  if (coin !== 'SANT') {
-    if (feeHuman > 0) {
-      if (balanceNum >= amountNum + feeHuman) {
-        actualFeeWei = feeWei;
-      } else if (balanceNum < amountNum + feeHuman) {
-        const siblingToken = coinSibling(coin, chain);
-        const siblingTokenData = await getBalance(siblingToken.token, safeAddress, chain);
-        if (siblingTokenData.balance >= actualFeeWei) {
-          actualFeeWei = feeWei;
-          feeTokenAddress = siblingToken.token;
-          feeTokenDecimals = siblingTokenData.decimals;
-        } else {
-          if (feeHuman < amountNum) {
-            const recipientReceivesNum = amountNum - feeHuman;
-            recipientReceives = ethers.parseUnits(
-              recipientReceivesNum.toString(),
-              tokenData.decimals
-            );
-            actualAmountWei = ethers.parseUnits(
-              recipientReceives.toFixed(tokenData.decimals),
-              tokenData.decimals
-            );
-          } else {
-            throw Error(`Amount too small to cover the network fee. Fee is ${feeHuman}`);
-          }
-        }
-      } else {
-        throw Error(`Fee Fetch failed`);
+  if (feeData.data.feeTokenAddress !== ethers.ZeroAddress) {
+    if (feeData.data.feeToken === token) {
+      const totalRequired = amountToWei + feeData.data.feeToWei;
+      if (balanceData.balance < totalRequired) {
+        throw Error('❌ Insufficient balance: Cannot Cover Fee');
       }
     }
   }
 
-  // ================ DEPLOYMENT LOAN================================
-  let user =
-    chain === 'base'
-      ? await User.findOne({
-          email: email,
-        })
-      : await UserBNB.findOne({
-          email: email,
-        });
-  let isEnough = false;
-  if (user) {
-    if (!user.hasPaidDeploymentLoan) {
-      const ngnLoan = user.deploymentLoanNGN;
-      const usdLoan = user.deploymentLoanNGN;
-
-      const rem =
-        ethers.formatUnits(tokenData.balance, tokenData.decimals) -
-        amountNum -
-        ethers.formatUnits(actualFeeWei, feeTokenDecimals);
-
-      isEnough = coin === 'NGNS' || coin === 'CNGN' ? ngnLoan <= rem : usdLoan <= rem;
-
-      const loanTokenDec =
-        chain === 'base'
-          ? coin === 'NGNS'
-            ? await getBalance(ngnsBaseAddress, safeAddress, chain)
-            : coin === 'CNGN'
-              ? await getBalance(cngnBaseAddress, safeAddress, chain)
-              : coin === 'USDT'
-                ? await getBalance(usdtBaseAddress, safeAddress, chain)
-                : await getBalance(usdcBaseAddress, safeAddress, chain)
-          : coin === 'NGNS'
-            ? await getBalance(ngnsBnbAddress, safeAddress, chain)
-            : coin === 'CNGN'
-              ? await getBalance(cngnBnbAddress, safeAddress, chain)
-              : coin === 'USDT'
-                ? await getBalance(usdtBnbAddress, safeAddress, chain)
-                : await getBalance(usdcBnbAddress, safeAddress, chain);
-
-      actualFeeWei = isEnough
-        ? coin === 'NGNS' || coin === 'CNGN'
-          ? actualFeeWei +
-            ethers.parseUnits(
-              ngnLoan.toFixed(loanTokenDec.decimals).toString(),
-              loanTokenDec.decimals
-            )
-          : actualFeeWei +
-            ethers.parseUnits(
-              usdLoan.toFixed(loanTokenDec.decimals).toString(),
-              loanTokenDec.decimals
-            )
-        : actualFeeWei + 0n;
-    }
-  }
-  
-
-  const tx = [
-    [recipientAddress, recipientReceives],
-    [ethers.getAddress(treasury), actualFeeWei],
-  ];
-
-  const toData = [tokenAddress, feeTokenAddress];
-  const value = [0n, 0n];
-  let encodedData = [];
-  const tokenContract = new ethers.Interface(ERC20);
-
-  for (let i = 0; i < tx.length; i++) {
-    let hex = tokenContract.encodeFunctionData('transfer', tx[i]);
-    encodedData.push(hex);
-  }
-
-  const txData = {
-    to: toData,
-    value: value,
-    encodedData: encodedData,
+  const tx = {
+    token: [tokenAddress, feeData.data.feeTokenAddress],
+    to: [recipientAddress, keyValue('treasury')],
+    amount: [amountToWei, feeData.data.feeToWei],
   };
 
   let data;
 
-  const sendersData = await User.findOne({
-    safeAddress: safeAddress.toLowerCase(),
-  });
   const recipientData = await User.findOne({
     safeAddress: recipientAddress.toLowerCase(),
   });
-  const poolData =
-    chain === 'base'
-      ? await basePool.findOne({
-          poolAddress: recipientAddress.toLowerCase(),
-        })
-      : await bnbPool.findOne({
-          poolAddress: recipientAddress.toLowerCase(),
-        });
+  const poolData = await Pool.findOne({
+    poolAddress: recipientAddress.toLowerCase(),
+  });
 
   try {
-    data = await _executeTransfer(safeAddress, pKey, txData, chain);
+    data = await _executeTransfer(safeAddress, pKey, tx, chain);
   } catch (err) {
     await Transaction.create({
-      fromAddress: sendersData ? sendersData.username : safeAddress.toLowerCase(),
+      fromAddress: user ? user.username : safeAddress.toLowerCase(),
       toAddress: recipientData
         ? recipientData.username
         : poolData
           ? poolData.poolName
           : recipientAddress.toLowerCase(),
       amount: amount,
-      fee: feeHuman > 0 ? String(feeHuman) : null,
-      feeCoin: fToken,
-      coin: coin,
+      fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+      feeCoin: feeData.data.feeToken,
+      coin: token,
       chain: chain,
       status: 'failed',
       type: 'transfer',
       date: new Date(),
     });
+    await _sendAlert(
+      safeAddress,
+      'Transfer Failed!!!',
+      `${amount} ${tokenSymbol} transfer to ${
+        recipientData
+          ? recipientData.username
+          : poolData
+            ? poolData.poolName
+            : recipientAddress.toLowerCase()
+      } Failed ❌`
+    );
     return {
       status: false,
       data: err.message,
     };
   }
 
-  try {
-    const pointsRecord = await PointsRecord.findOne({
-      network: mode === 'production' ? 'MAINNET' : 'TESTNET',
-    });
-    if (!pointsRecord) await PointsRecord.create({});
-
-    const receiver = await User.findOne({
-      safeAddress: recipientAddress,
-    });
-
-    if (user) {
-      await sendTransactionEmailToSender(email, safeAddress, to, amount, coin);
-      if (isEnough) {
-        await user.updateOne({
-          hasPaidDeploymentLoan: true,
-        });
-      }
-    }
-
-    if (receiver) {
-      await sendTransactionEmailToReceiver(
-        receiver.email,
-        receiver.username,
-        safeAddress,
-        amount,
-        coin
-      );
-    }
-
-    await Transaction.create({
-      fromAddress: sendersData ? sendersData.username : safeAddress.toLowerCase(),
-      toAddress: recipientData
+  await sendTransactionEmailToSender(email, user.username, recipientAddress, amount, token);
+  await _sendAlert(
+    safeAddress,
+    'Transfer Sent 💸',
+    `${amount} ${tokenSymbol} transfer to ${
+      recipientData
         ? recipientData.username
         : poolData
           ? poolData.poolName
-          : recipientAddress.toLowerCase(),
+          : recipientAddress.toLowerCase()
+    } Successful ✅`
+  );
+
+  if (recipientData) {
+    await _sendAlert(
+      safeAddress,
+      'Payment Received 💸',
+      `Received ${amount} ${tokenSymbol} from ${user ? user.username : safeAddress.toLowerCase()} ✅`
+    );
+    await sendTransactionEmailToReceiver(
+      recipientData.email,
+      recipientData.username,
+      safeAddress,
       amount,
-      fee: feeHuman > 0 ? String(feeHuman) : null,
-      feeCoin: fToken,
-      coin: coin,
-      chain: chain,
-      taskId: data.data.txHash,
-      type: 'transfer',
-      date: new Date(),
-    });
-
-    // POINTS UPDATE
-    if ((chain === 'base' || chain === 'bnb') && coin !== 'SANT') {
-      if (pointsRecord && !pointsRecord.isLocked) {
-        console.log(`ISSUED 1 : ${pointsRecord.totalPointsIssued}`);
-        const remainingPoints = pointsRecord.hardCap - pointsRecord.totalPointsIssued;
-        console.log(`Remaining: ${remainingPoints}`);
-        let totalReward = 0;
-        let senderReceives = pointsDistribution.transfers.sender;
-        let receiverReceives = pointsDistribution.transfers.receiver;
-        console.log(`Sender Receives 1: ${senderReceives}`);
-        console.log(`Recipient Receives 1: ${receiverReceives}`);
-        if (user) totalReward += senderReceives;
-        if (receiver) totalReward += receiverReceives;
-        console.log(`Total Reward 1: ${totalReward}`);
-
-        console.log(`Total Reward > Remaining?: ${totalReward > remainingPoints}`);
-
-        if (totalReward > remainingPoints) {
-          senderReceives = remainingPoints / 2;
-          receiverReceives = remainingPoints / 2;
-          totalReward = remainingPoints;
-          console.log(`Sender Receives 2: ${senderReceives}`);
-          console.log(`Recipient Receives 2: ${receiverReceives}`);
-          console.log(`Total Reward 2: ${totalReward}`);
-        }
-        if (user) {
-          if (chain === 'bnb') {
-            const userBase = await User.findOne({
-              email: user.email,
-            });
-            userBase.santPoints += senderReceives;
-            await userBase.save();
-          } else {
-            user.santPoints += senderReceives;
-            await user.save();
-          }
-        }
-        if (receiver) {
-          if (chain === 'bnb') {
-            const receiverBase = await User.findOne({
-              email: receiver.email,
-            });
-            receiverBase.santPoints += senderReceives;
-            await receiverBase.save();
-          } else {
-            receiver.santPoints += receiverReceives;
-            await receiver.save();
-          }
-        }
-        pointsRecord.totalPointsIssued += totalReward;
-        await pointsRecord.save();
-        console.log(
-          `Total Points Issued > Hard Cap?: ${
-            pointsRecord.totalPointsIssued >= pointsRecord.hardCap
-          }`
-        );
-
-        console.log(`ISSUED 2 : ${pointsRecord.totalPointsIssued}`);
-        console.log(`HARDCAP : ${pointsRecord.hardCap}`);
-
-        if (pointsRecord.totalPointsIssued >= pointsRecord.hardCap)
-          await pointsRecord.updateOne({ isLocked: true });
-
-        if (pointsRecord.totalPointsIssued >= pointsRecord.redeemCap)
-          await pointsRecord.updateOne({ canRedeem: true });
-      }
-    }
-  } catch (err) {
-    console.warn(`⚠️DB Update Error: ${err.message}`);
-    return {
-      status: true,
-      data: data.data,
-      errorMsg: err.message,
-    };
+      token
+    );
   }
 
+  await Transaction.create({
+    fromAddress: user ? user.username : safeAddress.toLowerCase(),
+    toAddress: recipientData
+      ? recipientData.username
+      : poolData
+        ? poolData.poolName
+        : recipientAddress.toLowerCase(),
+    amount,
+    fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+    feeCoin: feeData.data.feeToken,
+    coin: token,
+    chain: chain,
+    status: 'success',
+    type: 'transfer',
+    date: new Date(),
+  });
+
+  // POINTS UPDATE
+  if (tokenSymbol === 'NGNS') {
+    try {
+      if (user) {
+        const activeNetwork = mode === 'production' ? 'MAINNET' : 'TESTNET';
+        let pointsRecord = await PointsRecord.findOne({
+          network: activeNetwork,
+        });
+
+        if (!pointsRecord) {
+          pointsRecord = await PointsRecord.create({
+            network: activeNetwork,
+          });
+        }
+
+        if (pointsRecord.totalPointsIssued < pointsRecord.hardCap) {
+          const point = points(pointsRecord, 'transfer', recipientData ? true : false);
+          if (point && point.status) {
+            const initiatorPoints = point.initiator || 0;
+            const tPartyPoints = recipientData ? point.tParty || 0 : 0;
+            const totalNewPoints = initiatorPoints + tPartyPoints;
+
+            if (pointsRecord.totalPointsIssued + totalNewPoints <= pointsRecord.hardCap) {
+              user.santPoints = (user.santPoints || 0) + initiatorPoints;
+
+              if (recipientData) {
+                recipientData.santPoints = (recipientData.santPoints || 0) + tPartyPoints;
+                await recipientData.save();
+              }
+              await user.save();
+
+              pointsRecord.totalPointsIssued += totalNewPoints;
+              await pointsRecord.save();
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Point Update Failed: ', err.message);
+    }
+  }
   return {
     status: true,
     data: data.data,
   };
 }
 
-// ==================================================================
-
 async function _executeTransfer(safe, pKey, data, chain) {
-  const provider = new ethers.JsonRpcProvider(chain === 'base' ? baseRpcUrl : bnbRpcUrl);
-  const sponsorPack = new ethers.Wallet(sponsorKey, provider);
-  const signerPack = new ethers.Wallet(pKey, provider);
-  const safeContract = new ethers.Contract(safe, SAFE, sponsorPack);
-
-  const currentNonce = await safeContract.nonce();
-  const multisendTx = _buildMultiSendTx(data);
-  const safeTx = {
-    to: chain === 'base' ? MULTI_SEND_BASE_ADDRESS : MULTI_SEND_BNB_ADDRESS,
-    value: 0n,
-    data: multisendTx,
-    op: 1n,
-    safeTxGas: 0n,
-    baseGas: 0n,
-    gasPrice: 0n,
-    gasToken: ethers.ZeroAddress,
-    refundReceiver: ethers.ZeroAddress,
-    nonce: currentNonce,
-  };
-
-  const hash = await _getTransactionHash(safeContract, safeTx);
-
-  const sig = await signerPack.signMessage(ethers.getBytes(hash));
-  const newSig = _appendSafeReq(sig);
-
-  const tx = await safeContract.execTransaction(
-    safeTx.to,
-    safeTx.value,
-    safeTx.data,
-    safeTx.op,
-    safeTx.safeTxGas,
-    safeTx.baseGas,
-    safeTx.gasPrice,
-    safeTx.gasToken,
-    safeTx.refundReceiver,
-    newSig
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsorPack = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const txData = await _buildTransferData(pKey, safe, data, provider, sponsorPack, chain);
+  const tx = await txData.safe.execTransaction(
+    txData.params.to,
+    txData.params.value,
+    txData.params.data,
+    txData.params.op,
+    txData.params.safeTxGas,
+    txData.params.baseGas,
+    txData.params.gasPrice,
+    txData.params.gasToken,
+    txData.params.refundReceiver,
+    txData.params.sig
   );
   const receipt = await tx.wait();
-  if (receipt.hash) {
+  if (receipt) {
     return {
       status: true,
-      data: {
-        txHash: tx.hash,
-        receipt: receipt,
-      },
+      data: receipt,
     };
   } else {
-    throw new Error('❌ Transfer Failed');
+    return {
+      status: false,
+    };
   }
 }
 
-
-
-function _buildMultiSendTx(data) {
-  const contract = new ethers.Interface(MULTISEND);
-  const txHex = contract.encodeFunctionData('multiSend', [data.to, data.value, data.encodedData]);
-
-  return txHex;
+async function _sendAlert(safe, title, message) {
+  await sendAlertToUser(safe, title, message);
 }
 
 export { executeTransfer, getBalance };

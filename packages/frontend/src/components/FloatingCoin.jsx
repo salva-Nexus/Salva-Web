@@ -7,7 +7,7 @@ const FloatingCoin = ({ delay, x, y, size, blur }) => (
   <motion.img
     src={ngnCoin} // Use the imported variable here
     className={`absolute pointer-events-none opacity-60 ${blur}`}
-    style={{ left: x, top: y, width: size }}
+    style={{ left: x, top: y, width: size, mixBlendMode: 'screen' }}
     animate={{
       y: [0, -40, 0],
       rotate: [0, 15, -15, 0],

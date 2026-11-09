@@ -5,16 +5,24 @@ const router = express.Router();
 
 router.post('/transfer', async (req, res) => {
   try {
-    const { email, userPrivateKey, safeAddress, toAddress, amount, coin, chain } = req.body;
-    const coinFromQuery = req.query.coin;
-
+    const {
+      email,
+      pin,
+      safeAddress,
+      toAddress,
+      amount,
+      tokenSymbol,
+      tokenAddress,
+      chain,
+    } = req.body;
     const transferResult = await executeTransfer(
       email,
       safeAddress,
-      userPrivateKey,
+      pin,
       toAddress,
       amount,
-      coinFromQuery ? coinFromQuery : coin,
+      tokenSymbol,
+      tokenAddress,
       chain
     );
     res.status(200).json({

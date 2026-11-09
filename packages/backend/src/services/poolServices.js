@@ -1,36 +1,35 @@
 import { ethers } from 'ethers';
-import { User, UserBNB } from '../models/Users.js';
-import { basePool, bnbPool } from '../models/Pool.js';
-import {
-  basePoolSubscription,
-  bnbPoolSubscription,
-  FEE_PER_MONTH,
-} from '../models/PoolSubscription.js';
-import { ERC20 } from '../utils/abi.js';
+import { User } from '../models/Users.js';
+import { Pool } from '../models/Pool.js';
+import { ERC20, FACTORY_IFACE, POOL_IFACE } from '../utils/abi.js';
 import {
   estimatePoolDeploymentFee,
-  estimateAdd_RemoveLiqFee,
-  estimateUpdateRateFee,
-  estimateUpdatePauseStateFee,
-  _buildUpdatePauseStateData,
-  _buildUpdateRateData,
-  _buildAdd_RemoveLiqData,
+  estimateDeployInvFee,
+  estimateUpdateSpreadFee,
+  estimateWithdrawFee,
+  estimateAddLiquidityFee,
+  _buildUpdateSpreadData,
+  _buildWithdrawData,
+  _buildAddLiquidityData,
+  _buildDeployInvData,
   _buildPoolDeploymentData,
+  _getFeeAndToken,
 } from './estimateFee.js';
-import { balance, _getDecimals } from './balanceServices.js';
-import { getBalance, executeTransfer } from './transferServices.js';
-import { linkName, unlinkName } from './snservices.js';
+import { _getDecimals } from './balanceServices.js';
 import { keyValue } from '../utils/vars.js';
+import { getRpcUrlByChain, getPoolFactoryAddress } from '../utils/rpcUrls.js';
+import { SupportedPair } from '../models/SupportedPair.js';
+import { _deploySafe } from './deployment.js';
+import { verify_Pin } from './pinService.js';
 
 function _getPoolAddress(receipt, chain) {
   const logs = receipt.logs;
   let address;
-  const factoryAddress =
-    chain === 'base' ? keyValue('basePoolFactory') : keyValue('bnbPoolFactory');
+  const factoryAddress = getPoolFactoryAddress(chain);
 
   for (let i = 0; i < logs.length; i++) {
     if (logs[i].address.toLowerCase() === factoryAddress.toLowerCase()) {
-      const cleaned = logs[i].topics[2].slice(26, logs[i].topics[1].length);
+      const cleaned = logs[i].topics[1].slice(26, logs[i].topics[1].length);
       address = `0x${cleaned}`;
       break;
     }
@@ -38,58 +37,44 @@ function _getPoolAddress(receipt, chain) {
   return ethers.getAddress(address);
 }
 
-function _asset(asset, chain) {
-  return chain === 'base'
-    ? asset === 'NGNS'
-      ? keyValue('ngnsBaseAddress')
-      : asset === 'CNGN'
-        ? keyValue('cngnBaseAddress')
-        : asset === 'USDC'
-          ? keyValue('usdcBaseAddress')
-          : keyValue('usdtBaseAddress')
-    : asset === 'NGNS'
-      ? keyValue('ngnsBnbAddress')
-      : asset === 'CNGN'
-        ? keyValue('cngnBnbAddress')
-        : asset === 'USDC'
-          ? keyValue('usdcBnbAddress')
-          : keyValue('usdtBnbAddress');
-}
-
-async function deployPool(email, pkey, chain) {
+async function deployPool(email, pin, chain) {
   let user;
   try {
-    user =
-      chain === 'base'
-        ? await User.findOne({ email: email })
-        : await UserBNB.findOne({ email: email });
+    user = await User.findOne({ email: email });
   } catch (err) {
     console.log(`Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
-    user =
-      chain === 'base'
-        ? await User.findOne({ email: email })
-        : await UserBNB.findOne({ email: email });
+    user = await User.findOne({ email: email });
   }
+  const pinData = await verify_Pin(email, pin);
+  const pkey = pinData.privateKey;
 
-  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
-
-  const fee = await estimatePoolDeploymentFee(chain, true);
+  const rpc = getRpcUrlByChain(chain);
+  const fee = await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
   const feeData = await _getFeeAndToken(user.safeAddress, fee, chain);
   if (!feeData.status) {
     throw Error(`❌ No Balance to cover fee`);
   }
   const provider = new ethers.JsonRpcProvider(rpc);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const txObj = {
+    contractAddr: [getPoolFactoryAddress(chain), feeData.data.feeTokenAddress],
+    to: ['0x', keyValue('treasury')],
+    amount: [0n, feeData.data.feeToWei],
+    contract: [poolFactoryContract, erc20Contract],
+    sig: ['deployPool', 'transfer'],
+  };
   const deployData = await _buildPoolDeploymentData(
     user.safeAddress,
     pkey,
-    feeData.data.feeToWei,
-    feeData.data.feeTokenAddress,
+    txObj,
     provider,
     sponsor,
     chain
   );
+
   const tx = await deployData.safe.execTransaction(
     deployData.params.to,
     deployData.params.value,
@@ -111,31 +96,20 @@ async function deployPool(email, pkey, chain) {
   }
 
   // UPDATE DB
-  let pool;
   try {
-    pool =
-      chain === 'base'
-        ? await basePool.create({
-            poolAddress: poolAddress,
-            ownerSafeAddress: user.safeAddress,
-          })
-        : await bnbPool.create({
-            poolAddress: poolAddress,
-            ownerSafeAddress: user.safeAddress,
-          });
+    await Pool.create({
+      poolAddress: poolAddress,
+      ownerSafeAddress: user.safeAddress,
+      chain: chain,
+    });
   } catch (err) {
     console.log(`Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
-    pool =
-      chain === 'base'
-        ? await basePool.create({
-            poolAddress: poolAddress,
-            ownerSafeAddress: user.safeAddress,
-          })
-        : await bnbPool.create({
-            poolAddress: poolAddress,
-            ownerSafeAddress: user.safeAddress,
-          });
+    await Pool.create({
+      poolAddress: poolAddress,
+      ownerSafeAddress: user.safeAddress,
+      chain: chain,
+    });
   }
 
   return {
@@ -144,200 +118,40 @@ async function deployPool(email, pkey, chain) {
   };
 }
 
-async function poolNameService(email, pkey, name, poolAddress, registry, type, chain) {
-  let pool =
-    chain === 'base'
-      ? await basePool.findOne({
-          poolAddress: poolAddress,
-        })
-      : await bnbPool.findOne({
-          poolAddress: poolAddress,
-        });
-
-  const owner = await User.findOne({
-    email: email,
-  });
-
-  if (!pool || !owner) {
-    return {
-      status: false,
-    };
-  }
-
-  let nameOpResult;
-  if (type === 'link') {
-    nameOpResult = await linkName(email, owner.safeAddress, pkey, name, poolAddress, registry);
-    if (nameOpResult.status) {
-      pool.poolName = nameOpResult.name;
-      pool.registryAddress = registry;
-      await pool.save();
-    } else {
-      return {
-        status: false,
-      };
-    }
-  } else {
-    nameOpResult = await unlinkName(email, owner.safeAddress, name, pkey, pool.registryAddress);
-    if (nameOpResult.status) {
-      pool.poolName = null;
-      pool.registryAddress = null;
-      await pool.save();
-    } else {
-      return {
-        status: false,
-      };
-    }
-  }
-
-  console.log(nameOpResult.name || name);
-  return {
-    status: true,
-    data: {
-      name: nameOpResult.name || name,
-      receipt: nameOpResult.data,
-    },
-  };
-}
-
-async function poolSubscription(email, pkey, poolAddress, chain, type, interval) {
+async function deployInventory(
+  email,
+  pin,
+  poolAddress,
+  base,
+  quote,
+  floor,
+  spread,
+  amount,
+  allowSwapBelowFloor,
+  chain
+) {
   let pool;
+  let invExists = true;
   try {
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
+    pool = await Pool.findOne({
+      poolAddress: poolAddress,
+      'inventories.baseSymbol': base,
+      'inventories.quoteSymbol': quote,
+    });
   } catch (err) {
     console.warn(`⚠️ Retrying!!!`);
     await new Promise((r) => setTimeout(r, 5000));
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
+    pool = await Pool.findOne({
+      poolAddress: poolAddress,
+      'inventories.baseSymbol': base,
+      'inventories.quoteSymbol': quote,
+    });
   }
-
-  const owner = await User.findOne({
-    email: email,
-  });
-
-  if (!pool || !owner) {
-    return {
-      status: false,
-    };
-  }
-
-  let returnData;
-  let poolSub;
-  const month = 30 * 24 * 60 * 60 * 1000;
-  const treasuryAddress = keyValue('treasury');
-
-  if (pool) {
-    if (type === 'subscribe') {
-      returnData = await executeTransfer(
-        email,
-        owner.safeAddress,
-        pkey,
-        treasuryAddress,
-        FEE_PER_MONTH * interval,
-        'NGNS',
-        chain
-      );
-      if (!returnData.status) throw Error(`❌ Subscription Failed`);
-
-      poolSub =
-        chain === 'base'
-          ? await basePoolSubscription.findOne({ poolAddress: poolAddress })
-          : await bnbPoolSubscription.findOne({ poolAddress: poolAddress });
-
-      if (poolSub) {
-        const currentExpiry = poolSub.expiresAt;
-        console.log(`Current expiry: ${currentExpiry.getTime()}`);
-        poolSub.months += interval;
-        poolSub.amountPaid += FEE_PER_MONTH * interval;
-        poolSub.expiresAt = currentExpiry.getTime() + month * interval;
-        await poolSub.save();
-      } else {
-        const subData = {
-          poolAddress: poolAddress,
-          ownerSafeAddress: owner.safeAddress,
-          months: interval,
-          amountPaid: FEE_PER_MONTH * interval,
-          txHash: returnData.data.txHash,
-          active: true,
-          startedAt: Date.now(),
-          expiresAt: Date.now() + month * interval,
-        };
-
-        chain === 'base'
-          ? await basePoolSubscription.create(subData)
-          : await bnbPoolSubscription.create(subData);
-      }
-    } else if (type === 'renew') {
-      returnData = await executeTransfer(
-        email,
-        owner.safeAddress,
-        pkey,
-        treasuryAddress,
-        FEE_PER_MONTH * interval,
-        'NGNS',
-        chain
-      );
-      if (!returnData.status) throw Error(`❌ Subscription Failed`);
-
-      poolSub =
-        chain === 'base'
-          ? await basePoolSubscription.findOne({ poolAddress: poolAddress })
-          : await bnbPoolSubscription.findOne({ poolAddress: poolAddress });
-
-      if (poolSub) {
-        const currentExpiry = poolSub.expiresAt;
-        poolSub.months += interval;
-        poolSub.amountPaid += FEE_PER_MONTH * interval;
-        poolSub.expiresAt = currentExpiry.getTime() + month * interval;
-        await poolSub.save();
-      }
-    } else {
-      chain === 'base'
-        ? await basePoolSubscription.deleteOne({ poolAddress: poolAddress })
-        : await bnbPoolSubscription.deleteOne({ poolAddress: poolAddress });
-    }
-  }
-
-  return {
-    status: true,
-    expiresAt: type === `cancel` ? null : new Date(Date.now() + month * interval),
-  };
-}
-
-async function add_RemoveLiq(email, pkey, poolAddress, asset, amount, chain, type) {
-  let pool;
-  try {
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
-  } catch (err) {
-    console.warn(`⚠️ Retrying!!!`);
-    await new Promise((r) => setTimeout(r, 5000));
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
+  if (!pool) {
+    pool = await Pool.findOne({
+      poolAddress: poolAddress,
+    });
+    invExists = false;
   }
 
   let owner = await User.findOne({
@@ -349,104 +163,88 @@ async function add_RemoveLiq(email, pkey, poolAddress, asset, amount, chain, typ
       status: false,
     };
   }
-  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
+  const pinData = await verify_Pin(email, pin);
+  const pkey = pinData.privateKey;
 
-  const fee = await estimateAdd_RemoveLiqFee(chain, type, true);
+  let isInverted = false;
+  let inv = await SupportedPair.findOne({
+    baseSymbol: base.toUpperCase(),
+    quoteSymbol: quote.toUpperCase(),
+    chain: chain,
+  });
+  if (!inv) {
+    inv = await SupportedPair.findOne({
+      baseSymbol: quote.toUpperCase(),
+      quoteSymbol: base.toUpperCase(),
+      chain: chain,
+    });
+    if (!inv) return { status: false };
+    isInverted = true;
+  }
+
+  const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
+  if (isStableNgn(inv.quoteSymbol)) {
+    isInverted = true;
+  }
+  const rpc = getRpcUrlByChain(chain);
+  const inAddress = !isInverted ? inv.quoteAddress : inv.baseAddress;
+  const outAddress = !isInverted ? inv.baseAddress : inv.quoteAddress;
+
+  const fee = await estimateDeployInvFee(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    outAddress,
+    inAddress,
+    inv.priceFeed,
+    floor,
+    spread,
+    amount,
+    allowSwapBelowFloor,
+    isInverted,
+    chain
+  );
   const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
   const provider = new ethers.JsonRpcProvider(rpc);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const assetAddress = _asset(asset, chain);
-  const contract = new ethers.Contract(assetAddress, ERC20, provider);
-  const decimals = await _getDecimals(contract);
+  const contract =
+    outAddress !== ethers.ZeroAddress
+      ? new ethers.Contract(outAddress, ERC20, provider)
+      : undefined;
+  const decimals = contract ? await _getDecimals(contract) : 18;
   const amountWei = ethers.parseUnits(amount.toString(), decimals);
-  const txData = await _buildAdd_RemoveLiqData(
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const approve = outAddress !== ethers.ZeroAddress ? 'approve' : undefined;
+  const bpsValue = Math.round(parseFloat(spread) * 100);
+  const spreadBps = BigInt(bpsValue);
+  const data = {
+    contractAddr: approve
+      ? [outAddress, poolAddress, feeData.data.feeTokenAddress]
+      : [poolAddress, feeData.data.feeTokenAddress],
+    to: approve ? [poolAddress, '0x', keyValue('treasury')] : ['0x', keyValue('treasury')],
+    amount: approve
+      ? [amountWei, amountWei, feeData.data.feeToWei]
+      : [amountWei, feeData.data.feeToWei],
+    contract: approve
+      ? [erc20Contract, poolContract, erc20Contract]
+      : [poolContract, erc20Contract],
+    param: {
+      in: inAddress,
+      out: outAddress,
+      feed: inv.priceFeed,
+      floor: ethers.parseEther(String(floor)),
+      spread: spreadBps,
+      allow: allowSwapBelowFloor,
+      isInverted: isInverted,
+    },
+    sig: approve ? ['approve', 'deployInv', 'transfer'] : ['deployInv', 'transfer'],
+  };
+  const txData = await _buildDeployInvData(
     owner.safeAddress,
     pkey,
-    feeData.data.feeToWei,
-    feeData.data.feeTokenAddress,
     poolAddress,
-    assetAddress,
-    amountWei,
-    provider,
-    sponsor,
-    chain,
-    type
-  );
-
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-  const receipt = await tx.wait();
-  if (receipt) {
-    return {
-      status: true,
-      data: receipt,
-    };
-  } else {
-    return {
-      status: false,
-    };
-  }
-}
-
-async function updateRate(email, pkey, poolAddress, rate, type, chain) {
-  let pool;
-  try {
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
-  } catch (err) {
-    console.warn(`⚠️ Retrying!!!`);
-    await new Promise((r) => setTimeout(r, 5000));
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
-  }
-
-  const owner = await User.findOne({
-    email: email,
-  });
-
-  if (!pool || !owner) {
-    return {
-      status: false,
-    };
-  }
-
-  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
-
-  const fee = await estimateUpdateRateFee(chain, true);
-  const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
-  const provider = new ethers.JsonRpcProvider(rpc);
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const ratetWei = ethers.parseUnits(rate.toString(), 6);
-  const txData = await _buildUpdateRateData(
-    owner.safeAddress,
-    pkey,
-    feeData.data.feeToWei,
-    feeData.data.feeTokenAddress,
-    poolAddress,
-    ratetWei,
-    type,
+    data,
     provider,
     sponsor,
     chain
@@ -465,142 +263,385 @@ async function updateRate(email, pkey, poolAddress, rate, type, chain) {
     txData.params.sig
   );
   const receipt = await tx.wait();
-  if (receipt) {
-    return {
-      status: true,
-      data: receipt,
-    };
-  } else {
+  if (!receipt)
     return {
       status: false,
     };
+
+  // UPDATE DB
+  const invUpdate = {
+    baseSymbol: base,
+    quoteSymbol: quote,
+    baseAddress: outAddress,
+    quoteAddress: inAddress,
+    priceFeed: inv.priceFeed,
+    floor: floor,
+    spread: spread,
+    allowedSwapBelowFloor: allowSwapBelowFloor,
+    isInverted: isInverted,
+  };
+
+  if (invExists) {
+    pool.inventories = pool.inventories.filter(
+      (item) => !(item.baseSymbol === base && item.quoteSymbol === quote)
+    );
   }
+
+  pool.inventories.push(invUpdate);
+  await pool.save();
+
+  return {
+    status: true,
+    data: receipt,
+  };
 }
 
-async function updatePauseState(email, pkey, poolAddress, state, chain) {
-  let pool;
-  try {
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
-  } catch (err) {
-    console.warn(`⚠️ Retrying!!!`);
-    await new Promise((r) => setTimeout(r, 5000));
-    pool =
-      chain === 'base'
-        ? await basePool.findOne({
-            poolAddress: poolAddress,
-          })
-        : await bnbPool.findOne({
-            poolAddress: poolAddress,
-          });
+async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, chain) {
+  const normalizedChain = String(chain).toLowerCase();
+  const baseSym = String(base).toUpperCase();
+  const quoteSym = String(quote).toUpperCase();
+  const outSym = String(assetOut || base).toUpperCase();
+
+  if (outSym !== baseSym && outSym !== quoteSym) {
+    throw new Error('assetOut must be the base or the quote symbol');
   }
 
-  let owner = await User.findOne({
-    email: email,
+  const owner = await User.findOne({ email: email });
+  const pool = await Pool.findOne({
+    poolAddress: poolAddress.toLowerCase(),
+    chain: normalizedChain,
   });
 
   if (!pool || !owner) {
-    return {
-      status: false,
-    };
-  }
-
-  const rpc = chain === 'base' ? keyValue('baseRpcUrl') : keyValue('bnbRpcUrl');
-
-  const fee = await estimateUpdatePauseStateFee(chain, true);
-  const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
-  const provider = new ethers.JsonRpcProvider(rpc);
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const txData = await _buildUpdatePauseStateData(
-    owner.safeAddress,
-    pkey,
-    feeData.data.feeToWei,
-    feeData.data.feeTokenAddress,
-    poolAddress,
-    state,
-    provider,
-    sponsor,
-    chain
-  );
-
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-  const receipt = await tx.wait();
-  if (receipt) {
-    return {
-      status: true,
-      data: receipt,
-    };
-  } else {
-    return {
-      status: false,
-    };
-  }
-}
-
-async function _getFeeAndToken(safeAddress, data, chain) {
-  const balances = await balance(safeAddress, chain);
-  let feeHuman;
-  let feeTokenSymbol;
-  if (
-    balances.data.ngnsBalance >= data.data.feeNGN ||
-    balances.data.cNgnBalance >= data.data.feeNGN
-  ) {
-    feeHuman = data.data.feeNGN;
-    feeTokenSymbol = balances.data.ngnsBalance >= data.data.feeNGN ? 'NGNS' : 'CNGN';
-  } else if (
-    balances.data.usdtBalance >= data.data.feeUsd ||
-    balances.data.usdcBalance >= data.data.feeUsd
-  ) {
-    feeHuman = data.data.feeUsd;
-    feeTokenSymbol = balances.data.usdtBalance >= data.data.feeUsd ? 'USDT' : 'USDC';
-  } else {
     return { status: false };
   }
 
-  let feeTokenAddress = _asset(feeTokenSymbol, chain);
+  const rpc = getRpcUrlByChain(normalizedChain);
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
 
-  const feeTokenData = await getBalance(feeTokenAddress, safeAddress, chain);
+  let isInverted = false;
+  let pair = await SupportedPair.findOne({
+    baseSymbol: baseSym,
+    quoteSymbol: quoteSym,
+    chain: normalizedChain,
+  });
+  if (!pair) {
+    pair = await SupportedPair.findOne({
+      baseSymbol: quoteSym,
+      quoteSymbol: baseSym,
+      chain: normalizedChain,
+    });
+    if (!pair) return { status: false };
+    isInverted = true;
+  }
 
-  const feeWei =
-    feeTokenSymbol === 'NGNS' || feeTokenSymbol === 'CNGN'
-      ? ethers.parseUnits(data.data.feeNGN.toString(), feeTokenData.decimals)
-      : ethers.parseUnits(data.data.feeUsd.toString(), feeTokenData.decimals);
+  // Same direction handling as deployInventory: base = asset the merchant sells.
+  const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
+  const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
+  const outAsset = outSym === baseSym ? baseAsset : quoteAsset;
+
+  const contract =
+    outAsset !== ethers.ZeroAddress ? new ethers.Contract(outAsset, ERC20, provider) : undefined;
+  const decimals = contract ? await _getDecimals(contract) : 18;
+  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+
+   const pinData = await verify_Pin(email, pin);
+   const pkey = pinData.privateKey;
+  const fee = await estimateWithdrawFee(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    baseAsset,
+    quoteAsset,
+    outAsset,
+    amount,
+    normalizedChain
+  );
+  const feeData = await _getFeeAndToken(owner.safeAddress, fee, normalizedChain);
+  if (!feeData.status) {
+    throw new Error('❌ No Balance to cover fee');
+  }
+
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const data = {
+    contractAddr: [poolAddress, feeData.data.feeTokenAddress],
+    to: ['0x', keyValue('treasury')],
+    amount: [amountWei, feeData.data.feeToWei],
+    contract: [poolContract, erc20Contract],
+    param: {
+      base: baseAsset,
+      quote: quoteAsset,
+      assetOut: outAsset,
+    },
+    sig: ['removeLiquidity', 'transfer'],
+  };
+
+  const txData = await _buildWithdrawData(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    data,
+    provider,
+    sponsor,
+    normalizedChain
+  );
+
+  const tx = await txData.safe.execTransaction(
+    txData.params.to,
+    txData.params.value,
+    txData.params.data,
+    txData.params.op,
+    txData.params.safeTxGas,
+    txData.params.baseGas,
+    txData.params.gasPrice,
+    txData.params.gasToken,
+    txData.params.refundReceiver,
+    txData.params.sig
+  );
+  const receipt = await tx.wait();
+  if (!receipt) {
+    return { status: false };
+  }
 
   return {
     status: true,
-    data: {
-      feeHuman: feeHuman,
-      feeToken: feeTokenSymbol,
-      feeTokenAddress: feeTokenAddress,
-      feeToWei: feeWei,
-    },
+    data: receipt,
   };
 }
 
-export {
-  deployPool,
-  poolNameService,
-  poolSubscription,
-  add_RemoveLiq,
-  updateRate,
-  updatePauseState,
-  _getFeeAndToken,
-  _asset,
-};
+async function updateSpread(email, pin, poolAddress, base, quote, spread, chain) {
+  let pool;
+  try {
+    pool = await Pool.findOne({
+      poolAddress: poolAddress,
+      'inventories.baseSymbol': base,
+      'inventories.quoteSymbol': quote,
+    });
+  } catch (err) {
+    console.warn(`⚠️ Retrying!!!`);
+    await new Promise((r) => setTimeout(r, 5000));
+    pool = await Pool.findOne({
+      poolAddress: poolAddress,
+      'inventories.baseSymbol': base,
+      'inventories.quoteSymbol': quote,
+    });
+  }
+
+  let owner = await User.findOne({
+    email: email,
+  });
+
+  if (!pool || !owner) {
+    return {
+      status: false,
+    };
+  }
+  const pinData = await verify_Pin(email, pin);
+  const pkey = pinData.privateKey;
+
+  let isInverted = false;
+  let inv = await SupportedPair.findOne({
+    baseSymbol: base.toUpperCase(),
+    quoteSymbol: quote.toUpperCase(),
+    chain: chain,
+  });
+  if (!inv) {
+    inv = await SupportedPair.findOne({
+      baseSymbol: quote.toUpperCase(),
+      quoteSymbol: base.toUpperCase(),
+      chain: chain,
+    });
+    if (!inv) return { status: false };
+    isInverted = true;
+  }
+  const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
+  if (isStableNgn(inv.quoteSymbol)) {
+    isInverted = true;
+  }
+  const rpc = getRpcUrlByChain(chain);
+  const inAddress = !isInverted ? inv.quoteAddress : inv.baseAddress;
+  const outAddress = !isInverted ? inv.baseAddress : inv.quoteAddress;
+
+  const fee = await estimateUpdateSpreadFee(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    outAddress,
+    inAddress,
+    spread,
+    chain
+  );
+  const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const bpsValue = Math.round(parseFloat(spread) * 100);
+  const spreadBps = BigInt(bpsValue);
+  const data = {
+    contractAddr: [poolAddress, feeData.data.feeTokenAddress],
+    to: ['0x', keyValue('treasury')],
+    amount: [0n, feeData.data.feeToWei],
+    contract: [poolContract, erc20Contract],
+    param: {
+      base: outAddress,
+      quote: inAddress,
+      spread: spreadBps,
+    },
+    sig: ['updateSpread', 'transfer'],
+  };
+  const txData = await _buildUpdateSpreadData(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    data,
+    provider,
+    sponsor,
+    chain
+  );
+
+  const tx = await txData.safe.execTransaction(
+    txData.params.to,
+    txData.params.value,
+    txData.params.data,
+    txData.params.op,
+    txData.params.safeTxGas,
+    txData.params.baseGas,
+    txData.params.gasPrice,
+    txData.params.gasToken,
+    txData.params.refundReceiver,
+    txData.params.sig
+  );
+  const receipt = await tx.wait();
+  if (!receipt) {
+    return {
+      status: false,
+    };
+  }
+
+  const inventoryItem = pool.inventories.find(
+    (inv) => inv.baseSymbol === base && inv.quoteSymbol === quote
+  );
+
+  inventoryItem.spread = spread.toString();
+  await pool.save();
+
+  return {
+    status: true,
+    data: receipt,
+  };
+}
+
+async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain) {
+  const normalizedChain = String(chain).toLowerCase();
+
+  const owner = await User.findOne({ email: email });
+  const pool = await Pool.findOne({
+    poolAddress: poolAddress.toLowerCase(),
+    chain: normalizedChain,
+  });
+
+  if (!pool || !owner) {
+    return { status: false };
+  }
+  const pinData = await verify_Pin(email, pin);
+  const pkey = pinData.privateKey;
+  let isInverted = false;
+  let pair = await SupportedPair.findOne({
+    baseSymbol: base.toUpperCase(),
+    quoteSymbol: quote.toUpperCase(),
+    chain: chain,
+  });
+
+  if (!pair) {
+    pair = await SupportedPair.findOne({
+      baseSymbol: quote.toUpperCase(),
+      quoteSymbol: base.toUpperCase(),
+      chain: chain,
+    });
+    if (!pair) return { status: false };
+
+    isInverted = true;
+  }
+  const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
+  const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
+
+  const rpc = getRpcUrlByChain(normalizedChain);
+
+  const fee = await estimateAddLiquidityFee(
+    owner.safeAddress,
+    pkey,
+    poolAddress,
+    baseAsset,
+    quoteAsset,
+    amount,
+    normalizedChain
+  );
+  const feeData = await _getFeeAndToken(owner.safeAddress, fee, normalizedChain);
+  if (!feeData.status) {
+    throw new Error('❌ No Balance to cover fee');
+  }
+
+  const provider = new ethers.JsonRpcProvider(rpc);
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const isEth = baseAsset === ethers.ZeroAddress;
+  const contract = isEth ? undefined : new ethers.Contract(baseAsset, ERC20, provider);
+  const decimals = contract ? await _getDecimals(contract) : 18;
+  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const approve = !isEth ? 'approve' : undefined;
+
+  const data = {
+    contractAddr: approve
+      ? [baseAsset, poolAddress, feeData.data.feeTokenAddress]
+      : [poolAddress, feeData.data.feeTokenAddress],
+    to: approve ? [poolAddress, '0x', keyValue('treasury')] : ['0x', keyValue('treasury')],
+    amount: approve
+      ? [amountWei, amountWei, feeData.data.feeToWei]
+      : [amountWei, feeData.data.feeToWei],
+    contract: approve
+      ? [erc20Contract, poolContract, erc20Contract]
+      : [poolContract, erc20Contract],
+    param: {
+      base: baseAsset,
+      quote: quoteAsset,
+    },
+    sig: approve ? ['approve', 'addLiquidity', 'transfer'] : ['addLiquidity', 'transfer'],
+  };
+
+  const txData = await _buildAddLiquidityData(
+    owner.safeAddress,
+    pkey,
+    data,
+    provider,
+    sponsor,
+    normalizedChain
+  );
+
+  const tx = await txData.safe.execTransaction(
+    txData.params.to,
+    txData.params.value,
+    txData.params.data,
+    txData.params.op,
+    txData.params.safeTxGas,
+    txData.params.baseGas,
+    txData.params.gasPrice,
+    txData.params.gasToken,
+    txData.params.refundReceiver,
+    txData.params.sig
+  );
+  const receipt = await tx.wait();
+  if (!receipt) {
+    return { status: false };
+  }
+
+  return {
+    status: true,
+    data: receipt,
+  };
+}
+
+export { deployPool, deployInventory, withdraw, updateSpread, addLiquidity };

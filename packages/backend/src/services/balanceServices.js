@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
-import { ERC20 } from '../utils/abi.js';
+import { ERC20, CHAINLINK } from '../utils/abi.js';
 import { keyValue } from '../utils/vars.js';
+import { fetchNgnPricePerAsset } from '../utils/fetchRate.js';
+import { getChainlinkFeedByChainAndSymbol, getRpcUrlByChain } from '../utils/rpcUrls.js';
 
 async function _getBalance(contract, address) {
   let balance;
@@ -33,76 +35,101 @@ async function _getDecimals(contract) {
   }
 }
 
-async function balance(address, chain = 'base') {
-  const isBase = chain.toLowerCase() === 'base';
+async function fetchTokenUsdPrice(tokenSymbol, chain, feed) {
+  try {
+    const feedAddress = !feed
+      ? getChainlinkFeedByChainAndSymbol(tokenSymbol, chain)
+      : !feed.startsWith('0x')
+        ? undefined
+        : feed;
+    if (!feedAddress) return 0;
 
-  const ngnsAddress = keyValue(isBase ? 'ngnsBaseAddress' : 'ngnsBnbAddress');
-  const cngnAddress = keyValue(isBase ? 'cngnBaseAddress' : 'cngnBnbAddress');
-  const usdtAddress = keyValue(isBase ? 'usdtBaseAddress' : 'usdtBnbAddress');
-  const usdcAddress = keyValue(isBase ? 'usdcBaseAddress' : 'usdcBnbAddress');
-  const santAddress = keyValue('santAddress');
-  const rpcUrl = keyValue(isBase ? 'baseRpcUrl' : 'bnbRpcUrl');
+    const rpcUrl = getRpcUrlByChain(chain);
+    if (!rpcUrl) return 0;
 
-  if (!ngnsAddress || !cngnAddress || !usdtAddress || !usdcAddress || !rpcUrl) {
-    console.error('❌ Missing token contract addresses or RPC URL in configuration');
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const priceFeed = new ethers.Contract(feedAddress, CHAINLINK, provider);
+
+    const [, answer] = await priceFeed.latestRoundData();
+    const decimals = await priceFeed.decimals();
+
+    return Number(ethers.formatUnits(answer, Number(decimals)));
+  } catch (err) {
+    console.error(`Error fetching Chainlink price for ${tokenSymbol} on ${chain}:`, err.message);
+    return 0;
+  }
+}
+
+async function dBalance(safeAddress, tokenAddress, tokenSymbol, chain, feedAddress) {
+  try {
+    const rpcUrl = getRpcUrlByChain(chain);
+    if (!rpcUrl) {
+      throw new Error(`Unsupported chain or missing RPC URL for: ${chain}`);
+    }
+
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const isNative =
+      !tokenAddress ||
+      tokenAddress.toLowerCase() === ethers.ZeroAddress.toLowerCase() ||
+      tokenAddress === '0x0';
+
+    let balanceData;
+
+    if (isNative) {
+      // Native gas token (ETH, BNB, etc.)
+      const rawBalance = await provider.getBalance(safeAddress);
+      balanceData = {
+        balance: rawBalance,
+        decimals: 18,
+      };
+    } else {
+      // Standard ERC20 Token
+      const contract = new ethers.Contract(tokenAddress, ERC20, provider);
+      balanceData = await _getBalance(contract, safeAddress);
+    }
+    const priceResult = await fetchNgnPricePerAsset(undefined, chain);
+    if (!balanceData || !priceResult?.status) {
+      return {
+        status: false,
+        data: {
+          formattedBalance: '0.00',
+          ngnValue: '0.00',
+        },
+      };
+    }
+    const ngnPerUsd = Number(priceResult.data);
+    const formattedBalance = Number(
+      ethers.formatUnits(balanceData.balance, Number(balanceData.decimals))
+    );
+    const symbolUpper = tokenSymbol.trim().toUpperCase();
+    let totalNgnValue = 0;
+
+    if (['NGNS', 'CNGN'].includes(symbolUpper)) {
+      totalNgnValue = formattedBalance;
+    } else if (['USDT', 'USDC'].includes(symbolUpper)) {
+      totalNgnValue = formattedBalance * ngnPerUsd;
+    } else {
+      const usdPrice = await fetchTokenUsdPrice(symbolUpper, chain, feedAddress);
+      totalNgnValue = formattedBalance * Number(usdPrice) * ngnPerUsd;
+    }
+
+    return {
+      status: true,
+      data: {
+        formattedBalance: formattedBalance.toFixed(4),
+        ngnValue: Number(totalNgnValue.toFixed(2)), // Keep as Number so cumulative math (+=) works
+      },
+    };
+  } catch (error) {
+    console.error('Error calculating dBalance:', error.message);
     return {
       status: false,
       data: {
-        ngnsBalance: '0.00',
-        cNgnBalance: '0.00',
-        usdtBalance: '0.00',
-        usdcBalance: '0.00',
-        santBalance: isBase ? '0.00' : null,
+        formattedBalance: '0.00',
+        ngnValue: 0,
       },
     };
   }
-
-  const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-  const ngnsContract = new ethers.Contract(
-    ethers.getAddress(ngnsAddress.toLowerCase()),
-    ERC20,
-    provider
-  );
-  const cNgnContract = new ethers.Contract(
-    ethers.getAddress(cngnAddress.toLowerCase()),
-    ERC20,
-    provider
-  );
-  const usdtContract = new ethers.Contract(
-    ethers.getAddress(usdtAddress.toLowerCase()),
-    ERC20,
-    provider
-  );
-  const usdcContract = new ethers.Contract(
-    ethers.getAddress(usdcAddress.toLowerCase()),
-    ERC20,
-    provider
-  );
-  const santContract =
-    isBase && santAddress
-      ? new ethers.Contract(ethers.getAddress(santAddress.toLowerCase()), ERC20, provider)
-      : null;
-
-  const [ngnsData, cngnData, usdtData, usdcData, santData] = await Promise.all([
-    _getBalance(ngnsContract, address),
-    _getBalance(cNgnContract, address),
-    _getBalance(usdtContract, address),
-    _getBalance(usdcContract, address),
-    santContract ? _getBalance(santContract, address) : Promise.resolve(null),
-  ]);
-
-  return {
-    status: true,
-    data: {
-      ngnsBalance: ethers.formatUnits(ngnsData.balance, ngnsData.decimals),
-      cNgnBalance: ethers.formatUnits(cngnData.balance, cngnData.decimals),
-      usdtBalance: ethers.formatUnits(usdtData.balance, usdtData.decimals),
-      usdcBalance: ethers.formatUnits(usdcData.balance, usdcData.decimals),
-      santBalance:
-        santData !== null ? ethers.formatUnits(santData.balance, santData.decimals) : null,
-    },
-  };
 }
 
-export { balance, _getBalance, _getDecimals };
+export { dBalance, _getBalance, _getDecimals, fetchTokenUsdPrice };

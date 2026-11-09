@@ -7,7 +7,8 @@ import { Eye, EyeOff } from 'lucide-react';
 import Stars from '../components/Stars';
 
 const ForgotPassword = () => {
-  const [step, setStep] = useState(1); // 1: Email, 2: New Password
+  const [step, setStep] = useState(1); // 1: Email, 2: OTP, 3: New Password
+  const [otp, setOtp] = useState('');
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -15,21 +16,59 @@ const ForgotPassword = () => {
   const [message, setMessage] = useState({ text: '', type: '' });
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [showWarning, setShowWarning] = useState(false);
+
 
   const navigate = useNavigate();
 
-  // Step 1 submit — no OTP round-trip, just surface the lockdown warning.
-  const handleEmailSubmit = (e) => {
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     setMessage({ text: '', type: '' });
-    setShowWarning(true);
+    setLoading(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        return setMessage({
+          text: data.message || 'Failed to send verification code',
+          type: 'error',
+        });
+      }
+      setOtp('');
+      setStep(2);
+      setMessage({ text: 'Verification code sent to your email.', type: 'success' });
+    } catch {
+      setMessage({ text: 'Network error. Please try again.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleProceedToReset = () => {
-    setShowWarning(false);
-    setStep(2);
-    setMessage({ text: 'Set your new password.', type: 'success' });
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!/^\d{6}$/.test(otp)) {
+      return setMessage({ text: 'Enter the 6-digit verification code', type: 'error' });
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: otp }),
+      });
+      if (!res.ok) {
+        return setMessage({ text: 'Invalid or expired verification code', type: 'error' });
+      }
+      setStep(3);
+      setMessage({ text: 'Email verified. Set your new password.', type: 'success' });
+    } catch {
+      setMessage({ text: 'Network error. Please try again.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleResetPassword = async (e) => {
@@ -57,9 +96,7 @@ const ForgotPassword = () => {
 
       if (res.ok && data.status) {
         setMessage({
-          text:
-            data.message ||
-            'Password reset successful! Account locked for 24 hours. Redirecting...',
+          text: 'Password reset successful! Redirecting...',
           type: 'success',
         });
         setTimeout(() => navigate('/login'), 3000);
@@ -89,10 +126,16 @@ const ForgotPassword = () => {
         <h2 className="text-3xl font-black mb-2 tracking-tighter">RESET PASSWORD</h2>
         <p className="text-xs text-salvaGold uppercase tracking-[0.3em] font-bold mb-8">
           {step === 1 && 'Identify your account'}
-          {step === 2 && 'Secure your vault'}
+          {step === 2 && 'Verify your email'}
+          {step === 3 && 'Secure your vault'}
         </p>
 
-        <form onSubmit={step === 1 ? handleEmailSubmit : handleResetPassword} className="space-y-6">
+        <form
+          onSubmit={
+            step === 1 ? handleEmailSubmit : step === 2 ? handleVerifyOtp : handleResetPassword
+          }
+          className="space-y-6"
+        >
           {step === 1 && (
             <div>
               <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
@@ -110,6 +153,25 @@ const ForgotPassword = () => {
           )}
 
           {step === 2 && (
+            <div>
+              <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
+                6-digit verification code sent to {email}
+              </label>
+              <input
+                required
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={otp}
+                onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
+                className="w-full p-4 rounded-2xl bg-white/5 border border-transparent focus:border-salvaGold outline-none font-black text-center text-2xl tracking-[0.5em]"
+                placeholder="000000"
+                autoComplete="one-time-code"
+              />
+            </div>
+          )}
+
+          {step === 3 && (
             <>
               <div>
                 <label className="text-[10px] uppercase opacity-40 font-bold mb-2 block">
@@ -160,7 +222,13 @@ const ForgotPassword = () => {
             disabled={loading}
             className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 transition-all uppercase tracking-widest text-sm"
           >
-            {loading ? 'Processing...' : step === 1 ? 'Continue' : 'Update Password'}
+            {loading
+              ? 'Processing...'
+              : step === 1
+              ? 'Continue'
+              : step === 2
+              ? 'Verify Code'
+              : 'Update Password'}
           </button>
         </form>
 
@@ -187,51 +255,6 @@ const ForgotPassword = () => {
           )}
         </AnimatePresence>
       </motion.div>
-
-      {/* ── Warning modal — same 24h-lockdown warning shown before email/pin changes in AccountSettings ── */}
-      <AnimatePresence>
-        {showWarning && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-            <motion.div
-              onClick={() => setShowWarning(false)}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border border-gray-200 dark:border-white/10 shadow-2xl z-10"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <h3 className="text-2xl font-black mb-4 text-black dark:text-white">
-                ⚠️ Security Warning
-              </h3>
-              <p className="text-sm opacity-80 mb-6 text-gray-700 dark:text-gray-300">
-                Changing your password will{' '}
-                <strong className="text-salvaGold">lock your account for 24 hours</strong>. You
-                won't be able to perform any transactions during this period.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowWarning(false)}
-                  className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 font-bold hover:bg-gray-100 dark:hover:bg-white/5 text-black dark:text-white"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleProceedToReset}
-                  className="flex-1 py-3 rounded-xl bg-salvaGold text-black font-bold hover:brightness-110"
-                >
-                  OK, PROCEED
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

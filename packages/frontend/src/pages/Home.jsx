@@ -1,21 +1,46 @@
 // Salva-Digital-Tech/packages/frontend/src/pages/Home.jsx
-import { SALVA_API_URL } from '../config';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import {
-  motion,
-  useInView,
-  useScroll,
-  useTransform,
-  animate,
-  AnimatePresence,
-  useMotionValue,
-  useSpring,
-} from 'framer-motion';
-import { Github, Mail, X, ChevronDown, ArrowUpRight, ArrowRight, Zap } from 'lucide-react';
+  ArrowLeftRight,
+  ArrowUpRight,
+  AtSign,
+  Check,
+  ChevronDown,
+  Github,
+  Landmark,
+  Mail,
+  Wallet,
+  X,
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 
-// ─── SEO Meta ────────────────────────────────────────────────────────────────
+const EASE = [0.16, 1, 0.3, 1];
+const SUPPORT_EMAIL = 'charlieonyii42@gmail.com';
+
+const HomeMobileScaleStyle = () => (
+  <style>{`
+    /* Mobile-only 25% scale reduction. Desktop remains untouched. */
+    @media (max-width: 639px) {
+      .home-mobile-scale {
+        zoom: 0.75;
+      }
+    }
+    @supports not (zoom: 1) {
+      @media (max-width: 639px) {
+        .home-mobile-scale {
+          width: 133.3333%;
+          transform: scale(0.75);
+          transform-origin: top left;
+        }
+      }
+    }
+  `}</style>
+);
+
+/* ─────────────────────────────── SEO ─────────────────────────────── */
+
 const SEOMeta = () => {
   useEffect(() => {
     const setMeta = (name, content, prop = false) => {
@@ -30,12 +55,12 @@ const SEOMeta = () => {
     };
     setMeta(
       'description',
-      'Salva V3 — On-chain DEX, naming service, and NGNs stablecoin. Swap Naira stablecoins for USD stablecoins, register charles@salva, and send money like a text. Gasless. Non-custodial.'
+      'Salva is your money, on-chain, in Naira. Send to a name, swap any supported token, borrow against your crypto and earn SANT just by using the network.'
     );
-    setMeta('og:title', 'Salva V3 — On-Chain DEX & Name Service for Nigeria', true);
+    setMeta('og:title', 'Salva: your money, on-chain, in Naira', true);
     setMeta(
       'og:description',
-      'Naira Stablecoin DEX. Human-readable names. Gasless smart wallets.',
+      'Send, swap, borrow and earn with Naira, dollars and more from one simple wallet.',
       true
     );
     setMeta('og:type', 'website', true);
@@ -45,530 +70,382 @@ const SEOMeta = () => {
   return null;
 };
 
-// ─── X Logo ──────────────────────────────────────────────────────────────────
+/* ───────────────────────────── Helpers ───────────────────────────── */
+
 const XLogo = ({ size = 20 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932 6.064-6.932zm-1.294 19.497h2.039L6.486 3.24H4.298l13.309 17.41z" />
   </svg>
 );
 
-// ─── Count Up ─────────────────────────────────────────────────────────────────
-const CountUp = ({ to, decimals = 0, prefix = '', suffix = '' }) => {
-  const [val, setVal] = useState(0);
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
-  useEffect(() => {
-    if (!inView) return;
-    const target = typeof to === 'string' ? parseFloat(to.replace(/,/g, '')) : to;
-    if (isNaN(target)) return;
-    const c = animate(0, target, {
-      duration: 2.5,
-      ease: [0.16, 1, 0.3, 1],
-      onUpdate: (v) => setVal(v),
-    });
-    return () => c.stop();
-  }, [to, inView]);
-  return (
-    <span ref={ref}>
-      {prefix}
-      {val.toLocaleString('en-US', {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals,
-      })}
-      {suffix}
-    </span>
-  );
-};
+/* ───────────────────────── Hero action card ───────────────────────── */
 
-// ─── Magnetic Button ──────────────────────────────────────────────────────────
-const MagneticBtn = ({ children, className, onClick, strength = 0.3 }) => {
-  const ref = useRef(null);
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const sx = useSpring(x, { stiffness: 300, damping: 20 });
-  const sy = useSpring(y, { stiffness: 300, damping: 20 });
-
-  const handleMove = (e) => {
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return;
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
-    x.set((e.clientX - cx) * strength);
-    y.set((e.clientY - cy) * strength);
-  };
-  const handleLeave = () => {
-    x.set(0);
-    y.set(0);
-  };
-
-  return (
-    <motion.button
-      ref={ref}
-      style={{ x: sx, y: sy }}
-      onMouseMove={handleMove}
-      onMouseLeave={handleLeave}
-      onClick={onClick}
-      className={className}
-    >
-      {children}
-    </motion.button>
-  );
-};
-
-// ─── Animated Number Card ─────────────────────────────────────────────────────
-const StatCard = ({ label, value, loading, decimals = 0, suffix = '' }) => {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true });
-  return (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 32 }}
-      animate={inView ? { opacity: 1, y: 0 } : {}}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-      className="relative group p-5 sm:p-8 rounded-2xl sm:rounded-3xl border border-white/[0.07] dark:border-white/[0.07] border-black/[0.07] bg-white/[0.03] dark:bg-white/[0.03] overflow-hidden hover:border-salvaGold/30 transition-all duration-500"
-    >
-      <div className="absolute inset-0 bg-gradient-to-br from-salvaGold/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-      <p className="text-[9px] uppercase tracking-[0.45em] text-salvaGold font-black mb-2 opacity-60">
-        {label}
-      </p>
-      <h3 className="text-3xl sm:text-5xl font-black tracking-tighter">
-        {loading ? (
-          <span className="opacity-20">—</span>
-        ) : typeof value === 'number' ? (
-          <CountUp to={value} decimals={decimals} suffix={suffix} />
-        ) : (
-          value
-        )}
-      </h3>
-    </motion.div>
-  );
-};
-
-// ─── Glowing Orb ─────────────────────────────────────────────────────────────
-const GlowOrb = ({ x, y, size, color, delay = 0 }) => (
-  <motion.div
-    initial={{ opacity: 0 }}
-    animate={{ opacity: [0, 0.6, 0.3, 0.7, 0], scale: [0.8, 1.2, 0.9, 1.1, 0.8] }}
-    transition={{ duration: 8, delay, repeat: Infinity, ease: 'easeInOut' }}
-    className="absolute rounded-full pointer-events-none blur-[80px]"
-    style={{ left: x, top: y, width: size, height: size, background: color }}
-  />
+const Chip = ({ children }) => (
+  <span className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold text-white">
+    {children}
+  </span>
 );
 
-// ─── DEX Visual ───────────────────────────────────────────────────────────────
-const DEXVisual = () => {
-  const [tab, setTab] = useState('buy');
-  const pools = [
-    {
-      name: 'charles.pool@salva',
-      rate: '₦1,490',
-      usd1Label: 'USDC',
-      usd1Val: '$29.01',
-      usd2Label: 'USDC',
-      usd2Val: '$0.00',
-      ngn: '10,000',
-      chain: 'Base',
-    },
-    {
-      name: 'jefta.pool@salva',
-      rate: '₦1,500',
-      usd1Label: 'USDT',
-      usd1Val: '$0.00',
-      usd2Label: 'USDC',
-      usd2Val: '$50.00',
-      ngn: '0',
-      chain: 'BSC',
-    },
-    {
-      name: 'amuobi.pool@salva',
-      rate: '₦1,480',
-      usd1Label: 'USDT',
-      usd1Val: '$100.00',
-      usd2Label: 'USDC',
-      usd2Val: '$0.00',
-      ngn: '5,000',
-      chain: 'Base',
-    },
-  ];
+const Field = ({ label, value, chip, sub }) => (
+  <div className="rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
+    <p className="text-xs font-medium text-white/45">{label}</p>
+    <div className="mt-1 flex items-center justify-between gap-3">
+      <p className="truncate text-2xl font-black tracking-tight text-white">{value}</p>
+      {chip && <Chip>{chip}</Chip>}
+    </div>
+    {sub && <p className="mt-1 text-xs text-white/40">{sub}</p>}
+  </div>
+);
+
+const SHOWCASE = [
+  {
+    id: 'send',
+    label: 'Send',
+    action: 'Send money',
+    render: () => (
+      <>
+        <Field label="To" value="pay.ngns@myexchange" />
+        <Field label="Amount" value="₦25,000" chip="NGNS" sub="Network fee: ₦0" />
+      </>
+    ),
+  },
+  {
+    id: 'swap',
+    label: 'Swap',
+    action: 'Swap now',
+    render: () => (
+      <>
+        <Field label="You pay" value="100,000" chip="NGNS" />
+        <Field
+          label="You get (about)"
+          value="65.00"
+          chip="USDC"
+          sub="Priced from the live market"
+        />
+      </>
+    ),
+  },
+  {
+    id: 'borrow',
+    label: 'Borrow',
+    action: 'Borrow NGNS',
+    render: () => (
+      <>
+        <Field label="You deposit" value="0.5" chip="ETH" />
+        <Field label="You borrow" value="₦500,000" chip="NGNS" />
+        <div className="rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.06] px-4 py-3">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span className="text-emerald-300">Your position looks healthy</span>
+            <span className="text-white/40">Safe</span>
+          </div>
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+            <div className="h-full w-[72%] rounded-full bg-emerald-400" />
+          </div>
+        </div>
+      </>
+    ),
+  },
+  {
+    id: 'earn',
+    label: 'Earn',
+    action: 'Start earning',
+    render: () => (
+      <>
+        <Field label="Rewards earned" value="+24.5" chip="SANT" sub="Just for using Salva" />
+        <div className="space-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.04] p-4">
+          {['Sent money', 'Made a swap', 'Provided liquidity'].map((item) => (
+            <div key={item} className="flex items-center gap-2.5 text-sm text-white/75">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-salvaGold/15 text-salvaGold">
+                <Check size={12} strokeWidth={3} />
+              </span>
+              {item}
+            </div>
+          ))}
+        </div>
+      </>
+    ),
+  },
+];
+
+const HeroCard = ({ onAction }) => {
+  const reduce = useReducedMotion();
+  const [active, setActive] = useState(0);
+  const [auto, setAuto] = useState(true);
+
+  useEffect(() => {
+    if (!auto || reduce) return undefined;
+    const timer = setInterval(() => setActive((i) => (i + 1) % SHOWCASE.length), 4500);
+    return () => clearInterval(timer);
+  }, [auto, reduce]);
+
+  const current = SHOWCASE[active];
 
   return (
-    <div className="relative rounded-3xl border border-salvaGold/20 overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-2xl">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.08),transparent)]" />
+    <div className="relative">
+      <div className="pointer-events-none absolute -inset-6 rounded-[3rem] bg-salvaGold/10 blur-3xl" />
+      <div className="relative overflow-hidden rounded-[2rem] border border-salvaGold/20 bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-4 shadow-2xl sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <div
+            role="tablist"
+            aria-label="What you can do with Salva"
+            className="flex gap-1 rounded-full bg-white/[0.06] p-1"
+          >
+            {SHOWCASE.map((item, i) => (
+              <button
+                key={item.id}
+                role="tab"
+                type="button"
+                aria-selected={active === i}
+                onClick={() => {
+                  setAuto(false);
+                  setActive(i);
+                }}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-salvaGold/70 sm:px-4 ${
+                  active === i ? 'bg-salvaGold text-black' : 'text-white/55 hover:text-white'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5 relative">
+        <div className="mt-5 min-h-[260px]">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={current.id}
+              role="tabpanel"
+              initial={reduce ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.28, ease: EASE }}
+              className="space-y-2.5"
+            >
+              {current.render()}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <button
+          type="button"
+          onClick={onAction}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-salvaGold py-3.5 text-sm font-black text-black transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-[0.99]"
+        >
+          {current.action}
+          <ArrowUpRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ───────────────────────────── Features ───────────────────────────── */
+
+const FEATURES = [
+  {
+    id: 'explore-wallet',
+    icon: Wallet,
+    title: 'A wallet that feels like banking',
+    body: 'Sign up with your email and a 4-digit PIN. Your wallet is ready in seconds, with no seed phrase to lose and no network fees to pay.',
+    cta: 'Create wallet',
+  },
+  {
+    id: 'explore-swap',
+    icon: ArrowLeftRight,
+    title: 'Swap any token in seconds',
+    body: 'Trade ETH, stablecoins and more at live market prices from independent merchants. Want to earn? List your own market and keep the margin you set on every sale.',
+    cta: 'Start swapping',
+  },
+  {
+    id: 'explore-borrow',
+    icon: Landmark,
+    title: 'Borrow Naira against your crypto',
+    body: 'Deposit supported crypto, borrow NGNS, and repay whenever you are ready to get your crypto back. Track your position from one screen.',
+    cta: 'Start borrowing',
+  },
+  {
+    id: 'explore-names',
+    icon: AtSign,
+    title: 'Send money to a name',
+    body: 'Claim a short name like pay.usdc@mybusiness and share it like an email. Lookalike names are blocked, so nobody can pose as you.',
+    cta: 'Claim your name',
+  },
+];
+
+const FeatureCard = ({ feature, onClick }) => {
+  const Icon = feature.icon;
+  return (
+    <article
+      id={feature.id}
+      className="group flex scroll-mt-28 flex-col rounded-[1.75rem] border border-black/[0.07] bg-black/[0.02] p-6 transition-colors hover:border-salvaGold/35 dark:border-white/[0.07] dark:bg-white/[0.025] sm:p-8"
+    >
+      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-salvaGold/10 text-salvaGold">
+        <Icon size={20} />
+      </span>
+      <h3 className="mt-6 text-xl font-black tracking-tight sm:text-2xl">{feature.title}</h3>
+      <p className="mt-3 max-w-md text-sm leading-relaxed text-black/60 dark:text-white/55 sm:text-base">
+        {feature.body}
+      </p>
+      <button
+        type="button"
+        onClick={onClick}
+        className="mt-6 inline-flex w-fit items-center gap-1.5 text-sm font-bold text-salvaGold transition-all hover:gap-2.5 focus:outline-none focus-visible:underline"
+      >
+        {feature.cta}
+        <ArrowUpRight size={15} />
+      </button>
+    </article>
+  );
+};
+
+/* ──────────────────────────────── SANT ─────────────────────────────── */
+
+const EARN_ROWS = [
+  { label: 'Send and receive money', planned: false },
+  { label: 'Swap tokens', planned: false },
+  { label: 'Provide liquidity', planned: false },
+  { label: 'Stake SANT', planned: true },
+];
+
+const SantSection = ({ onStart }) => (
+  <section id="explore-sant" className="mx-auto max-w-7xl scroll-mt-24 px-4 py-16 sm:px-6 sm:py-24">
+    <div className="relative overflow-hidden rounded-[2rem] border border-salvaGold/20 bg-gradient-to-br from-zinc-950 via-[#0f0e0a] to-zinc-950 p-6 text-white sm:rounded-[3rem] sm:p-14">
+      <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-salvaGold/10 blur-[110px]" />
+      <div className="relative grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
         <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/50 font-black">
-            Salva V3 DEX
-          </p>
-          <p className="text-base font-black text-white">Naira Exchange</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-full px-2.5 py-1">
-            <span className="text-[9px] text-white/40 font-black">Base</span>
-            <span className="text-white/20 text-[9px]">·</span>
-            <span className="text-[9px] text-white/40 font-black">BSC</span>
-          </div>
-          <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
-            <motion.span
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ repeat: Infinity, duration: 1.5 }}
-              className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-            />
-            <span className="text-[10px] text-green-400 font-black">Live</span>
+          <p className="text-sm font-bold text-salvaGold">SANT token</p>
+          <h2 className="mt-3 text-3xl font-black leading-[1.02] tracking-tighter sm:text-6xl">
+            Use the network.
+            <br />
+            Earn the network.
+          </h2>
+          <div className="mt-8 flex flex-wrap items-end gap-x-10 gap-y-4">
+            <button
+              type="button"
+              onClick={onStart}
+              className="inline-flex items-center gap-2 rounded-2xl bg-salvaGold px-6 py-3.5 text-sm font-black text-black transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-95"
+            >
+              Start earning <ArrowUpRight size={15} />
+            </button>
           </div>
         </div>
-      </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 mb-4 relative">
-        {[
-          { id: 'buy', label: 'NGN → USD', color: '#D4AF37' },
-          { id: 'sell', label: 'USD → NGN', color: '#22c55e' },
-        ].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className="flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all"
-            style={
-              tab === t.id
-                ? { background: t.color, color: '#000' }
-                : { background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.4)' }
-            }
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* Pool list */}
-      <div className="space-y-2 relative">
-        {pools.map((pool, i) => (
-          <motion.div
-            key={pool.name}
-            initial={{ opacity: 0, x: -12 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: i * 0.1, duration: 0.5 }}
-            className="p-3.5 rounded-2xl border border-white/5 bg-white/[0.03] hover:border-salvaGold/20 hover:bg-white/[0.05] transition-all group"
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-[11px] font-black text-salvaGold truncate">{pool.name}</p>
+        <div className="rounded-3xl border border-white/[0.08] bg-white/[0.03] p-2">
+          {EARN_ROWS.map((row, i) => (
+            <div
+              key={row.label}
+              className={`flex items-center justify-between gap-3 px-4 py-4 sm:px-5 ${
+                i !== EARN_ROWS.length - 1 ? 'border-b border-white/[0.06]' : ''
+              }`}
+            >
+              <div className="flex items-center gap-3">
                 <span
-                  className={`text-[8px] font-black px-1.5 py-0.5 rounded-full ${
-                    pool.chain === 'BSC'
-                      ? 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
-                      : 'bg-salvaGold/10 text-salvaGold/60 border border-salvaGold/20'
+                  className={`flex h-6 w-6 items-center justify-center rounded-full ${
+                    row.planned ? 'bg-white/[0.06] text-white/35' : 'bg-salvaGold/15 text-salvaGold'
                   }`}
                 >
-                  {pool.chain}
+                  <Check size={13} strokeWidth={3} />
+                </span>
+                <span
+                  className={`text-sm font-semibold sm:text-base ${
+                    row.planned ? 'text-white/60' : ''
+                  }`}
+                >
+                  {row.label}
                 </span>
               </div>
-              <span className="text-[10px] font-black text-white/60">{pool.rate}/USD</span>
-            </div>
-            <div className="grid grid-cols-3 gap-1.5 text-[9px]">
-              <div className="bg-white/5 rounded-lg px-2 py-1 text-center">
-                <p className="text-white/30 uppercase font-bold">Naira</p>
-                <p className="text-salvaGold/80 font-black">{pool.ngn}</p>
-              </div>
-              <div className="bg-green-500/5 border border-green-500/10 rounded-lg px-2 py-1 text-center">
-                <p className="text-green-400/50 uppercase font-bold">{pool.usd1Label}</p>
-                <p className="text-green-400 font-black">{pool.usd1Val}</p>
-              </div>
-              <div className="bg-blue-500/5 border border-blue-500/10 rounded-lg px-2 py-1 text-center">
-                <p className="text-blue-400/50 uppercase font-bold">{pool.usd2Label}</p>
-                <p className="text-blue-400 font-black">{pool.usd2Val}</p>
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </div>
-
-      <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center relative">
-        <span className="text-[9px] text-white/20 uppercase tracking-widest font-bold">
-          Permissionless · On-chain
-        </span>
-        <div className="flex items-center gap-1.5">
-          <span className="text-[9px] text-salvaGold/50 font-black">Base ⬡</span>
-          <span className="text-white/20 text-[9px]">·</span>
-          <span className="text-[9px] text-blue-400/50 font-black">BSC ◆</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ─── Name Resolution Visual ───────────────────────────────────────────────────
-const NameResolutionVisual = () => {
-  const [activeIdx, setActiveIdx] = useState(0);
-  const demos = [
-    {
-      alias: 'cboi@salva',
-      type: 'Individual · Salva',
-      dest: '0x8d7050a29c112638f0c9e0f103f3c498c2bd948b',
-    },
-    {
-      alias: 'suzy@coinbase',
-      type: 'Individual · Coinbase',
-      dest: '0xAb5801a7D398351b8bE11C439e05C5B3259aeC9f',
-    },
-    {
-      alias: 'charles.pool@salva',
-      type: 'Pool Contract · Salva',
-      dest: '0x85B839dA40615A5ad7439d200768F0603418F881',
-    },
-    {
-      alias: 'usdc.eth@usdc',
-      type: 'Protocol · USDC',
-      dest: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-    },
-  ];
-  useEffect(() => {
-    const t = setInterval(() => setActiveIdx((i) => (i + 1) % demos.length), 2200);
-    return () => clearInterval(t);
-  }, []);
-
-  return (
-    <div className="relative rounded-3xl border border-salvaGold/20 overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-2xl">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(212,175,55,0.07),transparent)]" />
-      <div className="flex items-center gap-2 mb-5 relative">
-        <motion.span
-          animate={{ opacity: [1, 0.3, 1] }}
-          transition={{ repeat: Infinity, duration: 1.5 }}
-          className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-        />
-        <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">
-          Live Resolution Engine
-        </p>
-      </div>
-      <div className="space-y-2.5 relative">
-        {demos.map((item, i) => (
-          <motion.div
-            key={i}
-            animate={{
-              opacity: activeIdx === i ? 1 : 0.15,
-              scale: activeIdx === i ? 1 : 0.97,
-              x: activeIdx === i ? 0 : -6,
-            }}
-            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col gap-1 bg-white/[0.04] border border-white/[0.06] rounded-2xl px-5 py-3.5"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-salvaGold font-black text-sm truncate">{item.alias}</span>
-              <motion.div
-                animate={{ x: activeIdx === i ? [0, 4, 0] : 0 }}
-                transition={{ repeat: activeIdx === i ? Infinity : 0, duration: 1.5 }}
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  row.planned ? 'bg-white/[0.06] text-white/45' : 'bg-salvaGold/10 text-salvaGold'
+                }`}
               >
-                <ArrowRight size={12} className="opacity-30 flex-shrink-0" />
-              </motion.div>
-              <span className="font-mono text-[10px] opacity-30 truncate max-w-[130px] hidden sm:block">
-                {item.dest.slice(0, 18)}…
+                {row.planned ? 'Coming soon' : 'Earns SANT'}
               </span>
             </div>
-            <span className="text-[9px] text-salvaGold/40 uppercase tracking-widest font-bold">
-              {item.type}
-            </span>
-          </motion.div>
-        ))}
-      </div>
-      <div className="mt-5 pt-4 border-t border-white/5 flex items-center justify-between relative">
-        <span className="text-[9px] opacity-20 uppercase tracking-widest font-bold">
-          Namespace-isolated · Phishing-resistant
-        </span>
-        <span className="text-[9px] text-green-500 font-black">● On-chain</span>
+          ))}
+        </div>
       </div>
     </div>
-  );
-};
+  </section>
+);
 
-// ─── Stablecoin Visual ────────────────────────────────────────────────────────
-const StablecoinVisual = () => {
-  const [price, setPrice] = useState(1.0);
-  const txs = [
-    { from: 'charles@salva', to: 'sandra@rabby', amt: '50,000 NGNs' },
-    { from: 'ola@metamask', to: 'emeka@salva', amt: '12,500 NGNs' },
-    { from: 'aisha@coinbase', to: 'peter@binance', amt: '200,000 NGNs' },
-  ];
-  useEffect(() => {
-    const t = setInterval(() => setPrice(1 + (Math.random() * 0.0006 - 0.0003)), 1800);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="relative rounded-3xl border border-salvaGold/20 overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-2xl">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(212,175,55,0.07),transparent)]" />
-      <div className="flex items-center justify-between mb-5 relative">
-        <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black mb-1">
-            NGNs / NGN
-          </p>
-          <div className="flex items-baseline gap-2">
-            <motion.span
-              key={price.toFixed(4)}
-              initial={{ y: -6, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              className="text-3xl font-black text-salvaGold"
-            >
-              ₦{price.toFixed(4)}
-            </motion.span>
-            <span className="text-[10px] text-green-400 font-black bg-green-500/10 px-2 py-0.5 rounded-full">
-              ± 0.03%
-            </span>
-          </div>
-        </div>
-        <div className="w-14 h-14 rounded-full bg-salvaGold/10 border-2 border-salvaGold/30 flex items-center justify-center">
-          <span className="text-2xl font-black text-salvaGold">₦</span>
-        </div>
-      </div>
-      <div className="space-y-2 mb-4 relative">
-        <p className="text-[9px] uppercase tracking-[0.3em] opacity-20 font-bold">
-          Recent On-Chain Transfers
-        </p>
-        {txs.map((tx, i) => (
-          <div
-            key={i}
-            className="flex items-center justify-between bg-white/[0.04] border border-white/[0.06] rounded-xl px-4 py-2.5"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="text-salvaGold text-[10px] font-black truncate max-w-[80px]">
-                {tx.from}
-              </span>
-              <ArrowRight size={10} className="opacity-20 flex-shrink-0" />
-              <span className="text-[10px] opacity-40 font-bold truncate max-w-[70px]">
-                {tx.to}
-              </span>
-            </div>
-            <span className="text-[10px] text-salvaGold font-black flex-shrink-0 ml-2">
-              {tx.amt}
-            </span>
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-3 gap-2 relative">
-        {['1 NGNs = ₦1', 'No FX Risk', 'Instant'].map((t) => (
-          <div
-            key={t}
-            className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center"
-          >
-            <span className="text-[9px] font-black text-salvaGold uppercase tracking-wider">
-              {t}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+/* ───────────────────────── How it works / FAQ ───────────────────────── */
 
-// ─── Wallet Visual ────────────────────────────────────────────────────────────
-const WalletVisual = () => {
-  const [balIdx, setBalIdx] = useState(0);
-  const balances = [
-    { label: 'NGNs Balance', val: '1,250,000', sym: 'NGNs', sub: '≈ ₦1,250,000' },
-    { label: 'USDT Balance', val: '823.50', sym: 'USDT', sub: '≈ $823.50' },
-    { label: 'USDC Balance', val: '410.00', sym: 'USDC', sub: '≈ $410.00' },
-  ];
-  useEffect(() => {
-    const t = setInterval(() => setBalIdx((i) => (i + 1) % balances.length), 2600);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="relative rounded-3xl border border-salvaGold/20 overflow-hidden bg-gradient-to-br from-zinc-950 via-zinc-900 to-zinc-950 p-6 shadow-2xl">
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.05),transparent)]" />
-      <div className="flex items-center justify-between mb-6 relative">
-        <div>
-          <p className="text-[9px] uppercase tracking-[0.4em] text-salvaGold/60 font-black">
-            Salva Smart Wallet
-          </p>
-          <p className="font-mono text-[10px] opacity-30 mt-1">cboi@salva · 0xb298...3Cb7</p>
-        </div>
-        <div className="flex items-center gap-1.5 bg-green-500/10 border border-green-500/20 rounded-full px-3 py-1">
-          <motion.span
-            animate={{ opacity: [1, 0.3, 1] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
-            className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-          />
-          <span className="text-[10px] text-green-400 font-black">Active</span>
-        </div>
-      </div>
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={balIdx}
-          initial={{ y: 12, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          exit={{ y: -12, opacity: 0 }}
-          transition={{ duration: 0.35 }}
-          className="mb-6 relative"
-        >
-          <p className="text-[9px] uppercase opacity-30 font-bold">{balances[balIdx].label}</p>
-          <p className="text-4xl font-black mt-1 text-white">
-            {balances[balIdx].val}{' '}
-            <span className="text-salvaGold text-xl">{balances[balIdx].sym}</span>
-          </p>
-          <p className="text-[10px] opacity-25 font-bold mt-1">{balances[balIdx].sub}</p>
-        </motion.div>
-      </AnimatePresence>
-      <div className="grid grid-cols-2 gap-3 mb-4 relative">
-        <div className="bg-salvaGold text-black font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">
-          SEND
-        </div>
-        <div className="border border-salvaGold/30 text-salvaGold font-black text-xs uppercase tracking-widest py-3 rounded-2xl text-center">
-          RECEIVE
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-2 relative">
-        {[
-          { icon: '⚡', label: 'Gasless' },
-          { icon: '🛡️', label: 'Safe AA' },
-          { icon: '🔵', label: 'Base L2' },
-        ].map((f) => (
-          <div
-            key={f.label}
-            className="bg-white/[0.04] border border-white/[0.06] rounded-xl py-2.5 text-center"
-          >
-            <p className="text-base">{f.icon}</p>
-            <p className="text-[9px] uppercase font-black text-salvaGold tracking-wider">
-              {f.label}
-            </p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
+const STEPS = [
+  {
+    title: 'Create your wallet',
+    desc: 'Use your email and a 4-digit PIN. It takes under two minutes.',
+  },
+  {
+    title: 'Claim your name',
+    desc: 'Pick a name like yourname@yournamespace so friends can pay you easily.',
+  },
+  { title: 'Send and swap', desc: 'Send money to anyone, or swap between tokens.' },
+  { title: 'Borrow and earn', desc: 'Borrow against your crypto and collect SANT as you go.' },
+];
 
-// ─── FAQ Item ─────────────────────────────────────────────────────────────────
+const FAQS = [
+  {
+    q: 'What is Salva?',
+    a: 'Salva is a simple wallet for Naira, dollars and more. You can send money to a name, swap between tokens, borrow against your crypto and earn rewards for using it.',
+  },
+  {
+    q: 'What is NGNS?',
+    a: 'NGNS is a digital Naira. One NGNS is always worth one Naira. You can send it, swap it for other tokens, or borrow it against your crypto.',
+  },
+  {
+    q: 'How does borrowing work?',
+    a: 'You deposit supported crypto as collateral and borrow NGNS against it. Repay whenever you like to get your collateral back. Borrowing carries risk: if the value of your collateral falls too far, your position can be liquidated, so add collateral or repay if you see it getting close.',
+  },
+  {
+    q: 'What is SANT and how do I get it?',
+    a: 'SANT is Salva’s reward token. It is designed to be earned by using the network, such as sending, receiving, swapping and providing liquidity.',
+  },
+  {
+    q: 'Who controls my money?',
+    a: 'You do.',
+  },
+  {
+    q: 'What is a Salva name?',
+    a: 'A short name like yourname@yournamespace that points to your wallet. People can send you money using the name instead of a long wallet address.',
+  },
+];
+
 const FAQItem = ({ question, answer }) => {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-b border-black/[0.06] dark:border-white/[0.06] last:border-0">
+    <div className="border-b border-black/[0.07] last:border-0 dark:border-white/[0.07]">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full py-6 flex justify-between items-center text-left group"
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="group flex w-full items-center justify-between gap-4 py-5 text-left focus:outline-none focus-visible:text-salvaGold sm:py-6"
       >
-        <span className="text-base sm:text-lg font-bold tracking-tight pr-4 group-hover:text-salvaGold transition-colors duration-300">
+        <span className="text-base font-bold tracking-tight transition-colors group-hover:text-salvaGold sm:text-lg">
           {question}
         </span>
-        <motion.div animate={{ rotate: open ? 135 : 0 }} transition={{ duration: 0.25 }}>
-          <div
-            className={`w-6 h-6 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${
-              open ? 'border-salvaGold bg-salvaGold text-black' : 'border-current opacity-30'
-            }`}
-          >
-            <span className="text-xs font-black leading-none">+</span>
-          </div>
-        </motion.div>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ duration: 0.25 }}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${
+            open
+              ? 'border-salvaGold bg-salvaGold text-black'
+              : 'border-black/20 text-black/50 dark:border-white/20 dark:text-white/50'
+          }`}
+        >
+          <ChevronDown size={15} />
+        </motion.span>
       </button>
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {open && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            transition={{ duration: 0.3, ease: EASE }}
             className="overflow-hidden"
           >
-            <p className="pb-6 opacity-55 leading-relaxed text-sm sm:text-base max-w-3xl">
+            <p className="max-w-3xl pb-6 text-sm leading-relaxed text-black/60 dark:text-white/55 sm:text-base">
               {answer}
             </p>
           </motion.div>
@@ -578,183 +455,110 @@ const FAQItem = ({ question, answer }) => {
   );
 };
 
-// ─── Ticker ───────────────────────────────────────────────────────────────────
-const Ticker = () => {
-  const items = [
-    'V3 DEX Live',
-    'Name Service Protocol',
-    'Naira Stablecoins',
-    'Safe Smart Wallet',
-    'Permissionless Pools',
-    'Gasless Transactions',
-    'On-Chain Identity',
-    'LP Earn Fees',
-    'Base + BNB Chain',
-    'Naira Stablecoins ↔ USD Stablecoins',
-  ];
+/* ─────────────────────────── Support modal ─────────────────────────── */
+
+const SupportModal = ({ onClose }) => {
+  useEffect(() => {
+    const onKey = (e) => e.key === 'Escape' && onClose();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  const inputClass =
+    'w-full rounded-2xl border border-black/10 bg-black/[0.04] p-4 text-sm outline-none transition-colors placeholder:opacity-40 focus:border-salvaGold/50 dark:border-white/10 dark:bg-white/5';
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const subject = `SALVA SUPPORT: ${String(fd.get('topic') || '').trim()}`;
+    const body = `Name: ${String(fd.get('name') || '').trim()}\nAccount: ${String(
+      fd.get('account') || ''
+    ).trim()}\nIssue: ${String(fd.get('message') || '').trim()}`;
+    window.location.href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(
+      subject
+    )}&body=${encodeURIComponent(body)}`;
+    onClose();
+  };
+
   return (
-    <div className="overflow-hidden py-4 border-y border-black/[0.06] dark:border-white/[0.06] my-24 bg-black/[0.02] dark:bg-white/[0.02]">
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Get help"
+    >
       <motion.div
-        animate={{ x: ['0%', '-50%'] }}
-        transition={{ duration: 24, ease: 'linear', repeat: Infinity }}
-        className="flex gap-8 whitespace-nowrap"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/85 backdrop-blur-md"
+      />
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0, y: 24 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.95, opacity: 0, y: 24 }}
+        transition={{ duration: 0.3, ease: EASE }}
+        className="relative w-full max-w-lg rounded-[2rem] border border-black/10 bg-white p-7 shadow-2xl dark:border-white/10 dark:bg-zinc-950 sm:p-9"
       >
-        {[...items, ...items].map((item, i) => (
-          <span
-            key={i}
-            className="text-[10px] font-black uppercase tracking-[0.35em] text-salvaGold/40 flex items-center gap-6"
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close"
+          className="absolute right-6 top-6 opacity-40 transition-opacity hover:opacity-100 focus:outline-none focus-visible:opacity-100"
+        >
+          <X size={22} />
+        </button>
+        <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Get help</h2>
+        <p className="mb-6 mt-1 text-sm text-black/50 dark:text-white/45">
+          Tell us what is going on and our team will get back to you.
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input required autoFocus name="name" placeholder="Full name" className={inputClass} />
+          <input
+            required
+            name="account"
+            placeholder="Salva account or name"
+            className={inputClass}
+          />
+          <input required name="topic" placeholder="What is this about?" className={inputClass} />
+          <textarea
+            required
+            name="message"
+            rows={4}
+            placeholder="How can we help?"
+            className={`${inputClass} resize-none`}
+          />
+          <button
+            type="submit"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-salvaGold py-4 text-sm font-black text-black transition hover:brightness-110 active:scale-[0.98]"
           >
-            {item} <span className="text-salvaGold/20">◆</span>
-          </span>
-        ))}
+            <Mail size={16} /> Send request
+          </button>
+        </form>
       </motion.div>
     </div>
   );
 };
 
-// ─── Feature Section ──────────────────────────────────────────────────────────
-const FeatureSection = ({
-  id,
-  index,
-  badge,
-  tag,
-  title,
-  headline,
-  body,
-  extContent,
-  visual,
-  cta,
-}) => {
-  const ref = useRef(null);
-  const inView = useInView(ref, { once: true, margin: '-100px' });
-  const fromLeft = index % 2 === 0;
-  return (
-    <section
-      id={id}
-      ref={ref}
-      className={`flex flex-col ${
-        fromLeft ? 'lg:flex-row' : 'lg:flex-row-reverse'
-      } gap-8 lg:gap-24 items-start py-14 sm:py-24 border-b border-black/[0.05] dark:border-white/[0.05]`}
-    >
-      <motion.div
-        initial={{ opacity: 0, x: fromLeft ? -40 : 40 }}
-        animate={inView ? { opacity: 1, x: 0 } : {}}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-        className="flex-1 space-y-4 sm:space-y-7"
-      >
-        <div className="flex items-center gap-3">
-          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-[0.35em] border border-salvaGold/30 text-salvaGold bg-salvaGold/5">
-            {badge && <span>{badge}</span>}
-            {tag}
-          </span>
-        </div>
-        <div>
-          <h2 className="text-2xl sm:text-5xl font-black tracking-tighter leading-[0.92] mb-3">
-            {title}
-          </h2>
-          <p className="text-base sm:text-xl text-salvaGold font-bold opacity-75">{headline}</p>
-        </div>
-        <p className="text-sm sm:text-base opacity-55 leading-relaxed">{body}</p>
-        <div className="space-y-4 text-sm leading-relaxed opacity-65">{extContent}</div>
-        {cta && <div className="pt-2">{cta}</div>}
-      </motion.div>
-      <motion.div
-        initial={{ opacity: 0, x: fromLeft ? 40 : -40 }}
-        animate={inView ? { opacity: 1, x: 0 } : {}}
-        transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1], delay: 0.18 }}
-        className="flex-1 w-full lg:sticky lg:top-28"
-      >
-        {visual}
-      </motion.div>
-    </section>
-  );
-};
+/* ─────────────────────────────── Page ─────────────────────────────── */
 
-// ─── Support Modal ────────────────────────────────────────────────────────────
-const SupportModal = ({ onClose }) => (
-  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={onClose}
-      className="absolute inset-0 bg-black/90 backdrop-blur-md"
-    />
-    <motion.div
-      initial={{ scale: 0.9, opacity: 0, y: 30 }}
-      animate={{ scale: 1, opacity: 1, y: 0 }}
-      exit={{ scale: 0.9, opacity: 0, y: 30 }}
-      className="relative w-full max-w-lg bg-white dark:bg-zinc-950 border border-black/10 dark:border-white/10 rounded-[2.5rem] p-8 sm:p-10 shadow-2xl"
-    >
-      <button
-        onClick={onClose}
-        className="absolute top-8 right-8 opacity-40 hover:opacity-100 transition-opacity"
-      >
-        <X size={24} />
-      </button>
-      <div className="mb-7">
-        <h2 className="text-3xl font-black tracking-tighter mb-1 uppercase">Get Help</h2>
-        <p className="text-sm opacity-40 uppercase tracking-widest font-bold">
-          Direct line to Salva Support
-        </p>
-      </div>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          const fd = new FormData(e.target);
-          window.location.href = `mailto:charlieonyii42@gmail.com?subject=${encodeURIComponent(
-            'SALVA SUPPORT: ' + fd.get('topic')
-          )}&body=${encodeURIComponent(
-            `Name: ${fd.get('name')}\nAccount: ${fd.get('account')}\nIssue: ${fd.get('message')}`
-          )}`;
-          onClose();
-        }}
-        className="space-y-3"
-      >
-        {[
-          { name: 'name', placeholder: 'Full Name' },
-          { name: 'account', placeholder: 'Salva Account / Alias' },
-          { name: 'topic', placeholder: 'Topic' },
-        ].map((f) => (
-          <input
-            key={f.name}
-            required
-            name={f.name}
-            placeholder={f.placeholder}
-            className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 transition-colors placeholder:opacity-30 text-sm"
-          />
-        ))}
-        <textarea
-          required
-          name="message"
-          rows={4}
-          placeholder="How can we help?"
-          className="w-full bg-black/[0.04] dark:bg-white/5 border border-black/10 dark:border-white/10 rounded-2xl p-4 outline-none focus:border-salvaGold/50 resize-none transition-colors placeholder:opacity-30 text-sm"
-        />
-        <button
-          type="submit"
-          className="w-full py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-sm"
-        >
-          <Mail size={16} /> Send Request
-        </button>
-      </form>
-    </motion.div>
-  </div>
-);
+const scrollToId = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
 const Home = () => {
-  const [stats, setStats] = useState({ totalMinted: 0, userCount: 0 });
-  const [statsLoading, setStatsLoading] = useState(true);
+  const navigate = useNavigate();
+  const reduce = useReducedMotion();
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [supportOpen, setSupportOpen] = useState(false);
-  const navigate = useNavigate();
 
-  const { scrollY } = useScroll();
-  const heroOpacity = useTransform(scrollY, [0, 600], [1, 0]);
-  const heroY = useTransform(scrollY, [0, 600], [0, 40]);
-  const heroScale = useTransform(scrollY, [0, 600], [1, 0.99]);
+  const goLogin = () => navigate('/login');
 
+  // Signed-in users go straight to the dashboard.
   useEffect(() => {
     try {
       const saved = localStorage.getItem('salva_user');
@@ -772,610 +576,260 @@ const Home = () => {
     }
   }, [navigate]);
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch(`${SALVA_API_URL}/api/data/stats`);
-        if (!res.ok) return;
-        const d = await res.json();
-        if (!d.status || !d.data) return;
-        setStats({
-          totalMinted: parseFloat(d.data.ngnsCirculating || 0),
-          userCount: parseInt(d.data.usersCount || 0),
-        });
-      } catch {
-      } finally {
-        setStatsLoading(false);
-      }
-    };
-    load();
-    const iv = setInterval(load, 60000);
-    return () => clearInterval(iv);
-  }, []);
-
-  if (checkingAuth)
+  if (checkingAuth) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-[#0A0A0B]">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-[#0A0A0B]">
         <motion.div
-          animate={{ opacity: [0.3, 1, 0.3] }}
+          animate={reduce ? undefined : { opacity: [0.3, 1, 0.3] }}
           transition={{ repeat: Infinity, duration: 2 }}
-          className="text-salvaGold font-black text-2xl uppercase tracking-[0.5em]"
+          className="text-2xl font-black tracking-[0.4em] text-salvaGold"
         >
           SALVA
         </motion.div>
       </div>
     );
+  }
+
+  const heroItem = (delay) => ({
+    initial: reduce ? false : { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0 },
+    transition: { duration: 0.9, delay, ease: EASE },
+  });
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0A0A0B] text-black dark:text-white overflow-x-hidden transition-colors duration-300">
+    <div className="home-mobile-scale min-h-screen overflow-x-hidden bg-white text-black transition-colors duration-300 dark:bg-[#0A0A0B] dark:text-white">
+      <HomeMobileScaleStyle />
       <SEOMeta />
       <Stars />
-
-      {/* ── HERO ─────────────────────────────────────────────────────────── */}
-      <motion.section
-        style={{ opacity: heroOpacity, y: heroY, scale: heroScale }}
-        className="min-h-screen flex flex-col justify-center items-center text-center pt-20 pb-12 px-4 sm:px-6"
-      >
-        {/* Background glows */}
-        <div className="absolute inset-0 pointer-events-none overflow-hidden">
-          <GlowOrb x="60%" y="10%" size="500px" color="rgba(212,175,55,0.06)" delay={0} />
-          <GlowOrb x="10%" y="50%" size="400px" color="rgba(212,175,55,0.04)" delay={3} />
-          <GlowOrb x="75%" y="60%" size="300px" color="rgba(34,197,94,0.03)" delay={6} />
+      {/* ── Hero ── */}
+      <section className="relative px-4 pb-14 pt-20 sm:px-6 sm:pb-20 sm:pt-24">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-40 right-[-10%] h-[520px] w-[520px] rounded-full bg-salvaGold/[0.07] blur-[120px]" />
+          <div className="absolute bottom-0 left-[-10%] h-[380px] w-[380px] rounded-full bg-salvaGold/[0.04] blur-[110px]" />
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 max-w-5xl mx-auto w-full"
-        >
-          <motion.h1
-            initial={{ opacity: 0, y: 28 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="text-[clamp(1.9rem,6vw,7.5rem)] font-black mb-6 tracking-tighter leading-[0.86] px-2"
-          >
-            ON-CHAIN
-            <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-salvaGold via-yellow-300 to-salvaGold animate-[shimmer_3s_linear_infinite]">
+        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          <div>
+            <motion.h1
+              {...heroItem(0.1)}
+              className="text-[clamp(2.4rem,7vw,5.75rem)] font-black leading-[0.94] tracking-tighter"
+            >
+              ON-CHAIN
+              <br />
               PAYMENT RAILS.
-            </span>
-          </motion.h1>
+            </motion.h1>
 
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.55, duration: 0.8 }}
-            className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-10"
-          >
-            <MagneticBtn
-              onClick={() => navigate('/login')}
-              className="w-full sm:w-auto px-7 py-3 bg-salvaGold text-black font-black rounded-xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-            >
-              Create Free Wallet <ArrowUpRight size={13} />
-            </MagneticBtn>
-            <MagneticBtn
-              onClick={() => navigate('/login')}
-              className="w-full sm:w-auto px-7 py-3 border border-black/10 dark:border-white/10 font-bold rounded-xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-            >
-              Open DEX <ArrowUpRight size={13} />
-            </MagneticBtn>
-            <MagneticBtn
-              onClick={() =>
-                document.getElementById('explore-dex')?.scrollIntoView({ behavior: 'smooth' })
-              }
-              className="w-full sm:w-auto px-7 py-3 border border-black/10 dark:border-white/10 font-bold rounded-xl hover:border-salvaGold/40 hover:bg-salvaGold/5 transition-all text-xs uppercase tracking-widest"
-            >
-              Explore V3 ↓
-            </MagneticBtn>
-          </motion.div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-            <StatCard label="NGNs Circulating" value={stats.totalMinted} loading={statsLoading} />
-            <StatCard label="Salva Citizens" value={stats.userCount} loading={statsLoading} />
-          </div>
-        </motion.div>
-
-        <motion.div
-          className="absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 opacity-20"
-          animate={{ y: [0, 8, 0] }}
-          transition={{ repeat: Infinity, duration: 2.5 }}
-        >
-          <span className="text-[9px] uppercase tracking-[0.4em] font-bold">Scroll</span>
-          <ChevronDown size={14} />
-        </motion.div>
-      </motion.section>
-
-      <Ticker />
-
-      {/* ── FEATURES ──────────────────────────────────────────────────────── */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6">
-        {/* V3 DEX */}
-        <FeatureSection
-          id="explore-dex"
-          index={0}
-          badge="🔄"
-          tag="Salva V3 DEX"
-          title="Swap between Naira Stablecoins & USD Stablecoins Instantly."
-          headline="Permissionless liquidity pools — anyone can be an LP."
-          body="Salva V3 introduces a full on-chain DEX where liquidity providers deploy pools and set their own rates. Users swap between Naira Stablecoins and USD Stablecoins in seconds — no bridges, no CEX, no delay."
-          extContent={
-            <div className="space-y-4">
-              <p>
-                <strong className="text-black dark:text-white">Become an LP.</strong> Deploy your
-                own pool, add Naira or USD stablecoins, set your buy/sell rates, get listed on the
-                swap marketplace. Earn on every swap through your spread.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">Two chains. One marketplace.</strong>{' '}
-                Pools benefit from ultra-low fees and fast confirmations. Pools on BSC offer direct
-                access to the broadest liquidity ecosystem. Both are listed side-by-side on the swap
-                marketplace.
-              </p>
-            </div>
-          }
-          visual={<DEXVisual />}
-          cta={
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
-            >
-              Start Swapping <ArrowUpRight size={15} />
-            </button>
-          }
-        />
-
-        {/* Name Service */}
-        <FeatureSection
-          id="explore-name-service"
-          index={1}
-          badge="🔗"
-          tag="Salva Naming Service (SNS)"
-          title="Your Name. Your Wallet. Everywhere."
-          headline="No more copying wallet addresses."
-          body="Register charles@salva and share it like an email. Anyone on Salva — or any SNS-compatible app — can send money directly to that name. One name, any wallet, any chain."
-          extContent={
-            <div className="space-y-4">
-              <p>
-                <strong className="text-black dark:text-white">Name your pool.</strong> V3 lets you
-                link your pool contract to an SNS name like charles.pool@salva. Users see a
-                human-readable identity instead of a hex address on the swap marketplace.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">Namespace-isolated.</strong>{' '}
-                charles@salva and charles@coinbase are completely separate identities. No collisions
-                between ecosystems.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">
-                  Phishing-resistant by design.
-                </strong>{' '}
-                Similar-sounding names are treated as identical at contract level. Nobody can
-                register a lookalike to trick your contacts.
-              </p>
-            </div>
-          }
-          visual={<NameResolutionVisual />}
-          cta={
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
-            >
-              Get a Name <ArrowUpRight size={15} />
-            </button>
-          }
-        />
-
-        {/* Smart Wallet */}
-        <FeatureSection
-          id="explore-wallet"
-          index={2}
-          badge="🛡️"
-          tag="Salva Smart Wallet"
-          title="A Wallet That Feels Like Banking."
-          headline="No seed phrase. No gas. No confusion."
-          body="Sign up with your email, set a 4-digit PIN, and Salva creates a Safe-powered smart contract wallet for you instantly. Every transaction — swap, transfer, DEX trade — is gasless."
-          extContent={
-            <div className="space-y-4">
-              <p>
-                <strong className="text-black dark:text-white">Non-custodial.</strong> Your keys are
-                encrypted. Salva never sees it in plaintext. Only your PIN unlocks it.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">Safe AA architecture.</strong> Built
-                on the same institutional-grade smart account tech protecting billions in DeFi.
-                Multisig-level security with consumer-grade UX.
-              </p>
-              <p>
-                <strong className="text-black dark:text-white">One wallet, everything.</strong> Send
-                Naira stablecoins. Swap on the DEX. Register names. Become an LP. All from the same
-                wallet, all gasless.
-              </p>
-            </div>
-          }
-          visual={<WalletVisual />}
-          cta={
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
-            >
-              Create Smart Wallet <ArrowUpRight size={15} />
-            </button>
-          }
-        />
-
-        {/* NGNs */}
-        <FeatureSection
-          id="explore-ngns"
-          index={3}
-          badge="₦"
-          tag="NGNs Stablecoin"
-          title="Nigerian Naira. On-Chain."
-          headline="1 NGNs = ₦1. Always."
-          body="NGNs is a digital Naira stablecoin pegged 1:1 and tradeable on Salva's DEX against USD stablecoins. Buy it from the OTC desk, and send it to anyone in seconds."
-          extContent={
-            <div className="space-y-4">
-              <p>
-                <strong className="text-black dark:text-white">Instant settlement.</strong>{' '}
-                Transactions confirm in seconds. Every transfer is on-chain and permanently
-                verifiable across Base and BSC.
-              </p>
-            </div>
-          }
-          visual={<StablecoinVisual />}
-          cta={
-            <button
-              onClick={() => navigate('/login')}
-              className="inline-flex items-center gap-2 px-8 py-4 bg-salvaGold text-black font-black rounded-2xl hover:brightness-110 active:scale-95 transition-all shadow-lg shadow-salvaGold/20 text-sm uppercase tracking-widest"
-            >
-              Buy NGNs <ArrowUpRight size={15} />
-            </button>
-          }
-        />
-      </div>
-
-      {/* ── HOW IT WORKS ─────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-24 text-center">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-80px' }}
-          transition={{ duration: 0.9 }}
-        >
-          <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-4 opacity-60">
-            Get started in minutes
-          </p>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter mb-16">How It Works</h2>
-        </motion.div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            {
-              n: '01',
-              title: 'Create Wallet',
-              desc: 'Email + 4-digit PIN. Your Safe smart wallet is live in seconds. No seed phrase.',
-            },
-            {
-              n: '02',
-              title: 'Register Name',
-              desc: 'Claim yourname@salva. Link it to your wallet or your pool contract.',
-            },
-            {
-              n: '03',
-              title: 'Send & Receive',
-              desc: 'Send Naira or USD stablecoins to any name or address. Gasless. Instant.',
-            },
-            {
-              n: '04',
-              title: 'Swap on DEX',
-              desc: 'Trade between Naira and USD stablecoins on Salva V3. Or become an LP and earn from your spread.',
-            },
-          ].map((step, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: '-50px' }}
-              transition={{ duration: 0.7, delay: i * 0.1 }}
-              className="relative p-4 sm:p-7 rounded-2xl sm:rounded-3xl border border-black/[0.06] dark:border-white/[0.06] bg-black/[0.02] dark:bg-white/[0.02] hover:border-salvaGold/30 hover:bg-salvaGold/[0.02] transition-all group text-left"
-            >
-              <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-              <span className="text-3xl sm:text-5xl font-black text-salvaGold/10 group-hover:text-salvaGold/25 transition-colors block mb-3">
-                {step.n}
-              </span>
-              <h4 className="font-black text-sm mb-1.5">{step.title}</h4>
-              <p className="text-[10px] sm:text-xs opacity-45 leading-relaxed">{step.desc}</p>
+            <motion.div {...heroItem(0.2)} className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={goLogin}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-salvaGold px-7 py-4 text-sm font-black text-black shadow-lg shadow-salvaGold/20 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-salvaGold/70 active:scale-95"
+              >
+                Create wallet <ArrowUpRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToId('explore-wallet')}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-black/10 px-7 py-4 text-sm font-bold transition hover:border-salvaGold/40 hover:bg-salvaGold/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-salvaGold/70 dark:border-white/10"
+              >
+                See what you can do
+                <ChevronDown size={16} />
+              </button>
             </motion.div>
-          ))}
+          </div>
+
+          <motion.div {...heroItem(0.25)}>
+            <HeroCard onAction={goLogin} />
+          </motion.div>
         </div>
       </section>
-
-      {/* ── V3 CALLOUT ───────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-8 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.9 }}
-          className="relative p-6 sm:p-16 rounded-[2rem] sm:rounded-[3rem] border border-salvaGold/15 overflow-hidden"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-salvaGold/6 via-transparent to-salvaGold/3" />
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(212,175,55,0.06),transparent)]" />
-          <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-salvaGold/40 to-transparent" />
-          <div className="relative text-center">
-            <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-5 opacity-60">
-              What's new on V3
-            </p>
-            <h2 className="text-2xl sm:text-5xl font-black tracking-tighter mb-4">
-              Permissionless DEX.
-              <br />
-              <span className="text-salvaGold">Anyone can be an LP.</span>
-            </h2>
-            <p className="text-sm sm:text-lg opacity-50 max-w-2xl mx-auto leading-relaxed mb-8">
-              Deploy a liquidity pool, fund it with Naira or USD stablecoins, and set your rate.
-              Your pool earns on every swap through your bid-ask spread. Fully on-chain. Fully
-              permissionless.
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { stat: '100%', label: 'On-chain' },
-                { stat: '₦0', label: 'Gas to swapper' },
-                { stat: 'Base + BNB', label: 'Networks' },
-                { stat: 'V3', label: 'Permissionless' },
-              ].map((item) => (
-                <div
-                  key={item.stat}
-                  className="p-5 rounded-2xl bg-black/[0.04] dark:bg-white/[0.04] border border-salvaGold/10"
-                >
-                  <p className="text-2xl font-black text-salvaGold">{item.stat}</p>
-                  <p className="text-[9px] uppercase tracking-widest opacity-35 font-bold mt-1">
-                    {item.label}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* ── FAQ ──────────────────────────────────────────────────────────── */}
-      <section className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-24">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.9 }}
-          className="text-center mb-14"
-        >
-          <p className="text-[10px] uppercase tracking-[0.45em] text-salvaGold font-black mb-4 opacity-60">
-            Everything you need to know
+      {/* ── What you can do ── */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl font-black leading-[1.02] tracking-tighter sm:text-5xl">
+            Everything you need to move money, in one place.
+          </h2>
+          <p className="mt-4 text-base text-black/60 dark:text-white/55 sm:text-lg">
+            Payments, swaps, borrowing and rewards, all in one wallet.
           </p>
-          <h2 className="text-4xl sm:text-5xl font-black tracking-tighter">FAQs</h2>
-        </motion.div>
-        <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.8, delay: 0.15 }}
-        >
-          {[
-            {
-              q: 'What does V3 introduce?',
-              a: 'Salva V3 introduces a full on-chain DEX to the existing name service and Naira stablecoin stack. Liquidity providers deploy pools, set their own rates between Naira and USD stablecoins, and earn through their bid-ask spread. Users swap via their Safe smart wallet — gasless, instant, permissionless.',
-            },
-            {
-              q: 'How do I become a liquidity provider?',
-              a: 'Go to the Deploy Pool tab in your Dashboard. Choose Base or BSC. Deploy your pool, add Naira Stablecoins or USD Stablecoins, set your buy/sell rates, then subscribe to list it on the swap marketplace. Your pool earns every time someone swaps through it.',
-            },
-            {
-              q: 'What is a Salva name?',
-              a: 'A short, human-readable alias — like charles@base or charles.pool@salva. Anyone can send money to that name directly. V3 extends this so your pool contract can also have a name, making it identifiable on the DEX marketplace.',
-            },
-            {
-              q: 'Is Salva wallet self-custodial?',
-              a: 'Yes. Your private key is encrypted. Salva never sees it in plaintext. Only your 4-digit PIN decrypts it locally to sign transactions. Not even Salva can move your funds.',
-            },
-            {
-              q: 'What is NGNs?',
-              a: "A Nigerian Naira stablecoin pegged 1:1. 1 NGNs = ₦1. It's used for transfers, name registration, pool subscriptions, and DEX swaps against USD stablecoins. No FX exposure, no volatility.",
-            },
-          ].map((faq, i) => (
-            <FAQItem key={i} question={faq.q} answer={faq.a} />
+        </div>
+        <div className="mt-10 grid gap-4 sm:mt-14 md:grid-cols-2">
+          {FEATURES.map((feature) => (
+            <FeatureCard key={feature.id} feature={feature} onClick={goLogin} />
           ))}
-        </motion.div>
+        </div>
       </section>
-
-      {/* ── CTA BANNER ───────────────────────────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-28">
-        <motion.div
-          initial={{ opacity: 0, y: 28 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.9 }}
-          className="relative p-7 sm:p-20 rounded-[2rem] sm:rounded-[3rem] bg-salvaGold overflow-hidden text-center"
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.2),transparent)]" />
-          <motion.div
-            animate={{
-              x: ['0%', '3%', '0%', '-3%', '0%'],
-              y: ['0%', '-3%', '0%', '3%', '0%'],
-            }}
-            transition={{ repeat: Infinity, duration: 14, ease: 'easeInOut' }}
-            className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"
-          />
-          <motion.div
-            animate={{
-              x: ['0%', '-4%', '0%', '4%', '0%'],
-              y: ['0%', '4%', '0%', '-4%', '0%'],
-            }}
-            transition={{ repeat: Infinity, duration: 18, ease: 'easeInOut' }}
-            className="absolute bottom-0 left-0 w-56 h-56 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2"
-          />
-          <div className="relative z-10">
-            <p className="text-black/50 font-black text-[10px] uppercase tracking-[0.45em] mb-4">
-              V3 is live — start now
-            </p>
-            <h2 className="text-2xl sm:text-6xl font-black tracking-tighter text-black mb-4 leading-[0.9]">
-              Claim Your Name.
-              <br />
-              Swap Your Naira Stablecoins.
-            </h2>
-            <p className="text-black/55 text-sm sm:text-lg mb-7 max-w-lg mx-auto leading-relaxed">
-              One wallet. DEX access. Naira stablecoin. Human-readable identity. All free to start.
-              Under two minutes.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 justify-center">
-              <button
-                onClick={() => navigate('/login')}
-                className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-black text-salvaGold font-black rounded-xl hover:bg-zinc-900 active:scale-95 transition-all text-xs uppercase tracking-widest shadow-2xl shadow-black/30"
-              >
-                Get Started Free <ArrowUpRight size={14} />
-              </button>
-              <button
-                onClick={() => navigate('/login')}
-                className="inline-flex items-center justify-center gap-2 px-7 py-4 border-2 border-black/20 text-black font-black rounded-xl hover:border-black/40 hover:bg-black/5 active:scale-95 transition-all text-xs uppercase tracking-widest"
-              >
-                Open DEX <ArrowUpRight size={14} />
-              </button>
-            </div>
-          </div>
-        </motion.div>
-      </section>
-
-      {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-      <footer className="max-w-7xl mx-auto px-4 sm:px-6 py-16 border-t border-black/[0.05] dark:border-white/[0.05]">
-        <div className="flex flex-col md:flex-row justify-between items-start gap-12">
-          <div className="max-w-xs">
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-2xl font-black tracking-tighter text-salvaGold">SALVA</h2>
-              <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-salvaGold/10 text-salvaGold border border-salvaGold/20">
-                V3
+      {/* ── SANT ── */}
+      <SantSection onStart={goLogin} />
+      {/* ── How it works ── */}
+      <section className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-24">
+        <h2 className="max-w-xl text-3xl font-black leading-[1.02] tracking-tighter sm:text-5xl">
+          Up and running in minutes.
+        </h2>
+        <ol className="mt-10 grid gap-4 sm:mt-14 sm:grid-cols-2 lg:grid-cols-4">
+          {STEPS.map((step, i) => (
+            <li
+              key={step.title}
+              className="rounded-[1.5rem] border border-black/[0.07] bg-black/[0.02] p-6 dark:border-white/[0.07] dark:bg-white/[0.025]"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-salvaGold text-sm font-black text-black">
+                {i + 1}
               </span>
+              <h3 className="mt-5 text-lg font-black tracking-tight">{step.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-black/60 dark:text-white/55">
+                {step.desc}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
+      {/* ── FAQ ── */}
+      <section className="mx-auto max-w-4xl px-4 py-16 sm:px-6 sm:py-24">
+        <h2 className="text-center text-3xl font-black tracking-tighter sm:text-5xl">
+          Questions, answered.
+        </h2>
+        <div className="mt-10 sm:mt-14">
+          {FAQS.map((faq) => (
+            <FAQItem key={faq.q} question={faq.q} answer={faq.a} />
+          ))}
+        </div>
+      </section>
+      {/* ── Closing call to action ── */}
+      <section className="mx-auto max-w-5xl px-4 pb-24 sm:px-6 sm:pb-28">
+        <div className="relative overflow-hidden rounded-[2rem] bg-salvaGold p-8 text-center sm:rounded-[3rem] sm:p-20">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(255,255,255,0.25),transparent_60%)]" />
+          <div className="relative">
+            <h2 className="text-3xl font-black leading-[0.95] tracking-tighter text-black sm:text-6xl">
+              Take your money
+              <br />
+              on-chain today.
+            </h2>
+            <p className="mx-auto mt-5 max-w-lg text-sm leading-relaxed text-black/65 sm:text-lg">
+              Create your wallet, claim your name and start earning SANT. It’s free to start and
+              takes less than two minutes.
+            </p>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={goLogin}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-black px-8 py-4 text-sm font-black text-salvaGold shadow-2xl shadow-black/30 transition hover:bg-zinc-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-95"
+              >
+                Get started free <ArrowUpRight size={15} />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollToId('explore-sant')}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border-2 border-black/20 px-8 py-4 text-sm font-black text-black transition hover:border-black/40 hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-black/60 active:scale-95"
+              >
+                Learn about SANT
+              </button>
             </div>
-            <p className="text-[10px] uppercase tracking-[0.4em] opacity-25 font-bold mb-4">
-              On-Chain Payment Infrastructure
-            </p>
-            <p className="text-sm opacity-35 leading-relaxed">
-              DEX. Names. Naira Stablecoin. Smart Wallet. Base & BSC. Non-custodial.
-            </p>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 text-sm">
-            {[
-              {
-                heading: 'Protocol',
-                links: [
-                  { label: 'V3 DEX', id: 'explore-dex' },
-                  { label: 'Name Service', id: 'explore-name-service' },
-                  { label: 'Smart Wallet', id: 'explore-wallet' },
-                  { label: 'NGNs', id: 'explore-ngns' },
-                ],
-              },
-              {
-                heading: 'Build',
-                links: [
-                  { label: 'GitHub', href: 'https://github.com/salva-Nexus' },
-                  { label: 'Twitter', href: 'https://x.com/salva_Nexus' },
-                ],
-              },
-              {
-                heading: 'Support',
-                links: [{ label: 'Get Help', action: () => setSupportOpen(true) }],
-              },
-              { heading: 'Network', links: [] },
-            ].map((col) => (
-              <div key={col.heading}>
-                <p className="text-[10px] uppercase tracking-widest opacity-25 font-black mb-3">
-                  {col.heading}
-                </p>
-                <div className="space-y-2.5">
-                  {col.links.map((link) =>
-                    link.href ? (
-                      <a
-                        key={link.label}
-                        href={link.href}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="block opacity-40 hover:opacity-100 hover:text-salvaGold transition-all"
-                      >
-                        {link.label}
-                      </a>
-                    ) : link.action ? (
-                      <button
-                        key={link.label}
-                        onClick={link.action}
-                        className="block opacity-40 hover:opacity-100 hover:text-salvaGold transition-all text-left"
-                      >
-                        {link.label}
-                      </button>
-                    ) : (
-                      <button
-                        key={link.label}
-                        onClick={() =>
-                          document.getElementById(link.id)?.scrollIntoView({ behavior: 'smooth' })
-                        }
-                        className="block opacity-40 hover:opacity-100 hover:text-salvaGold transition-all text-left"
-                      >
-                        {link.label}
-                      </button>
-                    )
-                  )}
-                  {col.heading === 'Network' && (
-                    <div className="space-y-1.5">
-                      <span className="flex items-center gap-1.5 text-salvaGold font-bold opacity-70">
-                        <motion.span
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ repeat: Infinity, duration: 2 }}
-                          className="w-1.5 h-1.5 bg-green-500 rounded-full block"
-                        />
-                        Base Mainnet
-                      </span>
-                      <span className="flex items-center gap-1.5 text-blue-400 font-bold opacity-70">
-                        <motion.span
-                          animate={{ opacity: [1, 0.3, 1] }}
-                          transition={{ repeat: Infinity, duration: 2, delay: 0.5 }}
-                          className="w-1.5 h-1.5 bg-blue-400 rounded-full block"
-                        />
-                        BNB Smart Chain
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-12 pt-8 border-t border-black/[0.05] dark:border-white/[0.05]">
-          <p className="text-[10px] opacity-15 uppercase tracking-widest font-bold">
-            © 2025 Salva Protocol. Non-custodial. Open Source.
+      </section>
+      {/* ── Footer ── */}
+      <footer className="mx-auto max-w-7xl border-t border-black/[0.06] px-4 py-14 dark:border-white/[0.06] sm:px-6">
+        <div className="flex flex-col justify-between gap-12 md:flex-row">
+          <div className="max-w-xs">
+            <h2 className="text-2xl font-black tracking-tighter text-salvaGold">SALVA</h2>
+            <p className="mt-3 text-sm leading-relaxed text-black/50 dark:text-white/40">
+              Send, swap, borrow and earn with Naira, dollars and more. You stay in control of your
+              money.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-8 text-sm sm:grid-cols-4">
+            <div>
+              <p className="mb-3 text-xs font-bold text-black/40 dark:text-white/35">Explore</p>
+              <div className="space-y-2.5">
+                {[
+                  ['Wallet', 'explore-wallet'],
+                  ['Swap', 'explore-swap'],
+                  ['Borrow', 'explore-borrow'],
+                  ['Names', 'explore-names'],
+                  ['SANT', 'explore-sant'],
+                ].map(([label, id]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => scrollToId(id)}
+                    className="block text-left opacity-60 transition hover:text-salvaGold hover:opacity-100"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-xs font-bold text-black/40 dark:text-white/35">Community</p>
+              <div className="space-y-2.5">
+                <a
+                  href="https://github.com/salva-Nexus"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block opacity-60 transition hover:text-salvaGold hover:opacity-100"
+                >
+                  GitHub
+                </a>
+                <a
+                  href="https://x.com/salva_Nexus"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block opacity-60 transition hover:text-salvaGold hover:opacity-100"
+                >
+                  X (Twitter)
+                </a>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-3 text-xs font-bold text-black/40 dark:text-white/35">Support</p>
+              <button
+                type="button"
+                onClick={() => setSupportOpen(true)}
+                className="block text-left opacity-60 transition hover:text-salvaGold hover:opacity-100"
+              >
+                Get help
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-black/[0.06] pt-8 dark:border-white/[0.06] sm:flex-row">
+          <p className="text-xs text-black/40 dark:text-white/30">
+            © {new Date().getFullYear()} Salva Nexus.
           </p>
           <div className="flex items-center gap-2">
-            {[
-              { href: 'https://x.com/salva_Nexus', icon: <XLogo size={14} /> },
-              {
-                href: 'https://github.com/salva-Nexus',
-                icon: <Github size={14} />,
-              },
-            ].map((s) => (
-              <a
-                key={s.href}
-                href={s.href}
-                target="_blank"
-                rel="noreferrer"
-                className="p-3 rounded-full bg-black/[0.04] dark:bg-white/5 border border-black/[0.06] dark:border-white/10 opacity-40 hover:opacity-100 hover:text-salvaGold transition-all"
-              >
-                {s.icon}
-              </a>
-            ))}
+            <a
+              href="https://x.com/salva_Nexus"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Salva on X"
+              className="rounded-full border border-black/[0.08] bg-black/[0.04] p-3 opacity-60 transition hover:text-salvaGold hover:opacity-100 dark:border-white/10 dark:bg-white/5"
+            >
+              <XLogo size={14} />
+            </a>
+            <a
+              href="https://github.com/salva-Nexus"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Salva on GitHub"
+              className="rounded-full border border-black/[0.08] bg-black/[0.04] p-3 opacity-60 transition hover:text-salvaGold hover:opacity-100 dark:border-white/10 dark:bg-white/5"
+            >
+              <Github size={14} />
+            </a>
             <button
+              type="button"
               onClick={() => setSupportOpen(true)}
-              className="p-3 rounded-full bg-black/[0.04] dark:bg-white/5 border border-black/[0.06] dark:border-white/10 opacity-40 hover:opacity-100 hover:text-salvaGold transition-all"
+              aria-label="Contact support"
+              className="rounded-full border border-black/[0.08] bg-black/[0.04] p-3 opacity-60 transition hover:text-salvaGold hover:opacity-100 dark:border-white/10 dark:bg-white/5"
             >
               <Mail size={14} />
             </button>
           </div>
         </div>
       </footer>
-
       <AnimatePresence>
         {supportOpen && <SupportModal onClose={() => setSupportOpen(false)} />}
       </AnimatePresence>
