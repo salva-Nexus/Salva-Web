@@ -261,6 +261,10 @@ async function _ethCostInUsd(etherCost, provider, chain) {
 
 async function estimatePoolDeploymentFee(pkey, safe, chain) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const code = await provider.getCode(safe);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safe, chain);
+  }
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
   const tx = {

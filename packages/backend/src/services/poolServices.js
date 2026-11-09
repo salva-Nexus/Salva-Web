@@ -50,12 +50,48 @@ async function deployPool(email, pin, chain) {
   const pkey = pinData.privateKey;
 
   const rpc = getRpcUrlByChain(chain);
-  const fee = await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
+   const provider = new ethers.JsonRpcProvider(rpc);
+  const code = await provider.getCode(safeAddress);
+  const isDeployed = code !== '0x';
+  let fee = !isDeployed
+    ? await estimateDeploymentFee(safeAddress, normchain)
+    : await await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
+  
+  let deployPoolFee;
+  if (!isDeployed) {
+    deployPoolFee = estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
+    const initFeeData = await _getFeeAndToken(user.safeAddress, fee, normchain);
+    const initDeployPoolFeeData = await _getFeeAndToken(user.safeAddress, deployPoolFee, normchain);
+
+    if (!initFeeData.status || !initDeployPoolFeeData.status) {
+      throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
+    }
+
+    // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
+    if (initFeeData.data.feeToken === tokenSymbol) {
+      const totalRequired =
+        amountToWei +
+        BigInt(initFeeData.data.feeToWei) +
+        BigInt(initDeployPoolFeeData.data.feeToWei);
+      console.log(balanceData.balance);
+      console.log(totalRequired);
+      if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
+        throw new TypeError('Insufficient balance to cover fee, please top up.');
+      }
+    }
+    await _deploySafe(user.safeAddress, pKey, provider, normchain);
+  }
+
+  if (deployPoolFee) {
+    fee.data.feeEth += deployPoolFee.data.feeEth;
+    fee.data.feeNGN += deployPoolFee.data.feeNGN;
+    fee.data.feeUsd += deployPoolFee.data.feeUsd;
+  }
   const feeData = await _getFeeAndToken(user.safeAddress, fee, chain);
   if (!feeData.status) {
     throw Error(`❌ No Balance to cover fee`);
   }
-  const provider = new ethers.JsonRpcProvider(rpc);
+
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
@@ -346,8 +382,8 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
   const decimals = contract ? await _getDecimals(contract) : 18;
   const amountWei = ethers.parseUnits(amount.toString(), decimals);
 
-   const pinData = await verify_Pin(email, pin);
-   const pkey = pinData.privateKey;
+  const pinData = await verify_Pin(email, pin);
+  const pkey = pinData.privateKey;
   const fee = await estimateWithdrawFee(
     owner.safeAddress,
     pkey,
