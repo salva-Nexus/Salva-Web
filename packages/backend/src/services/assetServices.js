@@ -67,6 +67,7 @@ async function userAssetsData(safe, chain) {
 
       // Guard against missing DB entries in Assets collection
       if (!details) {
+        console.log(config.tokenAddress);
         const uContract = new ethers.Contract(config.tokenAddress, ERC20, provider);
         const uData = await _getBalance(uContract, safe);
 
