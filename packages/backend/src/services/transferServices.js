@@ -215,44 +215,44 @@ async function executeTransfer(
 
   // POINTS UPDATE
   //if (tokenSymbol === 'NGNS') {
-    try {
-      if (user) {
-        const activeNetwork = mode === 'production' ? 'MAINNET' : 'TESTNET';
-        let pointsRecord = await PointsRecord.findOne({
+  try {
+    if (user) {
+      const activeNetwork = mode === 'production' ? 'MAINNET' : 'TESTNET';
+      let pointsRecord = await PointsRecord.findOne({
+        network: activeNetwork,
+      });
+
+      if (!pointsRecord) {
+        pointsRecord = await PointsRecord.create({
           network: activeNetwork,
         });
+      }
 
-        if (!pointsRecord) {
-          pointsRecord = await PointsRecord.create({
-            network: activeNetwork,
-          });
-        }
+      if (pointsRecord.totalPointsIssued < pointsRecord.hardCap) {
+        const point = points(pointsRecord, 'transfer', recipientData ? true : false);
+        if (point && point.status) {
+          const initiatorPoints = point.initiator || 0;
+          const tPartyPoints = recipientData ? point.tParty || 0 : 0;
+          const totalNewPoints = initiatorPoints + tPartyPoints;
 
-        if (pointsRecord.totalPointsIssued < pointsRecord.hardCap) {
-          const point = points(pointsRecord, 'transfer', recipientData ? true : false);
-          if (point && point.status) {
-            const initiatorPoints = point.initiator || 0;
-            const tPartyPoints = recipientData ? point.tParty || 0 : 0;
-            const totalNewPoints = initiatorPoints + tPartyPoints;
+          if (pointsRecord.totalPointsIssued + totalNewPoints <= pointsRecord.hardCap) {
+            user.santPoints = (user.santPoints || 0) + initiatorPoints;
 
-            if (pointsRecord.totalPointsIssued + totalNewPoints <= pointsRecord.hardCap) {
-              user.santPoints = (user.santPoints || 0) + initiatorPoints;
-
-              if (recipientData) {
-                recipientData.santPoints = (recipientData.santPoints || 0) + tPartyPoints;
-                await recipientData.save();
-              }
-              await user.save();
-
-              pointsRecord.totalPointsIssued += totalNewPoints;
-              await pointsRecord.save();
+            if (recipientData) {
+              recipientData.santPoints = (recipientData.santPoints || 0) + tPartyPoints;
+              await recipientData.save();
             }
+            await user.save();
+
+            pointsRecord.totalPointsIssued += totalNewPoints;
+            await pointsRecord.save();
           }
         }
       }
-    } catch (err) {
-      console.warn('Point Update Failed: ', err.message);
     }
+  } catch (err) {
+    console.warn('Point Update Failed: ', err.message);
+  }
   //}
   return {
     status: true,

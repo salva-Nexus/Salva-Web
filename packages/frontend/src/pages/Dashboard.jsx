@@ -1416,14 +1416,16 @@ const Dashboard = () => {
   const assets = wallet.assets;
   const totalNgn = wallet.totalNgn;
 
-  // USD = NGN total x ngnRate, read from the cached assets.
+  // NGN denomination -> show totalNgnValue as-is.
+  // USD denomination -> show totalNgnValue / ngnRate (ngnRate = NGN per 1 USD),
+  // read from the cached assets.
   const cachedNgnRate = assets.find((asset) => Number(asset?.ngnRate) > 0)?.ngnRate;
   const ngnRate = Number(cachedNgnRate) || 0;
   const wantsUsd = String(user?.denomination || 'NGN').toUpperCase() === 'USD';
   const totalDisplay =
     wantsUsd && ngnRate > 0
-      ? { symbol: '$', value: Number(totalNgn ?? 0) * ngnRate }
-      : { symbol: '₦', value: totalNgn ?? 0 };
+      ? { symbol: '$', value: Number(totalNgn ?? 0) / ngnRate }
+      : { symbol: '₦', value: Number(totalNgn ?? 0) };
   const assetsLoading = wallet.initialLoading && !wallet.hasSnapshot;
 
   const loadError = wallet.error;
