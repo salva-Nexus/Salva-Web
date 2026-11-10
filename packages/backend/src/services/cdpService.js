@@ -594,7 +594,6 @@ async function ngnValue(collateralTokenSymbol, collateralAmount, chain, version)
           `(${tokenInfo.priceFeed}) returning 0/stale, feed not set on-chain for this token, or the NGN/USD rate feed.`
       );
     }
-
     return formatted;
   } catch (err) {
     console.error(`${tag} FAILED`, {
