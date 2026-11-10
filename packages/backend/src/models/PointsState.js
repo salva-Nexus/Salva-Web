@@ -15,19 +15,21 @@ const PointsSchema = new mongoose.Schema({
   },
 });
 
+const canMint = (p) => p >= 1_000_000;
+
 const pointsDistribution = {
   registration: {
-    referrer: 0.1,
+    referrer: 1,
   },
   transfers: {
-    sender: 0.3,
-    receiver: 0.2,
+    sender: 6,
+    receiver: 5,
   },
   swaps: {
-    ls: 0.3,
-    lp: 0.2,
+    ls: 5,
+    lp: 6,
   },
-  link: 0.5,
+  link: 1,
 };
 
 const PointsRecord =
@@ -35,4 +37,4 @@ const PointsRecord =
     ? baseConnection.model("PointsRecord", PointsSchema)
     : baseConnection.model("PointsRecordTest", PointsSchema);
 
-export { PointsRecord, pointsDistribution };
+export { PointsRecord, pointsDistribution, canMint };

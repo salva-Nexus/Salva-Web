@@ -289,7 +289,7 @@ export const Notification = ({ notification, onClose }) => {
 
         <div className="flex items-start gap-2.5 sm:gap-3 p-3 sm:p-4">
           <div
-            className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl font-black text-sm"
+            className="flex h-7 w-7 sm:h-9 sm:w-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl font-black text-[0.9625rem]"
             style={{
               background: `${accent}12`,
               color: accent,
@@ -301,13 +301,13 @@ export const Notification = ({ notification, onClose }) => {
 
           <div className="min-w-0 flex-1">
             <p
-              className="text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.18em]"
+              className="text-[8.8px] sm:text-[10px] font-bold uppercase tracking-[0.18em]"
               style={{ color: accent }}
             >
               {notification.type}
             </p>
 
-            <p className="mt-0.5 sm:mt-1 text-[10px] sm:text-xs leading-4 sm:leading-5 text-white/75">
+            <p className="mt-0.5 sm:mt-1 text-[11px] sm:text-xs leading-4 sm:leading-5 text-white/75">
               {notification.message}
             </p>
           </div>
@@ -345,19 +345,19 @@ const PushPrompt = ({ busy, onEnable, onDismiss }) => (
     >
       <div className="h-1 bg-gradient-to-r from-transparent via-salvaGold to-transparent" />
       <div className="p-5 sm:p-7">
-        <div className="w-12 h-12 rounded-2xl border border-salvaGold/20 bg-salvaGold/10 flex items-center justify-center text-xl text-salvaGold">
+        <div className="w-12 h-12 rounded-2xl border border-salvaGold/20 bg-salvaGold/10 flex items-center justify-center text-[1.375rem] text-salvaGold">
           🔔
         </div>
-        <p className="mt-4 text-[9px] uppercase tracking-[.35em] text-salvaGold font-black">
+        <p className="mt-4 text-[9.9px] uppercase tracking-[.35em] text-salvaGold font-black">
           Stay informed
         </p>
-        <h3 className="text-xl sm:text-2xl font-black mt-1">Turn on transaction alerts</h3>
-        <p className="text-xs text-white/80 mt-2 leading-6">
-          Get notified when your transfers, swaps and other transactions are confirmed or fail,
-          even when Salva is closed.
+        <h3 className="text-[1.375rem] sm:text-2xl font-black mt-1">Turn on transaction alerts</h3>
+        <p className="text-[0.825rem] text-white/80 mt-2 leading-6">
+          Get notified when your transfers, swaps and other transactions are confirmed or fail, even
+          when Salva is closed.
         </p>
 
-        <ul className="mt-4 space-y-2 text-[11px] text-white/80">
+        <ul className="mt-4 space-y-2 text-[12.1px] text-white/80">
           <li className="flex gap-2">
             <span className="text-salvaGold">•</span>
             Instant status updates on every transaction.
@@ -377,7 +377,7 @@ const PushPrompt = ({ busy, onEnable, onDismiss }) => (
             type="button"
             onClick={onDismiss}
             disabled={busy}
-            className="flex-1 h-12 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-40"
+            className="flex-1 h-12 rounded-2xl border border-white/10 text-[11px] font-black uppercase tracking-widest text-white disabled:opacity-40"
           >
             Not now
           </button>
@@ -385,7 +385,7 @@ const PushPrompt = ({ busy, onEnable, onDismiss }) => (
             type="button"
             onClick={onEnable}
             disabled={busy}
-            className="flex-1 h-12 rounded-2xl bg-salvaGold text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-40 flex items-center justify-center gap-2"
+            className="flex-1 h-12 rounded-2xl bg-salvaGold text-black text-[11px] font-black uppercase tracking-widest disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {busy && <Spinner small />}
             {busy ? 'Enabling…' : 'Enable alerts'}
@@ -473,13 +473,13 @@ const QRScannerModal = ({ onScan, onClose }) => {
         <div className="w-8 h-1 bg-white/10 rounded-full mx-auto mb-5 sm:hidden" />
 
         <div className="text-center mb-4 sm:mb-5">
-          <p className="text-[8px] sm:text-[9px] uppercase tracking-[.4em] text-salvaGold/70 font-black mb-1">
+          <p className="text-[8.8px] sm:text-[9px] uppercase tracking-[.4em] text-salvaGold/70 font-black mb-1">
             Scan to Pay
           </p>
 
-          <h3 className="text-lg sm:text-xl font-black">Scan Wallet QR</h3>
+          <h3 className="text-[1.2375rem] sm:text-xl font-black">Scan Wallet QR</h3>
 
-          <p className="text-[10px] sm:text-xs text-white/80 mt-1">
+          <p className="text-[11px] sm:text-xs text-white/80 mt-1">
             Hold the QR code steady in front of the camera
           </p>
         </div>
@@ -488,13 +488,13 @@ const QRScannerModal = ({ onScan, onClose }) => {
           <div id="salva-qr-scanner" className="absolute inset-0" />
         </div>
 
-        <p className="text-[9px] sm:text-[10px] text-white/70 text-center mb-4 font-bold">
+        <p className="text-[9.9px] sm:text-[10px] text-white/70 text-center mb-4 font-bold">
           Keep the QR 15–30cm from camera
         </p>
 
         <button
           onClick={onClose}
-          className="w-full py-3 rounded-xl sm:rounded-2xl border border-white/10 font-bold text-white/80 text-xs uppercase tracking-widest"
+          className="w-full py-3 rounded-xl sm:rounded-2xl border border-white/10 font-bold text-white/80 text-[0.825rem] uppercase tracking-widest"
         >
           Cancel
         </button>
@@ -559,7 +559,7 @@ const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = f
             onError={() => setBroken(true)}
           />
         ) : (
-          <span className="font-black text-[10px] sm:text-xs text-salvaGold">
+          <span className="font-black text-[11px] sm:text-xs text-salvaGold">
             {asset?.symbol?.slice(0, 3)}
           </span>
         )}
@@ -573,7 +573,7 @@ const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = f
             rounded-full
             border-2 border-[#0A0A0B]
             flex items-center justify-center
-            text-[6px] sm:text-[7px]
+            text-[6.6px] sm:text-[7px]
             font-black text-white
           "
           style={{ background: badgeColor }}
@@ -624,11 +624,11 @@ export const AssetDetailsModal = ({
         <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
 
         <div className="flex items-center justify-between mb-5 sm:mb-6">
-          <button onClick={onClose} className="text-white/75 hover:text-white text-lg">
+          <button onClick={onClose} className="text-white/75 hover:text-white text-[1.2375rem]">
             ‹
           </button>
 
-          <p className="text-[8px] sm:text-[9px] uppercase tracking-[.3em] text-white/70 font-black">
+          <p className="text-[8.8px] sm:text-[9px] uppercase tracking-[.3em] text-white/70 font-black">
             Token
           </p>
 
@@ -638,21 +638,21 @@ export const AssetDetailsModal = ({
         <div className="flex flex-col items-center text-center mb-6 sm:mb-7">
           <AssetLogo asset={asset} size="w-14 h-14 sm:w-16 sm:h-16" showChainBadge />
 
-          <h3 className="font-black text-lg sm:text-xl mt-3">{asset.symbol}</h3>
+          <h3 className="font-black text-[1.2375rem] sm:text-xl mt-3">{asset.symbol}</h3>
 
-          <p className="text-[9px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+          <p className="text-[9.9px] sm:text-[10px] text-white/75 capitalize mt-0.5">
             {asset.chain || 'Unknown chain'}
           </p>
 
-          <p className="font-black text-2xl sm:text-3xl mt-3">
+          <p className="font-black text-[1.65rem] sm:text-3xl mt-3">
             {showBalance ? formatNumber(asset.balance, { maxDecimals: 8 }) : '••••'}
           </p>
 
-          <p className="text-[10px] sm:text-[11px] text-white/75 mt-1">{asset.symbol}</p>
+          <p className="text-[11px] sm:text-[11px] text-white/75 mt-1">{asset.symbol}</p>
 
           <AssetValueLine
             asset={asset}
-            className="text-[10px] sm:text-[11px] text-white/75 font-bold mt-1.5"
+            className="text-[11px] sm:text-[11px] text-white/75 font-bold mt-1.5"
           />
         </div>
 
@@ -664,11 +664,11 @@ export const AssetDetailsModal = ({
               py-3 sm:py-3.5
               rounded-xl sm:rounded-2xl
               bg-salvaGold text-black
-              font-black text-[9px] sm:text-[10px]
+              font-black text-[9.9px] sm:text-[10px]
               uppercase tracking-widest
             "
           >
-            <span className="text-sm sm:text-base leading-none">↑</span>
+            <span className="text-[0.9625rem] sm:text-base leading-none">↑</span>
             Send
           </button>
 
@@ -679,11 +679,11 @@ export const AssetDetailsModal = ({
               py-3 sm:py-3.5
               rounded-xl sm:rounded-2xl
               border border-white/10
-              font-bold text-[9px] sm:text-[10px]
+              font-bold text-[9.9px] sm:text-[10px]
               uppercase tracking-widest text-white
             "
           >
-            <span className="text-sm sm:text-base leading-none">↓</span>
+            <span className="text-[0.9625rem] sm:text-base leading-none">↓</span>
             Receive
           </button>
         </div>
@@ -697,7 +697,7 @@ export const AssetDetailsModal = ({
           />
         )}
 
-        <p className="text-[8px] sm:text-[9px] uppercase tracking-[.25em] text-white/70 font-black mb-2.5">
+        <p className="text-[8.8px] sm:text-[9px] uppercase tracking-[.25em] text-white/70 font-black mb-2.5">
           Token details
         </p>
 
@@ -711,12 +711,12 @@ export const AssetDetailsModal = ({
               key={label}
               className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-white/[0.03] border border-white/[0.06]"
             >
-              <p className="text-[7px] sm:text-[8px] uppercase tracking-[.25em] text-white/65 font-black mb-1">
+              <p className="text-[7.7px] sm:text-[8px] uppercase tracking-[.25em] text-white/65 font-black mb-1">
                 {label}
               </p>
 
               <p
-                className={`text-[10px] sm:text-xs font-bold break-all ${
+                className={`text-[11px] sm:text-xs font-bold break-all ${
                   label === 'Contract' || label.includes('URL') || label.includes('Feed')
                     ? 'font-mono text-white/85'
                     : 'text-white/90'
@@ -739,11 +739,12 @@ const RewardsBar = ({ user, showMsg, refreshKey }) => {
   const [pointsRecord, setPointsRecord] = useState(null);
 
   useEffect(() => {
-    fetch(`${SALVA_API_URL}/api/sant/points-record`)
+    if (!user?.email) return;
+    fetch(`${SALVA_API_URL}/api/sant/points-record/${encodeURIComponent(user.email)}`)
       .then((r) => r.json())
       .then((d) => setPointsRecord(d.data || null))
       .catch(() => {});
-  }, [refreshKey]);
+  }, [refreshKey, user?.email]);
 
   const santPoints = Number(user?.santPoints) || 0;
   const referralCode = user?.referralCode;
@@ -770,15 +771,15 @@ const RewardsBar = ({ user, showMsg, refreshKey }) => {
         <div className="flex items-center justify-between gap-1.5 px-2 py-2 sm:px-4 sm:py-3.5 min-w-0">
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             <span className="w-3.5 h-3.5 sm:w-6 sm:h-6 rounded-full bg-salvaGold/15 border border-salvaGold/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-salvaGold text-[6px] sm:text-[10px] font-black">S</span>
+              <span className="text-salvaGold text-[6.6px] sm:text-[10px] font-black">S</span>
             </span>
 
-            <p className="min-w-0 text-[6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
+            <p className="min-w-0 text-[6.6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
               SANT Points
             </p>
           </div>
 
-          <p className="shrink-0 font-black text-[8px] sm:text-sm text-salvaGold">
+          <p className="shrink-0 font-black text-[8.8px] sm:text-sm text-salvaGold">
             {(santPoints * 100).toLocaleString('en-US')}
           </p>
         </div>
@@ -794,15 +795,15 @@ const RewardsBar = ({ user, showMsg, refreshKey }) => {
         >
           <div className="flex items-center gap-1 sm:gap-2 min-w-0">
             <span className="w-3.5 h-3.5 sm:w-6 sm:h-6 rounded-full bg-blue-500/15 border border-blue-500/25 flex items-center justify-center flex-shrink-0">
-              <span className="text-blue-400 text-[6px] sm:text-[10px] font-black">↗</span>
+              <span className="text-blue-400 text-[6.6px] sm:text-[10px] font-black">↗</span>
             </span>
 
-            <p className="min-w-0 text-[6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
+            <p className="min-w-0 text-[6.6px] sm:text-[10px] font-black text-white/85 uppercase tracking-wider truncate whitespace-nowrap">
               Referral Link
             </p>
           </div>
 
-          <span className="shrink-0 font-mono text-[6px] sm:text-[10px] text-blue-400 truncate whitespace-nowrap max-w-[45%]">
+          <span className="shrink-0 font-mono text-[6.6px] sm:text-[10px] text-blue-400 truncate whitespace-nowrap max-w-[45%]">
             {referralCode}
           </span>
         </button>
@@ -1017,7 +1018,6 @@ const Dashboard = () => {
     }
   }, [user, navigate]);
 
-
   /* --------------------------------------------------------------------------
      GOVERNANCE
   -------------------------------------------------------------------------- */
@@ -1228,6 +1228,7 @@ const Dashboard = () => {
               isSeller: meta.isSeller,
               isNewUser: meta.isNewUser,
               pinSetupCompleted: meta.pinSetupCompleted,
+              denomination: meta.denomination,
             };
 
             setUser((current) => {
@@ -1414,6 +1415,15 @@ const Dashboard = () => {
 
   const assets = wallet.assets;
   const totalNgn = wallet.totalNgn;
+
+  // USD = NGN total x ngnRate, read from the cached assets.
+  const cachedNgnRate = assets.find((asset) => Number(asset?.ngnRate) > 0)?.ngnRate;
+  const ngnRate = Number(cachedNgnRate) || 0;
+  const wantsUsd = String(user?.denomination || 'NGN').toUpperCase() === 'USD';
+  const totalDisplay =
+    wantsUsd && ngnRate > 0
+      ? { symbol: '$', value: Number(totalNgn ?? 0) * ngnRate }
+      : { symbol: '₦', value: totalNgn ?? 0 };
   const assetsLoading = wallet.initialLoading && !wallet.hasSnapshot;
 
   const loadError = wallet.error;
@@ -1593,25 +1603,25 @@ const Dashboard = () => {
             <div className="flex items-center gap-1.5 mb-1.5 sm:mb-2">
               <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-salvaGold" />
 
-              <p className="text-[7px] sm:text-[9px] uppercase tracking-[.26em] text-white/70 font-black">
+              <p className="text-[7.7px] sm:text-[9px] uppercase tracking-[.26em] text-white/70 font-black">
                 {user.isValidator ? 'Salva Validator' : 'Salva Wallet'}
               </p>
             </div>
 
-            <h1 className="text-[1.15rem] sm:text-2xl md:text-4xl font-black tracking-[-0.04em]">
-             {user.username}
+            <h1 className="text-[1.265rem] sm:text-2xl md:text-4xl font-black tracking-[-0.04em]">
+              {user.username}
             </h1>
           </div>
 
           {user.isValidator && (
             <button
               onClick={() => navigate('/stats')}
-              className="hidden sm:flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border border-salvaGold/15 bg-salvaGold/[0.045] text-[10px] font-black uppercase tracking-widest text-salvaGold"
+              className="hidden sm:flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border border-salvaGold/15 bg-salvaGold/[0.045] text-[11px] font-black uppercase tracking-widest text-salvaGold"
             >
               <span>Validator</span>
 
               {govCount > 0 && (
-                <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[8px] flex items-center justify-center">
+                <span className="min-w-5 h-5 px-1.5 rounded-full bg-red-500 text-white text-[8.8px] flex items-center justify-center">
                   {govCount > 99 ? '99+' : govCount}
                 </span>
               )}
@@ -1626,7 +1636,7 @@ const Dashboard = () => {
             <div className="flex items-start justify-between">
               <div>
                 <div className="flex items-center gap-1.5 sm:gap-2 mb-2 sm:mb-3">
-                  <span className="text-[8px] sm:text-[9px] uppercase tracking-[.28em] text-white/75 font-black">
+                  <span className="text-[8.8px] sm:text-[9px] uppercase tracking-[.28em] text-white/75 font-black">
                     Total Portfolio
                   </span>
 
@@ -1637,19 +1647,19 @@ const Dashboard = () => {
                   {!wallet.hasSnapshot && assetsLoading ? (
                     <Spinner />
                   ) : loadError && totalNgn === null ? (
-                    <span className="text-[1.1rem] sm:text-[1.4rem] font-black text-red-400/90 leading-tight">
+                    <span className="text-[1.21rem] sm:text-[1.4rem] font-black text-red-400/90 leading-tight">
                       Balance unavailable
                     </span>
                   ) : showBalance ? (
-                    <span className="text-[1.8rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[-0.055em] leading-none">
-                      ₦
-                      {formatNumber(totalNgn ?? 0, {
+                    <span className="text-[1.98rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[-0.055em] leading-none">
+                      {totalDisplay.symbol}
+                      {formatNumber(totalDisplay.value, {
                         minDecimals: 2,
                         maxDecimals: 2,
                       })}
                     </span>
                   ) : (
-                    <span className="text-[1.8rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[.08em] leading-none">
+                    <span className="text-[1.98rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[.08em] leading-none">
                       ••••••••
                     </span>
                   )}
@@ -1657,7 +1667,7 @@ const Dashboard = () => {
 
                 <div className="flex items-center gap-2 mt-2 sm:mt-3">
                   <p
-                    className={`text-[8px] sm:text-[10px] ${
+                    className={`text-[8.8px] sm:text-[10px] ${
                       loadError ? 'text-yellow-400/90' : 'text-white/70'
                     }`}
                   >
@@ -1710,7 +1720,7 @@ const Dashboard = () => {
             <div className="grid grid-cols-2 gap-2 mt-5 sm:mt-7">
               <button
                 onClick={() => openSend(null)}
-                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-salvaGold text-black font-black text-[10px] sm:text-xs uppercase tracking-[.13em] hover:brightness-105 active:scale-[.98] transition-all"
+                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl bg-salvaGold text-black font-black text-[11px] sm:text-xs uppercase tracking-[.13em] hover:brightness-105 active:scale-[.98] transition-all"
               >
                 ↑ Send
               </button>
@@ -1720,7 +1730,7 @@ const Dashboard = () => {
                   setReceiveAsset(null);
                   setIsReceiveOpen(true);
                 }}
-                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-white/[0.09] bg-white/[0.025] text-white font-black text-[10px] sm:text-xs uppercase tracking-[.13em] hover:bg-white/[0.055] transition-all"
+                className="h-10 sm:h-12 rounded-xl sm:rounded-2xl border border-white/[0.09] bg-white/[0.025] text-white font-black text-[11px] sm:text-xs uppercase tracking-[.13em] hover:bg-white/[0.055] transition-all"
               >
                 ↓ Receive
               </button>
@@ -1742,18 +1752,18 @@ const Dashboard = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="font-black text-[10px] sm:text-sm text-salvaGold">
+                    <span className="font-black text-[11px] sm:text-sm text-salvaGold">
                       {selectedChain[0]?.toUpperCase()}
                     </span>
                   )}
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-[5px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
+                  <p className="text-[5.5px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
                     Network
                   </p>
 
-                  <p className="font-black text-[9px] sm:text-sm capitalize truncate">
+                  <p className="font-black text-[9.9px] sm:text-sm capitalize truncate">
                     {activeChainData?.chainName || selectedChain}
                   </p>
                 </div>
@@ -1762,14 +1772,14 @@ const Dashboard = () => {
               <button
                 onClick={() => setChainPage(true)}
                 disabled={chainMetadataRefreshing}
-                className="shrink-0 px-1.5 py-1 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-white/10 text-[5px] sm:text-[9px] uppercase tracking-widest font-black text-white/75 hover:text-white disabled:opacity-50"
+                className="shrink-0 px-1.5 py-1 sm:px-3 sm:py-2 rounded-lg sm:rounded-xl border border-white/10 text-[5.5px] sm:text-[9px] uppercase tracking-widest font-black text-white/75 hover:text-white disabled:opacity-50"
               >
                 {chainMetadataRefreshing ? '…' : 'Switch'}
               </button>
             </div>
 
             <div className="flex flex-col justify-center px-2.5 py-2 sm:px-4 sm:py-3.5 min-w-0">
-              <p className="text-[6px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
+              <p className="text-[6.6px] sm:text-[8px] uppercase tracking-[.3em] text-white/65 font-black">
                 Wallet
               </p>
 
@@ -1779,7 +1789,7 @@ const Dashboard = () => {
 
                   showMsg('Wallet address copied!');
                 }}
-                className="mt-1 font-mono text-[7px] sm:text-[10px] text-white/80 hover:text-salvaGold text-left"
+                className="mt-1 font-mono text-[7.7px] sm:text-[10px] text-white/80 hover:text-salvaGold text-left"
               >
                 <span className="block truncate max-w-full sm:hidden">
                   {truncateAddress(user.safeAddress)}
@@ -1794,17 +1804,17 @@ const Dashboard = () => {
         <section>
           <div className="flex items-end justify-between mb-2.5 sm:mb-3 px-0.5">
             <div>
-              <p className="text-[8px] sm:text-[9px] uppercase tracking-[.3em] text-white/65 font-black">
+              <p className="text-[8.8px] sm:text-[9px] uppercase tracking-[.3em] text-white/65 font-black">
                 Portfolio
               </p>
 
-              <h2 className="text-lg sm:text-xl font-black mt-0.5 sm:mt-1">Assets</h2>
+              <h2 className="text-[1.2375rem] sm:text-xl font-black mt-0.5 sm:mt-1">Assets</h2>
             </div>
 
             {showAllAssetsLink && (
               <button
                 onClick={() => navigate('/dashboard/assets')}
-                className="text-[8px] sm:text-[9px] uppercase tracking-widest text-salvaGold font-black"
+                className="text-[8.8px] sm:text-[9px] uppercase tracking-widest text-salvaGold font-black"
               >
                 View all →
               </button>
@@ -1816,28 +1826,28 @@ const Dashboard = () => {
               <div className="py-12 sm:py-16 flex flex-col items-center justify-center gap-3">
                 <Spinner />
 
-                <p className="text-[8px] uppercase tracking-widest text-white/70 font-black">
+                <p className="text-[8.8px] uppercase tracking-widest text-white/70 font-black">
                   Loading {selectedChain}
                 </p>
               </div>
             ) : assets.length === 0 ? (
               <div className="py-12 sm:py-16 text-center px-6">
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                  <span className="text-white/35 text-base sm:text-lg">◈</span>
+                  <span className="text-white/35 text-[1.1rem] sm:text-lg">◈</span>
                 </div>
 
-                <p className="text-xs sm:text-sm font-black text-white/85">
+                <p className="text-[0.825rem] sm:text-sm font-black text-white/85">
                   {loadError ? 'Could not load assets' : 'No assets yet'}
                 </p>
 
-                <p className="text-[9px] sm:text-[10px] text-white/75 mt-1">
+                <p className="text-[9.9px] sm:text-[10px] text-white/75 mt-1">
                   {loadError || `Assets on ${selectedChain} will appear here.`}
                 </p>
 
                 {loadError && (
                   <button
                     onClick={refresh}
-                    className="mt-4 px-4 py-2 rounded-xl bg-salvaGold text-black text-[9px] font-black uppercase tracking-widest"
+                    className="mt-4 px-4 py-2 rounded-xl bg-salvaGold text-black text-[9.9px] font-black uppercase tracking-widest"
                   >
                     Try again
                   </button>
@@ -1854,15 +1864,17 @@ const Dashboard = () => {
                     <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
 
                     <div className="flex-1 min-w-0">
-                      <p className="font-black text-xs sm:text-sm text-white">{asset.symbol}</p>
+                      <p className="font-black text-[0.825rem] sm:text-sm text-white">
+                        {asset.symbol}
+                      </p>
 
-                      <p className="text-[8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+                      <p className="text-[8.8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
                         {asset.chain || selectedChain}
                       </p>
                     </div>
 
                     <div className="text-right">
-                      <p className="font-black text-xs sm:text-sm text-white">
+                      <p className="font-black text-[0.825rem] sm:text-sm text-white">
                         {showBalance
                           ? formatNumber(asset.balance, {
                               maxDecimals: 6,
@@ -1872,7 +1884,7 @@ const Dashboard = () => {
 
                       <AssetValueLine
                         asset={asset}
-                        className="text-[8px] sm:text-[10px] text-white/70 mt-0.5"
+                        className="text-[8.8px] sm:text-[10px] text-white/70 mt-0.5"
                       />
                     </div>
 
@@ -1961,13 +1973,13 @@ const Dashboard = () => {
               <div className="w-7 h-1 bg-white/10 rounded-full mx-auto mb-4 sm:hidden" />
 
               <div className="text-center mb-4 sm:mb-5">
-                <p className="text-[7px] sm:text-[8px] uppercase tracking-[.35em] text-salvaGold/70 font-black">
+                <p className="text-[7.7px] sm:text-[8px] uppercase tracking-[.35em] text-salvaGold/70 font-black">
                   Receive Funds
                 </p>
 
-                <h3 className="text-sm sm:text-2xl font-black mt-1">{user.username}</h3>
+                <h3 className="text-[0.9625rem] sm:text-2xl font-black mt-1">{user.username}</h3>
 
-                <p className="text-[8px] sm:text-[9px] text-white/75 mt-1">
+                <p className="text-[8.8px] sm:text-[9px] text-white/75 mt-1">
                   {selectedChain} wallet
                   {receiveAsset ? ` · ${receiveAsset.symbol}` : ''}
                 </p>
@@ -1987,18 +1999,18 @@ const Dashboard = () => {
                 }}
                 className="w-full p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white/[.03] border border-white/[.06] text-left"
               >
-                <p className="text-[7px] sm:text-[8px] uppercase tracking-[.25em] text-white/70 font-black">
+                <p className="text-[7.7px] sm:text-[8px] uppercase tracking-[.25em] text-white/70 font-black">
                   Wallet Address
                 </p>
 
-                <p className="font-mono text-[8px] sm:text-[10px] text-salvaGold break-all mt-1">
+                <p className="font-mono text-[8.8px] sm:text-[10px] text-salvaGold break-all mt-1">
                   {user.safeAddress}
                 </p>
               </button>
 
               <button
                 onClick={() => setIsReceiveOpen(false)}
-                className="w-full mt-2.5 sm:mt-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-white/10 text-[10px] sm:text-xs font-black uppercase tracking-widest text-white/80"
+                className="w-full mt-2.5 sm:mt-3 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border border-white/10 text-[11px] sm:text-xs font-black uppercase tracking-widest text-white/80"
               >
                 Close
               </button>

@@ -1,15 +1,15 @@
-import { User } from "../models/Users.js";
-import express from "express";
+import { User } from '../models/Users.js';
+import express from 'express';
 import {
   updateUsername,
   updateEmail,
   updatePin,
   updatePassword,
-} from "../services/userDataServices.js";
+} from '../services/userDataServices.js';
 
 const router = express.Router();
 
-router.get("/account-status/:email", async (req, res) => {
+router.get('/account-status/:email', async (req, res) => {
   const email = req.params.email;
   const user = await User.findOne({
     email: email,
@@ -20,7 +20,7 @@ router.get("/account-status/:email", async (req, res) => {
   });
 });
 
-router.post("/update-username", async (req, res) => {
+router.post('/update-username', async (req, res) => {
   const { email, newusername } = req.body;
 
   const user = await User.findOne({
@@ -41,7 +41,7 @@ router.post("/update-username", async (req, res) => {
   }
 });
 
-router.post("/update-email", async (req, res) => {
+router.post('/update-email', async (req, res) => {
   const { email, newEmail } = req.body;
 
   const user = await User.findOne({
@@ -63,7 +63,7 @@ router.post("/update-email", async (req, res) => {
   }
 });
 
-router.post("/update-password", async (req, res) => {
+router.post('/update-password', async (req, res) => {
   const { email, newPassword } = req.body;
 
   const user = await User.findOne({
@@ -84,7 +84,7 @@ router.post("/update-password", async (req, res) => {
   }
 });
 
-router.post("/update-pin", async (req, res) => {
+router.post('/update-pin', async (req, res) => {
   const { email, oldPin, newPin } = req.body;
 
   const user = await User.findOne({
@@ -105,7 +105,36 @@ router.post("/update-pin", async (req, res) => {
   }
 });
 
-router.post("/update-time", async (req, res) => {
+router.post('/update-denomination', async (req, res) => {
+  try {
+    const email = String(req.body.email || '')
+      .toLowerCase()
+      .trim();
+    const denomination = String(req.body.denomination || '').toUpperCase();
+
+    if (!['NGN', 'USD'].includes(denomination)) {
+      return res.status(400).json({
+        status: false,
+        errorMsg: 'Denomination must be NGN or USD',
+      });
+    }
+
+    const user = await User.findOne({ email: email });
+
+    if (!user) {
+      return res.status(404).json({ status: false, errorMsg: 'User not found' });
+    }
+    user.denomination = denomination;
+    await user.save();
+
+    return res.status(200).json({ status: true, denomination: user.denomination });
+  } catch (err) {
+    console.error(err.message);
+    return res.status(500).json({ status: false, errorMsg: err.message });
+  }
+});
+
+router.post('/update-time', async (req, res) => {
   const { email } = req.body;
 
   const user = await User.findOne({

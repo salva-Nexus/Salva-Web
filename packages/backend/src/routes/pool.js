@@ -12,7 +12,7 @@ import { Pool } from '../models/Pool.js';
 import { keyValue, mode } from '../utils/vars.js';
 import { getRpcUrlByChain } from '../utils/rpcUrls.js';
 import { SupportedPair } from '../models/SupportedPair.js';
-import { fetchNgnPricePerAsset } from '../utils/fetchRate.js';
+import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import Assets from '../models/Assets.js';
 
 const router = express.Router();
@@ -128,7 +128,7 @@ router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
     }
     if (!isInverted) {
       if (isStableNgn(pair.baseSymbol)) {
-        const fetched = await fetchNgnPricePerAsset(pair.quoteAddress, chain);
+        const fetched = await fetchPricePerNgn(pair.quoteAddress, chain);
         price = 1 / fetched.data;
       } else {
         const priceFeed = new ethers.Contract(pair.priceFeed, CHAINLINK, provider(chain));
@@ -138,7 +138,7 @@ router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
       }
     } else {
       if (isStableNgn(pair.baseSymbol)) {
-        const fetched = await fetchNgnPricePerAsset(pair.quoteAddress, chain);
+        const fetched = await fetchPricePerNgn(pair.quoteAddress, chain);
         price = fetched.data;
       } else {
         const priceFeed = new ethers.Contract(pair.priceFeed, CHAINLINK, provider(chain));

@@ -56,7 +56,9 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
   const fetchClaimWindow = useCallback(async () => {
     setStatusLoading(true);
     try {
-      const res = await fetch(`${SALVA_API_URL}/api/sant/points-record`);
+      const res = await fetch(
+        `${SALVA_API_URL}/api/sant/points-record/${encodeURIComponent(user.email)}`
+      );
       const data = await res.json();
       if (!mountedRef.current) return;
       setIsLocked(data?.data?.isLocked !== false);
@@ -65,7 +67,7 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
     } finally {
       if (mountedRef.current) setStatusLoading(false);
     }
-  }, []);
+  }, [user?.email]);
 
   useEffect(() => {
     fetchClaimWindow();

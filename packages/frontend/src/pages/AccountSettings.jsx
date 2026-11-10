@@ -51,6 +51,7 @@ const AccountSettings = () => {
 
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
+  const [denomBusy, setDenomBusy] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpBusy, setOtpBusy] = useState(false);
 
@@ -101,6 +102,33 @@ const AccountSettings = () => {
   }, [notification]);
 
   const showMsg = (msg, type = 'success') => setNotification({ show: true, message: msg, type });
+
+  const isUsd = String(user?.denomination || 'NGN').toUpperCase() === 'USD';
+
+  const toggleDenomination = async () => {
+    if (denomBusy || !user) return;
+    const next = isUsd ? 'NGN' : 'USD';
+    setDenomBusy(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/data/update-denomination`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email, denomination: next }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.status) {
+        throw new Error(data.errorMsg || 'Could not update display currency');
+      }
+      const updatedUser = { ...user, denomination: next };
+      localStorage.setItem('salva_user', JSON.stringify(updatedUser));
+      setUser(updatedUser);
+      showMsg(`Balance now shown in ${next}`);
+    } catch (err) {
+      showMsg(err?.message || 'Could not update display currency', 'error');
+    } finally {
+      setDenomBusy(false);
+    }
+  };
 
 
 
@@ -415,6 +443,39 @@ const AccountSettings = () => {
             </div>
           </button>
 
+          {/* Display currency */}
+          <div className="bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5">
+            <div className="flex justify-between items-center gap-3">
+              <div>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Display
+                </p>
+                <p className="text-sm sm:text-lg font-black">
+                  Show Balance in {isUsd ? 'NGN' : 'USD'}
+                </p>
+                <p className="text-[9px] sm:text-xs opacity-50 mt-0.5">
+                  Currently showing {isUsd ? 'USD' : 'NGN'}
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isUsd}
+                onClick={toggleDenomination}
+                disabled={denomBusy}
+                className={`relative w-11 h-6 sm:w-14 sm:h-8 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
+                  isUsd ? 'bg-salvaGold' : 'bg-gray-300 dark:bg-white/10'
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 left-0.5 w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-white shadow transition-transform ${
+                    isUsd ? 'translate-x-5 sm:translate-x-6' : ''
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+
           {/* Push notifications */}
           <div className="bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5">
             <div className="flex justify-between items-center gap-3">
@@ -506,7 +567,6 @@ const AccountSettings = () => {
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
               >
-
                 {/* Step 2: OTP verification */}
                 {modalStep === 2 && requiresWarning && (
                   <div className="text-center">

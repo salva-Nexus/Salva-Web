@@ -25,7 +25,6 @@ import registerRoute from './routes/registration.js';
 import setPinRoute from './routes/pin.js';
 import otpRoute from './routes/otp.js';
 import loginRoute from './routes/login.js';
-import balanceRoute from './routes/balance.js';
 import estimateFeeRoute from './routes/estimateFee.js';
 import transferRoute from './routes/transfer.js';
 import walletRegistryRoute from './routes/walletRegistry.js';
@@ -82,7 +81,6 @@ app.use('/api/data', userDataRoute); // Updated path to prevent collision with r
 
 // Wallet & Transaction Routes
 app.use('/api/user', setPinRoute);
-app.use('/api/user', balanceRoute);
 app.use('/api/user', transferRoute);
 app.use('/api/user', estimateFeeRoute);
 app.use('/api/user', transactionRoute);

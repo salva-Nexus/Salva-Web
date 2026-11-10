@@ -214,7 +214,7 @@ async function executeTransfer(
   });
 
   // POINTS UPDATE
-  if (tokenSymbol === 'NGNS') {
+  //if (tokenSymbol === 'NGNS') {
     try {
       if (user) {
         const activeNetwork = mode === 'production' ? 'MAINNET' : 'TESTNET';
@@ -253,7 +253,7 @@ async function executeTransfer(
     } catch (err) {
       console.warn('Point Update Failed: ', err.message);
     }
-  }
+  //}
   return {
     status: true,
     data: data.data,

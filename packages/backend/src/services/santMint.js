@@ -3,7 +3,7 @@ import { SANT_ABI } from '../utils/abi.js';
 import { _getDecimals } from './balanceServices.js';
 import { estimateTransferFee, _appendSafeReq, _getTransactionHash } from './estimateFee.js';
 import { User } from '../models/Users.js';
-import { PointsRecord } from '../models/PointsState.js';
+import { PointsRecord, canMint } from '../models/PointsState.js';
 import { keyValue, mode } from '../utils/vars.js';
 import { _getFeeAndToken, _buildTransferData } from './estimateFee.js';
 import { verify_Pin } from './pinService.js';
@@ -25,7 +25,10 @@ async function mintSant(email, toAddress, pin) {
     const pointsRecord = await PointsRecord.findOne({
       network: mode === 'production' ? 'MAINNET' : 'TESTNET',
     });
-    if (!pointsRecord || pointsRecord.isLocked) {
+
+    const points = Number(user.santPoints);
+    const pointsStr = String(points);
+    if (!pointsRecord || (pointsRecord.isLocked && !canMint(points))) {
       if (user) {
         user.santClaimInProgress = false;
         await user.save().catch(() => {});
@@ -34,9 +37,6 @@ async function mintSant(email, toAddress, pin) {
     }
     user.santClaimInProgress = true;
     await user.save();
-
-    const points = user.santPoints;
-    const pointsStr = String(points);
 
     const provider = new ethers.JsonRpcProvider(keyValue('baseRpcUrl'));
     const sponsorPack = new ethers.Wallet(keyValue('sponsorKey'), provider);

@@ -49,7 +49,7 @@ async function fetchRateEx() {
   }
 }
 
-async function fetchNgnPricePerAsset(asset, chain) {
+async function fetchPricePerNgn(asset, chain) {
   try {
     const oracle = getNgnOracleAddressByChain(chain);
     const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -59,7 +59,6 @@ async function fetchNgnPricePerAsset(asset, chain) {
       : await contract.getUsdPricePerNgn();
     const dec = await contract.decimals();
     const formatted = ethers.formatUnits(p.price, Number(dec));
-    console.log(formatted);
     return { status: true, data: 1 / Number(formatted) };
   } catch (err) {
     console.error('FETCH PRICE ERROR: ', err.message);
@@ -67,4 +66,4 @@ async function fetchNgnPricePerAsset(asset, chain) {
   }
 }
 
-export { fetchRateEx, fetchRateFrank, fetchNgnPricePerAsset };
+export { fetchRateEx, fetchRateFrank, fetchPricePerNgn };

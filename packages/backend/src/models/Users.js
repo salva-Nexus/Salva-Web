@@ -63,6 +63,7 @@ const UserSchema = new mongoose.Schema({
     ],
     default: [],
   },
+  denomination: { type: String, default: 'NGN' },
 
   // --- SANT community mining (Base chain activity only) ---
   santPoints: { type: Number, default: 0, min: 0 },

@@ -13,7 +13,7 @@ import {
   CDP_ABI,
 } from '../utils/abi.js';
 import { SNS } from '../../salva.js';
-import { fetchNgnPricePerAsset } from '../utils/fetchRate.js';
+import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import buff from '../utils/buffer.js';
 import { keyValue, mode, setup } from '../utils/vars.js';
 import {
@@ -1192,10 +1192,10 @@ async function _getFee(safeAddress, gasCost, provider, chain) {
   const costInUsd = await _ethCostInUsd(Number(ethCost), provider, chain);
   const rawUsd = costInUsd.data || 0;
 
-  let ngnRate = await fetchNgnPricePerAsset(undefined, chain);
+  let ngnRate = await fetchPricePerNgn(undefined, chain);
   if (!ngnRate?.status) {
     await new Promise((r) => setTimeout(r, 5000));
-    ngnRate = await fetchNgnPricePerAsset(undefined, chain);
+    ngnRate = await fetchPricePerNgn(undefined, chain);
   }
   const ratePerUsd = Number(ngnRate?.data || 0);
   let finalFeeUsd = rawUsd;

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { ERC20, CHAINLINK } from '../utils/abi.js';
 import { keyValue } from '../utils/vars.js';
-import { fetchNgnPricePerAsset } from '../utils/fetchRate.js';
+import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import { getChainlinkFeedByChainAndSymbol, getRpcUrlByChain } from '../utils/rpcUrls.js';
 
 async function _getBalance(contract, address) {
@@ -87,7 +87,7 @@ async function dBalance(safeAddress, tokenAddress, tokenSymbol, chain, feedAddre
       const contract = new ethers.Contract(tokenAddress, ERC20, provider);
       balanceData = await _getBalance(contract, safeAddress);
     }
-    const priceResult = await fetchNgnPricePerAsset(undefined, chain);
+    const priceResult = await fetchPricePerNgn(undefined, chain);
     if (!balanceData || !priceResult?.status) {
       return {
         status: false,

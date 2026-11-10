@@ -7,7 +7,7 @@ import { getRpcUrlByChain } from '../utils/rpcUrls.js';
 import { SupportedChain } from '../models/SupportedChain.js';
 import { keyValue, mode } from '../utils/vars.js';
 import { dBalance } from './balanceServices.js';
-import { fetchNgnPricePerAsset } from '../utils/fetchRate.js';
+import { fetchPricePerNgn } from '../utils/fetchRate.js';
 
 async function userAssetsData(safe, chain) {
   const normalizedChain = chain.toLowerCase();
@@ -28,9 +28,9 @@ async function userAssetsData(safe, chain) {
     }
   }
 
-  // 1. Fetch raw NGN price per USD once upfront
-  const ngnRateRes = await fetchNgnPricePerAsset(undefined, normalizedChain);
-  const rawNgnPerUsd = ngnRateRes.status ? ngnRateRes.data : 0;
+  // 1. Fetch raw USD price per NGN once upfront
+  const ngnRateRes = await fetchPricePerNgn(undefined, normalizedChain);
+  const rawUsdPerNgn = ngnRateRes.status ? ngnRateRes.data : 0;
 
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
   const userData = [];
@@ -57,12 +57,12 @@ async function userAssetsData(safe, chain) {
         usdPrice = await fetchTokenUsdPrice(safeConfigSymbol, normalizedChain, feedAddress);
 
         if (usdPrice > 0) {
-          ngnRate = rawNgnPerUsd;
+          ngnRate = rawUsdPerNgn;
         }
       }
       if (safeConfigSymbol === 'NGNS' || safeConfigSymbol === 'CNGN') {
-        usdPrice = rawNgnPerUsd > 0 ? 1 / rawNgnPerUsd : 0;
-        ngnRate = rawNgnPerUsd;
+        usdPrice = rawUsdPerNgn > 0 ? 1 / rawUsdPerNgn : 0;
+        ngnRate = rawUsdPerNgn;
       }
 
       // Guard against missing DB entries in Assets collection
