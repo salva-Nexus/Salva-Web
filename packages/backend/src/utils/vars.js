@@ -149,7 +149,7 @@ const obj = {
     mode === 'development'
       ? '0x29fcb43b46531bca003ddc8fcb67ffe91900c762'
       : '0x29fcb43b46531bca003ddc8fcb67ffe91900c762',
-  safeFactory:
+  safeFactory:  
     mode === 'development'
       ? '0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67'
       : '0x4e1dcf7ad4e460cfd30791ccc4f9c8a4f820ec67',

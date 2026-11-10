@@ -536,19 +536,77 @@ async function collateralAmountWithdrawable(safeAddress, collateralTokenSymbol, 
 }
 
 async function ngnValue(collateralTokenSymbol, collateralAmount, chain, version) {
-  const manager = await _findManager(version, chain);
-  const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
-  const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
-  const cdpContract = new ethers.Contract(manager.contractAddress, CDP_ABI, provider);
+  const tag = '[ngnValue]';
+  try {
+    console.log(`${tag} INPUT`, {
+      collateralTokenSymbol,
+      collateralAmount,
+      amountType: typeof collateralAmount,
+      chain,
+      version,
+    });
 
-  const decimals =
-    tokenInfo.tokenAddress === ethers.ZeroAddress
+    const manager = await _findManager(version, chain);
+    console.log(`${tag} manager`, {
+      version: manager.version,
+      contractAddress: manager.contractAddress,
+      chain: manager.chain,
+      type: manager.type,
+    });
+
+    const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
+    console.log(`${tag} tokenInfo`, {
+      symbol: tokenInfo.symbol,
+      tokenAddress: tokenInfo.tokenAddress,
+      priceFeed: tokenInfo.priceFeed,
+    });
+
+    const rpcUrl = getRpcUrlByChain(chain.toLowerCase());
+    console.log(`${tag} rpc`, rpcUrl ? rpcUrl.replace(/\/[^/]{8,}$/, '/***') : 'MISSING RPC URL');
+
+    const provider = Provider(rpcUrl);
+    const net = await provider.getNetwork();
+    console.log(`${tag} provider network`, { chainId: net.chainId.toString(), name: net.name });
+
+    const code = await provider.getCode(manager.contractAddress);
+    console.log(`${tag} manager has code on this RPC`, code !== '0x');
+
+    const cdpContract = new ethers.Contract(manager.contractAddress, CDP_ABI, provider);
+
+    const isNative = tokenInfo.tokenAddress === ethers.ZeroAddress;
+    const decimals = isNative
       ? 18
       : await _getDecimals(new ethers.Contract(tokenInfo.tokenAddress, ERC20, provider));
-  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
+    console.log(`${tag} decimals`, { decimals: String(decimals), type: typeof decimals, isNative });
 
-  const valWei = await cdpContract.ngnValue(tokenInfo.tokenAddress, amountWei);
-  return ethers.formatUnits(valWei, 18);
+    const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
+    console.log(`${tag} amountWei`, amountWei.toString());
+
+    const valWei = await cdpContract.ngnValue(tokenInfo.tokenAddress, amountWei);
+    console.log(`${tag} RAW contract result (valWei)`, valWei.toString());
+
+    const formatted = ethers.formatUnits(valWei, 18);
+    console.log(`${tag} formatted NGN value`, formatted);
+
+    if (valWei === 0n) {
+      console.warn(
+        `${tag} ⚠ contract returned 0 WITHOUT reverting. Check: priceFeed for ${collateralTokenSymbol} ` +
+          `(${tokenInfo.priceFeed}) returning 0/stale, feed not set on-chain for this token, or the NGN/USD rate feed.`
+      );
+    }
+
+    return formatted;
+  } catch (err) {
+    console.error(`${tag} FAILED`, {
+      message: err.message,
+      shortMessage: err.shortMessage,
+      code: err.code,
+      reason: err.reason,
+      data: err.data,
+      revert: err.revert,
+    });
+    throw err;
+  }
 }
 
 export {
