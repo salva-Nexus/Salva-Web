@@ -1148,6 +1148,7 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
   const [expanded, setExpanded] = useState(false);
   const d = deriveVault(vault);
   const st = STATUS[d.status];
+  const oracleStale = Boolean(vault?.oracleStale);
   const hasCollateral = d.collateral > 0;
   const hasDebt = d.debt > 0;
   const health = d.health;
@@ -1550,6 +1551,13 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
                 <p className="mb-2 text-[8px] sm:text-[9px] font-extrabold uppercase tracking-[.18em] text-white/75">
                   Position actions
                 </p>
+                {oracleStale && (
+                  <p className="mb-3 flex items-start gap-2 text-[9px] sm:text-[10px] font-bold leading-4 text-amber-300">
+                    <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300" />
+                    Price feed is stale. Values shown are estimates. Deposit and Borrow resume
+                    automatically once the feed updates.
+                  </p>
+                )}
                 <div className="flex flex-wrap gap-2">
                   {!vault?.registered ? (
                     <button
@@ -1563,7 +1571,11 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
                     <>
                       <button
                         type="button"
-                        className={primary}
+                        className={`${primary} disabled:cursor-not-allowed`}
+                        disabled={oracleStale}
+                        title={
+                          oracleStale ? 'Unavailable while the price feed is stale' : undefined
+                        }
                         onClick={() => onAction('deposit', symbol)}
                       >
                         ＋ Deposit
@@ -1571,7 +1583,11 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
                       {hasCollateral && (
                         <button
                           type="button"
-                          className={ghost}
+                          className={`${ghost} disabled:cursor-not-allowed`}
+                          disabled={oracleStale}
+                          title={
+                            oracleStale ? 'Unavailable while the price feed is stale' : undefined
+                          }
                           onClick={() => onAction('borrow', symbol)}
                         >
                           ↗ Borrow

@@ -239,8 +239,8 @@ router.post('/withdrawable', async (req, res) => {
       version
     );
     res.status(200).json({
-      status: true,
-      data: { withdrawable },
+      status: withdrawable.status,
+      data: { withdrawable: withdrawable.data },
     });
   } catch (err) {
     console.log(`CDP Withdrawable Fetch failed: ${err.message}`);
@@ -254,10 +254,10 @@ router.post('/withdrawable', async (req, res) => {
 router.post('/ngn-value', async (req, res) => {
   const { collateralTokenSymbol, amount, chain, version } = req.body;
   try {
-    const value = await ngnValue(collateralTokenSymbol, amount, chain, version);
+    const data = await ngnValue(collateralTokenSymbol, amount, chain, version);
     res.status(200).json({
-      status: true,
-      data: { ngnValue: value },
+      status: data.status,
+      data: { ngnValue: data.data },
     });
   } catch (err) {
     // console.log(

@@ -509,13 +509,34 @@ async function userPositionHealth(safeAddress, collateralTokenSymbol, debtAmount
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const cdpContract = new ethers.Contract(manager.contractAddress, CDP_ABI, provider);
 
+  const decimals =
+    tokenInfo.tokenAddress === ethers.ZeroAddress
+      ? 18
+      : await _getDecimals(new ethers.Contract(tokenInfo.tokenAddress, ERC20, provider));
   const debtWei = ethers.parseUnits(debtAmount.toString(), 18);
-  const healthBps = await cdpContract.userPositionHealth(
-    safeAddress,
-    tokenInfo.tokenAddress,
-    debtWei
-  );
-  return healthBps.toString();
+  try {
+    const healthBps = await cdpContract.userPositionHealth(
+      safeAddress,
+      tokenInfo.tokenAddress,
+      debtWei
+    );
+    return healthBps.toString();
+  } catch (err) {
+    const config = await userConfig(safeAddress, collateralTokenSymbol, chain, version);
+    const formattedCollateralDeposited = ethers.formatUnits(config.collateralDeposited, decimals);
+    const formattedMintedNgns = ethers.formatUnits(config.mintedNgns, 18);
+    const nValue = await ngnValue(
+      collateralTokenSymbol,
+      Number(formattedCollateralDeposited),
+      chain,
+      version
+    );
+    const healthBps = debtWei === 0n
+      ? (Number(nValue.data) / Number(formattedMintedNgns)) * 10000
+      : (Number(nValue.data) / (Number(formattedMintedNgns) + Number(debtAmount))) * 10000;
+
+    return  healthBps.toString();
+  }
 }
 
 async function collateralAmountWithdrawable(safeAddress, collateralTokenSymbol, chain, version) {
@@ -523,16 +544,45 @@ async function collateralAmountWithdrawable(safeAddress, collateralTokenSymbol, 
   const tokenInfo = await _findTokenConfig(manager, collateralTokenSymbol);
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const cdpContract = new ethers.Contract(manager.contractAddress, CDP_ABI, provider);
-
-  const withdrawableWei = await cdpContract.collateralAmountWithdrawable(
-    safeAddress,
-    tokenInfo.tokenAddress
-  );
   const decimals =
     tokenInfo.tokenAddress === ethers.ZeroAddress
       ? 18
       : await _getDecimals(new ethers.Contract(tokenInfo.tokenAddress, ERC20, provider));
-  return ethers.formatUnits(withdrawableWei, decimals);
+
+  try {
+    const withdrawableWei = await cdpContract.collateralAmountWithdrawable(
+      safeAddress,
+      tokenInfo.tokenAddress
+    );
+    const decimals =
+      tokenInfo.tokenAddress === ethers.ZeroAddress
+        ? 18
+        : await _getDecimals(new ethers.Contract(tokenInfo.tokenAddress, ERC20, provider));
+    return { status: true, data: ethers.formatUnits(withdrawableWei, decimals) };
+  } catch (err) {
+    console.warn('CDP COLLATERAL VALUE FAILED. USING ORACLE FALLBACK:');
+    const config = await userConfig(safeAddress, collateralTokenSymbol, chain, version);
+    const formattedCollateralDeposited = ethers.formatUnits(config.collateralDeposited, decimals);
+    const formattedMintedNgns = ethers.formatUnits(config.mintedNgns, 18);
+    if (Number(formattedCollateralDeposited) === 0) return { status: true, data: '0' };
+    if (Number(formattedMintedNgns) === 0)
+      return { status: true, data: formattedCollateralDeposited };
+    const nValueOfcValue = await ngnValue(
+      collateralTokenSymbol,
+      Number(formattedCollateralDeposited),
+      chain,
+      version
+    );
+    const lockedNValueOfCvalue =
+      (Number(formattedMintedNgns) * Number(config.customCollateralRatio)) / 10000;
+    const collateralNgnValue = Number(nValueOfcValue.data);
+    if (collateralNgnValue <= lockedNValueOfCvalue) return { status: true, data: '0' };
+    const excessNgn = collateralNgnValue - lockedNValueOfCvalue;
+    const res = await fetchPricePerNgn(tokenInfo.tokenAddress, chain);
+    const pricePerNgn = 1 / res.data;
+    const cValueWithdrawable = excessNgn * pricePerNgn;
+    return { status: false, data: String(cValueWithdrawable) };
+  }
 }
 
 async function ngnValue(collateralTokenSymbol, collateralAmount, chain, version) {
@@ -552,16 +602,16 @@ async function ngnValue(collateralTokenSymbol, collateralAmount, chain, version)
     const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
     valWei = await cdpContract.ngnValue(tokenInfo.tokenAddress, amountWei);
 
-    return ethers.formatUnits(valWei, 18);
+    return { status: true, data: ethers.formatUnits(valWei, 18) };
   } catch (err) {
-  console.warn('CDP NGN VALUE FAILED. USING ORACLE FALLBACK:', err.message);
+    console.warn('CDP NGN VALUE FAILED. USING ORACLE FALLBACK:');
     const res = await fetchPricePerNgn(tokenInfo.tokenAddress, chain);
 
     if (!res.status) {
       throw new Error('CDP valuation and oracle fallback both failed');
     }
 
-    return Number(collateralAmount) * res.data;
+    return { status: false, data: String(Number(collateralAmount) * res.data) };
   }
 }
 

@@ -39,11 +39,14 @@ const isPositiveRaw = (raw) => {
   }
 };
 
-const request = async (path, { method = 'GET', body, signal } = {}) => {
+const request = async (path, { method = 'GET', body, signal, allowFalse = false } = {}) => {
   const res = await fetch(`${SALVA_API_URL}${path}`, {
     method,
     signal,
-    headers: { Accept: 'application/json', ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    headers: {
+      Accept: 'application/json',
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const text = await res.text();
@@ -53,7 +56,7 @@ const request = async (path, { method = 'GET', body, signal } = {}) => {
   } catch {
     throw new Error(`Invalid JSON response (${res.status})`);
   }
-  if (!res.ok || data?.status === false) {
+  if (!res.ok || (data?.status === false && !allowFalse)) {
     throw new Error(data?.errorMsg || data?.message || `Request failed (${res.status})`);
   }
   return data;
@@ -107,7 +110,12 @@ const fetchVault = async (manager, token, safe, chain, decimals, signal) => {
     ),
     soft(
       hasCollateral && hasDebt
-        ? request('/api/cdp/withdrawable', { method: 'POST', body: base, signal })
+        ? request('/api/cdp/withdrawable', {
+            method: 'POST',
+            body: base,
+            signal,
+            allowFalse: true,
+          })
         : null
     ),
     soft(
@@ -121,6 +129,7 @@ const fetchVault = async (manager, token, safe, chain, decimals, signal) => {
               version: manager.version,
             },
             signal,
+            allowFalse: true,
           })
         : null
     ),
@@ -135,6 +144,10 @@ const fetchVault = async (manager, token, safe, chain, decimals, signal) => {
     health: health?.data?.healthBps ?? null,
     withdrawable: hasDebt ? withdrawable?.data?.withdrawable ?? null : collateral,
     collateralNgn: value?.data?.ngnValue ?? (hasCollateral ? null : '0'),
+    oracleStale: Boolean(
+      (hasCollateral && (!value || value.status === false)) ||
+        (hasCollateral && hasDebt && (!withdrawable || withdrawable.status === false))
+    ),
   };
 };
 
