@@ -1546,7 +1546,6 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
                   Showing last known data · retrying
                 </p>
               )}
-
               <div className="mt-4 border-t border-white/[0.07] pt-3 sm:pt-4">
                 <p className="mb-2 text-[8px] sm:text-[9px] font-extrabold uppercase tracking-[.18em] text-white/75">
                   Position actions
