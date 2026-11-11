@@ -29,7 +29,6 @@ const UserSchema = new mongoose.Schema({
   },
   ownerPrivateKey: { type: String, required: true },
   transactionPin: { type: String, default: null },
-  accountLockedUntil: { type: Date, default: null },
   pinSetupCompleted: { type: Boolean, default: false },
   isValidator: { type: Boolean, default: false },
   namespaces: {

@@ -20,6 +20,7 @@ import { SALVA_API_URL } from '../config';
 import Stars from '../components/Stars';
 
 const EASE = [0.16, 1, 0.3, 1];
+const EXISTING_USER_FLAG = 'Is Existing user';
 
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -37,7 +38,11 @@ const Login = () => {
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
     const [showPin, setShowPin] = useState(false);
-  const navigate = useNavigate();
+    const [showMigrationModal, setShowMigrationModal] = useState(false);
+    const [migrationPin, setMigrationPin] = useState('');
+    const [showMigrationPin, setShowMigrationPin] = useState(false);
+    const [migrating, setMigrating] = useState(false);
+    const navigate = useNavigate();
   const location = useLocation();
   const reduce = useReducedMotion();
   const isNativeApp = Capacitor.isNativePlatform();
@@ -78,6 +83,27 @@ const Login = () => {
   const validatePassword = (password) => /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password);
   const validateUsername = (username) => /^[a-zA-Z0-9_]{3,20}$/.test(username);
 
+    const finishLogin = (data) => {
+      const userData = {
+        username: sanitizeInput(data.username),
+        email: sanitizeInput(formData.email),
+        safeAddress: data.safeAddress,
+        isValidator: data.isValidator || false,
+        isSeller: data.isSeller || false,
+        nameAlias: data.nameAlias || null,
+      };
+      localStorage.setItem('salva_user', JSON.stringify(userData));
+      showMsg('Welcome back');
+      setTimeout(() => navigate('/dashboard'), 1000);
+    };
+
+    const closeMigrationModal = () => {
+      if (migrating) return;
+      setShowMigrationModal(false);
+      setMigrationPin('');
+      setShowMigrationPin(false);
+    };
+  
   const handleStartRegistration = async (e) => {
     e.preventDefault();
     const email = sanitizeInput(formData.email);
@@ -162,6 +188,12 @@ const Login = () => {
         showMsg(data.message || 'Authentication failed', 'error');
         return;
       }
+      if (isLogin && data === EXISTING_USER_FLAG) {
+        setMigrationPin('');
+        setShowMigrationPin(false);
+        setShowMigrationModal(true);
+        return;
+      }
       if (!data.safeAddress) throw new Error('Invalid server response');
 
       if (!isLogin) {
@@ -216,6 +248,42 @@ const Login = () => {
     }
   };
 
+    const handleMigrationSubmit = async (e) => {
+    e.preventDefault();
+    if (migrating) return;
+    if (!/^\d{4}$/.test(migrationPin)) {
+      return showMsg('Transaction PIN must be exactly 4 digits', 'error');
+    }
+
+    const email = sanitizeInput(formData.email);
+    setMigrating(true);
+    try {
+      const updateRes = await fetch(`${SALVA_API_URL}/api/user/login-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: formData.password, pin: migrationPin }),
+      });
+      const updated = await updateRes.json().catch(() => null);
+
+      if (!updateRes.ok || !updated || !updated.safeAddress) {
+        showMsg(
+          (updated && updated.message) || 'Account update failed. Please try again.',
+          'error'
+        );
+        return;
+      }
+
+      setShowMigrationModal(false);
+      setMigrationPin('');
+      finishLogin(updated);
+    } catch (err) {
+      console.error('Migration error:', err);
+      showMsg('Network error. Please try again.', 'error');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   if (checkingAuth) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#08090b] text-[#e8bd59]">
@@ -252,6 +320,113 @@ const Login = () => {
           >
             {notif.msg}
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showMigrationModal && (
+          <div className="fixed inset-0 z-[90] flex items-center justify-center px-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-black/80 backdrop-blur-xl"
+              onClick={closeMigrationModal}
+            />
+
+            <motion.div
+              initial={reduce ? { opacity: 0 } : { opacity: 0, y: 24, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={reduce ? { opacity: 0 } : { opacity: 0, y: 16, scale: 0.97 }}
+              transition={{ duration: reduce ? 0 : 0.35, ease: EASE }}
+              className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[#0d0f12] shadow-[0_30px_120px_rgba(0,0,0,0.65)]"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="migration-pin-title"
+            >
+              <div className="h-1 bg-gradient-to-r from-transparent via-[#e8bd59] to-transparent" />
+              <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-[#e8bd59]/10 blur-[80px]" />
+
+              <form onSubmit={handleMigrationSubmit} className="relative p-6 sm:p-8">
+                <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-[#e8bd59]/20 bg-[#e8bd59]/10 text-[#e8bd59]">
+                  <Fingerprint size={22} />
+                </div>
+
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#e8bd59]">
+                  One last step
+                </p>
+                <h3
+                  id="migration-pin-title"
+                  className="mt-2 text-2xl font-black tracking-[-0.04em] sm:text-3xl"
+                >
+                  Enter your PIN
+                </h3>
+                <p className="mt-3 text-sm leading-6 text-white/45">
+                  Enter your 4-digit transaction PIN to finish updating your account.
+                </p>
+
+                <div className="mt-5 flex items-start gap-3 rounded-xl border border-[#e8bd59]/20 bg-[#e8bd59]/[0.07] px-3.5 py-3">
+                  <ShieldCheck size={16} className="mt-0.5 shrink-0 text-[#e8bd59]" />
+                  <p className="text-xs font-semibold leading-5 text-[#e8bd59]/90">
+                    Make sure your PIN is correct. It will authorize all your transactions and
+                    cannot be recovered if lost.
+                  </p>
+                </div>
+
+                <div className="mt-5">
+                  <label className={fieldLabel}>Transaction PIN</label>
+                  <div className="relative">
+                    <input
+                      className={`${inputClass} px-12 py-4 text-center text-xl font-black tracking-[0.5em]`}
+                      type={showMigrationPin ? 'text' : 'password'}
+                      inputMode="numeric"
+                      maxLength={4}
+                      placeholder="••••"
+                      value={migrationPin}
+                      onChange={(e) => setMigrationPin(e.target.value.replace(/\D/g, ''))}
+                      autoFocus
+                      required
+                      pattern="\d{4}"
+                      autoComplete="off"
+                      disabled={migrating}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMigrationPin((v) => !v)}
+                      aria-label={showMigrationPin ? 'Hide PIN' : 'Show PIN'}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/35 transition hover:text-white"
+                    >
+                      {showMigrationPin ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={closeMigrationModal}
+                    disabled={migrating}
+                    className="flex-1 rounded-xl border border-white/10 px-5 py-3.5 text-sm font-bold text-white/55 transition hover:border-white/20 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={migrating || migrationPin.length !== 4}
+                    className="group inline-flex flex-[1.4] items-center justify-center gap-2 rounded-xl bg-[#e8bd59] px-5 py-3.5 text-sm font-black text-[#17140b] shadow-lg shadow-[#e8bd59]/10 transition hover:bg-[#f0ca72] focus:outline-none focus:ring-4 focus:ring-[#e8bd59]/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {migrating ? 'PLEASE WAIT…' : 'Confirm & continue'}
+                    {!migrating && (
+                      <ArrowUpRight
+                        size={17}
+                        className="transition group-hover:-translate-y-0.5 group-hover:translate-x-0.5"
+                      />
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

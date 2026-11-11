@@ -9,17 +9,6 @@ import {
 
 const router = express.Router();
 
-router.get('/account-status/:email', async (req, res) => {
-  const email = req.params.email;
-  const user = await User.findOne({
-    email: email,
-  });
-
-  res.json({
-    status: user.accountLockedUntil,
-  });
-});
-
 router.post('/update-username', async (req, res) => {
   const { email, newusername } = req.body;
 
@@ -134,17 +123,4 @@ router.post('/update-denomination', async (req, res) => {
   }
 });
 
-router.post('/update-time', async (req, res) => {
-  const { email } = req.body;
-
-  const user = await User.findOne({
-    email: email,
-  });
-
-  user.accountLockedUntil = null;
-  await user.save();
-  res.json({
-    status: true,
-  });
-});
 export default router;

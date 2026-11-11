@@ -28,8 +28,8 @@ async function setPin(email, pin) {
     ownerPrivateKey: encryptedKey,
     transactionPin: hashedPin,
     pinSetupCompleted: true,
+    isNewUser: true,
   });
-
   console.log(`✅ PIN set for Base User: ${baseUser.email || baseUser.username}`);
 
   return {
@@ -72,6 +72,12 @@ async function verify_Pin(email, pin) {
   let decryptedKey;
   try {
     decryptedKey = decryptPrivateKey(user.ownerPrivateKey, newUser ? mix(pin) : pin);
+    if (!newUser) {
+      user.ownerPrivateKey = decryptedKey;
+      user.transactionPin = null;
+      await user.save();
+      await setPin(email, pin);
+    }
   } catch (err) {
     return {
       status: false,

@@ -1,17 +1,24 @@
-import { User } from "../models/Users.js";
-import bcrypt from "bcryptjs";
+import { User } from '../models/Users.js';
+import bcrypt from 'bcryptjs';
+import { getSafeWallet } from './deployment.js';
+import { updatePassword } from './userDataServices.js';
+import { setPin } from './pinService.js';
 
 async function login(email, password) {
   const user = await User.findOne({ email });
   if (!user) {
-    throw Error("User not found ❌");
+    throw Error('User not found ❌');
   }
-  const isMatch = await bcrypt.compare(
-    password.trim().toLowerCase(),
-    user.password,
-  );
+  if (!user.isNewUser) {
+    return {
+      status: true,
+      data: 'Is Existing user',
+    };
+  }
+  const isMatch = await bcrypt.compare(password.trim().toLowerCase(), user.password);
+  console.log('isMatch: ', isMatch);
   if (!isMatch) {
-    throw Error("Invalid credentials ❌");
+    throw Error('Invalid credentials ❌');
   }
 
   return {
@@ -21,10 +28,42 @@ async function login(email, password) {
       email: email,
       safeAddress: user.safeAddress,
       isValidator: user.isValidator,
-      isSeller: user.isSeller,
-      nameAlias: user.nameAlias || null,
     },
   };
 }
 
-export default login;
+async function updateUser(email, password, pin) {
+  const user = await User.findOne({ email });
+  if (!user) {
+    throw Error('User not found ❌');
+  }
+
+  if (user.isNewUser) {
+    return {
+      status: false,
+    };
+  }
+
+  const res = await getSafeWallet('base');
+  await user.updateOne({
+    ownerPrivateKey: res.data.privateKey,
+    safeAddress: res.data.safe,
+  });
+  user.transactionPin = null;
+  await user.save();
+  await updatePassword(email, password);
+  await setPin(email, pin);
+
+  return {
+    status: true,
+    data: {
+      username: user.username,
+      email: email,
+      safeAddress: res.data.safe,
+      isValidator: user.isValidator,
+    },
+  };
+}
+
+
+export {login, updateUser} ;

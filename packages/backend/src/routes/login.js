@@ -1,6 +1,6 @@
 import express from "express";
 import authLimiter from "../middleware/authLimiter.js";
-import login from "../services/loginService.js";
+import { login, updateUser } from '../services/loginService.js';
 import validator from "validator";
 
 const router = express.Router();
@@ -41,6 +41,17 @@ router.post("/login", authLimiter, async (req, res) => {
     res.json(data.data);
   } catch (error) {
     return handleError(error, res, "Login failed");
+  }
+});
+
+router.post('/login-update', authLimiter, async (req, res) => {
+  try {
+    const { email, password, pin } = req.body;
+    const sanitizedMail = sanitizeData(email, true);
+    const data = await updateUser(sanitizedMail, password, pin);
+    res.json(data.status ? data.data : false);
+  } catch (error) {
+    return handleError(error, res, 'Login failed');
   }
 });
 

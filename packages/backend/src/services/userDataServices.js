@@ -75,7 +75,7 @@ async function updatePassword(email, newPassword) {
     email: email.toLowerCase(),
   });
 
-  const hashPassword = await bcrypt.hash(newPassword, 10);
+  const hashPassword = await bcrypt.hash(newPassword.trim().toLowerCase(), 10);
 
   // update
   userBase.password = hashPassword;
