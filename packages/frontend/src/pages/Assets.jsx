@@ -207,6 +207,16 @@ const Assets = () => {
 
   const [showBalance] = useState(() => localStorage.getItem('salva_show_balance') !== 'false');
 
+  const [search, setSearch] = useState('');
+  const searchQuery = search.trim().toLowerCase();
+  const filteredAssets = searchQuery
+    ? assets.filter((a) =>
+        `${a.symbol || ''} ${a.name || ''} ${a.contractAddress || ''}`
+          .toLowerCase()
+          .includes(searchQuery)
+      )
+    : assets;
+
   const [detailsAsset, setDetailsAsset] = useState(null);
   const [sendAsset, setSendAsset] = useState(null);
   const [isSendOpen, setIsSendOpen] = useState(false);
@@ -526,6 +536,25 @@ const Assets = () => {
           </p>
         </div>
 
+        <div className="relative mb-3 sm:mb-4">
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search symbol, name or address…"
+            className="w-full h-11 sm:h-12 pl-4 pr-10 rounded-xl sm:rounded-2xl bg-white/[0.035] border border-white/10 focus:border-salvaGold/50 outline-none text-[11px] sm:text-sm font-bold text-white placeholder:text-white/40 transition-colors"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/60 hover:text-white text-base leading-none"
+            >
+              ×
+            </button>
+          )}
+        </div>
+
         <div className="rounded-2xl sm:rounded-[24px] border border-white/[0.07] bg-white/[0.025] overflow-hidden divide-y divide-white/[0.055]">
           {loading ? (
             <div className="py-14 flex justify-center">
@@ -539,8 +568,16 @@ const Assets = () => {
                 Assets on {selectedChain} will appear here.
               </p>
             </div>
+          ) : filteredAssets.length === 0 ? (
+            <div className="py-14 text-center">
+              <p className="text-xs sm:text-sm font-black text-white/80">No matching assets</p>
+
+              <p className="text-[9px] sm:text-[10px] text-white/70 mt-1">
+                Nothing matches “{search.trim()}”.
+              </p>
+            </div>
           ) : (
-            assets.map((asset) => (
+            filteredAssets.map((asset) => (
               <button
                 key={asset._key}
                 onClick={() => setDetailsAsset(asset)}

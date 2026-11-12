@@ -1111,6 +1111,94 @@ const ActionModal = ({
   );
 };
 
+/* ============================== COLLATERALS MODAL ============================== */
+
+const CollateralsModal = ({ manager, walletAssets, onClose }) => {
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLowerCase();
+  const tokens = manager.whitelistedTokens.filter(
+    (t) => !q || `${t.symbol} ${t.tokenAddress || ''}`.toLowerCase().includes(q)
+  );
+
+  return (
+    <div className="fixed inset-0 z-[130] flex items-end sm:items-center justify-center px-0 sm:px-4">
+      <div className="absolute inset-0 bg-black/90 backdrop-blur-xl" onClick={onClose} />
+
+      <motion.div
+        initial={{ opacity: 0, y: '8%', scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: '8%', scale: 0.98 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 28 }}
+        className="relative w-full sm:max-w-md max-h-[92vh] overflow-y-auto rounded-t-[30px] sm:rounded-[30px] border border-white/10 bg-[#0b0b0d] shadow-[0_35px_120px_rgba(0,0,0,.65)]"
+      >
+        <div className="h-1 bg-gradient-to-r from-transparent via-salvaGold to-transparent" />
+
+        <div className="p-4 sm:p-7">
+          <div className="flex items-start justify-between gap-3 mb-5">
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase tracking-[.35em] text-salvaGold font-black">
+                Allowed collateral
+              </p>
+              <h3 className="text-xl sm:text-2xl font-black mt-1">{manager.version}</h3>
+              <p className="text-[10px] font-mono text-white/70 mt-1">
+                {truncate(manager.contractAddress, 8, 6)}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="w-9 h-9 shrink-0 rounded-xl border border-white/10 bg-white/[0.03] text-white"
+            >
+              ×
+            </button>
+          </div>
+
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search symbol or address…"
+            className="w-full h-12 px-4 rounded-2xl bg-white/[0.035] border border-white/10 focus:border-salvaGold/50 outline-none font-bold text-sm transition-colors"
+          />
+
+          <div className="mt-3 space-y-2 max-h-[52vh] overflow-y-auto pr-0.5">
+            {tokens.length === 0 ? (
+              <div className="py-10 text-center rounded-2xl border border-white/[0.08] bg-white/[0.025]">
+                <p className="text-sm font-black">No collateral found</p>
+                <p className="text-[10px] text-white/70 mt-1">Nothing matches “{query}”.</p>
+              </div>
+            ) : (
+              tokens.map((t) => (
+                <div
+                  key={`${t.symbol}:${t.tokenAddress}`}
+                  className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.08] bg-white/[0.03]"
+                >
+                  <TokenIcon symbol={t.symbol} walletAssets={walletAssets} size="w-10 h-10" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-black">{t.symbol}</p>
+                    <p className="text-[9px] font-mono text-white/70 mt-0.5 truncate">
+                      {truncate(t.tokenAddress, 8, 6)}
+                    </p>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full mt-4 h-12 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white"
+          >
+            Close
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 /* ============================== VAULT CARD ============================== */
 
 const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
@@ -1680,6 +1768,7 @@ const CDP = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [version, setVersion] = useState(() => localStorage.getItem('salva_cdp_manager') || '');
   const [modal, setModal] = useState(null);
+  const [collateralView, setCollateralView] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
 
   const mountedRef = useRef(true);
@@ -1718,6 +1807,9 @@ const CDP = () => {
 
   const closeModal = useCallback(() => setModal(null), []);
   useOverlayLayer('cdpModal', Boolean(modal), closeModal);
+
+  const closeCollaterals = useCallback(() => setCollateralView(null), []);
+  useOverlayLayer('cdpCollaterals', Boolean(collateralView), closeCollaterals);
 
   const readIntoUI = useCallback(() => {
     if (!user?.email || !mountedRef.current) return;
@@ -2004,8 +2096,24 @@ const CDP = () => {
                           {truncate(o.m.contractAddress, 8, 6)}
                         </p>
                       </div>
-                      <span className="text-[10px] font-bold text-white">
-                        {o.m.whitelistedTokens.length} collateral
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setCollateralView(o.m);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setCollateralView(o.m);
+                          }
+                        }}
+                        className="shrink-0 px-2.5 py-1 rounded-lg border border-salvaGold/25 bg-salvaGold/10 text-[9px] font-black uppercase tracking-widest text-salvaGold hover:bg-salvaGold/15 transition-colors"
+                      >
+                        View {o.m.whitelistedTokens.length}{' '}
+                        {o.m.whitelistedTokens.length === 1 ? 'collateral' : 'collaterals'}
                       </span>
                     </div>
                   )}
@@ -2119,9 +2227,7 @@ const CDP = () => {
                 {activePositions > 0 && unregisteredTokens.length > 0 && (
                   <button
                     type="button"
-                    onClick={() =>
-                      openAction('deposit', unregisteredTokens[0].symbol, true)
-                    }
+                    onClick={() => openAction('deposit', unregisteredTokens[0].symbol, true)}
                     className="rounded-full bg-salvaGold px-3.5 py-1.5 text-[10px] font-black uppercase tracking-widest text-black hover:brightness-110"
                   >
                     ＋ Deposit collateral
@@ -2180,6 +2286,17 @@ const CDP = () => {
             onClose={closeModal}
             showMsg={showMsg}
             onSuccess={() => poll({ force: true })}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {collateralView && (
+          <CollateralsModal
+            key={collateralView.version}
+            manager={collateralView}
+            walletAssets={walletAssets}
+            onClose={closeCollaterals}
           />
         )}
       </AnimatePresence>
