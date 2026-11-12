@@ -2,25 +2,28 @@ import { CdpPositionManager } from '../models/CDP.js';
 
 await CdpPositionManager.create({
   version: 'pm-v1',
-  contractAddress: '0xe698C6D97F722993a7cf4830289ABA9dfe85EDB9', // BNB 0x1638056996B3e902f4888380C1c83f2362153B6E
+  contractAddress: '0x1638056996B3e902f4888380C1c83f2362153B6E',
   whitelistedTokens: [
     {
       symbol: 'USDT',
-      tokenAddress: '0xfde4C96c8593536E31F229EA8f37b2ADa2699bb2',
-      priceFeed: '0xE6c6bf78308C46bad5Cae5D0ed44b36370b4B00d',
+      tokenAddress: '0x55d398326f99059fF775485246999027B3197955',
+      priceFeed: '0x501e21126486424567f40D490856094D72986E41',
+      logo: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xdAC17F958D2ee523a2206206994597C13D831ec7/logo.png',
     },
     {
       symbol: 'USDC',
-      tokenAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-      priceFeed: '0xd0Dc8c910565D94D408729D16bE5467B5d7633Ad',
+      tokenAddress: '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d',
+      priceFeed: '0x8068600c8f6d2fB3d44F5B4cb7E7f4Ac47c2c742',
+      logo: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/assets/0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48/logo.png',
     },
     {
-      symbol: 'ETH',
+      symbol: 'BNB',
       tokenAddress: '0x0000000000000000000000000000000000000000',
-      priceFeed: '0x50015f8b17fb2C290Dde41fDc246ed0dcEE93a8b',
+      priceFeed: '0xd5D290Fe2ae6b55F385ab9C14d2CeB91DD3d9022',
+      logo: 'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/binance/info/logo.png',
     },
   ],
-  chain: 'base',
+  chain: 'bnb',
   type: 'MAINNET',
 });
 

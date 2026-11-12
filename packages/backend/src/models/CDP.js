@@ -5,7 +5,6 @@ const CdpPositionManagerSchema = new mongoose.Schema({
   version: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
     index: true,
   },
