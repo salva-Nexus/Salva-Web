@@ -22,12 +22,12 @@ const pointsDistribution = {
     referrer: 1,
   },
   transfers: {
-    sender: 6,
-    receiver: 5,
+    sender: 3,
+    receiver: 2,
   },
   swaps: {
-    ls: 5,
-    lp: 6,
+    ls: 2,
+    lp: 3,
   },
   link: 1,
 };
