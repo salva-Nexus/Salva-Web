@@ -43,6 +43,14 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   return `${sign}${integer}${decimal ? `.${decimal}` : ''}`;
 };
 
+// Fiat sub-values: 2 decimals (truncated). Non-zero amounts below 0.01 show as "<$0.01".
+const formatFiat = (value, symbol) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return `${symbol}0.00`;
+  if (n < 0.01) return `<${symbol}0.01`;
+  return `${symbol}${formatNumber(n, { minDecimals: 2, maxDecimals: 2 })}`;
+};
+
 const formatAmountInput = (raw) => {
   const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
   const parts = cleaned.split('.');
@@ -888,12 +896,12 @@ const SendForm = ({
                 )}
                 {amountMode !== 'usd' && (
                   <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] sm:text-[10px] font-bold text-white/55">
-                    ≈ ${formatNumber(assetToUsd(tokenAmount), { minDecimals: 2, maxDecimals: 4 })}
+                    ≈ {formatFiat(assetToUsd(tokenAmount), '$')}
                   </span>
                 )}
                 {amountMode !== 'ngn' && (
                   <span className="px-2.5 py-1 rounded-lg bg-white/[0.04] border border-white/[0.07] text-[9px] sm:text-[10px] font-bold text-white/55">
-                    ≈ ₦{formatNumber(assetToNgn(tokenAmount), { minDecimals: 2, maxDecimals: 2 })}
+                    ≈ {formatFiat(assetToNgn(tokenAmount), '₦')}
                   </span>
                 )}
               </div>
@@ -941,7 +949,7 @@ const SendForm = ({
                 <div className="flex items-center justify-between">
                   <span className="text-[9px] text-white/40">Estimated fee</span>
                   <span className="text-[10px] font-black text-salvaGold">
-                    {fee.feeNGN ? `₦${formatNumber(fee.feeNGN, { maxDecimals: 2 })}` : '—'}
+                    {fee.feeNGN ? formatFiat(fee.feeNGN, '₦') : '—'}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -1013,16 +1021,9 @@ const SendForm = ({
                       </p>
                       {hasPricing && (
                         <p className="text-[9px] sm:text-[10px] text-white/35 font-bold mt-1">
-                          ≈ $
-                          {formatNumber(assetToUsd(amountNumber), {
-                            minDecimals: 2,
-                            maxDecimals: 4,
-                          })}
-                          <span className="text-white/15 mx-1">·</span>₦
-                          {formatNumber(assetToNgn(amountNumber), {
-                            minDecimals: 2,
-                            maxDecimals: 2,
-                          })}
+                          ≈ {formatFiat(assetToUsd(amountNumber), '$')}
+                          <span className="text-white/15 mx-1">·</span>
+                          {formatFiat(assetToNgn(amountNumber), '₦')}
                         </p>
                       )}
                     </div>

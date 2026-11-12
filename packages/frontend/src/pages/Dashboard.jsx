@@ -78,6 +78,14 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   return `${sign}${integer}${decimal ? `.${decimal}` : ''}`;
 };
 
+// Fiat sub-values: 2 decimals (truncated). Non-zero amounts below 0.01 show as "<$0.01".
+const formatFiat = (value, symbol) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return `${symbol}0.00`;
+  if (n < 0.01) return `<${symbol}0.01`;
+  return `${symbol}${formatNumber(n, { minDecimals: 2, maxDecimals: 2 })}`;
+};
+
 const formatAmountInput = (raw) => {
   const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
   const parts = cleaned.split('.');
@@ -124,9 +132,9 @@ const AssetValueLine = ({ asset, className = '' }) => {
 
   return (
     <p className={className}>
-      ${formatNumber(usdValue, { minDecimals: 2, maxDecimals: 2 })}
-      <span className="text-white/35 mx-1">·</span>₦
-      {formatNumber(ngnValue, { minDecimals: 2, maxDecimals: 2 })}
+      {formatFiat(usdValue, '$')}
+      <span className="text-white/35 mx-1">·</span>
+      {formatFiat(ngnValue, '₦')}
     </p>
   );
 };
@@ -1669,11 +1677,7 @@ const Dashboard = () => {
                     </span>
                   ) : showBalance ? (
                     <span className="text-[1.98rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[-0.055em] leading-none">
-                      {totalDisplay.symbol}
-                      {formatNumber(totalDisplay.value, {
-                        minDecimals: 2,
-                        maxDecimals: 2,
-                      })}
+                      {formatFiat(totalDisplay.value, totalDisplay.symbol)}
                     </span>
                   ) : (
                     <span className="text-[1.98rem] sm:text-[2.35rem] md:text-[3.25rem] font-black tracking-[.08em] leading-none">

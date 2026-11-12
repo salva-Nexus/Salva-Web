@@ -65,6 +65,13 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals } = {}) => {
   return `${sign}${i}${d ? `.${d}` : ''}`;
 };
 
+const formatFiat = (value, symbol) => {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0) return `${symbol}0.00`;
+  if (n < 0.01) return `<${symbol}0.01`;
+  return `${symbol}${formatNumber(n, { minDecimals: 2, maxDecimals: 2 })}`;
+};
+
 const formatAmountInput = (raw) => {
   const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
   const parts = cleaned.split('.');
@@ -834,13 +841,7 @@ const ActionModal = ({
                     label="Collateral"
                     value={`${formatNumber(vault?.collateral, { maxDecimals: 8 })} ${symbol}`}
                   />
-                  <Row
-                    label="Collateral value"
-                    value={`₦${formatNumber(vault?.collateralNgn, {
-                      minDecimals: 2,
-                      maxDecimals: 2,
-                    })}`}
-                  />
+                  <Row label="Collateral value" value={formatFiat(vault?.collateralNgn, '₦')} />
                   <Row
                     label="Debt"
                     value={`${formatNumber(vault?.debt, { maxDecimals: 4 })} NGNS`}
@@ -1035,9 +1036,7 @@ const ActionModal = ({
                     <div className="space-y-2">
                       <Row
                         label="Estimated fee"
-                        value={
-                          fee.feeNGN ? `₦${formatNumber(fee.feeNGN, { maxDecimals: 2 })}` : '—'
-                        }
+                        value={fee.feeNGN ? formatFiat(fee.feeNGN, '₦') : '—'}
                         accent="text-salvaGold"
                       />
                       <Row
@@ -1264,7 +1263,7 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
             </p>
             <p className="mt-0.5 text-[8px] sm:text-[10px] text-white/75">{symbol}</p>
             <p className="mt-1 text-[9px] sm:text-[11px] font-bold text-salvaGold break-words">
-              ₦{formatNumber(d.collateralNgn, { minDecimals: 2, maxDecimals: 2 })}
+              {formatFiat(d.collateralNgn, '₦')}
             </p>
           </div>
           <div className="min-w-0 rounded-xl sm:rounded-2xl border border-white/[0.065] bg-black/20 p-2 sm:p-3.5">
@@ -1378,8 +1377,7 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
                     <span className="text-[9px] sm:text-[10px] text-white/75">{symbol}</span>
                   </p>
                   <p className="mt-1 text-[10px] sm:text-[11px] text-white/80">
-                    Oracle value: ₦
-                    {formatNumber(d.collateralNgn, { minDecimals: 2, maxDecimals: 2 })}
+                    Oracle value: {formatFiat(d.collateralNgn, '₦')}
                   </p>
                 </div>
                 <div className="rounded-xl sm:rounded-2xl border border-white/[0.065] bg-black/20 p-3 sm:p-4">

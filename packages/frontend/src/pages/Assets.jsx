@@ -29,25 +29,40 @@ const CHAIN_BADGE_COLORS = {
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   if (value === null || value === undefined || value === '') return '0';
 
+  let str;
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    str = value.trim();
+  } else {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '0';
+    str =
+      Math.abs(n) >= 1e21
+        ? n.toLocaleString('en-US', { useGrouping: false })
+        : n.toFixed(Math.min(100, maxDecimals + 8));
+  }
+
+  const negative = str.startsWith('-');
+  const [rawInt, rawDec = ''] = str.replace('-', '').split('.');
+
+  const integer = rawInt.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  let decimal = rawDec.slice(0, maxDecimals).padEnd(maxDecimals, '0');
+  while (decimal.length > minDecimals && decimal.endsWith('0')) {
+    decimal = decimal.slice(0, -1);
+  }
+
+  const isZero = /^0*$/.test(rawInt) && /^0*$/.test(decimal);
+  const sign = negative && !isZero ? '-' : '';
+
+  return `${sign}${integer}${decimal ? `.${decimal}` : ''}`;
+};
+
+// Fiat sub-values: 2 decimals (truncated). Non-zero amounts below 0.01 show as "<$0.01".
+const formatFiat = (value, symbol) => {
   const n = Number(value);
-
-  if (!Number.isFinite(n)) return '0';
-
-  if (n === 0) {
-    return minDecimals ? n.toFixed(minDecimals) : '0';
-  }
-
-  const fixed = n.toFixed(maxDecimals);
-
-  let [i, d = ''] = fixed.split('.');
-
-  while (d.length > minDecimals && d.endsWith('0')) {
-    d = d.slice(0, -1);
-  }
-
-  i = Number(i).toLocaleString('en-US');
-
-  return d ? `${i}.${d}` : i;
+  if (!Number.isFinite(n) || n <= 0) return `${symbol}0.00`;
+  if (n < 0.01) return `<${symbol}0.01`;
+  return `${symbol}${formatNumber(n, { minDecimals: 2, maxDecimals: 2 })}`;
 };
 
 const getAssetUsdPrice = (asset) => {
@@ -73,9 +88,9 @@ const AssetValueLine = ({ asset, className = '' }) => {
 
   return (
     <p className={className}>
-      ${formatNumber(usdValue, { minDecimals: 2, maxDecimals: 2 })}
-      <span className="text-white/15 mx-1">·</span>₦
-      {formatNumber(ngnValue, { minDecimals: 2, maxDecimals: 2 })}
+      {formatFiat(usdValue, '$')}
+      <span className="text-white/15 mx-1">·</span>
+      {formatFiat(ngnValue, '₦')}
     </p>
   );
 };

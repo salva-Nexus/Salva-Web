@@ -85,7 +85,18 @@ const display = (value) => formatDisplayNumber(value, 12);
 const money = (value) => {
   const n = Number(value);
   if (!Number.isFinite(n)) return '—';
-  return `₦${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  if (n <= 0) return '₦0.00';
+  if (n < 0.01) return '<₦0.01';
+  const [i, d = ''] = n.toFixed(10).split('.');
+  return `₦${Number(i).toLocaleString('en-US')}.${d.slice(0, 2)}`;
+};
+
+const usd2 = (value) => {
+  const n = num(value);
+  if (n <= 0) return '$0.00';
+  if (n < 0.01) return '<$0.01';
+  const [i, d = ''] = n.toFixed(10).split('.');
+  return `$${Number(i).toLocaleString('en-US')}.${d.slice(0, 2)}`;
 };
 
 const shortAddress = (value) => (value ? `${value.slice(0, 7)}…${value.slice(-5)}` : '—');
@@ -456,7 +467,7 @@ const FeeSummary = ({ fee, title = 'Estimated network fee', loading = false }) =
     </div>
     <div className="mt-2 flex items-end justify-between">
       <p className="text-base font-black text-white">{money(fee?.feeNGN)}</p>
-      <p className="text-[9px] font-bold text-emerald-400">≈ ${num(fee?.feeUsd).toFixed(2)}</p>
+      <p className="text-[9px] font-bold text-emerald-400">≈ {usd2(fee?.feeUsd)}</p>
     </div>
   </div>
 );

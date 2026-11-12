@@ -74,9 +74,11 @@ const fmt = (value, max = 6) => formatDisplayNumber(value, max);
 
 const fmtNgn = (value) => {
   const n = Number(value);
-  return Number.isFinite(n)
-    ? n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-    : '—';
+  if (!Number.isFinite(n)) return '—';
+  if (n <= 0) return '₦0.00';
+  if (n < 0.01) return '<₦0.01';
+  const [i, d = ''] = n.toFixed(10).split('.');
+  return `₦${Number(i).toLocaleString('en-US')}.${d.slice(0, 2)}`;
 };
 
 const shortAddr = (value) => (value ? `${value.slice(0, 7)}…${value.slice(-5)}` : '—');
@@ -1306,7 +1308,7 @@ const SwapSheet = ({
                 </Row>
                 <Row label="Network fee">
                   <span className="text-red-400">
-                    ₦{fmtNgn(fee.feeNGN)}{' '}
+                    {fmtNgn(fee.feeNGN)}{' '}
                     <span className="text-white/72">(${Number(fee.feeUsd || 0).toFixed(4)})</span>
                   </span>
                 </Row>
