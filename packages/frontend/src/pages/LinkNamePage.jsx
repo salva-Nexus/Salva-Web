@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
+import PinModal from '../components/PinModal';
 import { SNS_POLL_INTERVAL_MS, fetchSnsSnapshot, readSnsCache } from '../utils/snsCache';
 
 const weld = (name, namespace) => {
@@ -1563,23 +1564,27 @@ const LinkNamePage = () => {
         </AnimatePresence>
       </main>
 
-      <PinModal
-        open={linkStep === 'pin'}
-        title="Confirm name link"
-        subtitle={pendingLink.name}
-        onCancel={() => setLinkStep('form')}
-        onConfirm={executeLink}
-        loading={pinLoading}
-      />
+      <AnimatePresence>
+        {linkStep === 'pin' && (
+          <PinModal
+            key="link-pin"
+            zClass="z-[100]"
+            loading={pinLoading}
+            onCancel={() => setLinkStep('form')}
+            onVerified={executeLink}
+          />
+        )}
 
-      <PinModal
-        open={!!unlinkTarget}
-        title="Confirm unlink"
-        subtitle={unlinkTarget ? unlinkTarget.name : ''}
-        onCancel={() => setUnlinkTarget(null)}
-        onConfirm={executeUnlink}
-        loading={unlinkLoading}
-      />
+        {unlinkTarget && (
+          <PinModal
+            key="unlink-pin"
+            zClass="z-[100]"
+            loading={unlinkLoading}
+            onCancel={() => setUnlinkTarget(null)}
+            onVerified={executeUnlink}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {notification.show && <Notif notification={notification} onClose={closeNotif} />}

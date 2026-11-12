@@ -14,7 +14,6 @@ import {
   Database,
   Droplets,
   Loader2,
-  LockKeyhole,
   Plus,
   RefreshCw,
   ShieldCheck,
@@ -25,6 +24,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { SALVA_API_URL } from '../config';
 import Stars from '../components/Stars';
+import PinModal from '../components/PinModal';
 import {
   POLL_INTERVAL_MS,
   clearPoolCache,
@@ -138,63 +138,7 @@ const TxStatusModal = ({ title, message, detail, onDone }) => (
   </Modal>
 );
 
-const PinModal = ({ title, subtitle, loading, onCancel, onVerified }) => {
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
 
-  const submit = async () => {
-    if (pin.length !== 4) return;
-    setError('');
-    try {
-      await onVerified(pin);
-    } catch (error) {
-      setError(error?.message || 'PIN verification failed');
-    }
-  };
-
-  return (
-    <Modal onClose={() => !loading && onCancel()}>
-      <div className="p-5 text-center sm:p-7">
-        <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-salvaGold/20 bg-salvaGold/10">
-          <LockKeyhole className="h-5 w-5 text-salvaGold" />
-        </div>
-        <p className="text-[8px] font-black uppercase tracking-[.32em] text-salvaGold/65">Secure action</p>
-        <h3 className="mt-1 text-lg font-black">{title}</h3>
-        <p className="mx-auto mt-1.5 max-w-sm text-[11px] leading-relaxed text-white/40">{subtitle}</p>
-
-        <input
-          autoFocus
-          value={pin}
-          type="password"
-          inputMode="numeric"
-          maxLength={4}
-          placeholder="••••"
-          onChange={(event) => {
-            setError('');
-            setPin(event.target.value.replace(/\D/g, ''));
-          }}
-          onKeyDown={(event) => event.key === 'Enter' && submit()}
-          className="mt-5 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-center text-2xl font-black tracking-[.65em] text-white outline-none transition focus:border-salvaGold/45"
-        />
-
-        {error && (
-          <p className="mt-2 rounded-xl border border-red-500/20 bg-red-500/5 px-3 py-2 text-[11px] font-bold text-red-400">
-            {error}
-          </p>
-        )}
-
-        <div className="mt-4 grid grid-cols-2 gap-2">
-          <button onClick={onCancel} disabled={loading} className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/60 transition hover:bg-white/5 disabled:opacity-40">
-            Cancel
-          </button>
-          <button onClick={submit} disabled={loading || pin.length !== 4} className="rounded-xl bg-salvaGold py-3 text-xs font-black text-black transition hover:brightness-110 disabled:opacity-40">
-            {loading ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Verify PIN'}
-          </button>
-        </div>
-      </div>
-    </Modal>
-  );
-};
 
 const FeeRow = ({ label, value, usd = false }) => (
   <div className="flex items-center justify-between border-b border-white/[0.05] py-2.5 last:border-0">

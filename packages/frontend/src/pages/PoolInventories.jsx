@@ -17,7 +17,6 @@ import {
   ExternalLink,
   Info,
   Loader2,
-  LockKeyhole,
   Plus,
   Pencil,
   RefreshCw,
@@ -32,6 +31,7 @@ import {
 import { useNavigate, useParams } from 'react-router-dom';
 import { SALVA_API_URL } from '../config';
 import Stars from '../components/Stars';
+import PinModal from '../components/PinModal';
 import ngnLogo from '../assets/ngn-coin.png';
 import santLogo from '../assets/icon-only.png';
 import {

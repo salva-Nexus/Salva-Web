@@ -200,7 +200,7 @@ const PinStep = ({ user, onVerified, onCancel, requestJson }) => {
       <StepHeader
         eyebrow="Security"
         title="Verify your PIN"
-        description="Your PIN is verified before any transfer details are entered."
+        description="Your PIN is verified before any transaction details are entered."
       />
 
       <div className="rounded-[24px] border border-salvaGold/15 bg-salvaGold/[0.045] p-4 sm:p-5 mb-5">

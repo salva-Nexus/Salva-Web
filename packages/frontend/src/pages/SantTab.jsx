@@ -3,8 +3,9 @@
 // normal token details. SANT is a normal asset; this is just the extra
 // claim surface. Points come in as a prop from meta.santPoints.
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { SALVA_API_URL } from '../config';
+import PinModal from '../components/PinModal';
 
 export function fmtSant(n) {
   const num = parseFloat(n || 0);
@@ -33,7 +34,6 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
   const [isLocked, setIsLocked] = useState(true);
   const [statusLoading, setStatusLoading] = useState(true);
   const [claimPinModal, setClaimPinModal] = useState(false);
-  const [claimPin, setClaimPin] = useState('');
   // idle | verifying | minting
   const [stage, setStage] = useState('idle');
 
@@ -75,80 +75,58 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
 
   const claimable = !isLocked && points > 0;
 
-  const closeModal = useCallback(() => {
-    if (busyRef.current) return;
-    setClaimPinModal(false);
-    setClaimPin('');
-  }, []);
+    const closeModal = useCallback(() => {
+      if (busyRef.current) return;
+      setClaimPinModal(false);
+    }, []);
 
-  // Verify PIN, then mint immediately. No extra input or confirmation step.
-  const executeClaim = async (pin) => {
-    if (busyRef.current || !/^\d{4}$/.test(pin)) return;
-    busyRef.current = true;
-    setStage('verifying');
+    // Verify PIN, then mint immediately. No extra input or confirmation step.
+    const executeClaim = async (pin) => {
+      if (busyRef.current || !/^\d{4}$/.test(pin)) return;
+      busyRef.current = true;
+      setStage('verifying');
 
-    try {
-      const verifyRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: user.email, pin }),
-      });
-      const verifyData = await verifyRes.json();
+      try {
+        const verifyRes = await fetch(`${SALVA_API_URL}/api/user/verify-pin`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, pin }),
+        });
+        const verifyData = await verifyRes.json();
 
-      if (!verifyData?.success) {
-        showMsg('Incorrect PIN', 'error');
-        if (mountedRef.current) setClaimPin('');
-        return;
-      }
-
-      if (mountedRef.current) setStage('minting');
-
-      const mintRes = await fetch(`${SALVA_API_URL}/api/user/mint-sant`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: user.email,
-          address: user.safeAddress,
-          pin,
-        }),
-      });
-      const mintData = await mintRes.json();
-
-      if (mintRes.ok && mintData?.status && mintData?.data) {
-        showMsg(`🎉 Claimed ${displayPoints} SANT!`);
-        if (mountedRef.current) {
-          setClaimPinModal(false);
-          setClaimPin('');
+        if (!verifyData?.success) {
+          showMsg('Incorrect PIN', 'error');
+          return;
         }
-        fetchClaimWindow();
-        onClaimed?.();
-      } else {
-        showMsg(mintData?.errorMsg || mintData?.message || 'Claim failed', 'error');
-        if (mountedRef.current) setClaimPin('');
+
+        if (mountedRef.current) setStage('minting');
+
+        const mintRes = await fetch(`${SALVA_API_URL}/api/user/mint-sant`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email: user.email,
+            address: user.safeAddress,
+            pin,
+          }),
+        });
+        const mintData = await mintRes.json();
+
+        if (mintRes.ok && mintData?.status && mintData?.data) {
+          showMsg(`🎉 Claimed ${displayPoints} SANT!`);
+          if (mountedRef.current) setClaimPinModal(false);
+          fetchClaimWindow();
+          onClaimed?.();
+        } else {
+          showMsg(mintData?.errorMsg || mintData?.message || 'Claim failed', 'error');
+        }
+      } catch {
+        showMsg('Network error', 'error');
+      } finally {
+        busyRef.current = false;
+        if (mountedRef.current) setStage('idle');
       }
-    } catch {
-      showMsg('Network error', 'error');
-      if (mountedRef.current) setClaimPin('');
-    } finally {
-      busyRef.current = false;
-      if (mountedRef.current) setStage('idle');
-    }
-  };
-
-  const handlePinChange = (e) => {
-    if (busyRef.current) return;
-    const value = e.target.value.replace(/\D/g, '').slice(0, 4);
-    setClaimPin(value);
-    // Submit automatically as soon as the 4th digit is entered.
-    if (value.length === 4) executeClaim(value);
-  };
-
-  const stageLabel =
-    stage === 'verifying'
-      ? 'Verifying PIN…'
-      : stage === 'minting'
-      ? 'Minting SANT to your wallet…'
-      : 'Enter your 4-digit PIN to claim';
+    };
 
   return (
     <div className="mb-5 sm:mb-6">
@@ -167,7 +145,6 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
         <button
           onClick={() => {
             if (!claimable) return;
-            setClaimPin('');
             setClaimPinModal(true);
           }}
           disabled={!claimable || statusLoading}
@@ -189,64 +166,15 @@ const SantTab = ({ user, showMsg, santPoints = 0, onClaimed }) => {
 
       <AnimatePresence>
         {claimPinModal && (
-          <div className="fixed inset-0 z-[95] flex items-center justify-center px-4">
-            <motion.div
-              onClick={closeModal}
-              className="absolute inset-0 bg-black/95 backdrop-blur-md"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            />
-            <motion.div
-              onClick={(e) => e.stopPropagation()}
-              className="relative bg-zinc-950 border border-salvaGold/20 p-6 sm:p-8 rounded-3xl w-full max-w-sm shadow-2xl text-center"
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-            >
-              <div className="w-14 h-14 bg-salvaGold/10 border border-salvaGold/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl">🎁</span>
-              </div>
-
-              <h3 className="text-lg sm:text-xl font-black text-white mb-1">
-                Claim {displayPoints} SANT PTS
-              </h3>
-              <p className="text-xs sm:text-sm text-white/60 mb-5">
-                Minted directly to your Base wallet
-              </p>
-
-              <input
-                type="password"
-                inputMode="numeric"
-                maxLength={4}
-                value={claimPin}
-                onChange={handlePinChange}
-                placeholder="••••"
-                autoFocus
-                disabled={busy}
-                className="w-full p-4 rounded-xl bg-white/5 border border-white/10 focus:border-salvaGold outline-none text-center text-3xl tracking-[.7em] font-black mb-4 text-white disabled:opacity-60"
-              />
-
-              <p
-                className={`flex items-center justify-center gap-2 text-[11px] sm:text-xs font-bold mb-5 min-h-[18px] ${
-                  busy ? 'text-salvaGold' : 'text-white/60'
-                }`}
-              >
-                {busy && (
-                  <span className="w-3 h-3 border-2 border-salvaGold/30 border-t-salvaGold rounded-full animate-spin" />
-                )}
-                {stageLabel}
-              </p>
-
-              <button
-                onClick={closeModal}
-                disabled={busy}
-                className="w-full py-3 rounded-xl border border-white/10 font-bold text-white hover:bg-white/5 transition-all disabled:opacity-40"
-              >
-                Cancel
-              </button>
-            </motion.div>
-          </div>
+          <PinModal
+            key="claim-pin"
+            zClass="z-[95]"
+            autoSubmit
+            loading={busy}
+            loadingLabel={stage === 'minting' ? 'Minting…' : 'Verifying…'}
+            onCancel={closeModal}
+            onVerified={executeClaim}
+          />
         )}
       </AnimatePresence>
     </div>

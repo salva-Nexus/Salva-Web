@@ -13,7 +13,6 @@ import {
   Check,
   ChevronDown,
   ExternalLink,
-  LockKeyhole,
   RefreshCw,
   Search,
   ShieldAlert,
@@ -23,6 +22,7 @@ import {
 import { SALVA_API_URL, NODE_ENV } from '../config';
 import ngnLogo from '../assets/ngn-coin.png';
 import santLogo from '../assets/icon-only.png';
+import PinModal from '../components/PinModal';
 import { useOverlayLayer } from './Dashboard';
 import { formatDisplayNumber, readWalletCache, fetchWalletSnapshot } from '../utils/walletCache';
 import {
@@ -323,97 +323,18 @@ const AssetDropdown = ({ assets, value, onChange, logoIndex }) => {
    PIN GATE  (must pass before the swap card opens)
 ============================================================================ */
 
-const PinGateModal = ({ listing, email, onVerified, onCancel }) => {
-  const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+const PinGateModal = ({ email, onVerified, onCancel }) => {
+  const verify = async (pin) => {
+    const data = await swapRequest(`${SALVA_API_URL}/api/user/verify-pin`, {
+      method: 'POST',
+      body: { email, pin },
+    });
 
-  const submit = async () => {
-    if (pin.length !== 4 || loading) return;
-    setLoading(true);
-    setError('');
-
-    try {
-      const data = await swapRequest(`${SALVA_API_URL}/api/user/verify-pin`, {
-        method: 'POST',
-        body: { email, pin },
-      });
-
-      if (!data?.success) throw new Error('Invalid PIN');
-      onVerified(pin);
-    } catch (err) {
-      setError(err?.message || 'PIN verification failed');
-      setLoading(false);
-    }
+    if (!data?.success) throw new Error('Invalid PIN');
+    onVerified(pin);
   };
 
-  return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center px-4">
-      <motion.button
-        aria-label="Close"
-        className="absolute inset-0 bg-black/85 backdrop-blur-md"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={() => !loading && onCancel()}
-      />
-      <motion.div
-        className="relative w-full max-w-sm overflow-hidden rounded-[26px] border border-white/[0.09] bg-[#0b0c10] shadow-2xl"
-        initial={{ opacity: 0, y: 14, scale: 0.97 }}
-        animate={{ opacity: 1, y: 0, scale: 1 }}
-        exit={{ opacity: 0, y: 14, scale: 0.97 }}
-        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-      >
-        <div className="h-px bg-gradient-to-r from-transparent via-salvaGold/70 to-transparent" />
-        <div className="p-5 text-center sm:p-7">
-          <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl border border-salvaGold/20 bg-salvaGold/10">
-            <LockKeyhole className="h-5 w-5 text-salvaGold" />
-          </div>
-          <p className="text-[8px] font-black uppercase tracking-[.32em] text-salvaGold/65">
-            Secure access
-          </p>
-          <h3 className="mt-1 text-lg font-black">Enter your PIN</h3>
-          <p className="mx-auto mt-1.5 max-w-xs text-[10px] sm:text-[11px] leading-relaxed text-white/80">
-            Verify your PIN to open the {listing.baseSymbol}/{listing.quoteSymbol} swap.
-          </p>
-
-          <input
-            autoFocus
-            type="password"
-            inputMode="numeric"
-            maxLength={4}
-            value={pin}
-            placeholder="••••"
-            onChange={(e) => {
-              setError('');
-              setPin(e.target.value.replace(/\D/g, ''));
-            }}
-            onKeyDown={(e) => e.key === 'Enter' && submit()}
-            className="mt-5 w-full rounded-xl border border-white/10 bg-white/[0.035] px-3 py-3 text-center text-2xl font-black tracking-[.65em] text-white outline-none transition focus:border-salvaGold/45"
-          />
-
-          {error && <p className="mt-2 text-[10px] font-bold text-red-400">{error}</p>}
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              onClick={onCancel}
-              disabled={loading}
-              className="rounded-xl border border-white/10 py-3 text-xs font-black text-white/80 disabled:opacity-40"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={submit}
-              disabled={loading || pin.length !== 4}
-              className="flex items-center justify-center rounded-xl bg-salvaGold py-3 text-xs font-black text-black disabled:opacity-40"
-            >
-              {loading ? <Spinner className="h-4 w-4" /> : 'Verify PIN'}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  );
+  return <PinModal zClass="z-[150]" onVerified={verify} onCancel={onCancel} />;
 };
 
 /* ============================================================================

@@ -7,6 +7,7 @@ import santLogo from '../assets/icon-only.png';
 import { readWalletCache, writeWalletCache } from '../utils/walletCache';
 import { CDP_POLL_INTERVAL_MS, fetchCdpSnapshot, readCdpCache } from '../utils/cdpCache';
 import { useOverlayLayer } from './Dashboard';
+import PinModal from '../components/PinModal';
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const LOCAL_LOGOS = { NGNS: ngnLogo, SANT: santLogo };
@@ -352,81 +353,41 @@ const Notification = ({ notification, onClose }) => {
 /* ============================== PIN ============================== */
 
 const PinStep = ({ user, onVerified, onCancel }) => {
-  const [pin, setPin] = useState('');
-  const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
 
-  const verify = useCallback(async () => {
-    if (!/^\d{4}$/.test(pin) || loading) return;
-    setLoading(true);
-    try {
-      const data = await postJson(`${SALVA_API_URL}/api/user/verify-pin`, {
-        email: user.email,
-        pin,
-      });
+  const verify = useCallback(
+    async (pin) => {
+      let data;
+      try {
+        data = await postJson(`${SALVA_API_URL}/api/user/verify-pin`, {
+          email: user.email,
+          pin,
+        });
+      } catch (error) {
+        onCancel(error?.message || 'Could not verify PIN');
+        return;
+      }
+
       if (!data?.success) {
         const next = attempts + 1;
         setAttempts(next);
-        setPin('');
-        if (next >= 3) onCancel('Too many failed attempts — redirecting to settings');
-        return;
+
+        if (next >= 3) {
+          onCancel('Too many failed attempts — redirecting to settings');
+          return;
+        }
+
+        throw new Error(
+          `Incorrect PIN · ${3 - next} attempt${3 - next === 1 ? '' : 's'} remaining`
+        );
       }
+
       onVerified(pin);
-    } catch (error) {
-      setPin('');
-      onCancel(error?.message || 'Could not verify PIN');
-    } finally {
-      setLoading(false);
-    }
-  }, [attempts, loading, onCancel, onVerified, pin, user?.email]);
-
-  return (
-    <div>
-      <p className="text-[9px] uppercase tracking-[.35em] text-salvaGold font-black">Security</p>
-      <h2 className="text-xl sm:text-2xl font-black mt-1">Verify your PIN</h2>
-      <p className="text-xs text-white mt-1.5">
-        Your PIN is required before any vault action so the fee can be estimated.
-      </p>
-
-      <input
-        autoFocus
-        type="password"
-        inputMode="numeric"
-        maxLength={4}
-        value={pin}
-        onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
-        onKeyDown={(e) => e.key === 'Enter' && verify()}
-        placeholder="••••"
-        className="w-full h-16 mt-6 rounded-2xl bg-white/[0.04] border border-white/10 focus:border-salvaGold/50 outline-none text-center text-3xl tracking-[.65em] font-black transition-colors"
-      />
-
-      {attempts > 0 && attempts < 3 && (
-        <p className="text-[10px] text-red-400 font-bold text-center mt-2">
-          Incorrect PIN · {3 - attempts} attempt{3 - attempts === 1 ? '' : 's'} remaining
-        </p>
-      )}
-
-      <div className="flex gap-2 mt-5">
-        <button
-          type="button"
-          onClick={() => onCancel()}
-          disabled={loading}
-          className="flex-1 h-12 rounded-2xl border border-white/10 text-[10px] font-black uppercase tracking-widest text-white disabled:opacity-40"
-        >
-          Cancel
-        </button>
-        <button
-          type="button"
-          onClick={verify}
-          disabled={loading || pin.length !== 4}
-          className="flex-1 h-12 rounded-2xl bg-salvaGold text-black text-[10px] font-black uppercase tracking-widest disabled:opacity-35 flex items-center justify-center gap-2"
-        >
-          {loading && <Spinner small />}
-          {loading ? 'Verifying…' : 'Continue'}
-        </button>
-      </div>
-    </div>
+    },
+    [attempts, onCancel, onVerified, user?.email]
   );
+
+  return <PinModal embedded onVerified={verify} onCancel={() => onCancel()} />;
 };
 
 /* ============================== ACTION MODAL ============================== */
