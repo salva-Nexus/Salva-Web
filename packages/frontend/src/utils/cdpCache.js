@@ -5,7 +5,7 @@ import { readWalletCache } from './walletCache';
 
 export const CDP_POLL_INTERVAL_MS = 20000;
 
-const CDP_CACHE_VERSION = 2;
+const CDP_CACHE_VERSION = 3;
 const CDP_CACHE_PREFIX = 'salva_cdp_cache:';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const MEM = new Map();
@@ -204,6 +204,7 @@ export const fetchCdpSnapshot = async (email, safe, chain, { signal } = {}) => {
       symbol: String(t.symbol || '').toUpperCase(),
       tokenAddress: t.tokenAddress,
       priceFeed: t.priceFeed,
+      logo: t.logo,
     })),
   }));
 

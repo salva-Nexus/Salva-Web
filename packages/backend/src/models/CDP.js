@@ -21,6 +21,7 @@ const CdpPositionManagerSchema = new mongoose.Schema({
       symbol: { type: String, required: true, trim: true },
       tokenAddress: { type: String, required: true, lowercase: true },
       priceFeed: { type: String, required: true, lowercase: true },
+      logo: { type: String },
     },
   ],
   chain: {

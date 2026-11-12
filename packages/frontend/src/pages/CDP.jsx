@@ -186,24 +186,30 @@ const Spinner = ({ small = false }) => (
   />
 );
 
-const TokenIcon = ({ symbol, walletAssets = [], size = 'w-10 h-10' }) => {
-  const logo = LOCAL_LOGOS[symbol] || walletAssets.find((a) => a.symbol === symbol)?.logo;
-  const [broken, setBroken] = useState(false);
-  useEffect(() => setBroken(false), [logo]);
+const TokenIcon = ({ symbol, logo: apiLogo, walletAssets = [], size = 'w-10 h-10' }) => {
+  const localLogo = LOCAL_LOGOS[symbol];
+  const walletLogo = walletAssets.find((a) => a.symbol === symbol)?.logo;
+  const candidates = [apiLogo, localLogo, walletLogo].filter(Boolean);
+  const candidatesKey = candidates.join('|');
+  const [idx, setIdx] = useState(0);
+  useEffect(() => setIdx(0), [candidatesKey]);
+  const logo = candidates[idx];
   return (
     <div
       className={`${size} rounded-full bg-white/[0.06] border border-white/10 flex items-center justify-center overflow-hidden shrink-0`}
     >
-      {logo && !broken ? (
+      {logo ? (
         <img
           src={logo}
           alt={symbol}
           className="w-full h-full object-cover"
           referrerPolicy="no-referrer"
           style={
-            symbol === 'NGNS' ? { objectPosition: '48% 60%', transform: 'scale(2)' } : undefined
+            symbol === 'NGNS' && logo === localLogo
+              ? { objectPosition: '48% 60%', transform: 'scale(2)' }
+              : undefined
           }
-          onError={() => setBroken(true)}
+          onError={() => setIdx((i) => i + 1)}
         />
       ) : (
         <span className="text-[10px] font-black text-salvaGold">{symbol?.slice(0, 3)}</span>
@@ -779,13 +785,23 @@ const ActionModal = ({
                     }}
                     renderValue={(o) => (
                       <div className="flex items-center gap-3">
-                        <TokenIcon symbol={o.value} walletAssets={walletAssets} size="w-8 h-8" />
+                        <TokenIcon
+                          symbol={o.value}
+                          logo={o.token.logo}
+                          walletAssets={walletAssets}
+                          size="w-8 h-8"
+                        />
                         <span className="text-sm font-black">{o.value}</span>
                       </div>
                     )}
                     renderOption={(o) => (
                       <div className="flex items-center gap-3">
-                        <TokenIcon symbol={o.value} walletAssets={walletAssets} size="w-8 h-8" />
+                        <TokenIcon
+                          symbol={o.value}
+                          logo={o.token.logo}
+                          walletAssets={walletAssets}
+                          size="w-8 h-8"
+                        />
                         <div>
                           <p className="text-sm font-black">{o.value}</p>
                           <p className="text-[9px] font-mono text-white">
@@ -1155,7 +1171,6 @@ const CollateralsModal = ({ manager, walletAssets, onClose }) => {
           </div>
 
           <input
-            autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search symbol or address…"
@@ -1174,7 +1189,12 @@ const CollateralsModal = ({ manager, walletAssets, onClose }) => {
                   key={`${t.symbol}:${t.tokenAddress}`}
                   className="flex items-center gap-3 p-3.5 rounded-2xl border border-white/[0.08] bg-white/[0.03]"
                 >
-                  <TokenIcon symbol={t.symbol} walletAssets={walletAssets} size="w-10 h-10" />
+                  <TokenIcon
+                    symbol={t.symbol}
+                    logo={t.logo}
+                    walletAssets={walletAssets}
+                    size="w-10 h-10"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-black">{t.symbol}</p>
                     <p className="text-[9px] font-mono text-white/70 mt-0.5 truncate">
@@ -1201,7 +1221,7 @@ const CollateralsModal = ({ manager, walletAssets, onClose }) => {
 
 /* ============================== VAULT CARD ============================== */
 
-const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
+const VaultCard = ({ symbol, logo, vault, walletAssets, onAction }) => {
   const [expanded, setExpanded] = useState(false);
   const d = deriveVault(vault);
   const st = STATUS[d.status];
@@ -1272,7 +1292,12 @@ const VaultCard = ({ symbol, vault, walletAssets, onAction }) => {
       >
         <div className="flex items-center gap-2.5 sm:gap-3.5">
           <div className="rounded-xl sm:rounded-2xl border border-white/[0.08] bg-black/25 p-1 sm:p-1.5 shrink-0">
-            <TokenIcon symbol={symbol} walletAssets={walletAssets} size="w-7 h-7 sm:w-10 sm:h-10" />
+            <TokenIcon
+              symbol={symbol}
+              logo={logo}
+              walletAssets={walletAssets}
+              size="w-7 h-7 sm:w-10 sm:h-10"
+            />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -2245,6 +2270,7 @@ const CDP = () => {
                   <VaultCard
                     key={`${manager.version}:${t.symbol}`}
                     symbol={t.symbol}
+                    logo={t.logo}
                     vault={positions[t.symbol]}
                     walletAssets={walletAssets}
                     onAction={openAction}
