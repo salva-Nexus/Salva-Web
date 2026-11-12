@@ -127,6 +127,8 @@ router.get('/stats', async (req, res) => {
       treasuryUSD: computedTreasuryUSD,
     });
 
+    console.log(computedUserCount);
+
     return res.status(200).json({
       status: true,
       data: {

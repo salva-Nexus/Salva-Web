@@ -43,17 +43,26 @@ const formatNumber = (value, { minDecimals = 0, maxDecimals } = {}) => {
   if (n === 0) return minDecimals ? n.toFixed(minDecimals) : '0';
 
   // Values >= 1 use at most 4 decimals; fractional values use up to 12.
-  // Explicit low precision (e.g. currency and ratios) is preserved, but
-  // overly-high per-call precision can never force long, wrapping numbers.
   const precision = Math.abs(n) >= 1 ? 4 : 12;
   const decimals = maxDecimals === undefined ? precision : Math.min(maxDecimals, precision);
   if (Math.abs(n) < 1e-12) return n < 0 ? '-<0.000000000001' : '<0.000000000001';
 
-  const fixed = n.toFixed(decimals);
-  let [i, d = ''] = fixed.split('.');
+  // Truncate (never round). Numeric strings are sliced directly.
+  const str =
+    typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())
+      ? value.trim()
+      : n.toFixed(Math.min(100, decimals + 8));
+
+  const negative = str.startsWith('-');
+  const [rawInt, rawDec = ''] = str.replace('-', '').split('.');
+  const i = rawInt.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  let d = rawDec.slice(0, decimals).padEnd(decimals, '0');
   while (d.length > minDecimals && d.endsWith('0')) d = d.slice(0, -1);
-  i = Number(i).toLocaleString('en-US');
-  return d ? `${i}.${d}` : i;
+
+  const isZero = /^0*$/.test(rawInt) && /^0*$/.test(d);
+  const sign = negative && !isZero ? '-' : '';
+  return `${sign}${i}${d ? `.${d}` : ''}`;
 };
 
 const formatAmountInput = (raw) => {

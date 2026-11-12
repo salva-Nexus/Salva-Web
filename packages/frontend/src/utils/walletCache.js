@@ -81,10 +81,13 @@ export const formatDisplayNumber = (value, maxDecimals = 12) => {
     return `<${threshold.toFixed(maxDecimals)}`;
   }
 
-  return n.toLocaleString('en-US', {
-    maximumFractionDigits: maxDecimals,
-    useGrouping: true,
-  });
+  const str = /^-?\d+(\.\d+)?$/.test(raw) ? raw : n.toFixed(Math.min(100, maxDecimals + 8));
+  const negative = str.startsWith('-');
+  const [rawInt, rawDec = ''] = str.replace('-', '').split('.');
+  const integer = rawInt.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const decimal = rawDec.slice(0, maxDecimals).replace(/0+$/, '');
+
+  return `${negative ? '-' : ''}${integer}${decimal ? `.${decimal}` : ''}`;
 };
 
 const numericPair = (value, maxDecimals = 6) => ({

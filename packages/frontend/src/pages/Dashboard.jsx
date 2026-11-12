@@ -47,20 +47,35 @@ const pushSupported = () =>
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   if (value === null || value === undefined || value === '') return '0';
 
-  const n = Number(value);
-  if (!Number.isFinite(n)) return '0';
-  if (n === 0) return minDecimals ? n.toFixed(minDecimals) : '0';
-
-  const fixed = n.toFixed(maxDecimals);
-  let [i, d = ''] = fixed.split('.');
-
-  while (d.length > minDecimals && d.endsWith('0')) {
-    d = d.slice(0, -1);
+  // Numeric strings are truncated directly (no float round trip). Numbers are
+  // expanded with extra digits first so float noise (0.29 -> 0.28999…) never
+  // causes an off-by-one, then sliced, never rounded.
+  let str;
+  if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value.trim())) {
+    str = value.trim();
+  } else {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '0';
+    str =
+      Math.abs(n) >= 1e21
+        ? n.toLocaleString('en-US', { useGrouping: false })
+        : n.toFixed(Math.min(100, maxDecimals + 8));
   }
 
-  i = Number(i).toLocaleString('en-US');
+  const negative = str.startsWith('-');
+  const [rawInt, rawDec = ''] = str.replace('-', '').split('.');
 
-  return d ? `${i}.${d}` : i;
+  const integer = rawInt.replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+  let decimal = rawDec.slice(0, maxDecimals).padEnd(maxDecimals, '0');
+  while (decimal.length > minDecimals && decimal.endsWith('0')) {
+    decimal = decimal.slice(0, -1);
+  }
+
+  const isZero = /^0*$/.test(rawInt) && /^0*$/.test(decimal);
+  const sign = negative && !isZero ? '-' : '';
+
+  return `${sign}${integer}${decimal ? `.${decimal}` : ''}`;
 };
 
 const formatAmountInput = (raw) => {
