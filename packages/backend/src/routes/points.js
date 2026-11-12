@@ -29,7 +29,7 @@ router.get('/points-record/:email', async (req, res) => {
       email: email,
     });
     const recordObj = record.toObject();
-    recordObj.isLocked = canMint(Number(user.santPoints));
+    recordObj.isLocked = !canMint(Number(user.santPoints));
 
     return res.status(200).json({
       status: true,
