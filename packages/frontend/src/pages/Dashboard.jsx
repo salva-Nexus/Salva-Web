@@ -1481,18 +1481,34 @@ const Dashboard = () => {
   }, []);
 
   
-  const handleCopyAddress = useCallback(
-    (message = 'Address copied!') => {
-      if (user?.isNewUser === false) {
-        localStorage.removeItem('salva_user');
-        navigate('/login', { replace: true });
-        return;
-      }
+  const copyBusyRef = useRef(false);
 
-      navigator.clipboard?.writeText(user.safeAddress);
-      showMsg(message);
+  const handleCopyAddress = useCallback(
+    async (message = 'Address copied!') => {
+      if (copyBusyRef.current) return;
+      copyBusyRef.current = true;
+
+      try {
+        const { meta } = await fetchWalletSnapshot(user.email, selectedChain, {
+          logoMap: LOCAL_LOGOS,
+          timeout: 15000,
+        });
+
+        if (meta?.isNewUser === false) {
+          localStorage.removeItem('salva_user');
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        navigator.clipboard?.writeText(user.safeAddress);
+        showMsg(message);
+      } catch {
+        showMsg('Could not verify account. Try again.', 'error');
+      } finally {
+        copyBusyRef.current = false;
+      }
     },
-    [user, navigate, showMsg]
+    [user, selectedChain, navigate, showMsg]
   );
 
   useEffect(() => {
