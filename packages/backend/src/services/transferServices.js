@@ -28,7 +28,7 @@ async function getBalance(token, address, chain) {
 
     return await _getBalance(tokenContract, address);
   } else {
-    const ethBal = balanceProvider.getBalance(address);
+    const ethBal = await balanceProvider.getBalance(address);
     return { balance: ethBal, decimals: 18 };
   }
 }

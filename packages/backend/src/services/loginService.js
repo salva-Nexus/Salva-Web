@@ -9,6 +9,13 @@ async function login(email, password) {
   if (!user) {
     throw Error('User not found ❌');
   }
+
+    const pw = password.trim();
+    const legacyOk =
+      (await bcrypt.compare(pw, user.password)) ||
+      (await bcrypt.compare(pw.toLowerCase(), user.password));
+  if (!legacyOk) throw Error('Invalid credentials ❌');
+  
   if (!user.isNewUser) {
     return {
       status: true,
@@ -46,7 +53,7 @@ async function updateUser(email, password, pin) {
 
   const res = await getSafeWallet('base');
   await user.updateOne({
-    ownerPrivateKey: res.data.privateKey,
+    ownerPrivateKey: res.data.pkey,
     safeAddress: res.data.safe,
   });
   user.transactionPin = null;
@@ -64,6 +71,5 @@ async function updateUser(email, password, pin) {
     },
   };
 }
-
 
 export {login, updateUser} ;

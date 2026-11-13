@@ -1480,6 +1480,21 @@ const Dashboard = () => {
     setSendRecipient('');
   }, []);
 
+  
+  const handleCopyAddress = useCallback(
+    (message = 'Address copied!') => {
+      if (user?.isNewUser === false) {
+        localStorage.removeItem('salva_user');
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      navigator.clipboard?.writeText(user.safeAddress);
+      showMsg(message);
+    },
+    [user, navigate, showMsg]
+  );
+
   useEffect(() => {
     if (pushPromptShownRef.current) return;
     if (!pushMeta.known || pushMeta.seen) return;
@@ -1805,11 +1820,7 @@ const Dashboard = () => {
               </p>
 
               <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(user.safeAddress);
-
-                  showMsg('Wallet address copied!');
-                }}
+                onClick={() => handleCopyAddress('Wallet address copied!')}
                 className="mt-1 font-mono text-[7.7px] sm:text-[10px] text-white/80 hover:text-salvaGold text-left"
               >
                 <span className="block truncate max-w-full sm:hidden">
@@ -2013,11 +2024,7 @@ const Dashboard = () => {
               </div>
 
               <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(user.safeAddress);
-
-                  showMsg('Address copied!');
-                }}
+                onClick={() => handleCopyAddress('Address copied!')}
                 className="w-full p-2.5 sm:p-4 rounded-xl sm:rounded-2xl bg-white/[.03] border border-white/[.06] text-left"
               >
                 <p className="text-[7.7px] sm:text-[8px] uppercase tracking-[.25em] text-white/70 font-black">

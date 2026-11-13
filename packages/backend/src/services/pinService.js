@@ -20,6 +20,10 @@ async function setPin(email, pin) {
     };
   }
 
+  if (/^[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]+$/i.test(baseUser.ownerPrivateKey || '')) {
+    console.error('setPin refused: key already encrypted', new Error().stack);
+    return { status: false, errorMsg: 'Key already encrypted' };
+  }
   const mixed = mix(pin);
   const hashedPin = hashPin(mixed);
   const encryptedKey = encryptPrivateKey(baseUser.ownerPrivateKey, mixed);
@@ -86,8 +90,8 @@ async function verify_Pin(email, pin) {
   }
 
   return {
-    status: true,
-    privateKey: decryptedKey,
+    status: decryptedKey.length > 66 ? false : true,
+    privateKey: decryptedKey.length > 66 ? null : decryptedKey,
   };
 }
 
