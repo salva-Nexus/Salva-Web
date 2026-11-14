@@ -4,6 +4,7 @@ import { Pool } from '../models/Pool.js';
 import { ERC20, FACTORY_IFACE, POOL_IFACE } from '../utils/abi.js';
 import {
   estimatePoolDeploymentFee,
+  estimateDeploymentFee,
   estimateDeployInvFee,
   estimateUpdateSpreadFee,
   estimateWithdrawFee,
@@ -55,8 +56,7 @@ async function deployPool(email, pin, chain) {
   const isDeployed = code !== '0x';
   let fee = !isDeployed
     ? await estimateDeploymentFee(user.safeAddress, chain)
-    : await await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
-  const balanceData = await getBalance(tokenAddress, safeAddress, normchain);
+    : await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
 
   let deployPoolFee;
   if (!isDeployed) {
@@ -69,7 +69,7 @@ async function deployPool(email, pin, chain) {
     }
 
     // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-    const balanceData = await getBalance(initDeployPoolFeeData.data.tokenAddress, safeAddress, chain);
+    const balanceData = await getBalance(initDeployPoolFeeData.data.feeTokenAddress, safeAddress, chain);
     if (initFeeData.data.feeToken === tokenSymbol) {
       const totalRequired = BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
       console.log(balanceData.balance);
