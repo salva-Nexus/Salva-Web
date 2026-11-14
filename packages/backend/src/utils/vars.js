@@ -161,11 +161,11 @@ const MULTISIG = {
 const POOL_FACTORY = {
   base: pickByMode({
     testnet: '0x2b9Bb8e60f63B886545f9C6F14a697b9C6eE45a9',
-    mainnet: '0xAfAFa714893B76026D8cDa8b32fC665CFB2E5D67',
+    mainnet: '0x805658D6520d53ECEe0E2DA8a95Df3E55213F0fA',
   }),
   bnb: pickByMode({
     testnet: '0xd2611e3acE93303052478af5EE5d13e2E9c63C7A',
-    mainnet: '0xcEcc21518489113B7fa5b8CE463330cf372BF9fF',
+    mainnet: '0x27BfB5f2da83c25909f272d30725D85ECC0B5920',
   }),
 };
 
