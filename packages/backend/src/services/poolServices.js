@@ -37,6 +37,7 @@ function _getPoolAddress(receipt, chain) {
   return ethers.getAddress(address);
 }
 
+
 async function deployPool(email, pin, chain) {
   let user;
   try {
