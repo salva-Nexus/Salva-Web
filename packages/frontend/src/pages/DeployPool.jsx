@@ -131,8 +131,8 @@ const TxStatusModal = ({ title, message, detail, onDone }) => (
       </motion.div>
       <p className="mt-4 text-[8px] font-black uppercase tracking-[.32em] text-emerald-400/70">Transaction complete</p>
       <h3 className="mt-1.5 text-xl font-black tracking-tight">{title}</h3>
-      <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed text-white/45">{message}</p>
-      {detail && <p className="mt-2 text-[9px] font-bold text-white/20">{detail}</p>}
+      <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed text-white/80">{message}</p>
+      {detail && <p className="mt-2 text-[9px] font-bold text-white/70">{detail}</p>}
       <button onClick={onDone} className="mt-6 w-full rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black transition hover:brightness-110">Continue</button>
     </motion.div>
   </Modal>
@@ -142,7 +142,7 @@ const TxStatusModal = ({ title, message, detail, onDone }) => (
 
 const FeeRow = ({ label, value, usd = false }) => (
   <div className="flex items-center justify-between border-b border-white/[0.05] py-2.5 last:border-0">
-    <span className="text-[11px] font-bold text-white/35">{label}</span>
+    <span className="text-[11px] font-bold text-white/80">{label}</span>
     <span className={`text-xs font-black ${usd ? 'text-emerald-400' : 'text-white'}`}>
       {usd ? `$${Number(value || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}` : money(value)}
     </span>
@@ -169,7 +169,7 @@ const PoolCard = ({ pool, onOpen, onDelete }) => {
             <Droplets className="h-5 w-5 text-salvaGold" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-[7px] font-black uppercase tracking-[.25em] text-white/25">Pool address</p>
+            <p className="text-[7px] font-black uppercase tracking-[.25em] text-white/70">Pool address</p>
             <h3 className="mt-0.5 truncate font-mono text-sm font-black text-white sm:text-base">
               {shortAddress(pool.poolAddress)}
             </h3>
@@ -177,13 +177,13 @@ const PoolCard = ({ pool, onOpen, onDelete }) => {
               {count} {count === 1 ? 'inventory' : 'inventories'}
             </p>
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-white/25 transition group-hover:translate-x-0.5 group-hover:text-salvaGold" />
+          <ChevronRight className="h-4 w-4 shrink-0 text-white/70 transition group-hover:translate-x-0.5 group-hover:text-salvaGold" />
         </button>
 
         <button
           onClick={onDelete}
           title="Delete pool"
-          className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/30 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400"
+          className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/75 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400"
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>
@@ -204,14 +204,14 @@ const DeletePoolModal = ({ pool, onCancel, onDelete }) => {
         <div className="text-center">
           <p className="text-[8px] font-black uppercase tracking-[.3em] text-red-400/70">Destructive action</p>
           <h3 className="mt-1 text-lg font-black">Delete this pool?</h3>
-          <p className="mt-1.5 text-[11px] leading-relaxed text-white/40">
+          <p className="mt-1.5 text-[11px] leading-relaxed text-white/80">
             This removes the pool from the Salva registry. The on-chain contract is not automatically unwound.
           </p>
         </div>
 
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-2.5">
           <p className="font-mono text-[10px] font-bold text-white/65">{shortAddress(pool.poolAddress)}</p>
-          <p className="mt-0.5 text-[9px] text-white/30">{pool.inventories?.length || 0} market(s)</p>
+          <p className="mt-0.5 text-[9px] text-white/75">{pool.inventories?.length || 0} market(s)</p>
         </div>
 
         {funded && (
@@ -465,14 +465,14 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
             <div className="max-w-2xl">
               <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.025] px-2.5 py-1">
                 <Database className="h-3 w-3 text-salvaGold" />
-                <span className="text-[7px] font-black uppercase tracking-[.25em] text-white/45">
+                <span className="text-[7px] font-black uppercase tracking-[.25em] text-white/80">
                   P2P market registry
                 </span>
               </div>
               <h1 className="text-[22px] font-black tracking-[-.04em] sm:text-4xl">
                 Markets you control.
               </h1>
-              <p className="mt-1.5 max-w-xl text-[10px] leading-relaxed text-white/35 sm:text-xs">
+              <p className="mt-1.5 max-w-xl text-[10px] leading-relaxed text-white/80 sm:text-xs">
                 Deploy an isolated pool, then publish your own inventory, price floor and liquidity.
                 Traders interact directly with the market you configure.
               </p>
@@ -490,19 +490,19 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
 
           <div className="relative mt-4 grid grid-cols-3 divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
             <div className="px-3 py-2.5 sm:px-4 sm:py-3">
-              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/25">
+              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/70">
                 Pools
               </p>
               <p className="mt-0.5 text-base font-black sm:text-lg">{pools.length}</p>
             </div>
             <div className="px-3 py-2.5 sm:px-4 sm:py-3">
-              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/25">
+              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/70">
                 Markets
               </p>
               <p className="mt-0.5 text-base font-black sm:text-lg">{totalInventories}</p>
             </div>
             <div className="px-3 py-2.5 sm:px-4 sm:py-3">
-              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/25">
+              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/70">
                 Chain
               </p>
               <p className="mt-0.5 text-base font-black capitalize sm:text-lg">{chain}</p>
@@ -512,7 +512,7 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
 
         <div className="flex items-end justify-between px-0.5">
           <div>
-            <p className="text-[7px] font-black uppercase tracking-[.3em] text-white/25">
+            <p className="text-[7px] font-black uppercase tracking-[.3em] text-white/70">
               Registry
             </p>
             <h2 className="mt-0.5 text-base font-black sm:text-lg">Active pools</h2>
@@ -520,7 +520,7 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
           <button
             onClick={() => poll({ force: true })}
             disabled={refreshing}
-            className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/35 transition hover:text-white disabled:opacity-40"
+            className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/80 transition hover:text-white disabled:opacity-40"
             title="Refresh"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
@@ -540,7 +540,7 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
           <div className="rounded-[22px] border border-dashed border-white/[0.09] bg-white/[0.012] px-5 py-14 text-center sm:py-16">
             <WalletCards className="mx-auto h-8 w-8 text-white/15" />
             <h3 className="mt-3 text-sm font-black">No markets deployed</h3>
-            <p className="mx-auto mt-1.5 max-w-sm text-[10px] leading-relaxed text-white/30">
+            <p className="mx-auto mt-1.5 max-w-sm text-[10px] leading-relaxed text-white/75">
               Your first pool becomes a dedicated permissionless venue for the inventories you
               publish.
             </p>

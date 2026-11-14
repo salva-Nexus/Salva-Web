@@ -446,7 +446,7 @@ async function swapExactOutput(
       fromAddress: initiator.safeAddress.toLowerCase(),
       toAddress: poolAddress,
       amount: String(amountInEst),
-      fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+      fee: 0,
       feeCoin: feeData.data.feeToken,
       coin: assetIn,
       chain: chain,

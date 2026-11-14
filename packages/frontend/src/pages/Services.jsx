@@ -18,7 +18,7 @@ const ServicePage = ({ title, onBack, children }) => (
       <div className="flex items-center justify-between mb-6 sm:mb-9">
         <button
           onClick={onBack}
-          className="flex items-center gap-1.5 text-white/45 hover:text-white text-[9px] sm:text-xs font-black uppercase tracking-widest"
+          className="flex items-center gap-1.5 text-white/75 hover:text-white text-[9px] sm:text-xs font-black uppercase tracking-widest"
         >
           ← Back
         </button>
@@ -261,7 +261,7 @@ const Services = () => {
           <div>
             <button
               onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-1.5 text-white/45 hover:text-white text-[9px] sm:text-xs font-black uppercase tracking-widest mb-2.5"
+              className="flex items-center gap-1.5 text-white/75 hover:text-white text-[9px] sm:text-xs font-black uppercase tracking-widest mb-2.5"
             >
               ← Dashboard
             </button>
@@ -269,12 +269,12 @@ const Services = () => {
               Salva
             </p>
             <h1 className="text-xl sm:text-3xl font-black mt-1">Services</h1>
-            <p className="text-[9px] sm:text-xs text-white/35 mt-1">Access Salva's services.</p>
+            <p className="text-[9px] sm:text-xs text-white/80 mt-1">Access Salva's services.</p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 pt-0.5">
             <div className="text-right hidden sm:block">
-              <p className="text-[7px] uppercase tracking-[.3em] text-white/25 font-black">
+              <p className="text-[7px] uppercase tracking-[.3em] text-white/75 font-black">
                 Portfolio
               </p>
               <p className="text-xs font-black text-white mt-0.5">
@@ -291,7 +291,7 @@ const Services = () => {
               onClick={handleRefresh}
               disabled={refreshing}
               aria-label="Refresh portfolio"
-              className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-white/[0.08] flex items-center justify-center text-white/35 hover:text-white hover:bg-white/[0.05] disabled:opacity-60 transition-all"
+              className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl border border-white/[0.08] flex items-center justify-center text-white/80 hover:text-white hover:bg-white/[0.05] disabled:opacity-60 transition-all"
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${refreshing ? 'animate-spin' : ''}`}
@@ -310,7 +310,7 @@ const Services = () => {
                 <ArrowLeftRight className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
               </div>
               <p className="font-black text-xs sm:text-sm">Swap</p>
-              <p className="text-[8px] sm:text-[9px] text-white/30 mt-1">Exchange assets</p>
+              <p className="text-[8px] sm:text-[9px] text-white/80 mt-1">Exchange assets</p>
               <span className="absolute right-2.5 bottom-2.5 text-white/15 group-hover:text-blue-400">
                 ↗
               </span>
@@ -324,7 +324,7 @@ const Services = () => {
                 <Droplets className="w-4 h-4 sm:w-5 sm:h-5 text-purple-400" />
               </div>
               <p className="font-black text-xs sm:text-sm">Pools</p>
-              <p className="text-[8px] sm:text-[9px] text-white/30 mt-1">Provide liquidity</p>
+              <p className="text-[8px] sm:text-[9px] text-white/80 mt-1">Provide liquidity</p>
               <span className="absolute right-2.5 bottom-2.5 text-white/15 group-hover:text-purple-400">
                 ↗
               </span>
@@ -338,7 +338,7 @@ const Services = () => {
                 <AtSign className="w-4 h-4 sm:w-5 sm:h-5 text-salvaGold" />
               </div>
               <p className="font-black text-xs sm:text-sm">SNS</p>
-              <p className="text-[8px] sm:text-[9px] text-white/30 mt-1">Salva Naming Service</p>
+              <p className="text-[8px] sm:text-[9px] text-white/80 mt-1">Salva Naming Service</p>
               <span className="absolute right-2.5 bottom-2.5 text-white/15 group-hover:text-salvaGold">
                 ↗
               </span>
@@ -352,7 +352,7 @@ const Services = () => {
                 <Landmark className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-400" />
               </div>
               <p className="font-black text-xs sm:text-sm">Vaults</p>
-              <p className="text-[8px] sm:text-[9px] text-white/30 mt-1">Borrow NGNS</p>
+              <p className="text-[8px] sm:text-[9px] text-white/80 mt-1">Borrow NGNS</p>
               <span className="absolute right-2.5 bottom-2.5 text-white/15 group-hover:text-emerald-400">
                 ↗
               </span>

@@ -354,7 +354,7 @@ const TxTypeIcon = ({ type }) => {
 
 const DetailRow = ({ label, value, mono = false, gold = false, copyable = false, onCopy }) => (
   <div className="group flex items-center justify-between gap-4 py-3 border-b border-white/[0.045] last:border-0">
-    <span className="text-[9px] uppercase tracking-[0.18em] text-white/25 font-black flex-shrink-0">
+    <span className="text-[9px] uppercase tracking-[0.18em] text-white/70 font-black flex-shrink-0">
       {label}
     </span>
 
@@ -450,7 +450,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] text-white/30 font-medium">
+            <div className="flex items-center gap-1.5 text-[8px] sm:text-[10px] text-white/75 font-medium">
               <span>
                 {isReceived ? `From ${truncateAddr(fromLabel)}` : `To ${truncateAddr(toLabel)}`}
               </span>
@@ -471,7 +471,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
             </div>
 
             <div className="mt-0.5 flex items-center justify-end gap-1.5">
-              <span className="text-[8px] sm:text-[9px] text-white/25 font-black uppercase">
+              <span className="text-[8px] sm:text-[9px] text-white/70 font-black uppercase">
                 {coin}
               </span>
 
@@ -522,7 +522,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
             {network.name}
           </span>
 
-          <span className="text-[8px] text-white/20">
+          <span className="text-[8px] text-white/70">
             {date.toLocaleDateString('en-US', {
               month: 'short',
               day: 'numeric',
@@ -532,7 +532,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
 
           <span className="text-white/10">•</span>
 
-          <span className="text-[8px] text-white/20 font-mono">
+          <span className="text-[8px] text-white/70 font-mono">
             {date.toLocaleTimeString('en-US', {
               hour: '2-digit',
               minute: '2-digit',
@@ -559,7 +559,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
                   <p className="text-[8px] uppercase tracking-[0.22em] text-salvaGold/50 font-black">
                     Transaction details
                   </p>
-                  <p className="text-[10px] text-white/25 mt-1">Full transaction metadata</p>
+                  <p className="text-[10px] text-white/70 mt-1">Full transaction metadata</p>
                 </div>
 
                 <div
@@ -576,7 +576,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
                     <AssetIcon tx={tx} size="sm" />
 
                     <div>
-                      <p className="text-[8px] uppercase tracking-[0.16em] text-white/25 font-black">
+                      <p className="text-[8px] uppercase tracking-[0.16em] text-white/70 font-black">
                         Asset
                       </p>
                       <p className="text-sm font-black text-white mt-0.5">{coin}</p>
@@ -584,7 +584,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
                   </div>
 
                   <div className="text-right">
-                    <p className="text-[8px] uppercase tracking-[0.16em] text-white/25 font-black">
+                    <p className="text-[8px] uppercase tracking-[0.16em] text-white/70 font-black">
                       Amount
                     </p>
                     <p
@@ -605,7 +605,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
                       <Icon name="arrowUp" size={11} className="text-white/40" />
                     </div>
 
-                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/25 font-black">
+                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/70 font-black">
                       From
                     </span>
                   </div>
@@ -621,7 +621,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
                       <Icon name="arrowDown" size={11} className="text-white/40" />
                     </div>
 
-                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/25 font-black">
+                    <span className="text-[8px] uppercase tracking-[0.18em] text-white/70 font-black">
                       To
                     </span>
                   </div>
@@ -1273,7 +1273,7 @@ const Transactions = () => {
                 Transaction History
               </h1>
 
-              <p className="text-[10px] sm:text-xs text-white/25 mt-2">
+              <p className="text-[10px] sm:text-xs text-white/75 mt-2">
                 Your complete on-chain activity, across every network you've used.
               </p>
             </div>
@@ -1283,27 +1283,27 @@ const Transactions = () => {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-5">
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
-            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/70 font-black">
               Total
             </p>
 
             <p className="text-lg sm:text-xl font-black mt-1">{transactions.length}</p>
 
-            <p className="text-[7px] text-white/20 mt-0.5">Transactions</p>
+            <p className="text-[7px] text-white/70 mt-0.5">Transactions</p>
           </div>
 
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
-            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/70 font-black">
               Confirmed
             </p>
 
             <p className="text-lg sm:text-xl font-black text-emerald-400 mt-1">{successfulCount}</p>
 
-            <p className="text-[7px] text-white/20 mt-0.5">Successful</p>
+            <p className="text-[7px] text-white/70 mt-0.5">Successful</p>
           </div>
 
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] px-3 py-3 sm:px-4 sm:py-4">
-            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/20 font-black">
+            <p className="text-[7px] sm:text-[8px] uppercase tracking-[0.18em] text-white/70 font-black">
               Failed
             </p>
 
@@ -1315,7 +1315,7 @@ const Transactions = () => {
               {failedCount}
             </p>
 
-            <p className="text-[7px] text-white/20 mt-0.5">Unsuccessful</p>
+            <p className="text-[7px] text-white/70 mt-0.5">Unsuccessful</p>
           </div>
         </div>
 
@@ -1372,11 +1372,11 @@ const Transactions = () => {
         {/* Results count */}
         {!loading && filtered.length > 0 && (
           <div className="flex items-center justify-between px-1 mb-2">
-            <p className="text-[8px] text-white/20 uppercase tracking-[0.16em] font-black">
+            <p className="text-[8px] text-white/70 uppercase tracking-[0.16em] font-black">
               {filter === 'All' ? 'All activity' : `${filter} activity`}
             </p>
 
-            <p className="text-[8px] text-white/20 font-medium">
+            <p className="text-[8px] text-white/70 font-medium">
               {filtered.length} result
               {filtered.length === 1 ? '' : 's'}
             </p>
@@ -1388,7 +1388,7 @@ const Transactions = () => {
           <div className="rounded-2xl border border-white/[0.06] bg-white/[0.018] py-24 flex flex-col items-center justify-center">
             <div className="w-8 h-8 border-2 border-salvaGold/15 border-t-salvaGold rounded-full animate-spin" />
 
-            <p className="text-[8px] uppercase tracking-[0.2em] text-white/20 font-black mt-4">
+            <p className="text-[8px] uppercase tracking-[0.2em] text-white/70 font-black mt-4">
               Loading activity
             </p>
           </div>
@@ -1404,7 +1404,7 @@ const Transactions = () => {
 
             <p className="font-black text-white/50 text-sm mt-4">No transactions found</p>
 
-            <p className="text-[9px] text-white/20 mt-1.5">
+            <p className="text-[9px] text-white/70 mt-1.5">
               {search ? 'Try a different search term.' : 'Your on-chain activity will appear here.'}
             </p>
 
@@ -1439,12 +1439,12 @@ const Transactions = () => {
             {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-5 px-1">
-                <p className="text-[8px] text-white/20 font-medium">
-                  Showing <span className="text-white/40">{(page - 1) * PAGE_SIZE + 1}</span> –{' '}
-                  <span className="text-white/40">
+                <p className="text-[8px] text-white/70 font-medium">
+                  Showing <span className="text-white/70">{(page - 1) * PAGE_SIZE + 1}</span> –{' '}
+                  <span className="text-white/70">
                     {Math.min(page * PAGE_SIZE, filtered.length)}
                   </span>{' '}
-                  of <span className="text-white/40">{filtered.length}</span>
+                  of <span className="text-white/70">{filtered.length}</span>
                 </p>
 
                 <div className="flex items-center gap-1.5">

@@ -143,7 +143,7 @@ async function executeTransfer(
           ? poolData.poolName
           : recipientAddress.toLowerCase(),
       amount: amount,
-      fee: feeData.data.feeHuman > 0 ? String(feeData.data.feeHuman) : null,
+      fee: 0,
       feeCoin: feeData.data.feeToken,
       coin: token,
       chain: chain,
