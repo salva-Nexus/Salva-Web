@@ -14,6 +14,8 @@ import { getRpcUrlByChain } from '../utils/rpcUrls.js';
 import { SupportedPair } from '../models/SupportedPair.js';
 import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import Assets from '../models/Assets.js';
+import { User } from '../models/Users.js';
+import { verify_Pin } from '../services/pinService.js';
 
 const router = express.Router();
 
@@ -123,7 +125,7 @@ router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
 
     let price = 0;
     const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-    if (isStableNgn(pair.quoteSymbol)) { 
+    if (isStableNgn(pair.quoteSymbol)) {
       isInverted = true;
     }
     if (!isInverted) {
@@ -191,9 +193,9 @@ router.get('/supported-Pairs/:chain', async (req, res) => {
 });
 
 router.post('/deploy-pool', async (req, res) => {
-  const { email, pkey, chain } = req.body;
+  const { email, pin, chain } = req.body;
   try {
-    const deployData = await deployPool(email, pkey, chain);
+    const deployData = await deployPool(email, pin, chain);
     if (deployData?.status) {
       return res.status(200).json({
         status: true,
@@ -290,7 +292,7 @@ router.get('/pools/:safeAddress/:chain', async (req, res) => {
 router.post('/deploy-Inv', async (req, res) => {
   const {
     email,
-    pkey,
+    pin,
     poolAddress,
     base,
     quote,
@@ -303,7 +305,7 @@ router.post('/deploy-Inv', async (req, res) => {
   try {
     const invDeployData = await deployInventory(
       email,
-      pkey,
+      pin,
       poolAddress,
       base,
       quote,
@@ -326,9 +328,9 @@ router.post('/deploy-Inv', async (req, res) => {
 });
 
 router.post('/update-spread', async (req, res) => {
-  const { email, pkey, poolAddress, base, quote, spread, chain } = req.body;
+  const { email, pin, poolAddress, base, quote, spread, chain } = req.body;
   try {
-    const updateData = await updateSpread(email, pkey, poolAddress, base, quote, spread, chain);
+    const updateData = await updateSpread(email, pin, poolAddress, base, quote, spread, chain);
     return res.status(200).json({
       status: updateData.status || false,
     });
@@ -342,16 +344,16 @@ router.post('/update-spread', async (req, res) => {
 });
 
 router.post('/add-liquidity', async (req, res) => {
-  const { email, pkey, poolAddress, base, quote, amount, chain } = req.body;
+  const { email, pin, poolAddress, base, quote, amount, chain } = req.body;
   try {
-    if (!email || !pkey || !poolAddress || !base || !quote || !amount || !chain) {
+    if (!email || !pin || !poolAddress || !base || !quote || !amount || !chain) {
       return res.status(400).json({
         status: false,
-        errorMsg: 'email, pkey, poolAddress, base, quote, amount and chain are required',
+        errorMsg: 'email, pin, poolAddress, base, quote, amount and chain are required',
       });
     }
 
-    const data = await addLiquidity(email, pkey, poolAddress, base, quote, amount, chain);
+    const data = await addLiquidity(email, pin, poolAddress, base, quote, amount, chain);
     if (data?.status) {
       return res.status(200).json({
         status: true,
@@ -369,7 +371,7 @@ router.post('/add-liquidity', async (req, res) => {
 });
 
 router.post('/delete-pool', async (req, res) => {
-  const { pkey, poolAddress, chain } = req.body;
+  const { pin, poolAddress, chain } = req.body;
   try {
     const pool = await Pool.findOne({ poolAddress: poolAddress, chain: chain.toLowerCase() });
 
@@ -382,6 +384,9 @@ router.post('/delete-pool', async (req, res) => {
 
     const owner = pool.ownerSafeAddress;
     const contract = new ethers.Contract(owner, SAFE, provider(chain));
+    const user = await User.findOne({ safeAddress: pool.ownerSafeAddress });
+    const pinData = await verify_Pin(user.email, pin);
+    const pkey = pinData.privateKey;
     const wallet = new ethers.Wallet(pkey, provider(chain));
     const safeOwners = await contract.getOwners();
 
@@ -401,7 +406,7 @@ router.post('/delete-pool', async (req, res) => {
 });
 
 router.post('/delete-Inv', async (req, res) => {
-  const { pkey, poolAddress, base, quote, chain } = req.body;
+  const { pin, poolAddress, base, quote, chain } = req.body;
   try {
     const pool = await Pool.findOne({
       poolAddress: poolAddress.toLowerCase(),
@@ -417,6 +422,9 @@ router.post('/delete-Inv', async (req, res) => {
 
     const owner = pool.ownerSafeAddress;
     const contract = new ethers.Contract(owner, SAFE, provider(chain));
+    const user = await User.findOne({ safeAddress: pool.ownerSafeAddress });
+    const pinData = await verify_Pin(user.email, pin);
+    const pkey = pinData.privateKey;
     const wallet = new ethers.Wallet(pkey, provider(chain));
     const safeOwners = await contract.getOwners();
 
@@ -448,12 +456,12 @@ router.post('/delete-Inv', async (req, res) => {
 });
 
 router.post('/withdraw', async (req, res) => {
-  const { email, pkey, poolAddress, baseSymbol, quoteSymbol, assetOutSymbol, amount, chain } =
+  const { email, pin, poolAddress, baseSymbol, quoteSymbol, assetOutSymbol, amount, chain } =
     req.body;
   try {
     const withdrawData = await withdraw(
       email,
-      pkey,
+      pin,
       poolAddress,
       baseSymbol,
       quoteSymbol,

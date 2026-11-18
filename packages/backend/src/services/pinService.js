@@ -88,7 +88,7 @@ async function verify_Pin(email, pin) {
       errorMsg: err.message,
     };
   }
-
+  
   return {
     status: decryptedKey.length > 66 ? false : true,
     privateKey: decryptedKey.length > 66 ? null : decryptedKey,
