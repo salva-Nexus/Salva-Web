@@ -62,7 +62,6 @@ async function deployPool(email, pin, chain) {
   }
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
-  console.log(email, pin, pkey);
 
   const rpc = getRpcUrlByChain(chain);
   const provider = new ethers.JsonRpcProvider(rpc);
