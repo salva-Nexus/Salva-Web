@@ -335,7 +335,7 @@ router.post('/swap/estimate-exact-input-fee', async (req, res) => {
   const pinData = await verify_Pin(uData.email, pin);
   const pkey = pinData.privateKey;
   try {
-    const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+    const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
     const _assetIn = pool.quoteAddress;
     const _assetOut = pool.baseAddress;
     const fee = await estimateSwapExactInputFee(
@@ -372,7 +372,7 @@ router.post('/swap/estimate-exact-output-fee', async (req, res) => {
   const pinData = await verify_Pin(uData.email, pin);
   const pkey = pinData.privateKey;
   try {
-    const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+    const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
     const _assetIn = pool.quoteAddress;
     const _assetOut = pool.baseAddress;
     const fee = await estimateSwapExactOutputFee(

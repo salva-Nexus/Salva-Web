@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 import { User } from '../models/Users.js';
 import { Pool } from '../models/Pool.js';
 import { ERC20, POOL_IFACE } from '../utils/abi.js';
-import { _getDecimals } from './balanceServices.js';
+import { _getBalance, _getDecimals } from './balanceServices.js';
 import {
   estimateDeploymentFee,
   estimateSwapExactInputFee,
@@ -22,6 +22,18 @@ import { verify_Pin } from './pinService.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
+
+async function getBalance(token, address, chain) {
+  const rpcProvider = Provider(getRpcUrlByChain(String(chain).toLowerCase()));
+
+  if (token !== ethers.ZeroAddress) {
+    const tokenContract = new ethers.Contract(token, ERC20, rpcProvider);
+    return _getBalance(tokenContract, address);
+  }
+
+  const balance = await rpcProvider.getBalance(address);
+  return { balance, decimals: 18 };
+}
 
 async function _alert(poolAddress, owner, initiator, amountIn, assetIn, amountOut, assetOut) {
   await sendAlertToUser(
@@ -50,24 +62,42 @@ async function _alert(poolAddress, owner, initiator, amountIn, assetIn, amountOu
 }
 
 async function _findPoolOrRetry(poolAddress, assetOut, assetIn, chain) {
+  const query = {
+    poolAddress: String(poolAddress).toLowerCase(),
+    chain: String(chain).toLowerCase(),
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+  };
+
   let pool;
   try {
-    pool = await Pool.findOne({
-      poolAddress: poolAddress.toLowerCase(),
-      chain: chain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
+    pool = await Pool.findOne(query);
   } catch (err) {
     console.warn(`⚠️ Pool query failed, retrying in 5s...`);
     await new Promise((r) => setTimeout(r, 5000));
-    pool = await Pool.findOne({
-      poolAddress: poolAddress.toLowerCase(),
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
+    pool = await Pool.findOne(query);
   }
-  return pool?.inventories?.find(
-    (inv) => inv.baseSymbol === assetOut && inv.quoteSymbol === assetIn
+
+  const inv = pool?.inventories?.find(
+    (item) =>
+      String(item.baseSymbol).toUpperCase() === String(assetOut).toUpperCase() &&
+      String(item.quoteSymbol).toUpperCase() === String(assetIn).toUpperCase()
   );
+
+  if (!inv) return undefined;
+
+  return {
+    baseSymbol: inv.baseSymbol,
+    quoteSymbol: inv.quoteSymbol,
+    baseAddress: inv.baseAddress,
+    quoteAddress: inv.quoteAddress,
+    priceFeed: inv.priceFeed,
+    floor: inv.floor,
+    spread: inv.spread,
+    allowedSwapBelowFloor: inv.allowedSwapBelowFloor,
+    isInverted: inv.isInverted,
+    poolAddress: pool.poolAddress,
+    ownerSafeAddress: pool.ownerSafeAddress,
+  };
 }
 
 async function swapExactInput(
@@ -99,7 +129,7 @@ async function swapExactInput(
   const isDeployed = code !== '0x';
 
   let fee = !isDeployed
-    ? await estimateDeploymentFee(safeAddress, normchain)
+    ? await estimateDeploymentFee(initiator.safeAddress, chain)
     : await estimateSwapExactInputFee(
         initiator.safeAddress,
         pkey,
@@ -362,12 +392,16 @@ async function swapExactOutput(
         initiator.safeAddress,
         chain
       );
+      const amountInEstWei = ethers.parseUnits(
+        Number(amountInEst).toFixed(balanceData.decimals),
+        balanceData.decimals
+      );
       const totalRequired =
-        BigInt(amountInEst) +
+        amountInEstWei +
         BigInt(initFeeData.data.feeToWei) +
         BigInt(initTransferFeeData.data.feeToWei);
 
-      if (balanceData.balance < totalRequired || balanceData.balance <= BigInt(amountInEst)) {
+      if (balanceData.balance < totalRequired || balanceData.balance <= amountInEstWei) {
         throw new TypeError(
           'Insufficient balance to cover max swap amount plus fees, please top up or reduce amount.'
         );
