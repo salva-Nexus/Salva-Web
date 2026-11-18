@@ -29,6 +29,7 @@ const PoolSchema = new mongoose.Schema({
     },
   ],
   chain: { type: String, required: true, trim: true },
+  type: { type: String, default: 'TESTNET' },
 });
 
 const Pool = baseConnection.model('Pools', PoolSchema);

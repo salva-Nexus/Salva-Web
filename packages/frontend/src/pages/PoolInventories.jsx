@@ -672,7 +672,7 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
                   Live oracle price
                 </p>
 
-                <p className="mt-0.5 truncate text-xl font-black tracking-[-.03em]">
+                <p className="mt-0.5 truncate text-base font-black tracking-[-.03em]">
                   {truncateDisplay(inventory.currentPriceFull)}
                 </p>
 
@@ -742,7 +742,7 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
                 <p className="min-w-0 truncate text-[10px] font-black text-white">{baseSymbol}</p>
               </div>
 
-              <p className="mt-2 truncate text-xs font-black text-white">
+              <p className="mt-2 truncate text-[0.6rem] font-black text-white">
                 {truncateDisplay(inventory.baseAssetBalanceFull)}
               </p>
             </div>
@@ -758,7 +758,7 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
                 <p className="min-w-0 truncate text-[10px] font-black text-white">{quoteSymbol}</p>
               </div>
 
-              <p className="mt-2 truncate text-xs font-black text-white">
+              <p className="mt-2 truncate text-[0.6rem] font-black text-white">
                 {truncateDisplay(inventory.quoteAssetBalanceFull)}
               </p>
             </div>

@@ -15,7 +15,7 @@ export const SWAP_LIVE_POLL_INTERVAL_MS = 5000;
 export const SWAP_PAIRS_POLL_INTERVAL_MS = 60000;
 export const DEFAULT_BUY_SYMBOL = 'NGNS';
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const CACHE_PREFIX = 'salva_swap_pool_cache';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -127,14 +127,17 @@ export const truncateDisplay = (value) => {
   const n = Number(raw);
   if (!raw || !Number.isFinite(n)) return '—';
   if (n === 0) return '0';
+  if (n > 0 && n < 1e-12) return '<0.000000000001';
 
-  const decimals = Math.abs(n) >= 1 ? 4 : 12;
-  const plain = /e/i.test(raw) ? n.toFixed(20) : raw;
+  const plain = /e/i.test(raw)
+    ? n.toLocaleString('en-US', { useGrouping: false, maximumFractionDigits: 20 })
+    : raw;
   const negative = plain.startsWith('-');
   const [intPart, fracPart = ''] = plain.replace(/^[-+]/, '').split('.');
-  const grouped = (intPart || '0').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const integer = (intPart || '0').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  const decimal = fracPart.replace(/0+$/, '');
 
-  return `${negative ? '-' : ''}${grouped}.${fracPart.slice(0, decimals).padEnd(decimals, '0')}`;
+  return `${negative ? '-' : ''}${integer}${decimal ? `.${decimal}` : ''}`;
 };
 
 // One listing == one inventory inside one pool.

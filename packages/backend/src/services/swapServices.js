@@ -49,17 +49,20 @@ async function _alert(poolAddress, owner, initiator, amountIn, assetIn, amountOu
   );
 }
 
-async function _findPoolOrRetry(poolAddress, assetOut, assetIn) {
+async function _findPoolOrRetry(poolAddress, assetOut, assetIn, chain) {
   let pool;
   try {
     pool = await Pool.findOne({
       poolAddress: poolAddress.toLowerCase(),
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
   } catch (err) {
     console.warn(`⚠️ Pool query failed, retrying in 5s...`);
     await new Promise((r) => setTimeout(r, 5000));
     pool = await Pool.findOne({
       poolAddress: poolAddress.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
   }
   return pool?.inventories?.find(
@@ -77,7 +80,7 @@ async function swapExactInput(
   minAmountOut,
   chain
 ) {
-  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
   const initiator = await User.findOne({ email });
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
@@ -303,7 +306,7 @@ async function swapExactOutput(
   maxAmountIn,
   chain
 ) {
-  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
   const initiator = await User.findOne({ email });
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
@@ -525,7 +528,7 @@ async function swapExactOutput(
 async function getAmountOut(poolAddress, assetIn, assetOut, amount, chain) {
   const provider = Provider(getRpcUrlByChain(chain));
   const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
-  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
 
   const tokenInAddress = pool.quoteAddress;
   const tokenOutAddress = pool.baseAddress;
@@ -551,7 +554,7 @@ async function getAmountOut(poolAddress, assetIn, assetOut, amount, chain) {
 async function getAmountIn(poolAddress, assetIn, assetOut, amount, chain) {
   const provider = Provider(getRpcUrlByChain(chain));
   const poolContract = new ethers.Contract(poolAddress, POOL_IFACE, provider);
-  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn);
+  const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
 
   const tokenInAddress = pool.quoteAddress;
   const tokenOutAddress = pool.baseAddress;

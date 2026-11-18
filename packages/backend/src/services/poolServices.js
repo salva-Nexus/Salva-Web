@@ -17,7 +17,7 @@ import {
   _getFeeAndToken,
 } from './estimateFee.js';
 import { _getBalance, _getDecimals } from './balanceServices.js';
-import { keyValue } from '../utils/vars.js';
+import { keyValue, mode } from '../utils/vars.js';
 import { getRpcUrlByChain, getPoolFactoryAddress } from '../utils/rpcUrls.js';
 import { SupportedPair } from '../models/SupportedPair.js';
 import { _deploySafe } from './deployment.js';
@@ -153,6 +153,7 @@ async function deployPool(email, pin, chain) {
       poolAddress: poolAddress,
       ownerSafeAddress: user.safeAddress,
       chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
   } catch (err) {
     console.log(`Retrying!!!`);
@@ -161,6 +162,7 @@ async function deployPool(email, pin, chain) {
       poolAddress: poolAddress,
       ownerSafeAddress: user.safeAddress,
       chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
   }
 
@@ -187,6 +189,8 @@ async function deployInventory(
   try {
     pool = await Pool.findOne({
       poolAddress: poolAddress,
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': base,
       'inventories.quoteSymbol': quote,
     });
@@ -195,6 +199,8 @@ async function deployInventory(
     await new Promise((r) => setTimeout(r, 5000));
     pool = await Pool.findOne({
       poolAddress: poolAddress,
+      chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': base,
       'inventories.quoteSymbol': quote,
     });
@@ -202,6 +208,8 @@ async function deployInventory(
   if (!pool) {
     pool = await Pool.findOne({
       poolAddress: poolAddress,
+      chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
     invExists = false;
   }
@@ -223,12 +231,14 @@ async function deployInventory(
     baseSymbol: base.toUpperCase(),
     quoteSymbol: quote.toUpperCase(),
     chain: chain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
   if (!inv) {
     inv = await SupportedPair.findOne({
       baseSymbol: quote.toUpperCase(),
       quoteSymbol: base.toUpperCase(),
       chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
     if (!inv) return { status: false };
     isInverted = true;
@@ -363,6 +373,7 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
   const pool = await Pool.findOne({
     poolAddress: poolAddress.toLowerCase(),
     chain: normalizedChain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
 
   if (!pool || !owner) {
@@ -378,12 +389,14 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
     baseSymbol: baseSym,
     quoteSymbol: quoteSym,
     chain: normalizedChain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
   if (!pair) {
     pair = await SupportedPair.findOne({
       baseSymbol: quoteSym,
       quoteSymbol: baseSym,
       chain: normalizedChain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
     if (!pair) return { status: false };
     isInverted = true;
@@ -470,6 +483,8 @@ async function updateSpread(email, pin, poolAddress, base, quote, spread, chain)
   try {
     pool = await Pool.findOne({
       poolAddress: poolAddress,
+      chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': base,
       'inventories.quoteSymbol': quote,
     });
@@ -478,6 +493,8 @@ async function updateSpread(email, pin, poolAddress, base, quote, spread, chain)
     await new Promise((r) => setTimeout(r, 5000));
     pool = await Pool.findOne({
       poolAddress: poolAddress,
+      chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': base,
       'inventories.quoteSymbol': quote,
     });
@@ -596,6 +613,7 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
   const pool = await Pool.findOne({
     poolAddress: poolAddress.toLowerCase(),
     chain: normalizedChain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
 
   if (!pool || !owner) {
@@ -608,6 +626,7 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
     baseSymbol: base.toUpperCase(),
     quoteSymbol: quote.toUpperCase(),
     chain: chain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
 
   if (!pair) {
@@ -615,6 +634,7 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
       baseSymbol: quote.toUpperCase(),
       quoteSymbol: base.toUpperCase(),
       chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
     if (!pair) return { status: false };
 

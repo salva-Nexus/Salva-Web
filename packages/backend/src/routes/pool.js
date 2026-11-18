@@ -218,6 +218,7 @@ router.get('/pools/:safeAddress/:chain', async (req, res) => {
     const pools = await Pool.find({
       ownerSafeAddress: safeAddress.toLowerCase(),
       chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     }).lean();
 
     const enrichedPools = [];
@@ -373,7 +374,11 @@ router.post('/add-liquidity', async (req, res) => {
 router.post('/delete-pool', async (req, res) => {
   const { pin, poolAddress, chain } = req.body;
   try {
-    const pool = await Pool.findOne({ poolAddress: poolAddress, chain: chain.toLowerCase() });
+    const pool = await Pool.findOne({
+      poolAddress: poolAddress,
+      chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
 
     if (!pool) {
       return res.status(404).json({
@@ -411,6 +416,7 @@ router.post('/delete-Inv', async (req, res) => {
     const pool = await Pool.findOne({
       poolAddress: poolAddress.toLowerCase(),
       chain: chain.toLowerCase(),
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
 
     if (!pool) {
@@ -497,6 +503,7 @@ router.get('/pools/base/:baseSymbol/:chain', async (req, res) => {
     // Find all pools on this chain containing an inventory with this baseSymbol
     const pools = await Pool.find({
       chain: normalizedChain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': normalizedBase,
     }).lean();
 
@@ -580,6 +587,7 @@ router.get('/pools/pair/:base/:quote/:chain', async (req, res) => {
 
     const pools = await Pool.find({
       chain: normalizedChain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
       'inventories.baseSymbol': normalizedBase,
       'inventories.quoteSymbol': normalizedQuote,
     }).lean();
@@ -669,6 +677,7 @@ router.get('/pools/address/:poolAddress/:chain', async (req, res) => {
     const pool = await Pool.findOne({
       poolAddress: poolAddress.toLowerCase(),
       chain: normalizedChain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     }).lean();
 
     if (!pool) {
