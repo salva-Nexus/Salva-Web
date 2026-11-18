@@ -16,6 +16,7 @@ const HEALTH_VIEW_ABI = [
 ];
 
 async function checkAndAutoUpdateOracle(chain) {
+  let oracleUpdated = false;
   try {
     const oracleAddress = getNgnOracleAddressByChain(chain);
     const rpcUrl = getRpcUrlByChain(chain);
@@ -57,6 +58,7 @@ async function checkAndAutoUpdateOracle(chain) {
 
       const tx = await oracleContract.updatePrice(scaledPrice);
       await tx.wait();
+      oracleUpdated = true;
       await new Promise((r) => setTimeout(r, 3000));
       const usersPosition = await UserCdpPosition.find({
         chain: chain,
@@ -102,7 +104,7 @@ async function checkAndAutoUpdateOracle(chain) {
     return { chain, updated: false, reason: 'Within deviation and freshness threshold' };
   } catch (err) {
     console.error(`❌ Oracle auto-update error on ${chain}:`, err.message);
-    return { chain, updated: false, error: err.message };
+    return { chain, updated: oracleUpdated, error: err.message };
   }
 }
 

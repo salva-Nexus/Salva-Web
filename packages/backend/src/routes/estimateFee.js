@@ -20,6 +20,7 @@ import { SupportedPair } from '../models/SupportedPair.js';
 import { _findPoolOrRetry } from '../services/swapServices.js';
 import { User } from '../models/Users.js';
 import { verify_Pin } from '../services/pinService.js';
+import { mode } from '../utils/vars.js';
 
 const router = express.Router();
 

@@ -39,6 +39,7 @@ import {
   fetchPoolSnapshot,
   formatDisplayNumber,
   readPoolCache,
+  readWalletCache,
 } from '../utils/walletCache';
 import { truncateDisplay } from '../utils/swapPoolCache';
 
@@ -290,6 +291,28 @@ const uniqueAssets = (list) => {
     if (!map.has(key)) map.set(key, asset);
   });
   return Array.from(map.values()).sort((a, b) => a.symbol.localeCompare(b.symbol));
+};
+
+// User's wallet balance for an asset, from the wallet cache.
+// `full` is for Max + validation. `shown` is presentation-only.
+// Returns null when the asset is not in the cache.
+const getWalletAssetBalance = (chain, symbol, address) => {
+  const email = getUser()?.email;
+  const snapshot = readWalletCache(email, chain);
+  const list = Array.isArray(snapshot?.assets) ? snapshot.assets : [];
+  const addr = normalizeAddress(address);
+  const sym = String(symbol || '')
+    .trim()
+    .toUpperCase();
+
+  const match =
+    (addr && list.find((a) => normalizeAddress(a.contractAddress) === addr)) ||
+    list.find((a) => String(a.symbol || '').toUpperCase() === sym);
+
+  if (!match) return null;
+
+  const full = String(match.balanceFull ?? match.balance ?? '0');
+  return { full, shown: full };
 };
 
 const parseResponse = async (response) => {
@@ -1121,6 +1144,11 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
   const [marketPrice, setMarketPrice] = useState(null);
   const [marketPriceLoading, setMarketPriceLoading] = useState(false);
 
+  const sellBalance = useMemo(
+    () => (base ? getWalletAssetBalance(chain, base.symbol, base.address) : null),
+    [base, chain]
+  );
+
   // Every asset from every pair, whether it is a base or a quote, once each.
   // Both selectors use this same list.
   const assetOptions = useMemo(
@@ -1294,6 +1322,8 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
       return setError('Price is unavailable for this pair, so it cannot be published.');
     if (!floor || num(floor) <= 0) return setError('Enter a valid acquisition price.');
     if (!amount || num(amount) <= 0) return setError('Enter an inventory amount.');
+    if (sellBalance && num(amount) > num(sellBalance.full))
+      return setError(`Amount exceeds your ${base.symbol} wallet balance.`);
 
     const normalizedSpread = String(spread ?? '').trim();
     if (!normalizedSpread || !/^[+-]?(?:\d+(?:\.\d+)?|\.\d+)$/.test(normalizedSpread)) {
@@ -1601,18 +1631,47 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
               </div>
 
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-                <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
-                  Inventory amount
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="any"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder="Amount to sell"
-                  className="mt-2 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 text-xs font-black text-white outline-none focus:border-salvaGold/40"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+                    Inventory amount
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!sellBalance) return;
+                      setError('');
+                      setAmount(sellBalance.full);
+                    }}
+                    disabled={!sellBalance || num(sellBalance.full) <= 0}
+                    className="rounded-md border border-salvaGold/20 bg-salvaGold/5 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-salvaGold transition hover:bg-salvaGold/10 disabled:opacity-30"
+                  >
+                    Max
+                  </button>
+                </div>
+                {base && (
+                  <p className="mt-1 text-[8px] font-bold text-white/55">
+                    Balance: {sellBalance ? sellBalance.shown : '—'} {base.symbol}
+                  </p>
+                )}
+                <div className="relative mt-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={amount}
+                    onChange={(event) => {
+                      setError('');
+                      setAmount(event.target.value);
+                    }}
+                    placeholder="Amount to sell"
+                    className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-xs font-black text-white outline-none focus:border-salvaGold/40"
+                  />
+                  {base && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/45">
+                      {base.symbol}
+                    </span>
+                  )}
+                </div>
                 <p className="mt-1.5 text-[8px] leading-relaxed text-white/45">
                   This amount is transferred into the pool.
                 </p>
@@ -1676,8 +1735,8 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
         {infoOpen === 'feed' && (
           <InfoPopover title="price feed" onClose={() => setInfoOpen(null)}>
             <p>
-              A price feed is an on-chain oracle contract that publishes the live market
-              price of one asset in terms of another. Salva reads it to price your market.
+              A price feed is an on-chain oracle contract that publishes the live market price of
+              one asset in terms of another. Salva reads it to price your market.
             </p>
             <p className="mt-2 font-black text-white/80">How to find it</p>
             <ol className="mt-1 list-decimal space-y-1 pl-4">
@@ -1811,7 +1870,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
       logo: inventory.baseLogo,
       address: inventory.baseAddress,
       full: String(inventory.baseAssetBalanceFull ?? inventory.baseAssetBalance ?? '0'),
-      shown: inventory.baseAssetBalanceDisplay ?? display(inventory.baseAssetBalanceFull),
+      shown: String(inventory.baseAssetBalanceFull ?? inventory.baseAssetBalance ?? '0'),
     },
     {
       key: 'quote',
@@ -1819,7 +1878,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
       logo: inventory.quoteLogo,
       address: inventory.quoteAddress,
       full: String(inventory.quoteAssetBalanceFull ?? inventory.quoteAssetBalance ?? '0'),
-      shown: inventory.quoteAssetBalanceDisplay ?? display(inventory.quoteAssetBalanceFull),
+      shown: String(inventory.quoteAssetBalanceFull ?? inventory.quoteAssetBalance ?? '0'),
     },
   ];
   const selected = options.find((option) => option.key === asset);
@@ -1949,6 +2008,10 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
               </button>
             </div>
 
+            <p className="mb-1.5 text-[8px] font-bold text-white/55">
+              Balance: {displayBalance} {symbol}
+            </p>
+
             <div className="relative">
               <input
                 autoFocus
@@ -1968,9 +2031,6 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
                 {symbol}
               </span>
             </div>
-            <p className="mt-1.5 text-[8px] text-white/45">
-              Available: {displayBalance} {symbol}
-            </p>
           </div>
         </div>
 
@@ -2001,14 +2061,14 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
   );
 };
 
-const AddLiquidityAmountModal = ({ inventory, onCancel, onSubmit }) => {
+const AddLiquidityAmountModal = ({ inventory, chain, onCancel, onSubmit }) => {
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
-  const balance = num(
-    inventory.baseWalletBalanceFull ?? inventory.baseWalletBalance ?? inventory.userBaseBalance ?? 0
-  );
+  const walletBalance = getWalletAssetBalance(chain, inventory.baseSymbol, inventory.baseAddress);
+  const fullBalance = walletBalance?.full ?? '0';
+  const balance = num(fullBalance);
 
   const submit = async () => {
     if (submitting) return;
@@ -2073,19 +2133,21 @@ const AddLiquidityAmountModal = ({ inventory, onCancel, onSubmit }) => {
             <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
               Amount
             </label>
-            {balance > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  setAmount(String(balance));
-                  setError('');
-                }}
-                className="rounded-md border border-salvaGold/20 bg-salvaGold/5 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-salvaGold hover:bg-salvaGold/10"
-              >
-                Max
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                setAmount(fullBalance);
+                setError('');
+              }}
+              disabled={balance <= 0}
+              className="rounded-md border border-salvaGold/20 bg-salvaGold/5 px-2 py-1 text-[8px] font-black uppercase tracking-widest text-salvaGold transition hover:bg-salvaGold/10 disabled:opacity-30"
+            >
+              Max
+            </button>
           </div>
+          <p className="mb-1.5 text-[8px] font-bold text-white/55">
+            Balance: {walletBalance ? walletBalance.shown : '—'} {inventory.baseSymbol}
+          </p>
           <div className="relative">
             <input
               autoFocus
@@ -2105,11 +2167,6 @@ const AddLiquidityAmountModal = ({ inventory, onCancel, onSubmit }) => {
               {inventory.baseSymbol}
             </span>
           </div>
-          {balance > 0 && (
-            <p className="mt-1.5 text-[8px] text-white/45">
-              Wallet balance: {display(balance)} {inventory.baseSymbol}
-            </p>
-          )}
         </div>
 
         {error && (
@@ -3185,6 +3242,7 @@ const PoolInventories = () => {
         {addLiquidityInventory && !addLiquidityPinOpen && !addLiquidityConfirmOpen && (
           <AddLiquidityAmountModal
             inventory={{ ...addLiquidityInventory, poolAddress }}
+            chain={chain}
             onCancel={() => {
               setAddLiquidityInventory(null);
               setAddLiquidityPkey(null);
