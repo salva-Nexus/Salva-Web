@@ -598,6 +598,8 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 };
 
 const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, onDelete }) => {
+  const [open, setOpen] = useState(false);
+
   const change = num(inventory.priceChangePct);
   const hasChange = Number.isFinite(change) && inventory.priceChangePct !== null;
   const up = change > 0;
@@ -619,186 +621,220 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
 
   return (
     <motion.article
-      layout
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -8, scale: 0.98 }}
       transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className="group overflow-hidden rounded-[20px] border border-white/[0.07] bg-[#101116]/85 transition hover:border-salvaGold/15"
+      className={`group overflow-hidden rounded-[20px] border bg-[#101116]/85 transition ${
+        open ? 'border-salvaGold/20' : 'border-white/[0.07] hover:border-salvaGold/15'
+      }`}
     >
-      <div className="p-3.5 sm:p-5">
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <PairLogo
-              baseSymbol={baseSymbol}
-              baseLogo={inventory.baseLogo}
-              baseAddress={baseAddress}
-              quoteSymbol={quoteSymbol}
-              quoteLogo={inventory.quoteLogo}
-              quoteAddress={quoteAddress}
-              size="h-11 w-11"
-            />
+      {/* Collapsed header: always visible, toggles the details */}
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-label={`${baseSymbol}/${quoteSymbol} inventory details`}
+        className="flex w-full items-center justify-between gap-3 p-3.5 text-left sm:p-5"
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <PairLogo
+            baseSymbol={baseSymbol}
+            baseLogo={inventory.baseLogo}
+            baseAddress={baseAddress}
+            quoteSymbol={quoteSymbol}
+            quoteLogo={inventory.quoteLogo}
+            quoteAddress={quoteAddress}
+            size="h-11 w-11"
+          />
 
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h3 className="truncate text-sm font-black text-white">
-                  {baseSymbol}
-                  <span className="mx-1 text-white/65">/</span>
-                  {quoteSymbol}
-                </h3>
-              </div>
-
-              <p className="mt-0.5 text-[9px] font-medium text-white/65">
-                Selling {baseSymbol} for {quoteSymbol}
-              </p>
-            </div>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-black text-white">
+              {baseSymbol}
+              <span className="mx-1 text-white/65">/</span>
+              {quoteSymbol}
+            </h3>
+            <p className="mt-0.5 truncate text-[9px] font-medium text-white/65">
+              Selling {baseSymbol} for {quoteSymbol}
+            </p>
           </div>
-
-          <button
-            type="button"
-            onClick={onDelete}
-            title="Delete inventory"
-            className="rounded-lg border border-white/[0.07] p-2 text-white/70 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
         </div>
 
-        <div className="mt-3 grid gap-2 sm:grid-cols-[1.35fr_1fr]">
-          <div className="rounded-xl border border-white/[0.06] bg-black/25 p-3">
-            <div className="flex items-end justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-[8px] font-black uppercase tracking-[.25em] text-white/45">
-                  Live oracle price
-                </p>
+        <span
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+            open
+              ? 'border-salvaGold/30 bg-salvaGold/10 text-salvaGold'
+              : 'border-white/[0.07] bg-white/[0.03] text-white/60'
+          }`}
+        >
+          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </span>
+      </button>
 
-                <p className="mt-0.5 truncate text-base font-black tracking-[-.03em]">
-                  {truncateDisplay(inventory.currentPriceFull)}
-                </p>
+      {/* Expanded details */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="details"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-white/[0.06] p-3.5 pt-3 sm:p-5 sm:pt-4">
+              <div className="grid gap-2 sm:grid-cols-[1.35fr_1fr]">
+                <div className="rounded-xl border border-white/[0.06] bg-black/25 p-3">
+                  <div className="flex items-end justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[8px] font-black uppercase tracking-[.25em] text-white/45">
+                        Live oracle price
+                      </p>
 
-                <p className="mt-0.5 text-[9px] font-medium text-white/65">
-                  {quoteSymbol} per 1 {baseSymbol}
-                </p>
+                      <p className="mt-0.5 truncate text-base font-black tracking-[-.03em]">
+                        {truncateDisplay(inventory.currentPriceFull)}
+                      </p>
+
+                      <p className="mt-0.5 text-[9px] font-medium text-white/65">
+                        {quoteSymbol} per 1 {baseSymbol}
+                      </p>
+                    </div>
+
+                    {hasChange && (
+                      <div
+                        className={`shrink-0 rounded-lg px-2 py-1 text-[9px] font-black ${
+                          up
+                            ? 'bg-emerald-500/10 text-emerald-400'
+                            : down
+                            ? 'bg-red-500/10 text-red-400'
+                            : 'bg-white/5 text-white/65'
+                        }`}
+                      >
+                        {up ? (
+                          <TrendingUp className="mr-1 inline h-3 w-3" />
+                        ) : down ? (
+                          <TrendingDown className="mr-1 inline h-3 w-3" />
+                        ) : null}
+                        {change > 0 ? '+' : ''}
+                        {change.toFixed(2)}%
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-2.5 grid gap-2 border-t border-white/[0.05] pt-2.5 sm:grid-cols-2">
+                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
+                      <span className="text-[8px] font-bold text-white/45">Acquisition floor</span>
+                      <p className="mt-0.5 text-[9px] font-black text-salvaGold">
+                        {inventory.floorDisplay || display(inventory.floorFull)} {quoteSymbol}/
+                        {baseSymbol}
+                      </p>
+                    </div>
+
+                    <div className="rounded-lg border border-salvaGold/10 bg-salvaGold/[0.025] px-2.5 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[8px] font-bold text-white/45">Spread</span>
+                        <span className="text-[7px] font-black uppercase tracking-[.18em] text-salvaGold/55">
+                          Pricing
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] font-black text-white">
+                        {inventory.spread === null ||
+                        inventory.spread === undefined ||
+                        inventory.spread === ''
+                          ? '—'
+                          : `${inventory.spread}%`}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Side by side on mobile, stacked on larger screens. */}
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <AssetLogo
+                        symbol={baseSymbol}
+                        logo={inventory.baseLogo}
+                        address={baseAddress}
+                        size="h-6 w-6"
+                      />
+                      <p className="min-w-0 truncate text-[10px] font-black text-white">
+                        {baseSymbol}
+                      </p>
+                    </div>
+
+                    <p className="mt-2 truncate text-[0.6rem] font-black text-white">
+                      {truncateDisplay(inventory.baseAssetBalanceFull)}
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <AssetLogo
+                        symbol={quoteSymbol}
+                        logo={inventory.quoteLogo}
+                        address={quoteAddress}
+                        size="h-6 w-6"
+                      />
+                      <p className="min-w-0 truncate text-[10px] font-black text-white">
+                        {quoteSymbol}
+                      </p>
+                    </div>
+
+                    <p className="mt-2 truncate text-[0.6rem] font-black text-white">
+                      {truncateDisplay(inventory.quoteAssetBalanceFull)}
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {hasChange && (
-                <div
-                  className={`shrink-0 rounded-lg px-2 py-1 text-[9px] font-black ${
-                    up
-                      ? 'bg-emerald-500/10 text-emerald-400'
-                      : down
-                      ? 'bg-red-500/10 text-red-400'
-                      : 'bg-white/5 text-white/65'
-                  }`}
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={onAddLiquidity}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-2.5 text-[10px] font-black text-black transition hover:brightness-110"
                 >
-                  {up ? (
-                    <TrendingUp className="mr-1 inline h-3 w-3" />
-                  ) : down ? (
-                    <TrendingDown className="mr-1 inline h-3 w-3" />
-                  ) : null}
-                  {change > 0 ? '+' : ''}
-                  {change.toFixed(2)}%
+                  <Plus className="h-3.5 w-3.5" />
+                  Add liquidity
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onWithdraw}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.055] py-2.5 text-[10px] font-black transition hover:bg-white/[0.09]"
+                >
+                  <ArrowDownToLine className="h-3.5 w-3.5" />
+                  Withdraw
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onUpdateSpread}
+                  title="Update spread"
+                  className="flex items-center justify-center gap-1.5 rounded-xl border border-salvaGold/15 bg-salvaGold/5 px-3 py-2.5 text-[10px] font-black text-salvaGold transition hover:border-salvaGold/30 hover:bg-salvaGold/10"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Spread
+                </button>
+
+                <div className="hidden items-center rounded-xl border border-white/[0.06] px-2.5 text-[8px] font-black text-white/55 sm:flex">
+                  {inventory.allowedSwapBelowFloor ? 'Below floor: on' : 'Floor protected'}
                 </div>
-              )}
-            </div>
 
-            <div className="mt-2.5 grid gap-2 border-t border-white/[0.05] pt-2.5 sm:grid-cols-2">
-              <div className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
-                <span className="text-[8px] font-bold text-white/45">Acquisition floor</span>
-                <p className="mt-0.5 text-[9px] font-black text-salvaGold">
-                  {inventory.floorDisplay || display(inventory.floorFull)} {quoteSymbol}/
-                  {baseSymbol}
-                </p>
-              </div>
-
-              <div className="rounded-lg border border-salvaGold/10 bg-salvaGold/[0.025] px-2.5 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[8px] font-bold text-white/45">Spread</span>
-                  <span className="text-[7px] font-black uppercase tracking-[.18em] text-salvaGold/55">
-                    Pricing
-                  </span>
-                </div>
-                <p className="mt-0.5 text-[10px] font-black text-white">
-                  {inventory.spread === null ||
-                  inventory.spread === undefined ||
-                  inventory.spread === ''
-                    ? '—'
-                    : `${inventory.spread}%`}
-                </p>
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  title="Delete inventory"
+                  aria-label="Delete inventory"
+                  className="flex items-center justify-center rounded-xl border border-white/[0.07] px-2.5 text-white/70 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Side by side on mobile, stacked on larger screens. */}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <AssetLogo
-                  symbol={baseSymbol}
-                  logo={inventory.baseLogo}
-                  address={baseAddress}
-                  size="h-6 w-6"
-                />
-                <p className="min-w-0 truncate text-[10px] font-black text-white">{baseSymbol}</p>
-              </div>
-
-              <p className="mt-2 truncate text-[0.6rem] font-black text-white">
-                {truncateDisplay(inventory.baseAssetBalanceFull)}
-              </p>
-            </div>
-
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <AssetLogo
-                  symbol={quoteSymbol}
-                  logo={inventory.quoteLogo}
-                  address={quoteAddress}
-                  size="h-6 w-6"
-                />
-                <p className="min-w-0 truncate text-[10px] font-black text-white">{quoteSymbol}</p>
-              </div>
-
-              <p className="mt-2 truncate text-[0.6rem] font-black text-white">
-                {truncateDisplay(inventory.quoteAssetBalanceFull)}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-2.5 flex gap-2">
-          <button
-            type="button"
-            onClick={onAddLiquidity}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-2.5 text-[10px] font-black text-black transition hover:brightness-110"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add liquidity
-          </button>
-
-          <button
-            type="button"
-            onClick={onWithdraw}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.055] py-2.5 text-[10px] font-black transition hover:bg-white/[0.09]"
-          >
-            <ArrowDownToLine className="h-3.5 w-3.5" />
-            Withdraw
-          </button>
-
-          <button
-            type="button"
-            onClick={onUpdateSpread}
-            title="Update spread"
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-salvaGold/15 bg-salvaGold/5 px-3 py-2.5 text-[10px] font-black text-salvaGold transition hover:border-salvaGold/30 hover:bg-salvaGold/10"
-          >
-            <Pencil className="h-3.5 w-3.5" />
-            Spread
-          </button>
-
-          <div className="hidden items-center rounded-xl border border-white/[0.06] px-2.5 text-[8px] font-black text-white/55 sm:flex">
-            {inventory.allowedSwapBelowFloor ? 'Below floor: on' : 'Floor protected'}
-          </div>
-        </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.article>
   );
 };
