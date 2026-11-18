@@ -15,7 +15,7 @@ export const SWAP_LIVE_POLL_INTERVAL_MS = 5000;
 export const SWAP_PAIRS_POLL_INTERVAL_MS = 60000;
 export const DEFAULT_BUY_SYMBOL = 'NGNS';
 
-const CACHE_VERSION = 3;
+const CACHE_VERSION = 4;
 const CACHE_PREFIX = 'salva_swap_pool_cache';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -120,7 +120,8 @@ const toNumericString = (value, fallback = '0') => {
   return raw || fallback;
 };
 
-// Presentation only. >= 1 -> 4 decimals, < 1 -> 12 decimals. Truncated, never rounded.
+// Presentation only. > 0.9 -> max 4 decimals (truncated, never rounded).
+// <= 0.9 -> full precision. Trailing zeros stripped. Non-zero below 1e-12 -> <0.000000000001.
 // Never use this for calculations or payloads; use the raw string.
 export const truncateDisplay = (value) => {
   const raw = String(value ?? '').trim();
@@ -135,7 +136,9 @@ export const truncateDisplay = (value) => {
   const negative = plain.startsWith('-');
   const [intPart, fracPart = ''] = plain.replace(/^[-+]/, '').split('.');
   const integer = (intPart || '0').replace(/^0+(?=\d)/, '').replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const decimal = fracPart.replace(/0+$/, '');
+
+  const maxDecimals = Math.abs(n) > 0.9 ? 4 : fracPart.length;
+  const decimal = fracPart.slice(0, maxDecimals).replace(/0+$/, '');
 
   return `${negative ? '-' : ''}${integer}${decimal ? `.${decimal}` : ''}`;
 };
