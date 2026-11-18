@@ -20,6 +20,7 @@ import { PointsRecord } from '../models/PointsState.js';
 import { _deploySafe } from './deployment.js';
 import { sendAlertToUser } from '../services/notificationServices.js';
 import { verify_Pin } from './pinService.js';
+import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 
 async function getBalance(token, address, chain) {
   const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -264,18 +265,19 @@ async function _executeTransfer(safe, pKey, data, chain) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
   const sponsorPack = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const txData = await _buildTransferData(pKey, safe, data, provider, sponsorPack, chain);
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const tx = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (receipt) {
     return {

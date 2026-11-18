@@ -16,12 +16,25 @@ import {
   _buildPoolDeploymentData,
   _getFeeAndToken,
 } from './estimateFee.js';
-import { _getDecimals } from './balanceServices.js';
+import { _getBalance, _getDecimals } from './balanceServices.js';
 import { keyValue } from '../utils/vars.js';
 import { getRpcUrlByChain, getPoolFactoryAddress } from '../utils/rpcUrls.js';
 import { SupportedPair } from '../models/SupportedPair.js';
 import { _deploySafe } from './deployment.js';
 import { verify_Pin } from './pinService.js';
+import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
+
+async function getBalance(token, address, chain) {
+  const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  if (token !== ethers.ZeroAddress) {
+    const tokenContract = new ethers.Contract(token, ERC20, balanceProvider);
+
+    return await _getBalance(tokenContract, address);
+  } else {
+    const ethBal = await balanceProvider.getBalance(address);
+    return { balance: ethBal, decimals: 18 };
+  }
+}
 
 function _getPoolAddress(receipt, chain) {
   const logs = receipt.logs;
@@ -60,7 +73,7 @@ async function deployPool(email, pin, chain) {
 
   let deployPoolFee;
   if (!isDeployed) {
-    deployPoolFee = estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
+    deployPoolFee = await estimatePoolDeploymentFee(pkey, user.safeAddress, chain);
     const initFeeData = await _getFeeAndToken(user.safeAddress, fee, chain);
     const initDeployPoolFeeData = await _getFeeAndToken(user.safeAddress, deployPoolFee, chain);
 
@@ -69,17 +82,18 @@ async function deployPool(email, pin, chain) {
     }
 
     // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-    const balanceData = await getBalance(initDeployPoolFeeData.data.feeTokenAddress, safeAddress, chain);
-    if (initFeeData.data.feeToken === tokenSymbol) {
-      const totalRequired = BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
-      console.log(balanceData.balance);
-      console.log(totalRequired);
-      if (balanceData.balance < totalRequired) {
-        throw new TypeError('Insufficient balance to cover fee, please top up.');
-      }
-    } else {
-      throw new TypeError('Insufficient balance to cover fee, please top up');
-    }
+    const balanceData = await getBalance(initDeployPoolFeeData.data.feeTokenAddress, user.safeAddress, chain);
+        if (initFeeData.data.feeToken === initDeployPoolFeeData.data.feeToken) {
+          const totalRequired =
+            BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
+          console.log(balanceData.balance);
+          console.log(totalRequired);
+          if (balanceData.balance < totalRequired) {
+            throw new TypeError('Insufficient balance to cover fee, please top up.');
+          }
+        } else {
+          throw new TypeError('Insufficient balance to cover fee, please top up');
+        }
     await _deploySafe(user.safeAddress, pkey, provider, chain);
   }
 
@@ -112,18 +126,19 @@ async function deployPool(email, pin, chain) {
     chain
   );
 
-  const tx = await deployData.safe.execTransaction(
-    deployData.params.to,
-    deployData.params.value,
-    deployData.params.data,
-    deployData.params.op,
-    deployData.params.safeTxGas,
-    deployData.params.baseGas,
-    deployData.params.gasPrice,
-    deployData.params.gasToken,
-    deployData.params.refundReceiver,
-    deployData.params.sig
-  );
+  // const tx = await deployData.safe.execTransaction(
+  //   deployData.params.to,
+  //   deployData.params.value,
+  //   deployData.params.data,
+  //   deployData.params.op,
+  //   deployData.params.safeTxGas,
+  //   deployData.params.baseGas,
+  //   deployData.params.gasPrice,
+  //   deployData.params.gasToken,
+  //   deployData.params.refundReceiver,
+  //   deployData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(deployData);
   const receipt = await tx.wait();
   const poolAddress = _getPoolAddress(receipt, chain);
   if (!receipt) {
@@ -287,18 +302,19 @@ async function deployInventory(
     chain
   );
 
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const tx = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt)
     return {
@@ -425,18 +441,19 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
     normalizedChain
   );
 
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const tx = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return { status: false };
@@ -539,18 +556,19 @@ async function updateSpread(email, pin, poolAddress, base, quote, spread, chain)
     chain
   );
 
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const tx = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return {
@@ -658,18 +676,19 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
     normalizedChain
   );
 
-  const tx = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const tx = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return { status: false };

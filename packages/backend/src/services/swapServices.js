@@ -19,6 +19,7 @@ import Transaction from '../models/Transaction.js';
 import { sendAlertToUser } from '../services/notificationServices.js';
 import { _deploySafe } from './deployment.js';
 import { verify_Pin } from './pinService.js';
+import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
 
@@ -201,18 +202,19 @@ async function swapExactInput(
 
   let txResponse;
   try {
-    txResponse = await txData.safe.execTransaction(
-      txData.params.to,
-      txData.params.value,
-      txData.params.data,
-      txData.params.op,
-      txData.params.safeTxGas,
-      txData.params.baseGas,
-      txData.params.gasPrice,
-      txData.params.gasToken,
-      txData.params.refundReceiver,
-      txData.params.sig
-    );
+    // txResponse = await txData.safe.execTransaction(
+    //   txData.params.to,
+    //   txData.params.value,
+    //   txData.params.data,
+    //   txData.params.op,
+    //   txData.params.safeTxGas,
+    //   txData.params.baseGas,
+    //   txData.params.gasPrice,
+    //   txData.params.gasToken,
+    //   txData.params.refundReceiver,
+    //   txData.params.sig
+    // );
+        txResponse = await sendSafeTxWithBuilderCode(txData);
   } catch (err) {
     await Transaction.create({
       fromAddress: initiator.safeAddress.toLowerCase(),
@@ -429,18 +431,19 @@ async function swapExactOutput(
 
   let txResponse;
   try {
-    txResponse = await txData.safe.execTransaction(
-      txData.params.to,
-      txData.params.value,
-      txData.params.data,
-      txData.params.op,
-      txData.params.safeTxGas,
-      txData.params.baseGas,
-      txData.params.gasPrice,
-      txData.params.gasToken,
-      txData.params.refundReceiver,
-      txData.params.sig
-    );
+    // txResponse = await txData.safe.execTransaction(
+    //   txData.params.to,
+    //   txData.params.value,
+    //   txData.params.data,
+    //   txData.params.op,
+    //   txData.params.safeTxGas,
+    //   txData.params.baseGas,
+    //   txData.params.gasPrice,
+    //   txData.params.gasToken,
+    //   txData.params.refundReceiver,
+    //   txData.params.sig
+    // );
+        txResponse = await sendSafeTxWithBuilderCode(txData);
   } catch (err) {
     await Transaction.create({
       fromAddress: initiator.safeAddress.toLowerCase(),

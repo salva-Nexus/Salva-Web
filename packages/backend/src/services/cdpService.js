@@ -17,6 +17,7 @@ import {
 import { mode, keyValue } from '../utils/vars.js';
 import { getRpcUrlByChain } from '../utils/rpcUrls.js';
 import { fetchPricePerNgn } from '../utils/fetchRate.js';
+import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
 
@@ -174,19 +175,19 @@ async function registerAndDepositCollateral(
     sponsor,
     chain
   );
-  const txResponse = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-
+  // const txResponse = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
 
@@ -265,18 +266,19 @@ async function depositCollateral(
     sponsor,
     chain
   );
-  const txResponse = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
+  // const txResponse = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const txResponse = await sendSafeTxWithBuilderCode(txData);
 
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
@@ -330,19 +332,19 @@ async function openPosition(
     sponsor,
     chain
   );
-  const txResponse = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-
+  // const txResponse = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+  const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   return { status: !!receipt, receipt };
 }
@@ -394,19 +396,19 @@ async function settlePosition(
     sponsor,
     chain
   );
-  const txResponse = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-
+  // const txResponse = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+  const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   return { status: !!receipt, receipt };
 }
@@ -467,19 +469,19 @@ async function withdraw(
     sponsor,
     chain
   );
-  const txResponse = await txData.safe.execTransaction(
-    txData.params.to,
-    txData.params.value,
-    txData.params.data,
-    txData.params.op,
-    txData.params.safeTxGas,
-    txData.params.baseGas,
-    txData.params.gasPrice,
-    txData.params.gasToken,
-    txData.params.refundReceiver,
-    txData.params.sig
-  );
-
+  // const txResponse = await txData.safe.execTransaction(
+  //   txData.params.to,
+  //   txData.params.value,
+  //   txData.params.data,
+  //   txData.params.op,
+  //   txData.params.safeTxGas,
+  //   txData.params.baseGas,
+  //   txData.params.gasPrice,
+  //   txData.params.gasToken,
+  //   txData.params.refundReceiver,
+  //   txData.params.sig
+  // );
+    const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
   return { status: true, data: receipt };
