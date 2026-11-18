@@ -258,6 +258,14 @@ const Assets = () => {
       copyBusyRef.current = true;
       setCopying(true);
 
+      // Must be called synchronously inside the click, before any await.
+      const copyPromise = navigator.clipboard
+        ? navigator.clipboard.writeText(user.safeAddress).then(
+            () => true,
+            () => false
+          )
+        : Promise.resolve(false);
+
       try {
         const { meta } = await fetchWalletSnapshot(user.email, selectedChain, {
           logoMap: LOCAL_LOGOS,
@@ -270,8 +278,11 @@ const Assets = () => {
           return;
         }
 
-        navigator.clipboard?.writeText(user.safeAddress);
-        showMsg(message);
+        if (await copyPromise) {
+          showMsg(message);
+        } else {
+          showMsg('Could not copy address. Copy it manually.', 'error');
+        }
       } catch {
         showMsg('Could not verify account. Try again.', 'error');
       } finally {
