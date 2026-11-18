@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { QRCodeSVG } from 'qrcode.react';
 import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
-import { AssetDetailsModal, Notification } from './Dashboard';
+import { AssetDetailsModal, Notification, PleaseWaitOverlay } from './Dashboard';
 import SendTransferModal from './SendTransferModal';
 
 import ngnLogo from '../assets/ngn-coin.png';
@@ -249,18 +249,37 @@ const Assets = () => {
   }, [user?.email, selectedChain]);
 
 
-  const handleCopyAddress = useCallback(
-    (message = 'Address copied!') => {
-      if (user?.isNewUser === false) {
-        localStorage.removeItem('salva_user');
-        navigate('/login', { replace: true });
-        return;
-      }
+  const [copying, setCopying] = useState(false);
+  const copyBusyRef = useRef(false);
 
-      navigator.clipboard?.writeText(user.safeAddress);
-      showMsg(message);
+  const handleCopyAddress = useCallback(
+    async (message = 'Address copied!') => {
+      if (copyBusyRef.current) return;
+      copyBusyRef.current = true;
+      setCopying(true);
+
+      try {
+        const { meta } = await fetchWalletSnapshot(user.email, selectedChain, {
+          logoMap: LOCAL_LOGOS,
+          timeout: 15000,
+        });
+
+        if (meta?.isNewUser === false) {
+          localStorage.removeItem('salva_user');
+          navigate('/login', { replace: true });
+          return;
+        }
+
+        navigator.clipboard?.writeText(user.safeAddress);
+        showMsg(message);
+      } catch {
+        showMsg('Could not verify account. Try again.', 'error');
+      } finally {
+        copyBusyRef.current = false;
+        setCopying(false);
+      }
     },
-    [user, navigate, showMsg]
+    [user, selectedChain, navigate, showMsg]
   );
 
   useEffect(() => {
@@ -490,6 +509,8 @@ const Assets = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <AnimatePresence>{copying && <PleaseWaitOverlay key="copy-wait" />}</AnimatePresence>
 
       <AnimatePresence>
         {notification.show && <Notification notification={notification} onClose={closeMsg} />}

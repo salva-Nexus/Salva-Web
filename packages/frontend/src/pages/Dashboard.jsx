@@ -282,6 +282,31 @@ const Spinner = ({ small = false }) => (
   />
 );
 
+export const PleaseWaitOverlay = ({ message = 'Please wait…' }) => (
+  <motion.div
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    exit={{ opacity: 0 }}
+    transition={{ duration: 0.15 }}
+    className="fixed inset-0 z-[150] flex items-center justify-center bg-black/80 backdrop-blur-md"
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <div className="flex flex-col items-center gap-4">
+      <div className="relative w-14 h-14">
+        <span className="absolute inset-0 rounded-full border-2 border-salvaGold/15" />
+        <span className="absolute inset-0 rounded-full border-2 border-transparent border-t-salvaGold animate-spin" />
+        <span className="absolute inset-[14px] rounded-full bg-salvaGold/10 border border-salvaGold/20" />
+      </div>
+
+      <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[.3em] text-white/80">
+        {message}
+      </p>
+    </div>
+  </motion.div>
+);
+
 export const Notification = ({ notification, onClose }) => {
   useEffect(() => {
     if (!notification.show) return undefined;
@@ -1481,12 +1506,14 @@ const Dashboard = () => {
   }, []);
 
   
+  const [copying, setCopying] = useState(false);
   const copyBusyRef = useRef(false);
 
   const handleCopyAddress = useCallback(
     async (message = 'Address copied!') => {
       if (copyBusyRef.current) return;
       copyBusyRef.current = true;
+      setCopying(true);
 
       try {
         const { meta } = await fetchWalletSnapshot(user.email, selectedChain, {
@@ -1506,6 +1533,7 @@ const Dashboard = () => {
         showMsg('Could not verify account. Try again.', 'error');
       } finally {
         copyBusyRef.current = false;
+        if (mountedRef.current) setCopying(false);
       }
     },
     [user, selectedChain, navigate, showMsg]
@@ -2089,6 +2117,8 @@ const Dashboard = () => {
             }}
           />
         )}
+
+        <AnimatePresence>{copying && <PleaseWaitOverlay key="copy-wait" />}</AnimatePresence>
         {notification.show && <Notification notification={notification} onClose={closeMsg} />}
       </AnimatePresence>
     </div>
