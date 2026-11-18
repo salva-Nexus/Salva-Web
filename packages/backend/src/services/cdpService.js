@@ -18,6 +18,8 @@ import { mode, keyValue } from '../utils/vars.js';
 import { getRpcUrlByChain } from '../utils/rpcUrls.js';
 import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
+import { getBalance } from './transferServices.js';
+
 
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
 
