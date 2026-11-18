@@ -20,7 +20,6 @@ import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 import { getBalance } from './transferServices.js';
 
-
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
 
 async function _findManager(version, chain) {
@@ -102,7 +101,11 @@ async function registerAndDepositCollateral(
     }
 
     // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-    const balanceData = await getBalance(initDepositFeeData.data.tokenAddress, safeAddress, chain);
+    const balanceData = await getBalance(
+      initDepositFeeData.data.feeTokenAddress,
+      safeAddress,
+      chain
+    );
     if (initFeeData.data.feeToken === initDepositFeeData.data.feeToken) {
       const totalRequired =
         BigInt(initFeeData.data.feeToWei) + BigInt(initDepositFeeData.data.feeToWei);
@@ -189,7 +192,7 @@ async function registerAndDepositCollateral(
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const txResponse = await sendSafeTxWithBuilderCode(txData);
+  const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
 
@@ -280,7 +283,7 @@ async function depositCollateral(
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const txResponse = await sendSafeTxWithBuilderCode(txData);
+  const txResponse = await sendSafeTxWithBuilderCode(txData);
 
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
@@ -483,7 +486,7 @@ async function withdraw(
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const txResponse = await sendSafeTxWithBuilderCode(txData);
+  const txResponse = await sendSafeTxWithBuilderCode(txData);
   const receipt = await txResponse.wait();
   if (!receipt) return { status: false };
   return { status: true, data: receipt };
@@ -535,11 +538,12 @@ async function userPositionHealth(safeAddress, collateralTokenSymbol, debtAmount
       chain,
       version
     );
-    const healthBps = debtWei === 0n
-      ? (Number(nValue.data) / Number(formattedMintedNgns)) * 10000
-      : (Number(nValue.data) / (Number(formattedMintedNgns) + Number(debtAmount))) * 10000;
+    const healthBps =
+      debtWei === 0n
+        ? (Number(nValue.data) / Number(formattedMintedNgns)) * 10000
+        : (Number(nValue.data) / (Number(formattedMintedNgns) + Number(debtAmount))) * 10000;
 
-    return  healthBps.toString();
+    return healthBps.toString();
   }
 }
 
