@@ -710,7 +710,7 @@ router.get('/pools/address/:poolAddress/:chain', async (req, res) => {
       let formattedPrice = '0';
 
       try {
-        const invData = await getInventory.getInventory(inv.baseAddress, inv.quoteAddress);
+        const invData = await poolContract.getInventory(inv.baseAddress, inv.quoteAddress);
         baseBalance = ethers.formatUnits(invData.baseBalance, Number(bDec));
       } catch (e) {}
 
