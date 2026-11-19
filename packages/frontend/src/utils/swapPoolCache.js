@@ -10,12 +10,12 @@
 
 import { SALVA_API_URL } from '../config';
 
-export const SWAP_POLL_INTERVAL_MS = 10000;
-export const SWAP_LIVE_POLL_INTERVAL_MS = 5000;
+export const SWAP_POLL_INTERVAL_MS = 120000;
+export const SWAP_LIVE_POLL_INTERVAL_MS = 60000;
 export const SWAP_PAIRS_POLL_INTERVAL_MS = 60000;
 export const DEFAULT_BUY_SYMBOL = 'NGNS';
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_PREFIX = 'salva_swap_pool_cache';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
@@ -104,14 +104,11 @@ export const swapRequest = async (url, { method = 'GET', body, signal } = {}) =>
    NORMALISERS
 ============================================================================ */
 
-const normalizePair = (raw) => ({
-  baseSymbol: uc(raw?.baseSymbol),
-  quoteSymbol: uc(raw?.quoteSymbol),
-  baseAddress: raw?.baseAddress ? lc(raw.baseAddress) : null,
-  quoteAddress: raw?.quoteAddress ? lc(raw.quoteAddress) : null,
-  baseLogo: raw?.baseLogo ? String(raw.baseLogo).trim() || null : null,
-  quoteLogo: raw?.quoteLogo ? String(raw.quoteLogo).trim() || null : null,
-  isVerified: raw?.isVerified === true,
+// /assets-swap returns raw Assets + UserConfiguredAsset docs.
+const normalizeAsset = (raw) => ({
+  symbol: uc(raw?.tokenSymbol ?? raw?.symbol),
+  address: raw?.tokenAddress ?? raw?.address ? lc(raw?.tokenAddress ?? raw?.address) : null,
+  logo: raw?.logo ? String(raw.logo).trim() || null : null,
 });
 
 const toNumericString = (value, fallback = '0') => {
@@ -166,6 +163,7 @@ const normalizeListing = (pool, inv, chain) => {
     baseLogo: inv?.baseLogo ? String(inv.baseLogo).trim() || null : null,
     quoteLogo: inv?.quoteLogo ? String(inv.quoteLogo).trim() || null : null,
     price: toNumericString(inv?.price),
+    isVerified: inv?.isVerified === true,
     priceDisplay: truncateDisplay(inv?.price),
     baseBalance,
     baseBalanceDisplay: truncateDisplay(baseBalance),
@@ -177,6 +175,7 @@ const sortListings = (listings) =>
   [...listings].sort(
     (a, b) =>
       Number(!isAvailable(a)) - Number(!isAvailable(b)) ||
+      Number(b.baseBalance) - Number(a.baseBalance) ||
       a.quoteSymbol.localeCompare(b.quoteSymbol) ||
       Number(a.price) - Number(b.price)
   );
@@ -193,50 +192,40 @@ const dedupe = (listings) => {
    SUPPORTED PAIRS CACHE
 ============================================================================ */
 
-export const readSupportedPairsCache = (chain) => {
-  const entry = readEntry(storageKey('pairs', chain));
-  if (!entry || !Array.isArray(entry.pairs)) return null;
-  return { pairs: entry.pairs, at: Number(entry.at) || 0 };
+export const readSwapAssetsCache = (chain) => {
+  const entry = readEntry(storageKey('assets', chain));
+  if (!entry || !Array.isArray(entry.assets)) return null;
+  return { assets: entry.assets, at: Number(entry.at) || 0 };
 };
 
-export const writeSupportedPairsCache = (chain, pairs) =>
-  writeEntry(storageKey('pairs', chain), {
-    pairs: (Array.isArray(pairs) ? pairs : [])
-      .map(normalizePair)
-      .filter((pair) => pair.baseSymbol && pair.quoteSymbol),
+export const writeSwapAssetsCache = (chain, assets) =>
+  writeEntry(storageKey('assets', chain), {
+    assets: (Array.isArray(assets) ? assets : []).map(normalizeAsset).filter((a) => a.symbol),
     at: Date.now(),
   });
 
-export const fetchSupportedPairs = async (chain, { signal } = {}) => {
+export const fetchSwapAssets = async (chain, { signal } = {}) => {
   const data = await swapRequest(
-    `${SALVA_API_URL}/api/pool/supported-Pairs/${encodeURIComponent(lc(chain))}`,
+    `${SALVA_API_URL}/api/pool/assets-swap/${encodeURIComponent(lc(chain))}`,
     { signal }
   );
 
-  writeSupportedPairsCache(chain, data?.pairs);
-  return readSupportedPairsCache(chain); // read back from cache
+  writeSwapAssetsCache(chain, data?.assets);
+  return readSwapAssetsCache(chain); // read back from cache
 };
 
-// Every asset that appears as a base OR a quote, one entry each. NGNS is first.
-export const buildAssetList = (pairs) => {
+// One entry per token (by address; native by symbol). NGNS is first.
+export const buildAssetList = (assets) => {
   const map = new Map();
 
-  (Array.isArray(pairs) ? pairs : []).forEach((pair) => {
-    [
-      { symbol: pair.baseSymbol, address: pair.baseAddress, logo: pair.baseLogo },
-      { symbol: pair.quoteSymbol, address: pair.quoteAddress, logo: pair.quoteLogo },
-    ].forEach((asset) => {
-      if (!asset.symbol) return;
+  (Array.isArray(assets) ? assets : []).forEach((asset) => {
+    if (!asset?.symbol) return;
 
-      const key = asset.address ? lc(asset.address) : `native:${asset.symbol}`;
-      const existing = map.get(key);
+    const key = asset.address ? lc(asset.address) : `native:${asset.symbol}`;
+    const existing = map.get(key);
 
-      if (!existing) {
-        map.set(key, asset);
-      } else if (!existing.logo && asset.logo) {
-        existing.logo = asset.logo;
-      }
-    });
+    if (!existing) map.set(key, { ...asset });
+    else if (!existing.logo && asset.logo) existing.logo = asset.logo;
   });
 
   return Array.from(map.values()).sort((a, b) => {
@@ -246,20 +235,15 @@ export const buildAssetList = (pairs) => {
   });
 };
 
-// Logo lookup built from the supported pairs (fallback when an inventory has no logo).
-export const buildLogoIndex = (pairs) => {
+// Logo fallback lookup (when an inventory has no logo of its own).
+export const buildLogoIndex = (assets) => {
   const byAddress = new Map();
   const bySymbol = new Map();
 
-  (Array.isArray(pairs) ? pairs : []).forEach((pair) => {
-    [
-      { symbol: pair.baseSymbol, address: pair.baseAddress, logo: pair.baseLogo },
-      { symbol: pair.quoteSymbol, address: pair.quoteAddress, logo: pair.quoteLogo },
-    ].forEach(({ symbol, address, logo }) => {
-      if (!logo) return;
-      if (address && !byAddress.has(lc(address))) byAddress.set(lc(address), logo);
-      if (symbol && !bySymbol.has(uc(symbol))) bySymbol.set(uc(symbol), logo);
-    });
+  (Array.isArray(assets) ? assets : []).forEach(({ symbol, address, logo }) => {
+    if (!logo) return;
+    if (address && !byAddress.has(lc(address))) byAddress.set(lc(address), logo);
+    if (symbol && !bySymbol.has(uc(symbol))) bySymbol.set(uc(symbol), logo);
   });
 
   return { byAddress, bySymbol };

@@ -3,7 +3,7 @@
 import { SALVA_API_URL } from '../config';
 import { readWalletCache } from './walletCache';
 
-export const CDP_POLL_INTERVAL_MS = 20000;
+export const CDP_POLL_INTERVAL_MS = 120000;
 
 const CDP_CACHE_VERSION = 3;
 const CDP_CACHE_PREFIX = 'salva_cdp_cache:';

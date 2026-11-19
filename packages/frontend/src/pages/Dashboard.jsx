@@ -1506,48 +1506,16 @@ const Dashboard = () => {
   }, []);
 
   
-  const [copying, setCopying] = useState(false);
-  const copyBusyRef = useRef(false);
-
   const handleCopyAddress = useCallback(
     async (message = 'Address copied!') => {
-      if (copyBusyRef.current) return;
-      copyBusyRef.current = true;
-      setCopying(true);
-
-      // Must be called synchronously inside the click, before any await.
-      const copyPromise = navigator.clipboard
-        ? navigator.clipboard.writeText(user.safeAddress).then(
-            () => true,
-            () => false
-          )
-        : Promise.resolve(false);
-
       try {
-        const { meta } = await fetchWalletSnapshot(user.email, selectedChain, {
-          logoMap: LOCAL_LOGOS,
-          timeout: 15000,
-        });
-
-        if (meta?.isNewUser === false) {
-          localStorage.removeItem('salva_user');
-          navigate('/login', { replace: true });
-          return;
-        }
-
-        if (await copyPromise) {
-          showMsg(message);
-        } else {
-          showMsg('Could not copy address. Copy it manually.', 'error');
-        }
+        await navigator.clipboard.writeText(user.safeAddress);
+        showMsg(message);
       } catch {
-        showMsg('Could not verify account. Try again.', 'error');
-      } finally {
-        copyBusyRef.current = false;
-        if (mountedRef.current) setCopying(false);
+        showMsg('Could not copy address. Copy it manually.', 'error');
       }
     },
-    [user, selectedChain, navigate, showMsg]
+    [user, showMsg]
   );
 
   useEffect(() => {
@@ -2129,7 +2097,6 @@ const Dashboard = () => {
           />
         )}
 
-        <AnimatePresence>{copying && <PleaseWaitOverlay key="copy-wait" />}</AnimatePresence>
         {notification.show && <Notification notification={notification} onClose={closeMsg} />}
       </AnimatePresence>
     </div>

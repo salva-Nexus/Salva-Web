@@ -16,11 +16,12 @@ import {
   _estimate_Withdraw_CollateralFee,
 } from '../services/estimateFee.js';
 import { _findManager, _findTokenConfig } from '../services/cdpService.js';
-import { SupportedPair } from '../models/SupportedPair.js';
+import { UserConfiguredAsset } from '../models/UserConfiguredAsset.js';
 import { _findPoolOrRetry } from '../services/swapServices.js';
 import { User } from '../models/Users.js';
 import { verify_Pin } from '../services/pinService.js';
 import { mode } from '../utils/vars.js';
+import Assets from '../models/Assets.js';
 
 const router = express.Router();
 
@@ -83,35 +84,56 @@ router.post('/estimate-deploy-pool-fee/', async (req, res) => {
 router.post('/estimate-deploy-Inv-fee', async (req, res) => {
   const { safe, pin, poolAddress, base, quote, floor, spread, amount, allowSwapBelowFloor, chain } =
     req.body;
+  const normalizedBase = String(base).toUpperCase();
+  const normalizedQuote = String(quote).toUpperCase();
+  const normalizedChain = String(chain).toLowerCase();
+  const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
   const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
   const pkey = pinData.privateKey;
   try {
-    let pair = await SupportedPair.findOne({
-      baseSymbol: base.toUpperCase(),
-      quoteSymbol: quote.toUpperCase(),
-      chain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
-    let inv = false;
-    if (!pair) {
-      pair = await SupportedPair.findOne({
-        baseSymbol: quote.toUpperCase(),
-        quoteSymbol: base.toUpperCase(),
-        chain,
-        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+      let asset1 = await Assets.findOne({
+        tokenSymbol: normalizedBase,
+        chain: normalizedChain,
+        type: envType,
       });
-      if (!pair) throw new Error('Supported pair not found');
-      inv = true;
-    }
-    const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-    if (isStableNgn(pair.quoteSymbol)) {
-      isInverted = true;
-    }
-    const inAddress = !inv ? pair.quoteAddress : pair.baseAddress;
-    const outAddress = !inv ? pair.baseAddress : pair.quoteAddress;
+      if (!asset1) {
+        asset1 = await UserConfiguredAsset.findOne({
+          tokenSymbol: normalizedBase,
+          chain: normalizedChain,
+          type: envType,
+        });
+        if (!asset1) {
+          return res.status(404).json({
+            status: false,
+            errorMsg: `Base asset ${normalizedBase} not found on ${normalizedChain}`,
+          });
+        }
+      }
+
+      let asset2 = await Assets.findOne({
+        tokenSymbol: normalizedQuote,
+        chain: normalizedChain,
+        type: envType,
+      });
+      if (!asset2) {
+        asset2 = await UserConfiguredAsset.findOne({
+          tokenSymbol: normalizedQuote,
+          chain: normalizedChain,
+          type: envType,
+        });
+        if (!asset2) {
+          return res.status(404).json({
+            status: false,
+            errorMsg: `Quote asset ${normalizedQuote} not found on ${normalizedChain}`,
+          });
+        }
+      }
+
+      const inAddress = asset2.tokenAddress;
+      const outAddress = asset1.tokenAddress;
 
     const fee = await estimateDeployInvFee(
       safe,
@@ -119,13 +141,13 @@ router.post('/estimate-deploy-Inv-fee', async (req, res) => {
       poolAddress,
       outAddress,
       inAddress,
-      pair.priceFeed,
+      asset1.priceFeedAddress,
+      asset2.priceFeedAddress,
       floor,
       spread,
       amount,
       allowSwapBelowFloor,
-      inv,
-      chain
+      normalizedChain
     );
     res.status(200).json({
       status: fee.status,
@@ -145,36 +167,56 @@ router.post('/estimate-deploy-Inv-fee', async (req, res) => {
 
 router.post('/estimate-update-spread-fee', async (req, res) => {
   const { safe, pin, poolAddress, base, quote, spread, chain } = req.body;
+  const normalizedBase = String(base).toUpperCase();
+  const normalizedQuote = String(quote).toUpperCase();
+  const normalizedChain = String(chain).toLowerCase();
+  const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
   const uData = await User.findOne({
     safeAddress: safe,
   });
   const pinData = await verify_Pin(uData.email, pin);
   const pkey = pinData.privateKey;
   try {
-    let pair = await SupportedPair.findOne({
-      baseSymbol: base.toUpperCase(),
-      quoteSymbol: quote.toUpperCase(),
-      chain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    let asset1 = await Assets.findOne({
+      tokenSymbol: normalizedBase,
+      chain: normalizedChain,
+      type: envType,
     });
-    let inv = false;
-    if (!pair) {
-      pair = await SupportedPair.findOne({
-        baseSymbol: quote.toUpperCase(),
-        quoteSymbol: base.toUpperCase(),
-        chain,
-        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    if (!asset1) {
+      asset1 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedBase,
+        chain: normalizedChain,
+        type: envType,
       });
-      if (!pair) throw new Error('Supported pair not found');
-      inv = true;
+      if (!asset1) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Base asset ${normalizedBase} not found on ${normalizedChain}`,
+        });
+      }
     }
 
-    const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-    if (isStableNgn(pair.quoteSymbol)) {
-      isInverted = true;
+    let asset2 = await Assets.findOne({
+      tokenSymbol: normalizedQuote,
+      chain: normalizedChain,
+      type: envType,
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedQuote,
+        chain: normalizedChain,
+        type: envType,
+      });
+      if (!asset2) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Quote asset ${normalizedQuote} not found on ${normalizedChain}`,
+        });
+      }
     }
-    const inAddress = !inv ? pair.quoteAddress : pair.baseAddress;
-    const outAddress = !inv ? pair.baseAddress : pair.quoteAddress;
+
+    const inAddress = asset2.tokenAddress;
+    const outAddress = asset1.tokenAddress;
 
     const fee = await estimateUpdateSpreadFee(
       safe,
@@ -183,7 +225,7 @@ router.post('/estimate-update-spread-fee', async (req, res) => {
       outAddress,
       inAddress,
       spread,
-      chain
+      normalizedChain
     );
     res.status(200).json({
       status: fee.status,
@@ -217,27 +259,49 @@ router.post('/estimate-add-liquidity-fee', async (req, res) => {
     const pkey = pinData.privateKey;
 
     const normalizedChain = String(chain).toLowerCase();
-    let isInverted = false;
-    let pair = await SupportedPair.findOne({
-      baseSymbol: base.toUpperCase(),
-      quoteSymbol: quote.toUpperCase(),
-      chain: chain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    const normalizedBase = String(base).toUpperCase();
+    const normalizedQuote = String(quote).toUpperCase();
+    const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
+    let asset1 = await Assets.findOne({
+      tokenSymbol: normalizedBase,
+      chain: normalizedChain,
+      type: envType,
     });
-    if (!pair) {
-      pair = await SupportedPair.findOne({
-        baseSymbol: quote.toUpperCase(),
-        quoteSymbol: base.toUpperCase(),
-        chain: chain,
-        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    if (!asset1) {
+      asset1 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedBase,
+        chain: normalizedChain,
+        type: envType,
       });
-      if (!pair)
-        return res.status(404).json({ status: false, errorMsg: 'Supported pair not found' });
-
-      isInverted = true;
+      if (!asset1) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Base asset ${normalizedBase} not found on ${normalizedChain}`,
+        });
+      }
     }
-    const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
-    const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
+
+    let asset2 = await Assets.findOne({
+      tokenSymbol: normalizedQuote,
+      chain: normalizedChain,
+      type: envType,
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedQuote,
+        chain: normalizedChain,
+        type: envType,
+      });
+      if (!asset2) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Quote asset ${normalizedQuote} not found on ${normalizedChain}`,
+        });
+      }
+    }
+
+    const quoteAsset = asset2.tokenAddress;
+    const baseAsset = asset1.tokenAddress;
 
     const fee = await estimateAddLiquidityFee(
       safe,
@@ -266,6 +330,10 @@ router.post('/estimate-add-liquidity-fee', async (req, res) => {
 
 router.post('/estimate-withdraw-fee', async (req, res) => {
   const { safe, pin, poolAddress, base, quote, assetOut, amount, chain } = req.body;
+  const normalizedBase = String(base).toUpperCase();
+  const normalizedQuote = String(quote).toUpperCase();
+  const normalizedChain = String(chain).toLowerCase();
+  const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
   const uData = await User.findOne({
     safeAddress: safe,
   });
@@ -273,33 +341,49 @@ router.post('/estimate-withdraw-fee', async (req, res) => {
   const pkey = pinData.privateKey;
 
   try {
-    let isInverted = false;
-    let pair = await SupportedPair.findOne({
-      baseSymbol: base.toUpperCase(),
-      quoteSymbol: quote.toUpperCase(),
-      chain: chain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    let asset1 = await Assets.findOne({
+      tokenSymbol: normalizedBase,
+      chain: normalizedChain,
+      type: envType,
     });
-    if (!pair) {
-      pair = await SupportedPair.findOne({
-        baseSymbol: quote.toUpperCase(),
-        quoteSymbol: base.toUpperCase(),
-        chain: chain,
-        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    if (!asset1) {
+      asset1 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedBase,
+        chain: normalizedChain,
+        type: envType,
       });
-      if (!pair)
-        return res.status(404).json({ status: false, errorMsg: 'Supported pair not found' });
-      isInverted = true;
+      if (!asset1) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Base asset ${normalizedBase} not found on ${normalizedChain}`,
+        });
+      }
     }
-    const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
-    const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
-    const outAsset = isInverted
-      ? assetOut === quote
-        ? quoteAsset
-        : baseAsset
-      : assetOut === base
-        ? baseAsset
-        : quoteAsset;
+
+    let asset2 = await Assets.findOne({
+      tokenSymbol: normalizedQuote,
+      chain: normalizedChain,
+      type: envType,
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedQuote,
+        chain: normalizedChain,
+        type: envType,
+      });
+      if (!asset2) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Quote asset ${normalizedQuote} not found on ${normalizedChain}`,
+        });
+      }
+    }
+
+    const quoteAsset = asset2.tokenAddress;
+    const baseAsset = asset1.tokenAddress;
+        const outAsset =
+          String(assetOut).toUpperCase() === normalizedQuote ? quoteAsset : baseAsset;
+      
     const fee = await estimateWithdrawFee(
       safe,
       pkey,
@@ -308,7 +392,7 @@ router.post('/estimate-withdraw-fee', async (req, res) => {
       quoteAsset,
       outAsset,
       amount,
-      chain
+      normalizedChain
     );
 
     return res.status(200).json({

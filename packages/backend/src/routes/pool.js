@@ -10,8 +10,8 @@ import {
 } from '../services/poolServices.js';
 import { Pool } from '../models/Pool.js';
 import { keyValue, mode } from '../utils/vars.js';
-import { getRpcUrlByChain } from '../utils/rpcUrls.js';
-import { SupportedPair } from '../models/SupportedPair.js';
+import { getRpcUrlByChain, getNgnOracleAddressByChain } from '../utils/rpcUrls.js';
+import { UserConfiguredAsset } from '../models/UserConfiguredAsset.js';
 import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import Assets from '../models/Assets.js';
 import { User } from '../models/Users.js';
@@ -24,67 +24,23 @@ const provider = (chain) => {
   return new ethers.JsonRpcProvider(rpc);
 };
 
-router.get('/isInverted/:base/:quote/:chain', async (req, res) => {
-  const { base, quote, chain } = req.query;
-
-  try {
-    if (!base || !quote || !chain) {
-      return res.status(400).json({
-        status: false,
-        errorMsg: 'base, quote and chain are required',
-      });
-    }
-
-    const normalizedBase = base.toUpperCase();
-    const normalizedQuote = quote.toUpperCase();
-    const normalizedChain = chain.toLowerCase();
-
-    // First: exact direction
-    let pair = await SupportedPair.findOne({
-      baseSymbol: normalizedBase,
-      quoteSymbol: normalizedQuote,
-      chain: normalizedChain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
-
-    if (pair) {
-      return res.status(200).json({
-        status: true,
-        isInverted: false,
-      });
-    }
-
-    // Second: reverse direction
-    pair = await SupportedPair.findOne({
-      baseSymbol: normalizedQuote,
-      quoteSymbol: normalizedBase,
-      chain: normalizedChain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
-
-    if (pair) {
-      return res.status(200).json({
-        status: true,
-        isInverted: true,
-      });
-    }
-
-    return res.status(404).json({
-      status: false,
-      errorMsg: `Supported pair not found for ${normalizedBase}/${normalizedQuote}`,
-    });
-  } catch (err) {
-    console.error(`Is Inverted Check failed: ${err.message}`);
-
-    return res.status(500).json({
-      status: false,
-      errorMsg: err.message,
-    });
-  }
-});
+// An inventory is verified only when BOTH its tokens are Salva-listed assets.
+async function isVerifiedInventory(inv, chain) {
+  const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
+  const addrs = [inv.baseAddress, inv.quoteAddress].map((a) => String(a || '').toLowerCase());
+  const found = await Assets.find({
+    tokenAddress: { $in: addrs },
+    chain,
+    type: envType,
+  })
+    .select('tokenAddress')
+    .lean();
+  const listed = new Set(found.map((a) => String(a.tokenAddress).toLowerCase()));
+  return addrs.every((a) => listed.has(a));
+}
 
 router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
-  const { base, quote, chain } = req.params; // Fixed: use req.params for path variables
+  const { base, quote, chain } = req.params;
 
   try {
     if (!base || !quote || !chain) {
@@ -97,59 +53,106 @@ router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
     const normalizedBase = base.toUpperCase();
     const normalizedQuote = quote.toUpperCase();
     const normalizedChain = chain.toLowerCase();
+    const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
 
-    let pair = await SupportedPair.findOne({
-      baseSymbol: normalizedBase,
-      quoteSymbol: normalizedQuote,
+    let asset1 = await Assets.findOne({
+      tokenSymbol: normalizedBase,
       chain: normalizedChain,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+      type: envType,
     });
-
-    let isInverted = false;
-    if (!pair) {
-      pair = await SupportedPair.findOne({
-        baseSymbol: normalizedQuote,
-        quoteSymbol: normalizedBase,
+    if (!asset1) {
+      asset1 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedBase,
         chain: normalizedChain,
-        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+        type: envType,
       });
-
-      if (!pair) {
+      if (!asset1) {
         return res.status(404).json({
           status: false,
-          errorMsg: `Supported pair not found for ${normalizedBase}/${normalizedQuote}`,
+          errorMsg: `Base asset ${normalizedBase} not found on ${normalizedChain}`,
         });
       }
-      isInverted = true;
     }
 
-    let price = 0;
-    const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-    if (isStableNgn(pair.quoteSymbol)) {
-      isInverted = true;
-    }
-    if (!isInverted) {
-      if (isStableNgn(pair.baseSymbol)) {
-        const fetched = await fetchPricePerNgn(pair.quoteAddress, chain);
-        price = 1 / fetched.data;
-      } else {
-        const priceFeed = new ethers.Contract(pair.priceFeed, CHAINLINK, provider(chain));
-        const [, answer] = await priceFeed.latestRoundData();
-        const decimals = await priceFeed.decimals();
-        price = Number(ethers.formatUnits(answer, Number(decimals)));
-      }
-    } else {
-      if (isStableNgn(pair.baseSymbol)) {
-        const fetched = await fetchPricePerNgn(pair.quoteAddress, chain);
-        price = fetched.data;
-      } else {
-        const priceFeed = new ethers.Contract(pair.priceFeed, CHAINLINK, provider(chain));
-        const [, answer] = await priceFeed.latestRoundData();
-        const decimals = await priceFeed.decimals();
-        price = 1 / Number(ethers.formatUnits(answer, Number(decimals)));
+    let asset2 = await Assets.findOne({
+      tokenSymbol: normalizedQuote,
+      chain: normalizedChain,
+      type: envType,
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: normalizedQuote,
+        chain: normalizedChain,
+        type: envType,
+      });
+      if (!asset2) {
+        return res.status(404).json({
+          status: false,
+          errorMsg: `Quote asset ${normalizedQuote} not found on ${normalizedChain}`,
+        });
       }
     }
-    console.log('PRICE: ', price);
+
+    const ngnOracleAddress = getNgnOracleAddressByChain(normalizedChain);
+    const NGN_SYMBOLS = ['NGNS', 'CNGN'];
+    const baseUsdFeed =
+      asset1.priceFeedAddress ||
+      (NGN_SYMBOLS.includes(String(asset1.tokenSymbol).toUpperCase()) ? ngnOracleAddress : null);
+    const quoteUsdFeed =
+      asset2.priceFeedAddress ||
+      (NGN_SYMBOLS.includes(String(asset2.tokenSymbol).toUpperCase()) ? ngnOracleAddress : null);
+    const chainProvider = provider(normalizedChain);
+
+    const isNgnOracle = (addr) =>
+      Boolean(addr && ngnOracleAddress && addr.toLowerCase() === ngnOracleAddress.toLowerCase());
+
+    const getUsdPrice = async (feedAddress) => {
+      if (!feedAddress) {
+        throw new Error('No price feed configured for this asset');
+      }
+      if (isNgnOracle(feedAddress)) {
+        const ngnRes = await fetchPricePerNgn(null, normalizedChain);
+        if (!ngnRes.status || !ngnRes.data) {
+          throw new Error('Failed to fetch NGN oracle price');
+        }
+        // fetchPricePerNgn returns USD/NGN; caller handles base (1 / data) vs quote (data)
+        return { isNgn: true, value: Number(ngnRes.data) };
+      }
+
+      const feedContract = new ethers.Contract(feedAddress, CHAINLINK, chainProvider);
+      const [roundData, feedDecimals] = await Promise.all([
+        feedContract.latestRoundData(),
+        feedContract.decimals(),
+      ]);
+
+      if (!roundData || roundData.answer <= 0n) {
+        throw new Error(`Invalid Chainlink answer for feed ${feedAddress}`);
+      }
+
+      const formattedPrice = Number(ethers.formatUnits(roundData.answer, Number(feedDecimals)));
+      return { isNgn: false, value: formattedPrice };
+    };
+
+    const [baseFeedResult, quoteFeedResult] = await Promise.all([
+      getUsdPrice(baseUsdFeed),
+      getUsdPrice(quoteUsdFeed),
+    ]);
+    console.log(baseFeedResult);
+    console.log(quoteFeedResult);
+
+    // UB: if base is NGNS/CNGN, flip back using 1 / returnData; otherwise use USD price directly
+    const ub = baseFeedResult.isNgn ? 1 / baseFeedResult.value : baseFeedResult.value;
+
+    // UQ: if quote is NGNS/CNGN, flip back using 1 / returnData; otherwise use USD price directly
+    const uq = quoteFeedResult.isNgn ? 1 / quoteFeedResult.value : quoteFeedResult.value;
+
+    if (!ub || !uq || uq === 0) {
+      throw new Error('Computed UB or UQ is zero or invalid');
+    }
+
+    // UB * (1 / UQ) — matching crossPrice: BASE/USD * (1 / QUOTE/USD)
+    const price = ub * (1 / uq);
+
     return res.status(200).json({
       status: true,
       price,
@@ -164,27 +167,79 @@ router.get('/assets/price/:base/:quote/:chain', async (req, res) => {
   }
 });
 
-router.get('/supported-Pairs/:chain', async (req, res) => {
+// changed from /supported-Pairs/:chain
+router.get('/assets-swap/:chain', async (req, res) => {
   const { chain } = req.params;
   try {
-    const pairs = await SupportedPair.find({
-      chain: chain.toLowerCase(),
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    }).lean();
-
-    if (!pairs || pairs.length === 0) {
-      return res.status(200).json({
-        status: true,
-        pairs: [],
+    if (!chain) {
+      return res.status(400).json({
+        status: false,
+        errorMsg: 'chain is required',
       });
     }
 
+    const normalizedChain = chain.toLowerCase();
+    const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
+
+    const [asset1, asset2] = await Promise.all([
+      Assets.find({
+        chain: normalizedChain,
+        type: envType,
+      }).lean(),
+      UserConfiguredAsset.find({
+        chain: normalizedChain,
+        type: envType,
+      }).lean(),
+    ]);
+
+    const assets = [...asset1, ...asset2];
+
     return res.status(200).json({
       status: true,
-      pairs: pairs,
+      assets,
     });
   } catch (err) {
-    console.error(`supported-Pairs fetch failed: ${err.message}`);
+    console.error(`assets fetch failed: ${err.message}`);
+    return res.status(500).json({
+      status: false,
+      errorMsg: err.message,
+    });
+  }
+});
+
+router.get('/assets-pool/:chain/:safeAddress', async (req, res) => {
+  const { chain, safeAddress } = req.params;
+  try {
+    if (!chain) {
+      return res.status(400).json({
+        status: false,
+        errorMsg: 'chain is required',
+      });
+    }
+
+    const normalizedChain = chain.toLowerCase();
+    const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
+
+    const [asset1, asset2] = await Promise.all([
+      Assets.find({
+        chain: normalizedChain,
+        type: envType,
+      }).lean(),
+      UserConfiguredAsset.find({
+        ownerSafeAddress: safeAddress,
+        chain: normalizedChain,
+        type: envType,
+      }).lean(),
+    ]);
+
+    const assets = [...asset1, ...asset2];
+
+    return res.status(200).json({
+      status: true,
+      assets,
+    });
+  } catch (err) {
+    console.error(`assets fetch failed: ${err.message}`);
     return res.status(500).json({
       status: false,
       errorMsg: err.message,
@@ -214,10 +269,11 @@ router.post('/deploy-pool', async (req, res) => {
 
 router.get('/pools/:safeAddress/:chain', async (req, res) => {
   const { safeAddress, chain } = req.params;
+  const normalizedChain = chain.toLowerCase();
   try {
     const pools = await Pool.find({
       ownerSafeAddress: safeAddress.toLowerCase(),
-      chain: chain.toLowerCase(),
+      chain: normalizedChain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     }).lean();
 
@@ -261,6 +317,7 @@ router.get('/pools/:safeAddress/:chain', async (req, res) => {
           const [rawPrice] = await poolContract.getPrice(inv.baseAddress, inv.quoteAddress);
           formattedPrice = ethers.formatUnits(rawPrice, 18);
         } catch (e) {}
+        const f = await isVerifiedInventory(inv, normalizedChain);
 
         enrichedInventories.push({
           ...inv,
@@ -269,6 +326,7 @@ router.get('/pools/:safeAddress/:chain', async (req, res) => {
             quote: quoteBalance,
           },
           price: formattedPrice,
+          isVerified: f,
         });
       }
       enrichedPools.push({
@@ -547,6 +605,7 @@ router.get('/pools/base/:baseSymbol/:chain', async (req, res) => {
             const [rawPrice] = await poolContract.getPrice(inv.baseAddress, inv.quoteAddress);
             formattedPrice = ethers.formatUnits(rawPrice, 18);
           } catch (e) {}
+          const f = await isVerifiedInventory(inv, normalizedChain);
           results.push({
             poolAddress: pool.poolAddress,
             chain: pool.chain,
@@ -556,6 +615,7 @@ router.get('/pools/base/:baseSymbol/:chain', async (req, res) => {
                 base: baseBalance,
               },
               price: formattedPrice,
+              isVerified: f,
             },
           });
         }
@@ -635,12 +695,14 @@ router.get('/pools/pair/:base/:quote/:chain', async (req, res) => {
             formattedPrice = ethers.formatUnits(rawPrice, 18);
           } catch (e) {}
           console.log('PRICE: ', formattedPrice);
+          const f = await isVerifiedInventory(inv, normalizedChain);
           enrichedInventories.push({
             ...inv,
             balance: {
               base: baseBalance,
             },
             price: formattedPrice,
+            isVerified: f,
             chain: normalizedChain,
           });
         }
@@ -718,13 +780,14 @@ router.get('/pools/address/:poolAddress/:chain', async (req, res) => {
         const [rawPrice] = await poolContract.getPrice(inv.baseAddress, inv.quoteAddress);
         formattedPrice = ethers.formatUnits(rawPrice, 18);
       } catch (e) {}
-
+      const f = await isVerifiedInventory(inv, normalizedChain);
       enrichedInventories.push({
         ...inv,
         balances: {
           base: baseBalance,
         },
         price: formattedPrice,
+        isVerified: f,
         chain: normalizedChain,
       });
     }
@@ -746,96 +809,87 @@ router.get('/pools/address/:poolAddress/:chain', async (req, res) => {
 });
 
 // ==========================================
-// 4. Upsert / Seed Supported Pair
+// 4. Upsert / Seed asset
 // ==========================================
-router.post('/pairs/upsert', async (req, res) => {
-  const {
-    ownerSafeAddress,
-    baseSymbol,
-    quoteSymbol,
-    baseAddress,
-    quoteAddress,
-    baseLogo,
-    quoteLogo,
-    priceFeed,
-    chain,
-  } = req.body;
+// changed from /pairs/upsert
+router.post('/asset/upsert', async (req, res) => {
+  const { ownerSafeAddress, symbol, contractAddress, logo, priceFeed, chain } = req.body;
 
   try {
-    if (
-      !baseSymbol ||
-      !quoteSymbol ||
-      !baseAddress ||
-      !quoteAddress ||
-      !priceFeed ||
-      !chain ||
-      !ownerSafeAddress
-    ) {
+    if (!symbol || !contractAddress || !priceFeed || !chain || !ownerSafeAddress) {
       return res.status(400).json({
         status: false,
-        errorMsg:
-          'baseSymbol, quoteSymbol, baseAddress, quoteAddress, priceFeed, and chain are required',
+        errorMsg: 'Symbol, Address, priceFeed, and chain are required',
       });
     }
 
     const normalizedChain = chain.toLowerCase();
-    const normalizedBase = baseSymbol.toUpperCase();
-    const normalizedQuote = quoteSymbol.toUpperCase();
-    const normalizedBaseAddress = baseAddress.toLowerCase();
-    const normalizedQuoteAddress = quoteAddress.toLowerCase();
+    const normalizedSymbol = symbol.toUpperCase();
+    const normalizedTokenAddress = contractAddress.toLowerCase();
 
     // Check if the pair already exists
-    let pair = await SupportedPair.findOne({
-      chain: normalizedChain,
-      baseAddress: normalizedBaseAddress,
-      quoteAddress: normalizedQuoteAddress,
-      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
-    });
 
-    if (pair) {
-      throw new TypeError('Pair Exists');
+    const ADDR_RE = /^0x[a-fA-F0-9]{40}$/;
+    if (!ADDR_RE.test(contractAddress) || !ADDR_RE.test(priceFeed)) {
+      return res.status(400).json({
+        status: false,
+        errorMsg: 'contractAddress and priceFeed must be valid addresses',
+      });
     }
 
-    // Resolve base logo: use input or search Assets DB
-    let resolvedBaseLogo = baseLogo;
-    if (!resolvedBaseLogo || baseLogo === '') {
-      const foundBaseAsset = await Assets.findOne({
+    const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
+    const [listed, ownDuplicate] = await Promise.all([
+      Assets.findOne({
         chain: normalizedChain,
-        tokenAddress: normalizedBaseAddress,
+        type: envType,
+        $or: [{ tokenSymbol: normalizedSymbol }, { tokenAddress: normalizedTokenAddress }],
+      }).lean(),
+      UserConfiguredAsset.findOne({
+        ownerSafeAddress: ownerSafeAddress.toLowerCase(),
+        chain: normalizedChain,
+        tokenSymbol: normalizedSymbol,
+        type: envType,
+      }).lean(),
+    ]);
+    if (listed) {
+      return res.status(409).json({
+        status: false,
+        errorMsg: 'This symbol or address is already a Salva-listed asset',
       });
-      resolvedBaseLogo = foundBaseAsset && foundBaseAsset.logo ? foundBaseAsset.logo : null;
+    }
+    if (ownDuplicate) {
+      return res.status(409).json({
+        status: false,
+        errorMsg: `You already configured ${normalizedSymbol}`,
+      });
     }
 
-    // Resolve quote logo: use input or search Assets DB
-    let resolvedQuoteLogo = quoteLogo;
-    if (!resolvedQuoteLogo || resolvedQuoteLogo === '') {
-      const foundQuoteAsset = await Assets.findOne({
+    let resolvedLogo = logo;
+    if (!resolvedLogo || logo === '') {
+      const foundAsset = await Assets.findOne({
         chain: normalizedChain,
-        tokenAddress: normalizedQuoteAddress,
+        tokenAddress: normalizedTokenAddress,
       });
-      resolvedQuoteLogo = foundQuoteAsset && foundQuoteAsset.logo ? foundQuoteAsset.logo : null;
+      resolvedLogo = foundAsset && foundAsset.logo ? foundAsset.logo : null;
     }
 
     // Create new pair with resolved logos
-    pair = await SupportedPair.create({
+   const pair = await UserConfiguredAsset.create({
       ownerSafeAddress: ownerSafeAddress,
-      baseSymbol: normalizedBase,
-      quoteSymbol: normalizedQuote,
-      baseAddress: normalizedBaseAddress,
-      quoteAddress: normalizedQuoteAddress,
-      baseLogo: resolvedBaseLogo,
-      quoteLogo: resolvedQuoteLogo,
-      priceFeed: priceFeed.toLowerCase(),
+      tokenSymbol: normalizedSymbol,
+      tokenAddress: normalizedTokenAddress,
+      logo: resolvedLogo,
+      priceFeedAddress: priceFeed.toLowerCase(),
       chain: normalizedChain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
 
     return res.status(200).json({
       status: true,
-      pair: pair,
+      asset: pair,
     });
   } catch (err) {
-    console.error(`❌ Upsert Supported Pair Failed: ${err.message}`);
+    console.error(`❌ Upsert Asset Failed: ${err.message}`);
     return res.status(500).json({
       status: false,
       errorMsg: err.message,

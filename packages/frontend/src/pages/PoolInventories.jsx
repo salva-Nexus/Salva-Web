@@ -39,13 +39,17 @@ import {
   fetchPoolSnapshot,
   formatDisplayNumber,
   readPoolCache,
+  readPoolAssetsCache,
+  writePoolAssetsCache,
   readWalletCache,
 } from '../utils/walletCache';
 import { truncateDisplay } from '../utils/swapPoolCache';
 
 const API = {
-  supportedPairs: (chain) =>
-    `${SALVA_API_URL}/api/pool/supported-Pairs/${encodeURIComponent(chain)}`,
+  poolAssets: (chain, safeAddress) =>
+    `${SALVA_API_URL}/api/pool/assets-pool/${encodeURIComponent(chain)}/${encodeURIComponent(
+      safeAddress
+    )}`,
   assetPrice: (base, quote, chain) =>
     `${SALVA_API_URL}/api/pool/assets/price/${encodeURIComponent(base)}/${encodeURIComponent(
       quote
@@ -59,7 +63,7 @@ const API = {
   deleteInventory: `${SALVA_API_URL}/api/pool/delete-Inv`,
   updateSpread: `${SALVA_API_URL}/api/pool/update-spread`,
   estimateUpdateSpreadFee: `${SALVA_API_URL}/api/user/estimate-update-spread-fee`,
-  upsertPair: `${SALVA_API_URL}/api/pool/pairs/upsert`,
+  upsertAsset: `${SALVA_API_URL}/api/pool/asset/upsert`,
 };
 
 const getUser = () => {
@@ -127,41 +131,25 @@ const normalizeAddress = (value) => {
   return String(value).trim().toLowerCase();
 };
 
-const buildAssetLogoIndex = (pairs) => {
+const buildAssetLogoIndex = (assets) => {
   const byAddress = new Map();
   const bySymbol = new Map();
 
-  (pairs || []).forEach((pair) => {
-    const assets = [
-      {
-        symbol: pair?.baseSymbol,
-        address: pair?.baseAddress,
-        logo: pair?.baseLogo,
-      },
-      {
-        symbol: pair?.quoteSymbol,
-        address: pair?.quoteAddress,
-        logo: pair?.quoteLogo,
-      },
-    ];
+  (assets || []).forEach(({ symbol, address, logo }) => {
+    const normalizedLogo = normalizeLogo(logo);
+    if (!normalizedLogo) return;
 
-    assets.forEach(({ symbol, address, logo }) => {
-      const normalizedSymbol = String(symbol || '')
-        .trim()
-        .toUpperCase();
-      const normalizedAddress = normalizeAddress(address);
-      const normalizedLogo = normalizeLogo(logo);
+    const normalizedAddress = normalizeAddress(address);
+    const normalizedSymbol = String(symbol || '')
+      .trim()
+      .toUpperCase();
 
-      if (!normalizedLogo) return;
-
-      if (normalizedAddress && !byAddress.has(normalizedAddress)) {
-        byAddress.set(normalizedAddress, normalizedLogo);
-      }
-
-      if (normalizedSymbol && !bySymbol.has(normalizedSymbol)) {
-        bySymbol.set(normalizedSymbol, normalizedLogo);
-      }
-    });
+    if (normalizedAddress && !byAddress.has(normalizedAddress)) {
+      byAddress.set(normalizedAddress, normalizedLogo);
+    }
+    if (normalizedSymbol && !bySymbol.has(normalizedSymbol)) {
+      bySymbol.set(normalizedSymbol, normalizedLogo);
+    }
   });
 
   return { byAddress, bySymbol };
@@ -226,7 +214,7 @@ const PairLogo = ({
   </div>
 );
 
-const enrichInventoryAssets = (inventory, pairs) => {
+const enrichInventoryAssets = (inventory, assets) => {
   const baseAddress = normalizeAddress(
     inventory?.baseAddress ??
       inventory?.baseAssetAddress ??
@@ -244,7 +232,7 @@ const enrichInventoryAssets = (inventory, pairs) => {
     .trim()
     .toUpperCase();
 
-  const { byAddress, bySymbol } = buildAssetLogoIndex(pairs);
+  const { byAddress, bySymbol } = buildAssetLogoIndex(assets);
 
   const baseLogo =
     getLocalLogo(baseSymbol) ||
@@ -1152,17 +1140,16 @@ const ConfigField = ({
   </div>
 );
 
-const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, onConfigSave }) => {
+const DeployInventoryModal = ({
+  assets,
+  loadingAssets,
+  chain,
+  onCancel,
+  onSubmit,
+  onConfigSave,
+}) => {
   const [view, setView] = useState('market'); // 'market' | 'config'
-  const [cfg, setCfg] = useState({
-    baseSymbol: '',
-    quoteSymbol: '',
-    baseAddress: '',
-    quoteAddress: '',
-    baseLogo: '',
-    quoteLogo: '',
-    priceFeed: '',
-  });
+  const [cfg, setCfg] = useState({ symbol: '', address: '', logo: '', priceFeed: '' });
   const [cfgError, setCfgError] = useState('');
   const [cfgSaving, setCfgSaving] = useState(false);
   const setCfgField = (key) => (event) => {
@@ -1185,57 +1172,8 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
     [base, chain]
   );
 
-  // Every asset from every pair, whether it is a base or a quote, once each.
-  // Both selectors use this same list.
-  const assetOptions = useMemo(
-    () =>
-      uniqueAssets(
-        pairs.flatMap((p) => [
-          {
-            symbol: p.baseSymbol,
-            address: p.baseAddress,
-            logo: p.baseLogo,
-          },
-          {
-            symbol: p.quoteSymbol,
-            address: p.quoteAddress,
-            logo: p.quoteLogo,
-          },
-        ])
-      ),
-    [pairs]
-  );
-
-  // RECEIVE list: every quote asset, once. Once a sell asset is chosen,
-  // only quotes that actually pair with it are shown.
-  const receiveOptions = useMemo(() => {
-    const source = base
-      ? pairs.filter(
-          (p) => assetKey({ symbol: p.baseSymbol, address: p.baseAddress }) === assetKey(base)
-        )
-      : pairs;
-    return uniqueAssets(
-      source.map((p) => ({
-        symbol: p.quoteSymbol,
-        address: p.quoteAddress,
-        logo: p.quoteLogo,
-      }))
-    );
-  }, [pairs, base]);
-
-  // Changing the sell asset clears the receive asset if that pair doesn't exist.
-  const handleBaseChange = (option) => {
-    setBase(option);
-    setQuote((current) => {
-      if (!current) return null;
-      const valid = pairs.some(
-        (p) =>
-          assetKey({ symbol: p.baseSymbol, address: p.baseAddress }) === assetKey(option) &&
-          assetKey({ symbol: p.quoteSymbol, address: p.quoteAddress }) === assetKey(current)
-      );
-      return valid ? current : null;
-    });
-  };
+  // Both selectors use the same list from /assets-pool (Salva assets + this merchant's own).
+  const assetOptions = useMemo(() => uniqueAssets(assets), [assets]);
 
   const priceReady =
     Boolean(base && quote) &&
@@ -1276,79 +1214,52 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
     };
   }, [base, quote, chain]);
 
-  const saveConfig = async () => {
-    if (cfgSaving) return;
+    const saveConfig = async () => {
+      if (cfgSaving) return;
 
-    const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-    const URL_RE = /^https?:\/\/\S+$/i;
+      const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+      const URL_RE = /^https?:\/\/\S+$/i;
 
-    const baseSymbol = cfg.baseSymbol.trim().toUpperCase();
-    const quoteSymbol = cfg.quoteSymbol.trim().toUpperCase();
-    const baseAddress = cfg.baseAddress.trim();
-    const quoteAddress = cfg.quoteAddress.trim();
-    const priceFeed = cfg.priceFeed.trim();
-    const baseLogo = cfg.baseLogo.trim();
-    const quoteLogo = cfg.quoteLogo.trim();
+      const symbol = cfg.symbol.trim().toUpperCase();
+      const address = cfg.address.trim();
+      const priceFeed = cfg.priceFeed.trim();
+      const logo = cfg.logo.trim();
 
-    if (!baseSymbol || !quoteSymbol)
-      return setCfgError('Enter both the asset to sell and the asset to buy.');
-    if (baseSymbol === quoteSymbol)
-      return setCfgError('The asset to sell and the asset to buy must be different.');
-    if (!ADDRESS_RE.test(baseAddress))
-      return setCfgError('Enter a valid base token address (0x followed by 40 characters).');
-    if (!ADDRESS_RE.test(quoteAddress))
-      return setCfgError('Enter a valid quote token address (0x followed by 40 characters).');
-    if (baseAddress.toLowerCase() === quoteAddress.toLowerCase())
-      return setCfgError('Base and quote addresses must be different.');
-    if (!ADDRESS_RE.test(priceFeed))
-      return setCfgError('Enter a valid price feed address.');
-    if (baseLogo && !URL_RE.test(baseLogo))
-      return setCfgError('Base logo must be a link starting with http:// or https://');
-    if (quoteLogo && !URL_RE.test(quoteLogo))
-      return setCfgError('Quote logo must be a link starting with http:// or https://');
+      if (!symbol) return setCfgError('Enter the token symbol.');
+      if (!/^[A-Z0-9]{1,12}$/.test(symbol))
+        return setCfgError('Symbol must be 1–12 letters or numbers.');
+      if (!ADDRESS_RE.test(address))
+        return setCfgError('Enter a valid token contract address (0x followed by 40 characters).');
+      if (!ADDRESS_RE.test(priceFeed))
+        return setCfgError('Enter a valid token / USD price feed address.');
+      if (logo && !URL_RE.test(logo))
+        return setCfgError('Logo must be a link starting with http:// or https://');
 
-    setCfgError('');
-    setCfgSaving(true);
+      setCfgError('');
+      setCfgSaving(true);
 
-    try {
-      await onConfigSave({
-        baseSymbol,
-        quoteSymbol,
-        baseAddress,
-        quoteAddress,
-        priceFeed,
-        baseLogo: baseLogo || undefined,
-        quoteLogo: quoteLogo || undefined,
-      });
+      try {
+        await onConfigSave({
+          symbol,
+          contractAddress: address,
+          priceFeed,
+          logo: logo || undefined,
+        });
 
-      // Continue the normal Add market flow with the configured assets filled in.
-      setBase({
-        symbol: baseSymbol,
-        address: baseAddress.toLowerCase(),
-        logo: baseLogo || null,
-      });
-      setQuote({
-        symbol: quoteSymbol,
-        address: quoteAddress.toLowerCase(),
-        logo: quoteLogo || null,
-      });
-      setError('');
-      setCfg({
-        baseSymbol: '',
-        quoteSymbol: '',
-        baseAddress: '',
-        quoteAddress: '',
-        baseLogo: '',
-        quoteLogo: '',
-        priceFeed: '',
-      });
-      setView('market');
-    } catch (saveError) {
-      setCfgError(saveError?.message || 'Could not save this configuration.');
-    } finally {
-      setCfgSaving(false);
-    }
-  };
+        // Drop the new asset into the first empty slot of the market form.
+        const created = { symbol, address: address.toLowerCase(), logo: logo || null };
+        if (!base) setBase(created);
+        else if (!quote && assetKey(base) !== assetKey(created)) setQuote(created);
+
+        setError('');
+        setCfg({ symbol: '', address: '', logo: '', priceFeed: '' });
+        setView('market');
+      } catch (saveError) {
+        setCfgError(saveError?.message || 'Could not save this asset.');
+      } finally {
+        setCfgSaving(false);
+      }
+    };
 
   const submit = () => {
     if (!base || !quote) return setError('Select both assets.');
@@ -1386,10 +1297,10 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
               <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
                 Custom market
               </p>
-              <h3 className="mt-1 text-xl font-black">Add config</h3>
+              <h3 className="mt-1 text-xl font-black">Configure your asset</h3>
               <p className="mt-1 text-[10px] leading-relaxed text-white/65">
-                Register a trading pair that is not listed yet. When it is saved you will return to
-                the market form with these assets already filled in.
+                Register a token that is not listed yet. When it is saved you will return to the
+                market form with it already selected.
               </p>
             </div>
             <button
@@ -1404,56 +1315,34 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <ConfigField
-              label="Asset to sell (base) symbol"
+              label="Token symbol"
               required
-              value={cfg.baseSymbol}
-              onChange={setCfgField('baseSymbol')}
-              placeholder="e.g. ETH"
+              value={cfg.symbol}
+              onChange={setCfgField('symbol')}
+              placeholder="e.g. WETH"
               disabled={cfgSaving}
             />
             <ConfigField
-              label="Asset to buy (quote) symbol"
-              required
-              value={cfg.quoteSymbol}
-              onChange={setCfgField('quoteSymbol')}
-              placeholder="e.g. NGNS"
-              disabled={cfgSaving}
-            />
-            <ConfigField
-              label="Base token address"
-              required
-              mono
-              value={cfg.baseAddress}
-              onChange={setCfgField('baseAddress')}
-              placeholder="0x…"
-              disabled={cfgSaving}
-            />
-            <ConfigField
-              label="Quote token address"
-              required
-              mono
-              value={cfg.quoteAddress}
-              onChange={setCfgField('quoteAddress')}
-              placeholder="0x…"
-              disabled={cfgSaving}
-            />
-            <ConfigField
-              label="Base logo URL"
-              value={cfg.baseLogo}
-              onChange={setCfgField('baseLogo')}
-              placeholder="https://…"
-              disabled={cfgSaving}
-            />
-            <ConfigField
-              label="Quote logo URL"
-              value={cfg.quoteLogo}
-              onChange={setCfgField('quoteLogo')}
+              label="Logo URL"
+              value={cfg.logo}
+              onChange={setCfgField('logo')}
               placeholder="https://…"
               disabled={cfgSaving}
             />
             <div className="sm:col-span-2">
               <ConfigField
-                label="price feed"
+                label="Contract address"
+                required
+                mono
+                value={cfg.address}
+                onChange={setCfgField('address')}
+                placeholder="0x…"
+                disabled={cfgSaving}
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <ConfigField
+                label="Token / USD price feed"
                 required
                 mono
                 value={cfg.priceFeed}
@@ -1472,9 +1361,8 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
                 }
                 hint={
                   <>
-                    Search the pair as{' '}
-                    <span className="font-black text-white/70">BASE / QUOTE</span> (base = asset you
-                    sell, quote = asset you buy) on{' '}
+                    Search your token as{' '}
+                    <span className="font-black text-white/70">TOKEN / USD</span> on{' '}
                     <a
                       href={CHAINLINK_FEEDS_URL}
                       target="_blank"
@@ -1548,7 +1436,7 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
 
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-salvaGold/15 bg-salvaGold/[0.04] p-3">
             <p className="text-[9px] leading-relaxed text-white/65">
-              Pair not listed? Register your own market first.
+              Asset not listed? Configure your own trade asset first..
             </p>
             <button
               type="button"
@@ -1577,7 +1465,7 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
             />
           </div>
 
-          {loadingPairs ? (
+          {loadingAssets ? (
             <div className="flex justify-center py-12">
               <Loader2 className="h-5 w-5 animate-spin text-salvaGold" />
             </div>
@@ -1610,7 +1498,7 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
                     {marketPriceLoading
                       ? 'Fetching market price…'
                       : priceReady
-                      ? `Oracle ${display(marketPrice)} ${quote.symbol}`
+                      ? `1 ${base.symbol} ≈ ${display(marketPrice)} ${quote.symbol}`
                       : 'Price unavailable for this pair. You cannot continue.'}
                   </p>
                 )}
@@ -1625,7 +1513,7 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
                     className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-xs font-black text-white outline-none focus:border-salvaGold/40"
                   />
                   <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/45">
-                    QUOTE/BASE
+                    {base && quote ? `${quote.symbol}/${base.symbol}` : 'QUOTE/BASE'}
                   </span>
                 </div>
                 <p className="mt-1.5 text-[8px] leading-relaxed text-white/45">
@@ -1759,7 +1647,7 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
 
           <button
             onClick={submit}
-            disabled={loadingPairs || Boolean(base && quote && !priceReady)}
+            disabled={loadingAssets || Boolean(base && quote && !priceReady)}
             className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
           >
             Continue to review <ArrowUpRight className="h-3.5 w-3.5" />
@@ -1794,8 +1682,8 @@ const DeployInventoryModal = ({ pairs, loadingPairs, chain, onCancel, onSubmit, 
                 <span className="font-black capitalize text-white/80">{chain}</span>).
               </li>
               <li>
-                Search the pair as <span className="font-black text-white/80">BASE / QUOTE</span>.
-                The base is the asset you sell and the quote is the asset you buy, for example ETH /
+                Search your token against USD as{' '}
+                <span className="font-black text-white/80">TOKEN / USD</span>, for example ETH /
                 USD.
               </li>
               <li>Copy the feed's contract address from that row and paste it into this field.</li>
@@ -2399,9 +2287,11 @@ const CopyToast = ({ toast }) => (
 );
 
 const PoolInventories = () => {
-  const { safeAddress, chain: routeChain, poolAddress: routePoolAddress } = useParams();
+  const { safeAddress: routeSafeAddress, chain: routeChain, poolAddress: routePoolAddress } =
+    useParams();
   const navigate = useNavigate();
   const user = getUser();
+  const safeAddress = routeSafeAddress || user?.safeAddress;
   const chain = getChain(routeChain);
   const poolAddress = String(routePoolAddress || '').toLowerCase();
 
@@ -2414,8 +2304,8 @@ const PoolInventories = () => {
   const [loading, setLoading] = useState(!cachedPool);
   const [refreshing, setRefreshing] = useState(false);
 
-  const [pairs, setPairs] = useState([]);
-  const [pairsLoading, setPairsLoading] = useState(false);
+  const [assets, setAssets] = useState(() => readPoolAssetsCache(chain, safeAddress) || []);
+  const [assetsLoading, setAssetsLoading] = useState(false);
   const [deployModal, setDeployModal] = useState(false);
   const [draft, setDraft] = useState(null);
   const [deployPinOpen, setDeployPinOpen] = useState(false);
@@ -2543,71 +2433,51 @@ const PoolInventories = () => {
     };
   }, [readPoolFromCache, refreshPool]);
 
-  const loadPairs = useCallback(async () => {
-    setPairsLoading(true);
-    try {
-      const response = await fetch(API.supportedPairs(chain), {
-        headers: { Accept: 'application/json' },
-      });
-      const data = await parseResponse(response);
+    const loadAssets = useCallback(async () => {
+      if (!safeAddress) {
+        console.warn('[PoolInventories] no safeAddress (route or salva_user); asset fetch skipped');
+        return;
+      }
+      setAssetsLoading(true);
+      try {
+        const response = await fetch(API.poolAssets(chain, safeAddress), {
+          headers: { Accept: 'application/json' },
+        });
+        const data = await parseResponse(response);
+        const list = Array.isArray(data?.assets) ? data.assets : [];
 
-      const raw =
-        data?.data?.pairs ??
-        data?.data?.supportedPairs ??
-        data?.pairs ??
-        data?.supportedPairs ??
-        data?.data ??
-        data;
+        const next = uniqueAssets(
+          list.map((asset) => ({
+            symbol: String(asset?.tokenSymbol || asset?.symbol || '')
+              .trim()
+              .toUpperCase(),
+            address: asset?.tokenAddress ? String(asset.tokenAddress).trim().toLowerCase() : null,
+            logo: normalizeLogo(asset?.logo),
+          }))
+        );
+        setAssets(next);
+        writePoolAssetsCache(chain, safeAddress, next);
+      } catch (error) {
+        console.warn('[PoolInventories] asset fetch failed:', error?.message || error);
+      } finally {
+        setAssetsLoading(false);
+      }
+    }, [chain, safeAddress]);
 
-      const list = Array.isArray(raw) ? raw : [];
-      const mySafe = String(safeAddress || '')
-        .trim()
-        .toLowerCase();
+    useEffect(() => {
+      loadAssets();
+    }, [loadAssets]);
 
-      // Visible: Salva pairs (owner missing / empty / zero address) or this merchant's own pairs.
-      const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
-      const visibleList = list.filter((pair) => {
-        const owner = String(pair?.ownerSafeAddress || '')
-          .trim()
-          .toLowerCase();
-        if (!owner || owner === ZERO_ADDRESS) return true;
-        return Boolean(mySafe) && owner === mySafe;
-      });
-
-      const normalized = visibleList
-        .map((pair) => ({
-          baseSymbol: String(pair?.baseSymbol || pair?.base || '').toUpperCase(),
-          quoteSymbol: String(pair?.quoteSymbol || pair?.quote || '').toUpperCase(),
-          baseAddress: pair?.baseAddress ?? pair?.baseAssetAddress ?? null,
-          quoteAddress: pair?.quoteAddress ?? pair?.quoteAssetAddress ?? null,
-          baseLogo: normalizeLogo(pair?.baseLogo),
-          quoteLogo: normalizeLogo(pair?.quoteLogo),
-        }))
-        .filter((pair) => pair.baseSymbol && pair.quoteSymbol);
-
-      setPairs(normalized);
-    } catch (error) {
-      setPairs([]);
-      console.warn('[PoolInventories] pair fetch failed:', error?.message || error);
-    } finally {
-      setPairsLoading(false);
-    }
-  }, [chain, safeAddress]);
-
-  useEffect(() => {
-    loadPairs();
-  }, [loadPairs]);
-
-  // Registers a user-defined pair in the DB, then refreshes the supported pairs list.
+    // Registers a user-configured trade asset, then refreshes the asset list.
   // Throws on failure so the config card can show the server's message.
-  const saveSupportedPair = async (payload) => {
-    const response = await fetch(API.upsertPair, {
+  const saveAsset = async (payload) => {
+    const response = await fetch(API.upsertAsset, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...payload, chain, ownerSafeAddress: safeAddress }),
     });
     await parseResponse(response);
-    await loadPairs();
+    await loadAssets();
   };
 
   const estimateDeployFee = async (pkey, nextDraft) => {
@@ -2698,6 +2568,9 @@ const PoolInventories = () => {
       });
     } catch (error) {
       console.warn('[PoolInventories] inventory deployment failed:', error?.message || error);
+      clearTimeout(copyTimerRef.current);
+      setCopyToast({ message: error?.message || 'Inventory deployment failed', type: 'error' });
+      copyTimerRef.current = setTimeout(() => setCopyToast(null), 2600);
     } finally {
       setDeploying(false);
     }
@@ -3013,9 +2886,9 @@ const PoolInventories = () => {
   const currentInventories = useMemo(
     () =>
       Array.isArray(pool?.inventories)
-        ? pool.inventories.map((inventory) => enrichInventoryAssets(inventory, pairs))
+        ? pool.inventories.map((inventory) => enrichInventoryAssets(inventory, assets))
         : [],
-    [pool?.inventories, pairs]
+    [pool?.inventories, assets]
   );
 
   return (
@@ -3160,12 +3033,12 @@ const PoolInventories = () => {
       <AnimatePresence>
         {deployModal && (
           <DeployInventoryModal
-            pairs={pairs}
-            loadingPairs={pairsLoading}
+            assets={assets}
+            loadingAssets={assetsLoading}
             chain={chain}
             onCancel={() => setDeployModal(false)}
             onSubmit={beginDeploy}
-            onConfigSave={saveSupportedPair}
+            onConfigSave={saveAsset}
           />
         )}
 

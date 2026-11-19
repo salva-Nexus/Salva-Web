@@ -70,13 +70,13 @@ const SANT_ABI = [
 ];
 
 const POOL_IFACE = [
-  'function deployInv(address _assetIn, address _assetOut, address _feed, uint256 _floor, int256 _spread, uint256 _amount, bool _allowSwapBelowFloor, bool _isInverted) external returns (bool)',
-  'function swapExactInput(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut) external payable returns (bool)',
-  'function swapExactOutput(address tokenIn, address tokenOut, uint256 amountOut, uint256 maxAmountIn) external payable returns (bool)',
+  'function deployInv(address _assetIn, address _assetOut, address _assetInUsdFeed, address _assetOutUsdFeed, uint256 _floor, int256 _spread, uint256 _amount, bool _allowSwapBelowFloor) external payable returns (bool)',
+  'function swapExactInput(address tokenIn, address tokenOut, uint256 amountIn, uint256 minAmountOut) external payable returns (uint256 amountOut)',
+  'function swapExactOutput(address tokenIn, address tokenOut, uint256 amountOut, uint256 maxAmountIn) external payable returns (uint256 amountIn)',
   'function getPrice(address _base, address _quote) external view returns (uint256, bool)',
-  'function getInventory(address _base, address _quote) external view returns (tuple(address assetOut, uint96 floor, address assetIn, int96 spreadBps, address feed, uint128 baseBalance, uint128 quoteBalance, bool allowSwapBelowFloor, bool isInverted) inv)',
-  'function updateSpread(address _base, address _quote, int96 _spread) external view returns (bool)',
-  'function removeLiquidity(address _base, address _quote, address _assetOut, uint256 amount) external returns (bool)',
+  'function getInventory(address _base, address _quote) external view returns (tuple(address assetOut, uint96 floor, address assetIn, int96 spreadBps, address baseUsdFeed, uint128 baseBalance, uint128 quoteBalance, address quoteUsdFeed, bool allowSwapBelowFloor) inv)',
+  'function updateSpread(address _base, address _quote, int256 _spread) external returns (bool)',
+  'function removeLiquidity(address _base, address _quote, address _assetOut, uint256 _amount) external returns (bool)',
   'function addLiquidity(address _base, address _quote, uint256 _amount) external payable returns (bool)',
   'function availableLiquidity(address asset) external view returns (uint256)', // Recommended: marked view if it doesn't modify state
   'function exactAmountOut(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256)',

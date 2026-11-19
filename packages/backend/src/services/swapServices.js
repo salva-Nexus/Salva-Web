@@ -90,11 +90,9 @@ async function _findPoolOrRetry(poolAddress, assetOut, assetIn, chain) {
     quoteSymbol: inv.quoteSymbol,
     baseAddress: inv.baseAddress,
     quoteAddress: inv.quoteAddress,
-    priceFeed: inv.priceFeed,
     floor: inv.floor,
     spread: inv.spread,
     allowedSwapBelowFloor: inv.allowedSwapBelowFloor,
-    isInverted: inv.isInverted,
     poolAddress: pool.poolAddress,
     ownerSafeAddress: pool.ownerSafeAddress,
   };

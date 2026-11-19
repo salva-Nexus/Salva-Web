@@ -318,12 +318,12 @@ async function estimateDeployInvFee(
   poolAddress,
   base,
   quote,
-  priceFeed,
+  baseFeed,
+  quoteFeed,
   floor,
   spread,
   amount,
   allowSwapBelowFloor,
-  isInverted,
   chain
 ) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -345,11 +345,11 @@ async function estimateDeployInvFee(
     param: {
       in: quote,
       out: base,
-      feed: priceFeed,
+      inFeed: quoteFeed,
+      outFeed: baseFeed,
       floor: ethers.parseEther(String(floor)),
       spread: spreadBps,
       allow: allowSwapBelowFloor,
-      isInverted: isInverted,
     },
     sig: approve ? [approve, 'deployInv'] : ['deployInv'],
   };
@@ -380,12 +380,12 @@ async function _buildDeployInvData(safeAddress, pkey, poolAddress, tx, provider,
             ? [
                 tx.param.in,
                 tx.param.out,
-                tx.param.feed,
+                tx.param.inFeed,
+                tx.param.outFeed,
                 tx.param.floor,
                 tx.param.spread,
                 isEth ? 0n : tx.amount[i],
                 tx.param.allow,
-                tx.param.isInverted,
               ]
             : [tx.to[i], tx.amount[i]]
         )
@@ -667,10 +667,10 @@ async function estimateSwapExactOutputFee(
 ) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-   const code = await provider.getCode(safe);
-   if (code === '0x') {
-     return await estimateDeploymentFee(safe, chain);
-   }
+  const code = await provider.getCode(safe);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safe, chain);
+  }
 
   // Parse decimals for tokenOut (amountOut) and tokenIn (maxAmountIn)
   const outContract =
@@ -1201,13 +1201,13 @@ async function _getFee(safeAddress, gasCost, provider, chain) {
   let finalFeeUsd = rawUsd;
   let finalFeeNgn = Math.ceil(finalFeeUsd * ratePerUsd * 1000) / 1000;
 
-  if (finalFeeNgn < 15) {
-    const diff = 15 - finalFeeNgn;
+  if (finalFeeNgn < 20) {
+    const diff = 20 - finalFeeNgn;
     // If the difference/gap is less than 5 NGN, add a buffer adjustment
     if (diff < 5) {
       finalFeeNgn = finalFeeNgn + diff + 5;
     } else {
-      finalFeeNgn = 15;
+      finalFeeNgn = 20;
     }
   }
 

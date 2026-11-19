@@ -19,10 +19,11 @@ import {
 import { _getBalance, _getDecimals } from './balanceServices.js';
 import { keyValue, mode } from '../utils/vars.js';
 import { getRpcUrlByChain, getPoolFactoryAddress } from '../utils/rpcUrls.js';
-import { SupportedPair } from '../models/SupportedPair.js';
+import { UserConfiguredAsset } from '../models/UserConfiguredAsset.js';
 import { _deploySafe } from './deployment.js';
 import { verify_Pin } from './pinService.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
+import Assets from '../models/Assets.js';
 
 async function getBalance(token, address, chain) {
   const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -82,18 +83,22 @@ async function deployPool(email, pin, chain) {
     }
 
     // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-    const balanceData = await getBalance(initDeployPoolFeeData.data.feeTokenAddress, user.safeAddress, chain);
-        if (initFeeData.data.feeToken === initDeployPoolFeeData.data.feeToken) {
-          const totalRequired =
-            BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
-          console.log(balanceData.balance);
-          console.log(totalRequired);
-          if (balanceData.balance < totalRequired) {
-            throw new TypeError('Insufficient balance to cover fee, please top up.');
-          }
-        } else {
-          throw new TypeError('Insufficient balance to cover fee, please top up');
-        }
+    const balanceData = await getBalance(
+      initDeployPoolFeeData.data.feeTokenAddress,
+      user.safeAddress,
+      chain
+    );
+    if (initFeeData.data.feeToken === initDeployPoolFeeData.data.feeToken) {
+      const totalRequired =
+        BigInt(initFeeData.data.feeToWei) + BigInt(initDeployPoolFeeData.data.feeToWei);
+      console.log(balanceData.balance);
+      console.log(totalRequired);
+      if (balanceData.balance < totalRequired) {
+        throw new TypeError('Insufficient balance to cover fee, please top up.');
+      }
+    } else {
+      throw new TypeError('Insufficient balance to cover fee, please top up');
+    }
     await _deploySafe(user.safeAddress, pkey, provider, chain);
   }
 
@@ -138,7 +143,7 @@ async function deployPool(email, pin, chain) {
   //   deployData.params.refundReceiver,
   //   deployData.params.sig
   // );
-    const tx = await sendSafeTxWithBuilderCode(deployData);
+  const tx = await sendSafeTxWithBuilderCode(deployData);
   const receipt = await tx.wait();
   const poolAddress = _getPoolAddress(receipt, chain);
   if (!receipt) {
@@ -226,31 +231,38 @@ async function deployInventory(
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
 
-  let isInverted = false;
-  let inv = await SupportedPair.findOne({
-    baseSymbol: base.toUpperCase(),
-    quoteSymbol: quote.toUpperCase(),
+  let asset1 = await Assets.findOne({
+    tokenSymbol: base.toUpperCase(),
     chain: chain,
     type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
-  if (!inv) {
-    inv = await SupportedPair.findOne({
-      baseSymbol: quote.toUpperCase(),
-      quoteSymbol: base.toUpperCase(),
+  if (!asset1) {
+    asset1 = await UserConfiguredAsset.findOne({
+      tokenSymbol: base.toUpperCase(),
       chain: chain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
-    if (!inv) return { status: false };
-    isInverted = true;
+    if (!asset1) return { status: false };
   }
 
-  const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-  if (isStableNgn(inv.quoteSymbol)) {
-    isInverted = true;
-  }
+    let asset2 = await Assets.findOne({
+      tokenSymbol: quote.toUpperCase(),
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: quote.toUpperCase(),
+        chain: chain,
+        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+      });
+      if (!asset2) return { status: false };
+    }
+
+
   const rpc = getRpcUrlByChain(chain);
-  const inAddress = !isInverted ? inv.quoteAddress : inv.baseAddress;
-  const outAddress = !isInverted ? inv.baseAddress : inv.quoteAddress;
+  const inAddress = asset2.tokenAddress;
+  const outAddress = asset1.tokenAddress;
 
   const fee = await estimateDeployInvFee(
     owner.safeAddress,
@@ -258,12 +270,12 @@ async function deployInventory(
     poolAddress,
     outAddress,
     inAddress,
-    inv.priceFeed,
+    asset1.priceFeedAddress,
+    asset2.priceFeedAddress,
     floor,
     spread,
     amount,
     allowSwapBelowFloor,
-    isInverted,
     chain
   );
   const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
@@ -294,11 +306,11 @@ async function deployInventory(
     param: {
       in: inAddress,
       out: outAddress,
-      feed: inv.priceFeed,
+      inFeed: asset2.priceFeedAddress,
+      outFeed: asset1.priceFeedAddress,
       floor: ethers.parseEther(String(floor)),
       spread: spreadBps,
       allow: allowSwapBelowFloor,
-      isInverted: isInverted,
     },
     sig: approve ? ['approve', 'deployInv', 'transfer'] : ['deployInv', 'transfer'],
   };
@@ -324,7 +336,7 @@ async function deployInventory(
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const tx = await sendSafeTxWithBuilderCode(txData);
+  const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt)
     return {
@@ -337,11 +349,11 @@ async function deployInventory(
     quoteSymbol: quote,
     baseAddress: outAddress,
     quoteAddress: inAddress,
-    priceFeed: inv.priceFeed,
+    basePriceFeed: asset1.priceFeedAddress,
+    quotePriceFeed: asset2.priceFeedAddress,
     floor: floor,
     spread: spread,
     allowedSwapBelowFloor: allowSwapBelowFloor,
-    isInverted: isInverted,
   };
 
   if (invExists) {
@@ -384,27 +396,36 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
   const provider = new ethers.JsonRpcProvider(rpc);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
 
-  let isInverted = false;
-  let pair = await SupportedPair.findOne({
-    baseSymbol: baseSym,
-    quoteSymbol: quoteSym,
-    chain: normalizedChain,
+  let asset1 = await Assets.findOne({
+    tokenSymbol: base.toUpperCase(),
+    chain: chain,
     type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
-  if (!pair) {
-    pair = await SupportedPair.findOne({
-      baseSymbol: quoteSym,
-      quoteSymbol: baseSym,
-      chain: normalizedChain,
+  if (!asset1) {
+    asset1 = await UserConfiguredAsset.findOne({
+      tokenSymbol: base.toUpperCase(),
+      chain: chain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
-    if (!pair) return { status: false };
-    isInverted = true;
+    if (!asset1) return { status: false };
   }
 
-  // Same direction handling as deployInventory: base = asset the merchant sells.
-  const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
-  const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
+  let asset2 = await Assets.findOne({
+    tokenSymbol: quote.toUpperCase(),
+    chain: chain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+  });
+  if (!asset2) {
+    asset2 = await UserConfiguredAsset.findOne({
+      tokenSymbol: quote.toUpperCase(),
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
+    if (!asset2) return { status: false };
+  }
+
+  const quoteAsset = asset2.tokenAddress;
+  const baseAsset = asset1.tokenAddress;
   const outAsset = outSym === baseSym ? baseAsset : quoteAsset;
 
   const contract =
@@ -466,7 +487,7 @@ async function withdraw(email, pin, poolAddress, base, quote, assetOut, amount, 
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const tx = await sendSafeTxWithBuilderCode(txData);
+  const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return { status: false };
@@ -512,28 +533,37 @@ async function updateSpread(email, pin, poolAddress, base, quote, spread, chain)
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
 
-  let isInverted = false;
-  let inv = await SupportedPair.findOne({
-    baseSymbol: base.toUpperCase(),
-    quoteSymbol: quote.toUpperCase(),
+  let asset1 = await Assets.findOne({
+    tokenSymbol: base.toUpperCase(),
     chain: chain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
-  if (!inv) {
-    inv = await SupportedPair.findOne({
-      baseSymbol: quote.toUpperCase(),
-      quoteSymbol: base.toUpperCase(),
+  if (!asset1) {
+    asset1 = await UserConfiguredAsset.findOne({
+      tokenSymbol: base.toUpperCase(),
       chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
-    if (!inv) return { status: false };
-    isInverted = true;
+    if (!asset1) return { status: false };
   }
-  const isStableNgn = (sym) => sym === 'NGNS' || sym === 'CNGN';
-  if (isStableNgn(inv.quoteSymbol)) {
-    isInverted = true;
+
+  let asset2 = await Assets.findOne({
+    tokenSymbol: quote.toUpperCase(),
+    chain: chain,
+    type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+  });
+  if (!asset2) {
+    asset2 = await UserConfiguredAsset.findOne({
+      tokenSymbol: quote.toUpperCase(),
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
+    if (!asset2) return { status: false };
   }
+
   const rpc = getRpcUrlByChain(chain);
-  const inAddress = !isInverted ? inv.quoteAddress : inv.baseAddress;
-  const outAddress = !isInverted ? inv.baseAddress : inv.quoteAddress;
+  const inAddress = asset2.tokenAddress;
+  const outAddress = asset1.tokenAddress;
 
   const fee = await estimateUpdateSpreadFee(
     owner.safeAddress,
@@ -585,7 +615,7 @@ async function updateSpread(email, pin, poolAddress, base, quote, spread, chain)
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const tx = await sendSafeTxWithBuilderCode(txData);
+  const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return {
@@ -621,27 +651,37 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
   }
   const pinData = await verify_Pin(email, pin);
   const pkey = pinData.privateKey;
-  let isInverted = false;
-  let pair = await SupportedPair.findOne({
-    baseSymbol: base.toUpperCase(),
-    quoteSymbol: quote.toUpperCase(),
+  let asset1 = await Assets.findOne({
+    tokenSymbol: base.toUpperCase(),
     chain: chain,
     type: mode === 'development' ? 'TESTNET' : 'MAINNET',
   });
-
-  if (!pair) {
-    pair = await SupportedPair.findOne({
-      baseSymbol: quote.toUpperCase(),
-      quoteSymbol: base.toUpperCase(),
+  if (!asset1) {
+    asset1 = await UserConfiguredAsset.findOne({
+      tokenSymbol: base.toUpperCase(),
       chain: chain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
-    if (!pair) return { status: false };
-
-    isInverted = true;
+    if (!asset1) return { status: false };
   }
-  const baseAsset = isInverted ? pair.quoteAddress : pair.baseAddress;
-  const quoteAsset = isInverted ? pair.baseAddress : pair.quoteAddress;
+
+    let asset2 = await Assets.findOne({
+      tokenSymbol: quote.toUpperCase(),
+      chain: chain,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
+    if (!asset2) {
+      asset2 = await UserConfiguredAsset.findOne({
+        tokenSymbol: quote.toUpperCase(),
+        chain: chain,
+        type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+      });
+      if (!asset2) return { status: false };
+    }
+
+
+  const quoteAsset = asset2.tokenAddress;
+  const baseAsset = asset1.tokenAddress;
 
   const rpc = getRpcUrlByChain(normalizedChain);
 
@@ -708,7 +748,7 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
   //   txData.params.refundReceiver,
   //   txData.params.sig
   // );
-    const tx = await sendSafeTxWithBuilderCode(txData);
+  const tx = await sendSafeTxWithBuilderCode(txData);
   const receipt = await tx.wait();
   if (!receipt) {
     return { status: false };

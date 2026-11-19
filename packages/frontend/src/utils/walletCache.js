@@ -1,6 +1,6 @@
 import { SALVA_API_URL } from '../config';
 
-export const POLL_INTERVAL_MS = 60000;
+export const POLL_INTERVAL_MS = 120000;
 
 const WALLET_CACHE_VERSION = 5;
 const WALLET_CACHE_PREFIX = 'salva_wallet_snapshot:';
@@ -715,6 +715,32 @@ export const writePoolCache = (email, chain, pools) => {
 export const clearPoolCache = (email, chain) => {
   try {
     localStorage.removeItem(poolStorageKey(email, chain));
+  } catch {}
+};
+
+const poolAssetsKey = (chain, safeAddress) =>
+  `salva_pool_assets_v1:${String(chain || '')
+    .toLowerCase()
+    .trim()}:${String(safeAddress || '')
+    .toLowerCase()
+    .trim()}`;
+
+export const readPoolAssetsCache = (chain, safeAddress) => {
+  try {
+    const raw = localStorage.getItem(poolAssetsKey(chain, safeAddress));
+    const parsed = raw ? JSON.parse(raw) : null;
+    return Array.isArray(parsed?.assets) ? parsed.assets : null;
+  } catch {
+    return null;
+  }
+};
+
+export const writePoolAssetsCache = (chain, safeAddress, assets) => {
+  try {
+    localStorage.setItem(
+      poolAssetsKey(chain, safeAddress),
+      JSON.stringify({ assets: Array.isArray(assets) ? assets : [], at: Date.now() })
+    );
   } catch {}
 };
 

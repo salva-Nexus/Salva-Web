@@ -3,7 +3,7 @@
 // The UI only ever READS from this cache. Network polling writes to it.
 import { SALVA_API_URL } from '../config';
 
-export const SNS_POLL_INTERVAL_MS = 20000;
+export const SNS_POLL_INTERVAL_MS = 60000;
 
 const SNS_CACHE_VERSION = 1;
 const SNS_CACHE_PREFIX = 'salva_sns_cache:';

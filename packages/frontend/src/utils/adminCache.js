@@ -3,7 +3,7 @@
 
 import { SALVA_API_URL } from '../config';
 
-export const ADMIN_POLL_INTERVAL_MS = 60 * 1000;
+export const ADMIN_POLL_INTERVAL_MS = 120000;
 export const NGN_ORACLE_KEY = 'ngn-oracle-update';
 
 const CACHE_VERSION = 'v1';

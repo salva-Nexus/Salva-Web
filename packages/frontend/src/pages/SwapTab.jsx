@@ -32,14 +32,12 @@ import {
   SWAP_POLL_INTERVAL_MS,
   buildAssetList,
   buildLogoIndex,
-  buildVerifiedIndex,
   classifyPoolInput,
-  isPairVerified,
   fetchListings,
   fetchLivePairListings,
-  fetchSupportedPairs,
+  fetchSwapAssets,
   readListingsCache,
-  readSupportedPairsCache,
+  readSwapAssetsCache,
   resolvePoolTarget,
   swapRequest,
   truncateDisplay,
@@ -1391,7 +1389,7 @@ const SwapSheet = ({
 const SwapTab = ({ user }) => {
   const chain = useMemo(() => getChain(), []);
 
-  const [pairs, setPairs] = useState(() => readSupportedPairsCache(chain)?.pairs || []);
+  const [swapAssets, setSwapAssets] = useState(() => readSwapAssetsCache(chain)?.assets || []);
   const [dropdownAsset, setDropdownAsset] = useState(DEFAULT_BUY_SYMBOL);
   const [query, setQuery] = useState({ mode: 'base', base: DEFAULT_BUY_SYMBOL });
 
@@ -1427,18 +1425,17 @@ const SwapTab = ({ user }) => {
   }, []);
 
   const assets = useMemo(() => {
-    const list = buildAssetList(pairs);
+    const list = buildAssetList(swapAssets);
     return list.length ? list : [{ symbol: DEFAULT_BUY_SYMBOL, address: null, logo: null }];
-  }, [pairs]);
+  }, [swapAssets]);
 
-  const logoIndex = useMemo(() => buildLogoIndex(pairs), [pairs]);
-  const verifiedIndex = useMemo(() => buildVerifiedIndex(pairs), [pairs]);
+  const logoIndex = useMemo(() => buildLogoIndex(swapAssets), [swapAssets]);
 
   /* ---------- SUPPORTED PAIRS ---------- */
   const refreshPairs = useCallback(async () => {
     try {
-      const result = await fetchSupportedPairs(chain);
-      if (mountedRef.current && result) setPairs(result.pairs);
+      const result = await fetchSwapAssets(chain);
+      if (mountedRef.current && result) setSwapAssets(result.assets);
     } catch {
       // keep cached pairs
     }
@@ -1591,7 +1588,7 @@ const SwapTab = ({ user }) => {
   };
 
   const handleProceed = (listing) => {
-    if (isPairVerified(verifiedIndex, listing.baseAddress, listing.quoteAddress)) {
+    if (listing.isVerified) {
       setPinListing(listing);
     } else {
       setWarnListing(listing);
@@ -1832,7 +1829,7 @@ const SwapTab = ({ user }) => {
               listing={listing}
               index={i}
               logoIndex={logoIndex}
-              verified={isPairVerified(verifiedIndex, listing.baseAddress, listing.quoteAddress)}
+              verified={listing.isVerified}
               onProceed={handleProceed}
             />
           ))}

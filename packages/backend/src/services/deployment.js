@@ -15,19 +15,16 @@ async function getSafeWallet(chain) {
 
   const owner = ethers.Wallet.createRandom();
   console.log('✅ Owner Address Generated:', owner.address);
-  
+
   const factory = new ethers.Contract(
     keyValue('safeFactory'),
     FACTORY_ABI,
     new ethers.JsonRpcProvider(rpcUrl)
   );
-  
+
   const factoryProxyCreationCode = await factory.proxyCreationCode();
   const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-  const safe = abiCoder.encode(
-    ['address'],
-    [keyValue('safeL2Singleton')]
-  );
+  const safe = abiCoder.encode(['address'], [keyValue('safeL2Singleton')]);
   const init = ethers.concat([factoryProxyCreationCode, safe]);
   const initHash = ethers.keccak256(init);
   const initializer = setup(owner.address);
@@ -44,16 +41,15 @@ async function getSafeWallet(chain) {
   };
 }
 
-
 async function _deploySafe(safe, pKey, provider, chain) {
   const ownerConfig = new ethers.Wallet(pKey);
   const data = await _buildFactoryData(ownerConfig, chain);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   // const transactionHash = await sponsor.sendTransaction(data);
-    const transactionHash = await sponsor.sendTransaction({
-      ...data,
-      data: appendBuilderCode(data.data),
-    });
+  const transactionHash = await sponsor.sendTransaction({
+    ...data,
+    data: appendBuilderCode(data.data),
+  });
   await transactionHash.wait();
   let code = await provider.getCode(safe);
   if (code === '0x') {
