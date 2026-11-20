@@ -24,6 +24,7 @@ import { _deploySafe } from './deployment.js';
 import { verify_Pin } from './pinService.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 import Assets from '../models/Assets.js';
+import { _clampToBalance, _deductFee, _sameToken } from './amountServices.js';
 
 async function getBalance(token, address, chain) {
   const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -264,6 +265,13 @@ async function deployInventory(
   const inAddress = asset2.tokenAddress;
   const outAddress = asset1.tokenAddress;
 
+  const outBalance = await getBalance(outAddress, owner.safeAddress, chain);
+  let amountWei = _clampToBalance(
+    outBalance.balance,
+    ethers.parseUnits(amount.toString(), outBalance.decimals)
+  );
+  amount = ethers.formatUnits(amountWei, outBalance.decimals);
+
   const fee = await estimateDeployInvFee(
     owner.safeAddress,
     pkey,
@@ -278,15 +286,16 @@ async function deployInventory(
     allowSwapBelowFloor,
     chain
   );
-  const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain);
+  const feeData = await _getFeeAndToken(owner.safeAddress, fee, chain, amountWei, outAddress);
+  if (!feeData.status) {
+    throw new Error('❌ No Balance to cover fee');
+  }
   const provider = new ethers.JsonRpcProvider(rpc);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const contract =
-    outAddress !== ethers.ZeroAddress
-      ? new ethers.Contract(outAddress, ERC20, provider)
-      : undefined;
-  const decimals = contract ? await _getDecimals(contract) : 18;
-  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  if (_sameToken(feeData.data.feeTokenAddress, outAddress)) {
+    amountWei = _deductFee(outBalance.balance, amountWei, feeData.data.feeToWei);
+    amount = ethers.formatUnits(amountWei, outBalance.decimals);
+  }
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
   const approve = outAddress !== ethers.ZeroAddress ? 'approve' : undefined;
@@ -685,6 +694,13 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
 
   const rpc = getRpcUrlByChain(normalizedChain);
 
+  const baseBalance = await getBalance(baseAsset, owner.safeAddress, normalizedChain);
+  let amountWei = _clampToBalance(
+    baseBalance.balance,
+    ethers.parseUnits(amount.toString(), baseBalance.decimals)
+  );
+  amount = ethers.formatUnits(amountWei, baseBalance.decimals);
+
   const fee = await estimateAddLiquidityFee(
     owner.safeAddress,
     pkey,
@@ -694,7 +710,13 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
     amount,
     normalizedChain
   );
-  const feeData = await _getFeeAndToken(owner.safeAddress, fee, normalizedChain);
+  const feeData = await _getFeeAndToken(
+    owner.safeAddress,
+    fee,
+    normalizedChain,
+    amountWei,
+    baseAsset
+  );
   if (!feeData.status) {
     throw new Error('❌ No Balance to cover fee');
   }
@@ -702,9 +724,10 @@ async function addLiquidity(email, pin, poolAddress, base, quote, amount, chain)
   const provider = new ethers.JsonRpcProvider(rpc);
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const isEth = baseAsset === ethers.ZeroAddress;
-  const contract = isEth ? undefined : new ethers.Contract(baseAsset, ERC20, provider);
-  const decimals = contract ? await _getDecimals(contract) : 18;
-  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  if (_sameToken(feeData.data.feeTokenAddress, baseAsset)) {
+    amountWei = _deductFee(baseBalance.balance, amountWei, feeData.data.feeToWei);
+    amount = ethers.formatUnits(amountWei, baseBalance.decimals);
+  }
   const poolContract = new ethers.Interface(POOL_IFACE);
   const erc20Contract = new ethers.Interface(ERC20);
   const approve = !isEth ? 'approve' : undefined;

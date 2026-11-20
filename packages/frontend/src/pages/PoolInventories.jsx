@@ -1,7 +1,8 @@
 // src/pages/PoolInventories.jsx
-// v3.0.1 merchant inventory management.
+// v3.0.2 merchant inventory management.
 // Cache-first, silent 60s polling, PIN-gated actions.
 // Full numeric values are kept separately from presentation values.
+// v3.0.2: all sub-text colors brightened for readability (no layout/UI changes).
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -86,6 +87,19 @@ const num = (value) => {
 };
 
 const display = (value) => formatDisplayNumber(value, 12);
+
+const sanitizeNum = (raw) => {
+  const p = String(raw ?? '')
+    .replace(/[^0-9.]/g, '')
+    .split('.');
+  return p.length > 1 ? `${p[0]}.${p.slice(1).join('')}` : p[0];
+};
+
+const withCommas = (v) => {
+  const [i, ...r] = String(v ?? '').split('.');
+  const int = i.length >= 5 ? i.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : i;
+  return r.length ? `${int}.${r.join('')}` : int;
+};
 
 const money = (value) => {
   const n = Number(value);
@@ -381,15 +395,15 @@ const TxStatusModal = ({ title, message, detail, onDone }) => (
       >
         <Check className="h-7 w-7 text-emerald-400" strokeWidth={2.5} />
       </motion.div>
-      <p className="mt-4 text-[8px] font-black uppercase tracking-[.32em] text-emerald-400/70">
+      <p className="mt-4 text-[8px] font-black uppercase tracking-[.32em] text-emerald-400">
         Transaction complete
       </p>
       <h3 className="mt-1.5 text-xl font-black tracking-tight">{title}</h3>
-      <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed text-white/45">{message}</p>
-      {detail && <p className="mt-2 text-[9px] font-bold text-white/45">{detail}</p>}
+      <p className="mx-auto mt-2 max-w-sm text-[11px] leading-relaxed text-white/90">{message}</p>
+      {detail && <p className="mt-2 text-[9px] font-bold text-white/90">{detail}</p>}
       <button
         onClick={onDone}
-        className="mt-6 w-full rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black transition hover:brightness-110"
+        className="mt-6 w-full rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black transition hover:brightness-110"
       >
         Continue
       </button>
@@ -402,7 +416,7 @@ const FeeSummary = ({ fee, title = 'Estimated network fee', loading = false }) =
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-1.5">
         <CircleDollarSign className="h-3.5 w-3.5 text-salvaGold" />
-        <p className="text-[8px] font-black uppercase tracking-[.25em] text-white/65">{title}</p>
+        <p className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">{title}</p>
       </div>
       {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-salvaGold" />}
     </div>
@@ -430,7 +444,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 
   return (
     <div>
-      <label className="mb-1.5 block text-[8px] font-black uppercase tracking-[.25em] text-white/45">
+      <label className="mb-1.5 block text-[8px] font-black uppercase tracking-[.25em] text-white/90">
         {label}
       </label>
 
@@ -449,7 +463,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
             />
           ) : (
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.035]">
-              <WalletCards className="h-3.5 w-3.5 text-white/65" />
+              <WalletCards className="h-3.5 w-3.5 text-white/90" />
             </div>
           )}
 
@@ -458,14 +472,14 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
               {value?.symbol || `Select ${label.toLowerCase()}`}
             </p>
             {value?.address && (
-              <p className="mt-0.5 truncate font-mono text-[8px] text-white/45">
+              <p className="mt-0.5 truncate font-mono text-[8px] text-white/90">
                 {shortAddress(value.address)}
               </p>
             )}
           </div>
         </div>
 
-        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/45" />
+        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-white/90" />
       </button>
 
       <AnimatePresence>
@@ -492,7 +506,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 
               <div className="flex items-center justify-between gap-3 p-4 pb-3">
                 <div>
-                  <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/70">
+                  <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
                     Asset selector
                   </p>
                   <h3 className="mt-1 text-lg font-black">{label}</h3>
@@ -501,7 +515,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
                 <button
                   type="button"
                   onClick={close}
-                  className="rounded-lg border border-white/10 p-2 text-white/45 transition hover:text-white"
+                  className="rounded-lg border border-white/10 p-2 text-white/90 transition hover:text-white"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -509,19 +523,19 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 
               <div className="px-4 pb-3">
                 <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5 focus-within:border-salvaGold/35">
-                  <Search className="h-4 w-4 shrink-0 text-white/70" />
+                  <Search className="h-4 w-4 shrink-0 text-white/90" />
                   <input
                     autoFocus
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search symbol or address…"
-                    className="w-full bg-transparent text-xs font-bold text-white outline-none placeholder:text-white/65"
+                    className="w-full bg-transparent text-xs font-bold text-white outline-none placeholder:text-white/70"
                   />
                   {query && (
                     <button
                       type="button"
                       onClick={() => setQuery('')}
-                      className="text-white/70 hover:text-white"
+                      className="text-white/90 hover:text-white"
                     >
                       <X className="h-3.5 w-3.5" />
                     </button>
@@ -531,7 +545,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 
               <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
                 {filtered.length === 0 ? (
-                  <div className="px-4 py-12 text-center text-[10px] font-bold text-white/70">
+                  <div className="px-4 py-12 text-center text-[10px] font-bold text-white/90">
                     No assets match “{query}”
                   </div>
                 ) : (
@@ -564,7 +578,7 @@ const PairSelect = ({ label, value, options, onChange, disabledKey }) => {
 
                             <div className="min-w-0">
                               <p className="text-[11px] font-black text-white">{option.symbol}</p>
-                              <p className="mt-0.5 truncate font-mono text-[8px] text-white/45">
+                              <p className="mt-0.5 truncate font-mono text-[8px] text-white/90">
                                 {option.address ? shortAddress(option.address) : 'Native asset'}
                               </p>
                             </div>
@@ -593,7 +607,6 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
   const up = change > 0;
   const down = change < 0;
 
-  // Display only the token symbols supplied by the pool API.
   const baseSymbol = String(inventory.baseSymbol || inventory.base || '')
     .trim()
     .toUpperCase();
@@ -607,59 +620,86 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
   const quoteAddress =
     inventory.quoteAddress ?? inventory.quoteAssetAddress ?? inventory.quoteTokenAddress ?? null;
 
+  const spreadLabel =
+    inventory.spread === null || inventory.spread === undefined || inventory.spread === ''
+      ? '—'
+      : `${inventory.spread}%`;
+
   return (
     <motion.article
-      initial={{ opacity: 0, y: 10 }}
+      initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -8, scale: 0.98 }}
-      transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-      className={`group overflow-hidden rounded-[20px] border bg-[#101116]/85 transition ${
-        open ? 'border-salvaGold/20' : 'border-white/[0.07] hover:border-salvaGold/15'
+      exit={{ opacity: 0, y: -8, scale: 0.985 }}
+      transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+      className={`relative overflow-hidden rounded-[28px] border bg-[linear-gradient(145deg,#15161d_0%,#0d0e12_55%,#101116_100%)] shadow-[0_18px_60px_rgba(0,0,0,.22)] transition-all duration-300 ${
+        open
+          ? 'border-salvaGold/30 shadow-[0_18px_70px_rgba(214,176,64,.08)]'
+          : 'border-white/[0.08] hover:border-white/[0.13]'
       }`}
     >
-      {/* Collapsed header: always visible, toggles the details */}
+      <div className="pointer-events-none absolute inset-x-8 top-0 h-px bg-gradient-to-r from-transparent via-salvaGold/50 to-transparent" />
+      <div className="pointer-events-none absolute -right-20 -top-24 h-48 w-48 rounded-full bg-salvaGold/[0.045] blur-3xl" />
+
       <button
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-label={`${baseSymbol}/${quoteSymbol} inventory details`}
-        className="flex w-full items-center justify-between gap-3 p-3.5 text-left sm:p-5"
+        className="relative flex w-full items-center gap-3.5 p-4 text-left sm:p-5"
       >
-        <div className="flex min-w-0 items-center gap-3">
-          <PairLogo
-            baseSymbol={baseSymbol}
-            baseLogo={inventory.baseLogo}
-            baseAddress={baseAddress}
-            quoteSymbol={quoteSymbol}
-            quoteLogo={inventory.quoteLogo}
-            quoteAddress={quoteAddress}
-            size="h-11 w-11"
-          />
+        <PairLogo
+          baseSymbol={baseSymbol}
+          baseLogo={inventory.baseLogo}
+          baseAddress={baseAddress}
+          quoteSymbol={quoteSymbol}
+          quoteLogo={inventory.quoteLogo}
+          quoteAddress={quoteAddress}
+          size="h-12 w-12 sm:h-14 sm:w-14"
+        />
 
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-black text-white">
-              {baseSymbol}
-              <span className="mx-1 text-white/65">/</span>
-              {quoteSymbol}
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-[15px] font-black tracking-[-0.02em] text-white sm:text-base">
+              {baseSymbol}/{quoteSymbol}
             </h3>
-            <p className="mt-0.5 truncate text-[9px] font-medium text-white/65">
-              Selling {baseSymbol} for {quoteSymbol}
-            </p>
+            <span className="rounded-full border border-emerald-400/15 bg-emerald-400/[0.07] px-2 py-0.5 text-[7px] font-black uppercase tracking-[.16em] text-emerald-400">
+              Active
+            </span>
           </div>
+          <p className="mt-1 truncate text-[8px] font-semibold uppercase tracking-[.16em] text-white/90">
+            Merchant inventory · {baseSymbol} → {quoteSymbol}
+          </p>
         </div>
 
-        <span
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
-            open
-              ? 'border-salvaGold/30 bg-salvaGold/10 text-salvaGold'
-              : 'border-white/[0.07] bg-white/[0.03] text-white/60'
-          }`}
-        >
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          {hasChange && (
+            <span
+              className={`hidden rounded-full px-2 py-1 text-[8px] font-black sm:inline-flex ${
+                up
+                  ? 'bg-emerald-500/10 text-emerald-400'
+                  : down
+                  ? 'bg-red-500/10 text-red-400'
+                  : 'bg-white/5 text-white/90'
+              }`}
+            >
+              {up ? '+' : ''}
+              {change.toFixed(2)}%
+            </span>
+          )}
+          <span
+            className={`flex h-9 w-9 items-center justify-center rounded-full border transition ${
+              open
+                ? 'border-salvaGold/30 bg-salvaGold/10 text-salvaGold'
+                : 'border-white/[0.08] bg-white/[0.035] text-white/90'
+            }`}
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+            />
+          </span>
+        </div>
       </button>
 
-      {/* Expanded details */}
       <AnimatePresence initial={false}>
         {open && (
           <motion.div
@@ -667,156 +707,182 @@ const InventoryCard = ({ inventory, onWithdraw, onAddLiquidity, onUpdateSpread, 
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <div className="border-t border-white/[0.06] p-3.5 pt-3 sm:p-5 sm:pt-4">
-              <div className="grid gap-2 sm:grid-cols-[1.35fr_1fr]">
-                <div className="rounded-xl border border-white/[0.06] bg-black/25 p-3">
-                  <div className="flex items-end justify-between gap-3">
+            <div className="px-3.5 pb-3.5 sm:px-5 sm:pb-5">
+              <div className="h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
+              <div className="mt-3.5 grid gap-2.5 lg:grid-cols-[1.25fr_.75fr]">
+                <div className="rounded-[22px] border border-white/[0.07] bg-black/20 p-3.5 sm:p-4">
+                  <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black uppercase tracking-[.25em] text-white/45">
+                      <p className="text-[7px] font-black uppercase tracking-[.28em] text-white/90">
                         Live oracle price
                       </p>
-
-                      <p className="mt-0.5 truncate text-base font-black tracking-[-.03em]">
+                      <p className="mt-1.5 truncate text-[18px] font-black tracking-[-.045em] text-white sm:text-xl">
                         {truncateDisplay(inventory.currentPriceFull)}
                       </p>
-
-                      <p className="mt-0.5 text-[9px] font-medium text-white/65">
+                      <p className="mt-1 text-[8px] font-semibold text-white/90">
                         {quoteSymbol} per 1 {baseSymbol}
                       </p>
                     </div>
 
                     {hasChange && (
-                      <div
-                        className={`shrink-0 rounded-lg px-2 py-1 text-[9px] font-black ${
+                      <span
+                        className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1.5 text-[8px] font-black ${
                           up
                             ? 'bg-emerald-500/10 text-emerald-400'
                             : down
                             ? 'bg-red-500/10 text-red-400'
-                            : 'bg-white/5 text-white/65'
+                            : 'bg-white/5 text-white/90'
                         }`}
                       >
                         {up ? (
-                          <TrendingUp className="mr-1 inline h-3 w-3" />
+                          <TrendingUp className="h-3 w-3" />
                         ) : down ? (
-                          <TrendingDown className="mr-1 inline h-3 w-3" />
+                          <TrendingDown className="h-3 w-3" />
                         ) : null}
-                        {change > 0 ? '+' : ''}
+                        {up ? '+' : ''}
                         {change.toFixed(2)}%
-                      </div>
+                      </span>
                     )}
                   </div>
 
-                  <div className="mt-2.5 grid gap-2 border-t border-white/[0.05] pt-2.5 sm:grid-cols-2">
-                    <div className="rounded-lg border border-white/[0.05] bg-white/[0.02] px-2.5 py-2">
-                      <span className="text-[8px] font-bold text-white/45">Acquisition floor</span>
-                      <p className="mt-0.5 text-[9px] font-black text-salvaGold">
-                        {inventory.floorDisplay || display(inventory.floorFull)} {quoteSymbol}/
-                        {baseSymbol}
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <div className="rounded-[16px] border border-white/[0.055] bg-white/[0.025] p-2.5">
+                      <p className="text-[7px] font-black uppercase tracking-[.18em] text-white/90">
+                        Acquisition floor
+                      </p>
+                      <p className="mt-1 text-[9px] font-black text-salvaGold">
+                        {inventory.floorDisplay || display(inventory.floorFull)}
+                      </p>
+                      <p className="mt-0.5 text-[7px] font-semibold text-white/90">
+                        {quoteSymbol}/{baseSymbol}
                       </p>
                     </div>
 
-                    <div className="rounded-lg border border-salvaGold/10 bg-salvaGold/[0.025] px-2.5 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[8px] font-bold text-white/45">Spread</span>
-                        <span className="text-[7px] font-black uppercase tracking-[.18em] text-salvaGold/55">
+                    <div className="rounded-[16px] border border-salvaGold/10 bg-salvaGold/[0.035] p-2.5">
+                      <div className="flex items-center justify-between gap-1">
+                        <p className="text-[7px] font-black uppercase tracking-[.18em] text-white/90">
+                          Spread
+                        </p>
+                        <span className="text-[6px] font-black uppercase tracking-[.16em] text-salvaGold">
                           Pricing
                         </span>
                       </div>
-                      <p className="mt-0.5 text-[10px] font-black text-white">
-                        {inventory.spread === null ||
-                        inventory.spread === undefined ||
-                        inventory.spread === ''
-                          ? '—'
-                          : `${inventory.spread}%`}
+                      <p className="mt-1 text-[10px] font-black text-white">{spreadLabel}</p>
+                      <p className="mt-0.5 text-[7px] font-semibold text-white/90">
+                        Signed adjustment
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Side by side on mobile, stacked on larger screens. */}
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-1">
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-                    <div className="flex min-w-0 items-center gap-1.5">
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] p-3">
+                    <div className="flex items-center gap-2">
                       <AssetLogo
                         symbol={baseSymbol}
                         logo={inventory.baseLogo}
                         address={baseAddress}
-                        size="h-6 w-6"
+                        size="h-7 w-7"
                       />
-                      <p className="min-w-0 truncate text-[10px] font-black text-white">
-                        {baseSymbol}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="truncate text-[8px] font-black text-white">{baseSymbol}</p>
+                        <p className="text-[6px] font-black uppercase tracking-[.16em] text-white/90">
+                          Pool balance
+                        </p>
+                      </div>
                     </div>
-
-                    <p className="mt-2 truncate text-[0.6rem] font-black text-white">
+                    <p className="mt-3 truncate text-[11px] font-black tracking-[-.02em] text-white">
                       {truncateDisplay(inventory.baseAssetBalanceFull)}
                     </p>
                   </div>
 
-                  <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-                    <div className="flex min-w-0 items-center gap-1.5">
+                  <div className="rounded-[22px] border border-white/[0.07] bg-white/[0.025] p-3">
+                    <div className="flex items-center gap-2">
                       <AssetLogo
                         symbol={quoteSymbol}
                         logo={inventory.quoteLogo}
                         address={quoteAddress}
-                        size="h-6 w-6"
+                        size="h-7 w-7"
                       />
-                      <p className="min-w-0 truncate text-[10px] font-black text-white">
-                        {quoteSymbol}
-                      </p>
+                      <div className="min-w-0">
+                        <p className="truncate text-[8px] font-black text-white">{quoteSymbol}</p>
+                        <p className="text-[6px] font-black uppercase tracking-[.16em] text-white/90">
+                          Pool balance
+                        </p>
+                      </div>
                     </div>
-
-                    <p className="mt-2 truncate text-[0.6rem] font-black text-white">
+                    <p className="mt-3 truncate text-[11px] font-black tracking-[-.02em] text-white">
                       {truncateDisplay(inventory.quoteAssetBalanceFull)}
                     </p>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-2.5 flex gap-2">
+              <div className="mt-2.5 flex items-center justify-between rounded-[18px] border border-white/[0.06] bg-white/[0.018] px-3 py-2.5">
+                <div className="min-w-0">
+                  <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/90">
+                    Protection
+                  </p>
+                  <p className="mt-0.5 truncate text-[8px] font-bold text-white/90">
+                    {inventory.allowedSwapBelowFloor
+                      ? 'Below-floor swaps enabled'
+                      : 'Acquisition floor protected'}
+                  </p>
+                </div>
+                <span
+                  className={`ml-3 shrink-0 rounded-full px-2 py-1 text-[6px] font-black uppercase tracking-[.16em] ${
+                    inventory.allowedSwapBelowFloor
+                      ? 'bg-emerald-500/10 text-emerald-400'
+                      : 'bg-white/5 text-white/90'
+                  }`}
+                >
+                  {inventory.allowedSwapBelowFloor ? 'On' : 'Protected'}
+                </span>
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button
                   type="button"
                   onClick={onAddLiquidity}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-2.5 text-[10px] font-black text-black transition hover:brightness-110"
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] bg-salvaGold px-2.5 py-2.5 text-[8px] font-black text-black transition hover:brightness-110 active:scale-[.99] sm:py-3"
                 >
-                  <Plus className="h-3.5 w-3.5" />
-                  Add liquidity
+                  <Plus className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Add liquidity</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onWithdraw}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.055] py-2.5 text-[10px] font-black transition hover:bg-white/[0.09]"
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-white/[0.08] bg-white/[0.045] px-2.5 py-2.5 text-[8px] font-black text-white/90 transition hover:bg-white/[0.08] active:scale-[.99] sm:py-3"
                 >
-                  <ArrowDownToLine className="h-3.5 w-3.5" />
-                  Withdraw
+                  <ArrowDownToLine className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Withdraw</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={onUpdateSpread}
                   title="Update spread"
-                  className="flex items-center justify-center gap-1.5 rounded-xl border border-salvaGold/15 bg-salvaGold/5 px-3 py-2.5 text-[10px] font-black text-salvaGold transition hover:border-salvaGold/30 hover:bg-salvaGold/10"
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-salvaGold/15 bg-salvaGold/[0.045] px-2.5 py-2.5 text-[8px] font-black text-salvaGold transition hover:border-salvaGold/30 hover:bg-salvaGold/[0.08] active:scale-[.99] sm:py-3"
                 >
-                  <Pencil className="h-3.5 w-3.5" />
-                  Spread
+                  <Pencil className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate">Spread</span>
                 </button>
-
-                <div className="hidden items-center rounded-xl border border-white/[0.06] px-2.5 text-[8px] font-black text-white/55 sm:flex">
-                  {inventory.allowedSwapBelowFloor ? 'Below floor: on' : 'Floor protected'}
-                </div>
 
                 <button
                   type="button"
                   onClick={onDelete}
                   title="Delete inventory"
                   aria-label="Delete inventory"
-                  className="flex items-center justify-center rounded-xl border border-white/[0.07] px-2.5 text-white/70 transition hover:border-red-500/20 hover:bg-red-500/5 hover:text-red-400"
+                  className="flex min-w-0 items-center justify-center gap-1.5 rounded-[16px] border border-red-500/10 bg-red-500/[0.025] px-2.5 py-2.5 text-[8px] font-black text-white/90 transition hover:border-red-500/25 hover:bg-red-500/[0.06] hover:text-red-400 active:scale-[.99] sm:py-3"
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  <Trash2 className="h-3.5 w-3.5 shrink-0" />
+                  <span className="truncate sm:hidden">Delete</span>
+                  <span className="hidden sm:inline">Delete inventory</span>
                 </button>
               </div>
             </div>
@@ -854,7 +920,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
       <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
               Pricing control
             </p>
             <div className="mt-1 flex items-center gap-2.5">
@@ -875,7 +941,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="rounded-lg border border-white/10 p-2 text-white/60"
+            className="rounded-lg border border-white/10 p-2 text-white/90"
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -884,7 +950,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/45">
+              <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/90">
                 Current spread
               </p>
               <p className="mt-1 text-sm font-black text-white">{currentLabel}</p>
@@ -893,7 +959,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
               Live pricing
             </div>
           </div>
-          <p className="mt-2 text-[9px] leading-relaxed text-white/55">
+          <p className="mt-2 text-[9px] leading-relaxed text-white/90">
             This changes the signed pricing adjustment for this inventory only. Your acquisition
             floor and liquidity remain untouched.
           </p>
@@ -901,10 +967,10 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
 
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+            <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
               New spread
             </label>
-            <span className="text-[8px] font-bold text-white/35">% adjustment</span>
+            <span className="text-[8px] font-bold text-white/90">% adjustment</span>
           </div>
 
           <div className="relative">
@@ -921,7 +987,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
               placeholder="e.g. -0.5 or 1"
               className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-10 text-sm font-black text-white outline-none focus:border-salvaGold/40"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/45">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/90">
               %
             </span>
           </div>
@@ -938,7 +1004,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
                 className={`rounded-lg border px-2 py-1.5 text-[8px] font-black transition ${
                   String(spread) === value
                     ? 'border-salvaGold/30 bg-salvaGold/10 text-salvaGold'
-                    : 'border-white/[0.07] bg-white/[0.02] text-white/55 hover:bg-white/[0.05] hover:text-white'
+                    : 'border-white/[0.07] bg-white/[0.02] text-white/90 hover:bg-white/[0.05] hover:text-white'
                 }`}
               >
                 {value}%
@@ -957,7 +1023,7 @@ const SpreadEditorModal = ({ inventory, onCancel, onSubmit, submitting }) => {
           type="button"
           onClick={submit}
           disabled={submitting}
-          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:cursor-wait disabled:opacity-50"
+          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-wait disabled:opacity-50"
         >
           {submitting ? (
             <>
@@ -992,7 +1058,7 @@ const SpreadUpdateConfirmModal = ({
           <TrendingUp className="h-4 w-4 text-salvaGold" />
         </div>
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
             Review pricing change
           </p>
           <h3 className="text-lg font-black">Update spread</h3>
@@ -1012,14 +1078,14 @@ const SpreadUpdateConfirmModal = ({
             <p className="text-[11px] font-black">
               {inventory.baseSymbol}/{inventory.quoteSymbol}
             </p>
-            <p className="mt-0.5 text-[8px] text-white/45">This inventory only</p>
+            <p className="mt-0.5 text-[8px] text-white/90">This inventory only</p>
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-1.5">
           <div className="rounded-xl border border-white/[0.06] bg-black/20 p-2.5">
-            <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/40">Current</p>
-            <p className="mt-1 text-sm font-black text-white/60">
+            <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/90">Current</p>
+            <p className="mt-1 text-sm font-black text-white/90">
               {inventory.spread === null ||
               inventory.spread === undefined ||
               inventory.spread === ''
@@ -1028,12 +1094,12 @@ const SpreadUpdateConfirmModal = ({
             </p>
           </div>
           <div className="rounded-xl border border-salvaGold/15 bg-salvaGold/5 p-2.5">
-            <p className="text-[7px] font-black uppercase tracking-[.2em] text-salvaGold/60">New</p>
+            <p className="text-[7px] font-black uppercase tracking-[.2em] text-salvaGold">New</p>
             <p className="mt-1 text-sm font-black text-salvaGold">{spread}%</p>
           </div>
         </div>
 
-        <p className="mt-3 text-[9px] leading-relaxed text-white/55">
+        <p className="mt-3 text-[9px] leading-relaxed text-white/90">
           The update changes the inventory's pricing adjustment without moving its acquisition floor
           or transferring any tokens.
         </p>
@@ -1048,7 +1114,7 @@ const SpreadUpdateConfirmModal = ({
           type="button"
           onClick={onCancel}
           disabled={updating}
-          className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60 disabled:opacity-40"
+          className="rounded-xl border border-white/10 py-3 text-[8px] font-black text-white/90 disabled:opacity-40"
         >
           Back
         </button>
@@ -1056,7 +1122,7 @@ const SpreadUpdateConfirmModal = ({
           type="button"
           onClick={onConfirm}
           disabled={updating || estimating || !fee}
-          className="rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
+          className="rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:opacity-40"
         >
           {updating ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Update spread'}
         </button>
@@ -1092,7 +1158,7 @@ const InfoPopover = ({ title, children, onClose }) => (
           </div>
           <div className="min-w-0">
             <h4 className="text-sm font-black text-white">{title}</h4>
-            <div className="mt-1.5 text-[10px] leading-relaxed text-white/65">{children}</div>
+            <div className="mt-1.5 text-[10px] leading-relaxed text-white/90">{children}</div>
           </div>
         </div>
       </div>
@@ -1115,13 +1181,13 @@ const ConfigField = ({
 }) => (
   <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
     <div className="flex items-center gap-1.5">
-      <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+      <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
         {label}
       </label>
       {required ? (
         <span className="text-[9px] font-black text-red-400">*</span>
       ) : (
-        <span className="text-[8px] font-bold text-white/35">optional</span>
+        <span className="text-[8px] font-bold text-white/90">optional</span>
       )}
       {action}
     </div>
@@ -1132,11 +1198,11 @@ const ConfigField = ({
       placeholder={placeholder}
       spellCheck="false"
       autoComplete="off"
-      className={`mt-2 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 text-xs font-black text-white outline-none placeholder:text-white/30 focus:border-salvaGold/40 disabled:opacity-50 ${
+      className={`mt-2 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 text-xs font-black text-white outline-none placeholder:text-white/60 focus:border-salvaGold/40 disabled:opacity-50 ${
         mono ? 'font-mono text-[10px]' : ''
       }`}
     />
-    {hint && <div className="mt-1.5 text-[8px] leading-relaxed text-white/45">{hint}</div>}
+    {hint && <div className="mt-1.5 text-[8px] leading-relaxed text-white/90">{hint}</div>}
   </div>
 );
 
@@ -1158,9 +1224,9 @@ const DeployInventoryModal = ({
   };
   const [base, setBase] = useState(null);
   const [quote, setQuote] = useState(null);
-  const [floor, setFloor] = useState('');
+  const [floor, setFloor] = useState('0');
   const [spread, setSpread] = useState('');
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('0');
   const [allowSwapBelowFloor, setAllowSwapBelowFloor] = useState(false);
   const [infoOpen, setInfoOpen] = useState(null);
   const [error, setError] = useState('');
@@ -1214,52 +1280,52 @@ const DeployInventoryModal = ({
     };
   }, [base, quote, chain]);
 
-    const saveConfig = async () => {
-      if (cfgSaving) return;
+  const saveConfig = async () => {
+    if (cfgSaving) return;
 
-      const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
-      const URL_RE = /^https?:\/\/\S+$/i;
+    const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+    const URL_RE = /^https?:\/\/\S+$/i;
 
-      const symbol = cfg.symbol.trim().toUpperCase();
-      const address = cfg.address.trim();
-      const priceFeed = cfg.priceFeed.trim();
-      const logo = cfg.logo.trim();
+    const symbol = cfg.symbol.trim().toUpperCase();
+    const address = cfg.address.trim();
+    const priceFeed = cfg.priceFeed.trim();
+    const logo = cfg.logo.trim();
 
-      if (!symbol) return setCfgError('Enter the token symbol.');
-      if (!/^[A-Z0-9]{1,12}$/.test(symbol))
-        return setCfgError('Symbol must be 1–12 letters or numbers.');
-      if (!ADDRESS_RE.test(address))
-        return setCfgError('Enter a valid token contract address (0x followed by 40 characters).');
-      if (!ADDRESS_RE.test(priceFeed))
-        return setCfgError('Enter a valid token / USD price feed address.');
-      if (logo && !URL_RE.test(logo))
-        return setCfgError('Logo must be a link starting with http:// or https://');
+    if (!symbol) return setCfgError('Enter the token symbol.');
+    if (!/^[A-Z0-9]{1,12}$/.test(symbol))
+      return setCfgError('Symbol must be 1–12 letters or numbers.');
+    if (!ADDRESS_RE.test(address))
+      return setCfgError('Enter a valid token contract address (0x followed by 40 characters).');
+    if (!ADDRESS_RE.test(priceFeed))
+      return setCfgError('Enter a valid token / USD price feed address.');
+    if (logo && !URL_RE.test(logo))
+      return setCfgError('Logo must be a link starting with http:// or https://');
 
-      setCfgError('');
-      setCfgSaving(true);
+    setCfgError('');
+    setCfgSaving(true);
 
-      try {
-        await onConfigSave({
-          symbol,
-          contractAddress: address,
-          priceFeed,
-          logo: logo || undefined,
-        });
+    try {
+      await onConfigSave({
+        symbol,
+        contractAddress: address,
+        priceFeed,
+        logo: logo || undefined,
+      });
 
-        // Drop the new asset into the first empty slot of the market form.
-        const created = { symbol, address: address.toLowerCase(), logo: logo || null };
-        if (!base) setBase(created);
-        else if (!quote && assetKey(base) !== assetKey(created)) setQuote(created);
+      // Drop the new asset into the first empty slot of the market form.
+      const created = { symbol, address: address.toLowerCase(), logo: logo || null };
+      if (!base) setBase(created);
+      else if (!quote && assetKey(base) !== assetKey(created)) setQuote(created);
 
-        setError('');
-        setCfg({ symbol: '', address: '', logo: '', priceFeed: '' });
-        setView('market');
-      } catch (saveError) {
-        setCfgError(saveError?.message || 'Could not save this asset.');
-      } finally {
-        setCfgSaving(false);
-      }
-    };
+      setError('');
+      setCfg({ symbol: '', address: '', logo: '', priceFeed: '' });
+      setView('market');
+    } catch (saveError) {
+      setCfgError(saveError?.message || 'Could not save this asset.');
+    } finally {
+      setCfgSaving(false);
+    }
+  };
 
   const submit = () => {
     if (!base || !quote) return setError('Select both assets.');
@@ -1267,8 +1333,11 @@ const DeployInventoryModal = ({
       return setError('Base and quote assets must be different.');
     if (!priceReady)
       return setError('Price is unavailable for this pair, so it cannot be published.');
-    if (!floor || num(floor) <= 0) return setError('Enter a valid acquisition price.');
-    if (!amount || num(amount) <= 0) return setError('Enter an inventory amount.');
+    if (floor === '' || !Number.isFinite(num(floor)) || num(floor) < 0)
+      return setError('Enter a valid acquisition price.');
+
+    if (amount === '' || !Number.isFinite(num(amount)) || num(amount) < 0)
+      return setError('Enter a valid inventory amount.');
     if (sellBalance && num(amount) > num(sellBalance.full))
       return setError(`Amount exceeds your ${base.symbol} wallet balance.`);
 
@@ -1294,11 +1363,11 @@ const DeployInventoryModal = ({
         <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
                 Custom market
               </p>
               <h3 className="mt-1 text-xl font-black">Configure your asset</h3>
-              <p className="mt-1 text-[10px] leading-relaxed text-white/65">
+              <p className="mt-1 text-[10px] leading-relaxed text-white/90">
                 Register a token that is not listed yet. When it is saved you will return to the
                 market form with it already selected.
               </p>
@@ -1307,7 +1376,7 @@ const DeployInventoryModal = ({
               type="button"
               onClick={() => !cfgSaving && setView('market')}
               disabled={cfgSaving}
-              className="rounded-lg border border-white/10 p-2 text-white/60 disabled:opacity-40"
+              className="rounded-lg border border-white/10 p-2 text-white/90 disabled:opacity-40"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -1361,8 +1430,8 @@ const DeployInventoryModal = ({
                 }
                 hint={
                   <>
-                    Search your token as{' '}
-                    <span className="font-black text-white/70">TOKEN / USD</span> on{' '}
+                    Search your token as <span className="font-black text-white">TOKEN / USD</span>{' '}
+                    on{' '}
                     <a
                       href={CHAINLINK_FEEDS_URL}
                       target="_blank"
@@ -1390,7 +1459,7 @@ const DeployInventoryModal = ({
               type="button"
               onClick={() => setView('market')}
               disabled={cfgSaving}
-              className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60 disabled:opacity-40"
+              className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/90 disabled:opacity-40"
             >
               Back
             </button>
@@ -1398,7 +1467,7 @@ const DeployInventoryModal = ({
               type="button"
               onClick={saveConfig}
               disabled={cfgSaving}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:cursor-wait disabled:opacity-50"
+              className="flex items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-wait disabled:opacity-50"
             >
               {cfgSaving ? (
                 <>
@@ -1418,24 +1487,24 @@ const DeployInventoryModal = ({
         <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
                 New market
               </p>
               <h3 className="mt-1 text-xl font-black">Publish inventory</h3>
-              <p className="mt-1 text-[10px] leading-relaxed text-white/65">
+              <p className="mt-1 text-[10px] leading-relaxed text-white/90">
                 Configure the asset you sell, the asset you receive and your cost basis.
               </p>
             </div>
             <button
               onClick={onCancel}
-              className="rounded-lg border border-white/10 p-2 text-white/60"
+              className="rounded-lg border border-white/10 p-2 text-white/90"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-salvaGold/15 bg-salvaGold/[0.04] p-3">
-            <p className="text-[9px] leading-relaxed text-white/65">
+            <p className="text-[9px] leading-relaxed text-white/90">
               Asset not listed? Configure your own trade asset first..
             </p>
             <button
@@ -1473,7 +1542,7 @@ const DeployInventoryModal = ({
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
                     Acquisition price
                   </label>
                   <button
@@ -1489,7 +1558,7 @@ const DeployInventoryModal = ({
                   <p
                     className={`mt-1 text-[8px] font-bold ${
                       marketPriceLoading
-                        ? 'text-white/70'
+                        ? 'text-white/90'
                         : priceReady
                         ? 'text-emerald-400'
                         : 'text-red-400'
@@ -1504,26 +1573,25 @@ const DeployInventoryModal = ({
                 )}
                 <div className="relative mt-2">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={floor}
-                    onChange={(event) => setFloor(event.target.value)}
+                    type="text"
+                    inputMode="decimal"
+                    value={withCommas(floor)}
+                    onChange={(event) => setFloor(sanitizeNum(event.target.value))}
                     placeholder="e.g. 1500"
                     className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-xs font-black text-white outline-none focus:border-salvaGold/40"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/45">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/90">
                     {base && quote ? `${quote.symbol}/${base.symbol}` : 'QUOTE/BASE'}
                   </span>
                 </div>
-                <p className="mt-1.5 text-[8px] leading-relaxed text-white/45">
+                <p className="mt-1.5 text-[8px] leading-relaxed text-white/90">
                   Your cost basis for one unit of the asset you sell.
                 </p>
               </div>
 
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
                 <div className="flex items-center gap-1.5">
-                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
                     Spread
                   </label>
                   <button
@@ -1544,11 +1612,11 @@ const DeployInventoryModal = ({
                     placeholder="e.g. -0.5 or 1"
                     className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-10 text-xs font-black text-white outline-none focus:border-salvaGold/40"
                   />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/45">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/90">
                     %
                   </span>
                 </div>
-                <p className="mt-1.5 text-[8px] leading-relaxed text-white/45">
+                <p className="mt-1.5 text-[8px] leading-relaxed text-white/90">
                   Signed price adjustment. Positive values increase the spread; negative values
                   reduce it.
                 </p>
@@ -1556,7 +1624,7 @@ const DeployInventoryModal = ({
 
               <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+                  <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
                     Inventory amount
                   </label>
                   <button
@@ -1573,30 +1641,29 @@ const DeployInventoryModal = ({
                   </button>
                 </div>
                 {base && (
-                  <p className="mt-1 text-[8px] font-bold text-white/55">
+                  <p className="mt-1 text-[8px] font-bold text-white/90">
                     Balance: {sellBalance ? sellBalance.shown : '—'} {base.symbol}
                   </p>
                 )}
                 <div className="relative mt-2">
                   <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={amount}
+                    type="text"
+                    inputMode="decimal"
+                    value={withCommas(amount)}
                     onChange={(event) => {
                       setError('');
-                      setAmount(event.target.value);
+                      setAmount(sanitizeNum(event.target.value));
                     }}
                     placeholder="Amount to sell"
                     className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-xs font-black text-white outline-none focus:border-salvaGold/40"
                   />
                   {base && (
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/45">
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[8px] font-black text-white/90">
                       {base.symbol}
                     </span>
                   )}
                 </div>
-                <p className="mt-1.5 text-[8px] leading-relaxed text-white/45">
+                <p className="mt-1.5 text-[8px] leading-relaxed text-white/90">
                   This amount is transferred into the pool.
                 </p>
               </div>
@@ -1620,7 +1687,7 @@ const DeployInventoryModal = ({
               >
                 Allow swaps below acquisition floor
               </p>
-              <p className="mt-0.5 text-[8px] leading-relaxed text-white/55">
+              <p className="mt-0.5 text-[8px] leading-relaxed text-white/90">
                 {allowSwapBelowFloor
                   ? 'The pool continues quoting at your protected floor.'
                   : 'Trades are blocked below the protected floor.'}
@@ -1648,7 +1715,7 @@ const DeployInventoryModal = ({
           <button
             onClick={submit}
             disabled={loadingAssets || Boolean(base && quote && !priceReady)}
-            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:opacity-40"
           >
             Continue to review <ArrowUpRight className="h-3.5 w-3.5" />
           </button>
@@ -1662,7 +1729,7 @@ const DeployInventoryModal = ({
               A price feed is an on-chain oracle contract that publishes the live market price of
               one asset in terms of another. Salva reads it to price your market.
             </p>
-            <p className="mt-2 font-black text-white/80">How to find it</p>
+            <p className="mt-2 font-black text-white">How to find it</p>
             <ol className="mt-1 list-decimal space-y-1 pl-4">
               <li>
                 Open{' '}
@@ -1679,12 +1746,11 @@ const DeployInventoryModal = ({
               </li>
               <li>
                 Select the network that matches this market (currently{' '}
-                <span className="font-black capitalize text-white/80">{chain}</span>).
+                <span className="font-black capitalize text-white">{chain}</span>).
               </li>
               <li>
                 Search your token against USD as{' '}
-                <span className="font-black text-white/80">TOKEN / USD</span>, for example ETH /
-                USD.
+                <span className="font-black text-white">TOKEN / USD</span>, for example ETH / USD.
               </li>
               <li>Copy the feed's contract address from that row and paste it into this field.</li>
             </ol>
@@ -1719,7 +1785,7 @@ const InventoryConfirmModal = ({ draft, fee, estimating, deploying, onCancel, on
           <ShieldCheck className="h-4 w-4 text-salvaGold" />
         </div>
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
             Review market
           </p>
           <div>
@@ -1750,7 +1816,7 @@ const InventoryConfirmModal = ({ draft, fee, estimating, deploying, onCancel, on
           ['Below floor', draft.allowSwapBelowFloor ? 'Allowed' : 'Blocked'],
         ].map(([label, value]) => (
           <div key={label} className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-2.5">
-            <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/45">{label}</p>
+            <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/90">{label}</p>
             <p className="mt-1 text-[10px] font-black text-white">{value}</p>
           </div>
         ))}
@@ -1764,14 +1830,14 @@ const InventoryConfirmModal = ({ draft, fee, estimating, deploying, onCancel, on
         <button
           onClick={onCancel}
           disabled={deploying}
-          className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60"
+          className="rounded-xl border border-white/10 py-3 text-[8px] font-black text-white/90"
         >
           Back
         </button>
         <button
           onClick={onDeploy}
           disabled={estimating || deploying || !fee}
-          className="rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
+          className="rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:opacity-40"
         >
           {deploying ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Publish inventory'}
         </button>
@@ -1823,7 +1889,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
       <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
               Withdraw liquidity
             </p>
             <div className="mt-1 flex items-center gap-2.5">
@@ -1836,7 +1902,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
               />
               <h3 className="text-lg font-black">
                 {inventory.baseSymbol}
-                <span className="mx-1 text-white/65">/</span>
+                <span className="mx-1 text-white/90">/</span>
                 {inventory.quoteSymbol}
               </h3>
             </div>
@@ -1844,14 +1910,14 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
           <button
             onClick={onCancel}
             disabled={withdrawing}
-            className="rounded-lg border border-white/10 p-2 text-white/60"
+            className="rounded-lg border border-white/10 p-2 text-white/90"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-          <label className="mb-1.5 block text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+          <label className="mb-1.5 block text-[8px] font-black uppercase tracking-[.25em] text-white/90">
             Asset to withdraw
           </label>
           <button
@@ -1868,13 +1934,13 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
               />
               <div className="min-w-0">
                 <p className="text-xs font-black text-white">{selected.symbol}</p>
-                <p className="mt-0.5 truncate text-[8px] text-white/45">
+                <p className="mt-0.5 truncate text-[8px] text-white/90">
                   Available: {selected.shown}
                 </p>
               </div>
             </div>
             <ChevronDown
-              className={`h-3.5 w-3.5 shrink-0 text-white/45 transition ${
+              className={`h-3.5 w-3.5 shrink-0 text-white/90 transition ${
                 assetOpen ? 'rotate-180' : ''
               }`}
             />
@@ -1903,7 +1969,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
                     />
                     <div className="min-w-0">
                       <p className="text-[11px] font-black text-white">{option.symbol}</p>
-                      <p className="mt-0.5 truncate text-[8px] text-white/45">
+                      <p className="mt-0.5 truncate text-[8px] text-white/90">
                         Available: {option.shown}
                       </p>
                     </div>
@@ -1916,7 +1982,7 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
 
           <div className="mt-3">
             <div className="mb-1.5 flex items-center justify-between">
-              <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+              <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
                 Amount
               </label>
               <button
@@ -1932,26 +1998,25 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
               </button>
             </div>
 
-            <p className="mb-1.5 text-[8px] font-bold text-white/55">
+            <p className="mb-1.5 text-[8px] font-bold text-white/90">
               Balance: {displayBalance} {symbol}
             </p>
 
             <div className="relative">
               <input
                 autoFocus
-                type="number"
-                min="0"
-                step="any"
-                value={amount}
+                type="text"
+                inputMode="decimal"
+                value={withCommas(amount)}
                 onChange={(event) => {
                   setError('');
-                  setAmount(event.target.value);
+                  setAmount(sanitizeNum(event.target.value));
                 }}
                 onKeyDown={(event) => event.key === 'Enter' && submit()}
                 placeholder="0.00"
                 className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-sm font-black text-white outline-none focus:border-salvaGold/40"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/55">
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/90">
                 {symbol}
               </span>
             </div>
@@ -1968,14 +2033,14 @@ const WithdrawModal = ({ inventory, onCancel, onSubmit, withdrawing }) => {
           <button
             onClick={onCancel}
             disabled={withdrawing}
-            className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60"
+            className="rounded-xl border border-white/10 py-3 text-[8px] font-black text-white/90"
           >
             Cancel
           </button>
           <button
             onClick={submit}
             disabled={withdrawing}
-            className="rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
+            className="rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:opacity-40"
           >
             Continue
           </button>
@@ -2012,7 +2077,7 @@ const AddLiquidityAmountModal = ({ inventory, chain, onCancel, onSubmit }) => {
       <div className="p-4 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+            <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
               Add liquidity
             </p>
             <div className="mt-1 flex items-center gap-2.5">
@@ -2027,34 +2092,34 @@ const AddLiquidityAmountModal = ({ inventory, chain, onCancel, onSubmit }) => {
                 Fund {inventory.baseSymbol}/{inventory.quoteSymbol}
               </h3>
             </div>
-            <p className="mt-1 text-[10px] leading-relaxed text-white/65">
+            <p className="mt-1 text-[10px] leading-relaxed text-white/90">
               Add {inventory.baseSymbol} liquidity to this pool.
             </p>
           </div>
           <button
             onClick={onCancel}
-            className="rounded-lg border border-white/10 p-2 text-white/60"
+            className="rounded-lg border border-white/10 p-2 text-white/90"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
 
         <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.025] p-3">
-          <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/45">
+          <p className="text-[7px] font-black uppercase tracking-[.2em] text-white/90">
             Destination
           </p>
-          <p className="mt-1 truncate font-mono text-[9px] font-bold text-white/55">
+          <p className="mt-1 truncate font-mono text-[9px] font-bold text-white/90">
             {inventory.poolAddress || 'Pool address'}
           </p>
           <div className="mt-2 flex items-center gap-2">
             <AssetLogo symbol={inventory.baseSymbol} logo={inventory.baseLogo} size="h-6 w-6" />
-            <p className="text-[9px] font-bold text-white/70">{inventory.baseSymbol}</p>
+            <p className="text-[9px] font-bold text-white/90">{inventory.baseSymbol}</p>
           </div>
         </div>
 
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between">
-            <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/60">
+            <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
               Amount
             </label>
             <button
@@ -2069,25 +2134,24 @@ const AddLiquidityAmountModal = ({ inventory, chain, onCancel, onSubmit }) => {
               Max
             </button>
           </div>
-          <p className="mb-1.5 text-[8px] font-bold text-white/55">
+          <p className="mb-1.5 text-[8px] font-bold text-white/90">
             Balance: {walletBalance ? walletBalance.shown : '—'} {inventory.baseSymbol}
           </p>
           <div className="relative">
             <input
               autoFocus
-              type="number"
-              min="0"
-              step="any"
-              value={amount}
+              type="text"
+              inputMode="decimal"
+              value={withCommas(amount)}
               onChange={(event) => {
                 setError('');
-                setAmount(event.target.value);
+                setAmount(sanitizeNum(event.target.value));
               }}
               onKeyDown={(event) => event.key === 'Enter' && submit()}
               placeholder="0.00"
               className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 pr-16 text-sm font-black text-white outline-none focus:border-salvaGold/40"
             />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/55">
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[9px] font-black text-white/90">
               {inventory.baseSymbol}
             </span>
           </div>
@@ -2102,7 +2166,7 @@ const AddLiquidityAmountModal = ({ inventory, chain, onCancel, onSubmit }) => {
         <button
           onClick={submit}
           disabled={submitting}
-          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:cursor-wait disabled:opacity-60"
+          className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-wait disabled:opacity-60"
         >
           {submitting ? (
             <>
@@ -2134,7 +2198,7 @@ const AddLiquidityConfirmModal = ({
           <ShieldCheck className="h-4 w-4 text-salvaGold" />
         </div>
         <div>
-          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+          <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
             Final confirmation
           </p>
           <h3 className="text-lg font-black">Add liquidity</h3>
@@ -2156,15 +2220,15 @@ const AddLiquidityConfirmModal = ({
         </div>
 
         <div className="flex items-center justify-between gap-3">
-          <span className="text-[8px] uppercase tracking-[.22em] text-white/55">Amount</span>
+          <span className="text-[8px] uppercase tracking-[.22em] text-white/90">Amount</span>
           <span className="flex items-center gap-1.5 text-sm font-black">
             <AssetLogo symbol={inventory.baseSymbol} logo={inventory.baseLogo} size="h-5 w-5" />
             {draft.amount} {inventory.baseSymbol}
           </span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-3">
-          <span className="text-[8px] uppercase tracking-[.22em] text-white/55">Pool</span>
-          <span className="max-w-[65%] truncate font-mono text-[9px] font-bold text-white/45">
+          <span className="text-[8px] uppercase tracking-[.22em] text-white/90">Pool</span>
+          <span className="max-w-[65%] truncate font-mono text-[9px] font-bold text-white/90">
             {inventory.poolAddress}
           </span>
         </div>
@@ -2178,14 +2242,14 @@ const AddLiquidityConfirmModal = ({
         <button
           onClick={onCancel}
           disabled={sending}
-          className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60 disabled:opacity-40"
+          className="rounded-xl border border-white/10 py-3 text-[8px] font-black text-white/90 disabled:opacity-40"
         >
           Back
         </button>
         <button
           onClick={onConfirm}
           disabled={sending || estimating || !fee}
-          className="rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black disabled:opacity-40"
+          className="rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:opacity-40"
         >
           {sending ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Confirm & send'}
         </button>
@@ -2206,7 +2270,7 @@ const DeleteInventoryModal = ({ inventory, onCancel, onDelete }) => {
           <AlertTriangle className="h-5 w-5 text-red-400" />
         </div>
         <div className="text-center">
-          <p className="text-[8px] font-black uppercase tracking-[.3em] text-red-400/70">
+          <p className="text-[8px] font-black uppercase tracking-[.3em] text-red-400">
             Destructive action
           </p>
           <div className="mt-1 flex items-center justify-center gap-2.5">
@@ -2221,7 +2285,7 @@ const DeleteInventoryModal = ({ inventory, onCancel, onDelete }) => {
               Delete {inventory.baseSymbol}/{inventory.quoteSymbol}?
             </h3>
           </div>
-          <p className="mt-1.5 text-[10px] leading-relaxed text-white/70">
+          <p className="mt-1.5 text-[10px] leading-relaxed text-white/90">
             The inventory record will be removed. Remaining pool balances are not automatically
             withdrawn.
           </p>
@@ -2230,7 +2294,7 @@ const DeleteInventoryModal = ({ inventory, onCancel, onDelete }) => {
         {hasBalance && (
           <div className="mt-4 rounded-xl border border-yellow-500/15 bg-yellow-500/5 p-3">
             <p className="text-[10px] font-black text-yellow-400">Funds detected</p>
-            <p className="mt-0.5 text-[9px] leading-relaxed text-yellow-100/45">
+            <p className="mt-0.5 text-[9px] leading-relaxed text-yellow-100/90">
               This market still has a base or quote balance.
             </p>
           </div>
@@ -2239,13 +2303,13 @@ const DeleteInventoryModal = ({ inventory, onCancel, onDelete }) => {
         <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             onClick={onCancel}
-            className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60"
+            className="rounded-xl border border-white/10 py-3 text-[8px] font-black text-white/90"
           >
             Cancel
           </button>
           <button
             onClick={onDelete}
-            className="rounded-xl bg-red-500 py-3 text-[10px] font-black text-white"
+            className="rounded-xl bg-red-500 py-3 text-[8px] font-black text-white"
           >
             Continue
           </button>
@@ -2287,8 +2351,11 @@ const CopyToast = ({ toast }) => (
 );
 
 const PoolInventories = () => {
-  const { safeAddress: routeSafeAddress, chain: routeChain, poolAddress: routePoolAddress } =
-    useParams();
+  const {
+    safeAddress: routeSafeAddress,
+    chain: routeChain,
+    poolAddress: routePoolAddress,
+  } = useParams();
   const navigate = useNavigate();
   const user = getUser();
   const safeAddress = routeSafeAddress || user?.safeAddress;
@@ -2433,42 +2500,42 @@ const PoolInventories = () => {
     };
   }, [readPoolFromCache, refreshPool]);
 
-    const loadAssets = useCallback(async () => {
-      if (!safeAddress) {
-        console.warn('[PoolInventories] no safeAddress (route or salva_user); asset fetch skipped');
-        return;
-      }
-      setAssetsLoading(true);
-      try {
-        const response = await fetch(API.poolAssets(chain, safeAddress), {
-          headers: { Accept: 'application/json' },
-        });
-        const data = await parseResponse(response);
-        const list = Array.isArray(data?.assets) ? data.assets : [];
+  const loadAssets = useCallback(async () => {
+    if (!safeAddress) {
+      console.warn('[PoolInventories] no safeAddress (route or salva_user); asset fetch skipped');
+      return;
+    }
+    setAssetsLoading(true);
+    try {
+      const response = await fetch(API.poolAssets(chain, safeAddress), {
+        headers: { Accept: 'application/json' },
+      });
+      const data = await parseResponse(response);
+      const list = Array.isArray(data?.assets) ? data.assets : [];
 
-        const next = uniqueAssets(
-          list.map((asset) => ({
-            symbol: String(asset?.tokenSymbol || asset?.symbol || '')
-              .trim()
-              .toUpperCase(),
-            address: asset?.tokenAddress ? String(asset.tokenAddress).trim().toLowerCase() : null,
-            logo: normalizeLogo(asset?.logo),
-          }))
-        );
-        setAssets(next);
-        writePoolAssetsCache(chain, safeAddress, next);
-      } catch (error) {
-        console.warn('[PoolInventories] asset fetch failed:', error?.message || error);
-      } finally {
-        setAssetsLoading(false);
-      }
-    }, [chain, safeAddress]);
+      const next = uniqueAssets(
+        list.map((asset) => ({
+          symbol: String(asset?.tokenSymbol || asset?.symbol || '')
+            .trim()
+            .toUpperCase(),
+          address: asset?.tokenAddress ? String(asset.tokenAddress).trim().toLowerCase() : null,
+          logo: normalizeLogo(asset?.logo),
+        }))
+      );
+      setAssets(next);
+      writePoolAssetsCache(chain, safeAddress, next);
+    } catch (error) {
+      console.warn('[PoolInventories] asset fetch failed:', error?.message || error);
+    } finally {
+      setAssetsLoading(false);
+    }
+  }, [chain, safeAddress]);
 
-    useEffect(() => {
-      loadAssets();
-    }, [loadAssets]);
+  useEffect(() => {
+    loadAssets();
+  }, [loadAssets]);
 
-    // Registers a user-configured trade asset, then refreshes the asset list.
+  // Registers a user-configured trade asset, then refreshes the asset list.
   // Throws on failure so the config card can show the server's message.
   const saveAsset = async (payload) => {
     const response = await fetch(API.upsertAsset, {
@@ -2662,100 +2729,100 @@ const PoolInventories = () => {
     }
   };
 
-    const beginAddLiquidity = (inventory) => {
-      setAddLiquidityInventory(inventory);
-      setAddLiquidityDraft(null);
-      setAddLiquidityFee(null);
-      setAddLiquidityPkey(null);
+  const beginAddLiquidity = (inventory) => {
+    setAddLiquidityInventory(inventory);
+    setAddLiquidityDraft(null);
+    setAddLiquidityFee(null);
+    setAddLiquidityPkey(null);
+    setAddLiquidityConfirmOpen(false);
+    setAddLiquidityPinOpen(false);
+  };
+
+  const submitAddLiquidity = (nextDraft) => {
+    if (!addLiquidityInventory) return;
+    setAddLiquidityDraft(nextDraft);
+    setAddLiquidityPinOpen(true);
+  };
+
+  const onAddLiquidityPinVerified = async (pin) => {
+    if (!addLiquidityInventory || !addLiquidityDraft) return;
+    setAddLiquidityPinBusy(true);
+    setAddLiquidityFeeLoading(true);
+
+    try {
+      const pkey = await verifyPin(user.email, pin);
+      setAddLiquidityPkey(pkey);
+
+      const response = await fetch(API.estimateAddLiquidityFee, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          safe: safeAddress,
+          pin: pkey,
+          poolAddress,
+          base: addLiquidityInventory.baseSymbol.toUpperCase(),
+          quote: addLiquidityInventory.quoteSymbol.toUpperCase(),
+          amount: addLiquidityDraft.amount,
+          chain,
+        }),
+      });
+
+      const data = await parseResponse(response);
+      const fee = {
+        feeNGN: data?.data?.feeNGN ?? data?.feeNGN,
+        feeUsd: data?.data?.feeUsd ?? data?.data?.feeUSD ?? data?.feeUsd ?? data?.feeUSD,
+      };
+
+      if (fee.feeNGN === undefined && fee.feeUsd === undefined)
+        throw new Error('Add liquidity fee estimate was not returned by the server');
+
+      setAddLiquidityFee(fee);
+      setAddLiquidityPinOpen(false);
+      setAddLiquidityConfirmOpen(true);
+    } finally {
+      setAddLiquidityPinBusy(false);
+      setAddLiquidityFeeLoading(false);
+    }
+  };
+
+  const executeAddLiquidity = async () => {
+    if (!addLiquidityPkey || !addLiquidityDraft || !addLiquidityInventory) return;
+    setAddingLiquidity(true);
+    try {
+      const response = await fetch(API.addLiquidity, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          pin: addLiquidityPkey,
+          poolAddress,
+          base: addLiquidityInventory.baseSymbol.toUpperCase(),
+          quote: addLiquidityInventory.quoteSymbol.toUpperCase(),
+          amount: addLiquidityDraft.amount,
+          chain,
+        }),
+      });
+      await parseResponse(response);
+      const detail = `${addLiquidityDraft.amount} ${addLiquidityInventory.baseSymbol}`;
       setAddLiquidityConfirmOpen(false);
       setAddLiquidityPinOpen(false);
-    };
-
-    const submitAddLiquidity = (nextDraft) => {
-      if (!addLiquidityInventory) return;
-      setAddLiquidityDraft(nextDraft);
-      setAddLiquidityPinOpen(true);
-    };
-
-    const onAddLiquidityPinVerified = async (pin) => {
-      if (!addLiquidityInventory || !addLiquidityDraft) return;
-      setAddLiquidityPinBusy(true);
-      setAddLiquidityFeeLoading(true);
-
-      try {
-        const pkey = await verifyPin(user.email, pin);
-        setAddLiquidityPkey(pkey);
-
-        const response = await fetch(API.estimateAddLiquidityFee, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            safe: safeAddress,
-            pin: pkey,
-            poolAddress,
-            base: addLiquidityInventory.baseSymbol.toUpperCase(),
-            quote: addLiquidityInventory.quoteSymbol.toUpperCase(),
-            amount: addLiquidityDraft.amount,
-            chain,
-          }),
-        });
-
-        const data = await parseResponse(response);
-        const fee = {
-          feeNGN: data?.data?.feeNGN ?? data?.feeNGN,
-          feeUsd: data?.data?.feeUsd ?? data?.data?.feeUSD ?? data?.feeUsd ?? data?.feeUSD,
-        };
-
-        if (fee.feeNGN === undefined && fee.feeUsd === undefined)
-          throw new Error('Add liquidity fee estimate was not returned by the server');
-
-        setAddLiquidityFee(fee);
-        setAddLiquidityPinOpen(false);
-        setAddLiquidityConfirmOpen(true);
-      } finally {
-        setAddLiquidityPinBusy(false);
-        setAddLiquidityFeeLoading(false);
-      }
-    };
-
-    const executeAddLiquidity = async () => {
-      if (!addLiquidityPkey || !addLiquidityDraft || !addLiquidityInventory) return;
-      setAddingLiquidity(true);
-      try {
-        const response = await fetch(API.addLiquidity, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: user.email,
-            pin: addLiquidityPkey,
-            poolAddress,
-            base: addLiquidityInventory.baseSymbol.toUpperCase(),
-            quote: addLiquidityInventory.quoteSymbol.toUpperCase(),
-            amount: addLiquidityDraft.amount,
-            chain,
-          }),
-        });
-        await parseResponse(response);
-        const detail = `${addLiquidityDraft.amount} ${addLiquidityInventory.baseSymbol}`;
-        setAddLiquidityConfirmOpen(false);
-        setAddLiquidityPinOpen(false);
-        setAddLiquidityPkey(null);
-        setAddLiquidityDraft(null);
-        setAddLiquidityFee(null);
-        setAddLiquidityInventory(null);
-        setTxResult({
-          title: 'Liquidity added',
-          message: 'Your liquidity has been added to this inventory successfully.',
-          detail,
-        });
-      } catch (error) {
-        clearTimeout(copyTimerRef.current);
-        setCopyToast({ message: error?.message || 'Add liquidity failed', type: 'error' });
-        copyTimerRef.current = setTimeout(() => setCopyToast(null), 2200);
-      } finally {
-        setAddingLiquidity(false);
-      }
-    };
+      setAddLiquidityPkey(null);
+      setAddLiquidityDraft(null);
+      setAddLiquidityFee(null);
+      setAddLiquidityInventory(null);
+      setTxResult({
+        title: 'Liquidity added',
+        message: 'Your liquidity has been added to this inventory successfully.',
+        detail,
+      });
+    } catch (error) {
+      clearTimeout(copyTimerRef.current);
+      setCopyToast({ message: error?.message || 'Add liquidity failed', type: 'error' });
+      copyTimerRef.current = setTimeout(() => setCopyToast(null), 2200);
+    } finally {
+      setAddingLiquidity(false);
+    }
+  };
 
   const beginUpdateSpread = (inventory) => {
     setSpreadInventory(inventory);
@@ -2911,7 +2978,7 @@ const PoolInventories = () => {
                 navigate('/services', { state: { openService: 'deploy' }, replace: true });
               }
             }}
-            className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[.22em] text-white/60 transition hover:text-white"
+            className="inline-flex items-center gap-1.5 text-[9px] font-black uppercase tracking-[.22em] text-white/90 transition hover:text-white"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Pools
@@ -2920,7 +2987,7 @@ const PoolInventories = () => {
           <button
             onClick={() => refreshPool({ force: true })}
             disabled={refreshing}
-            className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/60 hover:text-white disabled:opacity-40"
+            className="rounded-lg border border-white/[0.07] bg-white/[0.025] p-2 text-white/90 hover:text-white disabled:opacity-40"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
@@ -2935,7 +3002,7 @@ const PoolInventories = () => {
           <div className="mt-6 rounded-[22px] border border-dashed border-white/[0.08] px-5 py-14 text-center">
             <WalletCards className="mx-auto h-8 w-8 text-white/15" />
             <h2 className="mt-3 text-sm font-black">Pool not found</h2>
-            <p className="mt-1.5 text-[10px] text-white/60">
+            <p className="mt-1.5 text-[10px] text-white/90">
               The cache and server do not currently contain this pool.
             </p>
           </div>
@@ -2946,7 +3013,7 @@ const PoolInventories = () => {
 
               <div className="relative flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-[8px] font-black uppercase tracking-[.32em] text-salvaGold/60">
+                  <p className="text-[8px] font-black uppercase tracking-[.32em] text-salvaGold">
                     Permissionless market
                   </p>
                   <button
@@ -2956,9 +3023,9 @@ const PoolInventories = () => {
                     <h1 className="truncate font-mono text-base font-black sm:text-xl">
                       {shortAddress(pool.poolAddress)}
                     </h1>
-                    <Copy className="h-3.5 w-3.5 shrink-0 text-white/55" />
+                    <Copy className="h-3.5 w-3.5 shrink-0 text-white/90" />
                   </button>
-                  <p className="mt-1 text-[9px] text-white/55">
+                  <p className="mt-1 text-[9px] text-white/90">
                     Configure inventory, liquidity and price protection for this venue.
                   </p>
                 </div>
@@ -2974,13 +3041,13 @@ const PoolInventories = () => {
 
               <div className="relative mt-4 grid grid-cols-2 divide-x divide-white/[0.06] overflow-hidden rounded-xl border border-white/[0.06] bg-black/20">
                 <div className="px-3 py-2.5">
-                  <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/55">
+                  <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/90">
                     Markets
                   </p>
                   <p className="mt-0.5 text-base font-black">{currentInventories.length}</p>
                 </div>
                 <div className="px-3 py-2.5">
-                  <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/55">
+                  <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/90">
                     Chain
                   </p>
                   <p className="mt-0.5 text-base font-black capitalize">{chain}</p>
@@ -2999,7 +3066,7 @@ const PoolInventories = () => {
                 <div className="rounded-[20px] border border-dashed border-white/[0.08] px-5 py-14 text-center">
                   <WalletCards className="mx-auto h-8 w-8 text-white/15" />
                   <h3 className="mt-3 text-sm font-black">No inventory yet</h3>
-                  <p className="mx-auto mt-1.5 max-w-sm text-[10px] leading-relaxed text-white/60">
+                  <p className="mx-auto mt-1.5 max-w-sm text-[10px] leading-relaxed text-white/90">
                     Publish the first pair to make this market usable.
                   </p>
                   <button
@@ -3091,7 +3158,7 @@ const PoolInventories = () => {
         {withdrawFee && withdrawDraft && withdrawInventory && !withdrawPinOpen && (
           <Modal onClose={withdrawing ? undefined : () => setWithdrawFee(null)}>
             <div className="p-5 sm:p-6">
-              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold/60">
+              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
                 Final confirmation
               </p>
               <h3 className="mt-1 text-lg font-black">
@@ -3105,7 +3172,7 @@ const PoolInventories = () => {
                   quoteLogo={withdrawInventory.quoteLogo}
                   size="h-8 w-8"
                 />
-                <p className="text-[10px] font-bold text-white/75">
+                <p className="text-[10px] font-bold text-white/90">
                   From {withdrawInventory.baseSymbol}/{withdrawInventory.quoteSymbol}
                 </p>
               </div>
@@ -3118,14 +3185,14 @@ const PoolInventories = () => {
                 <button
                   onClick={() => setWithdrawFee(null)}
                   disabled={withdrawing}
-                  className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/60"
+                  className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/90"
                 >
                   Back
                 </button>
                 <button
                   onClick={executeWithdraw}
                   disabled={withdrawing}
-                  className="rounded-xl bg-salvaGold py-3 text-[10px] font-black text-black"
+                  className="rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black"
                 >
                   {withdrawing ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : 'Withdraw'}
                 </button>

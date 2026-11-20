@@ -4,6 +4,7 @@ import { CdpPositionManager, UserCdpPosition } from '../models/CDP.js';
 import { ERC20, CDP_ABI, SAFE } from '../utils/abi.js';
 import { _getDecimals } from './balanceServices.js';
 import {
+  estimateDeploymentFee,
   _getFeeAndToken,
   _estimateReg_Deposit_CollateralFee,
   _estimate_Deposit_CollateralFee,
@@ -15,10 +16,12 @@ import {
   _buildPositionTx,
 } from './estimateFee.js';
 import { mode, keyValue } from '../utils/vars.js';
-import { getRpcUrlByChain } from '../utils/rpcUrls.js';
+import { getRpcUrlByChain, getNgnsAddressByChain } from '../utils/rpcUrls.js';
 import { fetchPricePerNgn } from '../utils/fetchRate.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
 import { getBalance } from './transferServices.js';
+import { _deploySafe } from './deployment.js';
+import { _clampToBalance, _deductFee, _sameToken } from './amountServices.js';
 
 const Provider = (rpc) => new ethers.JsonRpcProvider(rpc);
 
@@ -71,6 +74,16 @@ async function registerAndDepositCollateral(
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
   const code = await provider.getCode(safeAddress);
   const isDeployed = code !== '0x';
+  const collateralBalance = await getBalance(
+    tokenInfo.tokenAddress,
+    safeAddress,
+    chain.toLowerCase()
+  );
+  let collateralWei = _clampToBalance(
+    collateralBalance.balance,
+    ethers.parseUnits(collateralAmount.toString(), collateralBalance.decimals)
+  );
+  collateralAmount = ethers.formatUnits(collateralWei, collateralBalance.decimals);
   let fee = !isDeployed
     ? await estimateDeploymentFee(safeAddress, chain)
     : await _estimateReg_Deposit_CollateralFee(
@@ -93,8 +106,20 @@ async function registerAndDepositCollateral(
       collateralAmount,
       chain
     );
-    const initFeeData = await _getFeeAndToken(safeAddress, fee, chain);
-    const initDepositFeeData = await _getFeeAndToken(safeAddress, depositFee, chain);
+    const initFeeData = await _getFeeAndToken(
+      safeAddress,
+      fee,
+      chain,
+      collateralWei,
+      tokenInfo.tokenAddress
+    );
+    const initDepositFeeData = await _getFeeAndToken(
+      safeAddress,
+      depositFee,
+      chain,
+      collateralWei,
+      tokenInfo.tokenAddress
+    );
 
     if (!initFeeData.status || !initDepositFeeData.status) {
       throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
@@ -118,6 +143,14 @@ async function registerAndDepositCollateral(
       throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
     }
 
+    if (_sameToken(initDepositFeeData.data.feeTokenAddress, tokenInfo.tokenAddress)) {
+      _deductFee(
+        collateralBalance.balance,
+        collateralWei,
+        BigInt(initFeeData.data.feeToWei) + BigInt(initDepositFeeData.data.feeToWei)
+      );
+    }
+
     await _deploySafe(safeAddress, privateKey, provider, chain);
   }
 
@@ -126,7 +159,20 @@ async function registerAndDepositCollateral(
     fee.data.feeNGN += depositFee.data.feeNGN;
     fee.data.feeUsd += depositFee.data.feeUsd;
   }
-  const feeData = await _getFeeAndToken(safeAddress, fee, chain);
+  const feeData = await _getFeeAndToken(
+    safeAddress,
+    fee,
+    chain,
+    collateralWei,
+    tokenInfo.tokenAddress
+  );
+  if (!feeData.status) {
+    throw new Error('❌ Insufficient balance: Cannot Cover Fee');
+  }
+  if (_sameToken(feeData.data.feeTokenAddress, tokenInfo.tokenAddress)) {
+    collateralWei = _deductFee(collateralBalance.balance, collateralWei, feeData.data.feeToWei);
+    collateralAmount = ethers.formatUnits(collateralWei, collateralBalance.decimals);
+  }
 
   const isEth = tokenInfo.tokenAddress === ethers.ZeroAddress;
   const tokenContract = isEth
@@ -222,6 +268,17 @@ async function depositCollateral(
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
 
+  const collateralBalance = await getBalance(
+    tokenInfo.tokenAddress,
+    safeAddress,
+    chain.toLowerCase()
+  );
+  let collateralWei = _clampToBalance(
+    collateralBalance.balance,
+    ethers.parseUnits(collateralAmount.toString(), collateralBalance.decimals)
+  );
+  collateralAmount = ethers.formatUnits(collateralWei, collateralBalance.decimals);
+
   const fee = await _estimate_Deposit_CollateralFee(
     safeAddress,
     privateKey,
@@ -230,7 +287,20 @@ async function depositCollateral(
     collateralAmount,
     chain
   );
-  const feeData = await _getFeeAndToken(safeAddress, fee, chain);
+  const feeData = await _getFeeAndToken(
+    safeAddress,
+    fee,
+    chain,
+    collateralWei,
+    tokenInfo.tokenAddress
+  );
+  if (!feeData.status) {
+    throw new Error('❌ Insufficient balance: Cannot Cover Fee');
+  }
+  if (_sameToken(feeData.data.feeTokenAddress, tokenInfo.tokenAddress)) {
+    collateralWei = _deductFee(collateralBalance.balance, collateralWei, feeData.data.feeToWei);
+    collateralAmount = ethers.formatUnits(collateralWei, collateralBalance.decimals);
+  }
 
   const isEth = tokenInfo.tokenAddress === ethers.ZeroAddress;
   const tokenContract = isEth
@@ -367,7 +437,13 @@ async function settlePosition(
   const provider = Provider(getRpcUrlByChain(chain.toLowerCase()));
   const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
 
-  const ngnsAmountWei = ethers.parseEther(ngnsAmount.toString());
+  const ngnsAddress = getNgnsAddressByChain(chain);
+  const ngnsBalance = await getBalance(ngnsAddress, safeAddress, chain.toLowerCase());
+  let ngnsAmountWei = _clampToBalance(
+    ngnsBalance.balance,
+    ethers.parseEther(ngnsAmount.toString())
+  );
+  ngnsAmount = ethers.formatEther(ngnsAmountWei);
   const cdpIface = new ethers.Interface(CDP_ABI);
   const erc20Iface = new ethers.Interface(ERC20);
 
@@ -379,7 +455,13 @@ async function settlePosition(
     ngnsAmount,
     chain
   );
-  const feeData = await _getFeeAndToken(safeAddress, fee, chain);
+  const feeData = await _getFeeAndToken(safeAddress, fee, chain, ngnsAmountWei, ngnsAddress);
+  if (!feeData.status) {
+    throw new Error('❌ Insufficient balance: Cannot Cover Fee');
+  }
+  if (_sameToken(feeData.data.feeTokenAddress, ngnsAddress)) {
+    ngnsAmountWei = _deductFee(ngnsBalance.balance, ngnsAmountWei, feeData.data.feeToWei);
+  }
 
   const txConfig = {
     contractAddr: [manager.contractAddress, feeData.data.feeTokenAddress],

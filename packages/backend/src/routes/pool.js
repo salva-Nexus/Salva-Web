@@ -29,7 +29,7 @@ async function isVerifiedInventory(inv, chain) {
   const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
   const addrs = [inv.baseAddress, inv.quoteAddress].map((a) => String(a || '').toLowerCase());
   const found = await Assets.find({
-    tokenAddress: { $in: addrs },
+    tokenAddress: { $in: addrs.map((a) => new RegExp(`^${a}$`, 'i')) },
     chain,
     type: envType,
   })
@@ -874,7 +874,7 @@ router.post('/asset/upsert', async (req, res) => {
     }
 
     // Create new pair with resolved logos
-   const pair = await UserConfiguredAsset.create({
+    const pair = await UserConfiguredAsset.create({
       ownerSafeAddress: ownerSafeAddress,
       tokenSymbol: normalizedSymbol,
       tokenAddress: normalizedTokenAddress,

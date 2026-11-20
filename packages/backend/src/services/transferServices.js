@@ -21,6 +21,7 @@ import { _deploySafe } from './deployment.js';
 import { sendAlertToUser } from '../services/notificationServices.js';
 import { verify_Pin } from './pinService.js';
 import { sendSafeTxWithBuilderCode } from '../utils/builderCode.js';
+import { _clampToBalance, _deductFee, _sameToken } from './amountServices.js';
 
 async function getBalance(token, address, chain) {
   const balanceProvider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
@@ -60,14 +61,15 @@ async function executeTransfer(
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(normchain));
   const code = await provider.getCode(safeAddress);
   const isDeployed = code !== '0x';
+  const balanceData = await getBalance(tokenAddress, safeAddress, normchain);
+  let amountToWei = _clampToBalance(
+    balanceData.balance,
+    ethers.parseUnits(amount, balanceData.decimals)
+  );
+  amount = ethers.formatUnits(amountToWei, balanceData.decimals);
   let fee = !isDeployed
     ? await estimateDeploymentFee(safeAddress, normchain)
     : await estimateTransferFee(pKey, safeAddress, tokenAddress, to, amount, normchain);
-  const balanceData = await getBalance(tokenAddress, safeAddress, normchain);
-  const amountToWei = ethers.parseUnits(amount, balanceData.decimals);
-  if (balanceData.balance < amountToWei) {
-    throw Error('❌ Insufficient balance');
-  }
 
   const user = await User.findOne({
     email: email,
@@ -76,24 +78,32 @@ async function executeTransfer(
   let transferFee;
   if (!isDeployed) {
     transferFee = await estimateTransferFee(pKey, safeAddress, tokenAddress, to, amount, normchain);
-    const initFeeData = await _getFeeAndToken(safeAddress, fee, normchain);
-    const initTransferFeeData = await _getFeeAndToken(safeAddress, transferFee, normchain);
-
+    const initFeeData = await _getFeeAndToken(
+      safeAddress,
+      fee,
+      normchain,
+      amountToWei,
+      tokenAddress
+    );
+    const initTransferFeeData = await _getFeeAndToken(
+      safeAddress,
+      transferFee,
+      normchain,
+      amountToWei,
+      tokenAddress
+    );
     if (!initFeeData.status || !initTransferFeeData.status) {
       throw new TypeError('Insufficient Balance to cover fee, please top up or reduce amount');
     }
 
-    // If the fee token matches the transfer token, ensure the user has enough for Amount + Deployment Fee + Transfer Fee
-    if (initFeeData.data.feeToken === tokenSymbol) {
-      const totalRequired =
-        amountToWei + BigInt(initFeeData.data.feeToWei) + BigInt(initTransferFeeData.data.feeToWei);
-      console.log(balanceData.balance);
-      console.log(totalRequired);
-      if (balanceData.balance < totalRequired || balanceData.balance <= amountToWei) {
-        throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
-      }
-    } else {
-      throw new TypeError('Insufficient balance to cover fee, please top up or reduce amount.');
+    // If the fee token matches the transfer token, deduct Deployment Fee + Transfer Fee from the amount when the balance can't cover both
+    if (_sameToken(initFeeData.data.feeTokenAddress, tokenAddress)) {
+      amountToWei = _deductFee(
+        balanceData.balance,
+        amountToWei,
+        BigInt(initFeeData.data.feeToWei) + BigInt(initTransferFeeData.data.feeToWei)
+      );
+      amount = ethers.formatUnits(amountToWei, balanceData.decimals);
     }
     await _deploySafe(safeAddress, pKey, provider, normchain);
   }
@@ -103,19 +113,15 @@ async function executeTransfer(
     fee.data.feeNGN += transferFee.data.feeNGN;
     fee.data.feeUsd += transferFee.data.feeUsd;
   }
-  const feeData = await _getFeeAndToken(safeAddress, fee, normchain);
+  const feeData = await _getFeeAndToken(safeAddress, fee, normchain, amountToWei, tokenAddress);
 
   if (!feeData.status) {
     throw Error('❌ Insufficient balance: Cannot Cover Fee');
   }
 
-  if (feeData.data.feeTokenAddress !== ethers.ZeroAddress) {
-    if (feeData.data.feeToken === token) {
-      const totalRequired = amountToWei + feeData.data.feeToWei;
-      if (balanceData.balance < totalRequired) {
-        throw Error('❌ Insufficient balance: Cannot Cover Fee');
-      }
-    }
+  if (_sameToken(feeData.data.feeTokenAddress, tokenAddress)) {
+    amountToWei = _deductFee(balanceData.balance, amountToWei, feeData.data.feeToWei);
+    amount = ethers.formatUnits(amountToWei, balanceData.decimals);
   }
 
   const tx = {

@@ -141,6 +141,88 @@ const AssetValueLine = ({ asset, className = '' }) => {
 
 const DEFAULT_FETCH_TIMEOUT_MS = 12000;
 
+const WHITELISTED_SYMBOLS = ['NGNS', 'SANT'];
+
+const LOW_BALANCE_THRESHOLD_NGN = 10;
+
+const getAssetNgnValue = (asset) => {
+  const usd = getAssetUsdPrice(asset);
+  if (usd <= 0) return 0;
+  return (Number(asset?.balance) || 0) * usd * getAssetNgnRate(asset);
+};
+
+const hasNgnPrice = (asset) => getAssetUsdPrice(asset) > 0 && getAssetNgnRate(asset) > 0;
+
+const getWhitelistIndex = (asset) =>
+  WHITELISTED_SYMBOLS.indexOf(asset?.isSant ? 'SANT' : String(asset?.symbol || '').toUpperCase());
+
+// main: whitelisted (NGNS, SANT) + assets worth >= ₦10, priced first by value desc,
+// unpriced (SANT) last. low: everything else, by value desc.
+export const organizeAssets = (list = []) => {
+  const main = [];
+  const low = [];
+
+  list.forEach((asset) => {
+    if (getWhitelistIndex(asset) !== -1 || getAssetNgnValue(asset) >= LOW_BALANCE_THRESHOLD_NGN) {
+      main.push(asset);
+    } else {
+      low.push(asset);
+    }
+  });
+
+  main.sort((a, b) => {
+    const aPriced = hasNgnPrice(a);
+    const bPriced = hasNgnPrice(b);
+    if (aPriced !== bPriced) return aPriced ? -1 : 1;
+
+    const diff = getAssetNgnValue(b) - getAssetNgnValue(a);
+    if (diff) return diff;
+
+    const wa = getWhitelistIndex(a);
+    const wb = getWhitelistIndex(b);
+    return (wa === -1 ? 99 : wa) - (wb === -1 ? 99 : wb);
+  });
+
+  low.sort((a, b) => {
+    const aPriced = hasNgnPrice(a);
+    const bPriced = hasNgnPrice(b);
+    if (aPriced !== bPriced) return aPriced ? -1 : 1;
+
+    return getAssetNgnValue(b) - getAssetNgnValue(a);
+  });
+
+  return { main, low };
+};
+
+export const LowBalanceSection = ({ count, forceOpen = false, children }) => {
+  const [open, setOpen] = useState(false);
+  const expanded = open || forceOpen;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={expanded}
+        className="w-full flex items-center justify-between px-3 sm:px-4 py-3 text-left hover:bg-white/[0.035] transition-all"
+      >
+        <span className="text-[8.8px] sm:text-[10px] uppercase tracking-widest font-black text-white/70">
+          Low balance assets ({count})
+        </span>
+        <span
+          className={`text-white/60 text-sm leading-none transition-transform ${
+            expanded ? 'rotate-180' : ''
+          }`}
+        >
+          ⌄
+        </span>
+      </button>
+
+      {expanded && <div className="divide-y divide-white/[0.055]">{children}</div>}
+    </div>
+  );
+};
+
 let overlayStack = [];
 let pendingOverlayOps = { opened: [], closed: [] };
 let overlayFlushScheduled = false;
@@ -1477,7 +1559,39 @@ const Dashboard = () => {
   const assetsLoading = wallet.initialLoading && !wallet.hasSnapshot;
 
   const loadError = wallet.error;
-  const displayedAssets = assets.slice(0, 7);
+  const { main: organizedMain, low: organizedLow } = organizeAssets(assets);
+  const displayedMain = organizedMain.slice(0, 7);
+
+  const renderAssetRow = (asset) => (
+    <button
+      key={asset._key}
+      onClick={() => setDetailsAsset(asset)}
+      className="w-full flex items-center gap-2.5 sm:gap-3.5 px-3 sm:px-4 py-3 sm:py-4 text-left hover:bg-white/[0.035] transition-all group"
+    >
+      <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
+
+      <div className="flex-1 min-w-0">
+        <p className="font-black text-[0.825rem] sm:text-sm text-white">{asset.symbol}</p>
+
+        <p className="text-[8.8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+          {asset.chain || selectedChain}
+        </p>
+      </div>
+
+      <div className="text-right">
+        <p className="font-black text-[0.825rem] sm:text-sm text-white">
+          {showBalance ? formatNumber(asset.balance, { maxDecimals: 6 }) : '••••'}
+        </p>
+
+        <AssetValueLine
+          asset={asset}
+          className="text-[8.8px] sm:text-[10px] text-white/70 mt-0.5"
+        />
+      </div>
+
+      <span className="text-white/30 group-hover:text-salvaGold transition-colors">›</span>
+    </button>
+  );
 
   const showAllAssetsLink = assets.length > 0;
 
@@ -1910,44 +2024,13 @@ const Dashboard = () => {
               </div>
             ) : (
               <>
-                {displayedAssets.map((asset) => (
-                  <button
-                    key={asset._key}
-                    onClick={() => setDetailsAsset(asset)}
-                    className="w-full flex items-center gap-2.5 sm:gap-3.5 px-3 sm:px-4 py-3 sm:py-4 text-left hover:bg-white/[0.035] transition-all group"
-                  >
-                    <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
+                {displayedMain.map(renderAssetRow)}
 
-                    <div className="flex-1 min-w-0">
-                      <p className="font-black text-[0.825rem] sm:text-sm text-white">
-                        {asset.symbol}
-                      </p>
-
-                      <p className="text-[8.8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
-                        {asset.chain || selectedChain}
-                      </p>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="font-black text-[0.825rem] sm:text-sm text-white">
-                        {showBalance
-                          ? formatNumber(asset.balance, {
-                              maxDecimals: 6,
-                            })
-                          : '••••'}
-                      </p>
-
-                      <AssetValueLine
-                        asset={asset}
-                        className="text-[8.8px] sm:text-[10px] text-white/70 mt-0.5"
-                      />
-                    </div>
-
-                    <span className="text-white/30 group-hover:text-salvaGold transition-colors">
-                      ›
-                    </span>
-                  </button>
-                ))}
+                {organizedLow.length > 0 && (
+                  <LowBalanceSection count={organizedLow.length}>
+                    {organizedLow.map(renderAssetRow)}
+                  </LowBalanceSection>
+                )}
               </>
             )}
           </div>

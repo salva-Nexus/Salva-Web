@@ -54,7 +54,7 @@ const formatFiat = (value, symbol) => {
 const formatAmountInput = (raw) => {
   const cleaned = String(raw ?? '').replace(/[^0-9.]/g, '');
   const parts = cleaned.split('.');
-  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  if (parts[0].length >= 5) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return parts.length > 1 ? `${parts[0]}.${parts.slice(1).join('')}` : parts[0];
 };
 

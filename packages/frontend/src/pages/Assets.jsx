@@ -217,6 +217,67 @@ const Assets = () => {
       )
     : assets;
 
+  const ngnValueOf = (asset) => {
+    const usd = getAssetUsdPrice(asset);
+    const rate = getAssetNgnRate(asset);
+    if (usd <= 0 || rate <= 0) return null;
+    return (Number(asset?.balance) || 0) * usd * rate;
+  };
+
+  const assetRank = (asset) => {
+    if (String(asset?.symbol || '').toUpperCase() === 'NGNS') return 0;
+    if (asset?.isSant || String(asset?.symbol || '').toUpperCase() === 'SANT') return 1;
+    return 2;
+  };
+
+  const sortedAssets = [...filteredAssets].sort((a, b) => {
+    const ra = assetRank(a);
+    const rb = assetRank(b);
+    if (ra !== rb) return ra - rb;
+
+    const va = ngnValueOf(a);
+    const vb = ngnValueOf(b);
+    if (va === null && vb === null) return 0;
+    if (va === null) return 1;
+    if (vb === null) return -1;
+    return vb - va;
+  });
+
+  const renderAssetRow = (asset) => (
+    <button
+      key={asset._key}
+      onClick={() => setDetailsAsset(asset)}
+      className="
+        w-full flex items-center gap-2.5 sm:gap-3.5
+        px-3 sm:px-4
+        py-3 sm:py-4
+        text-left
+        hover:bg-white/[0.035]
+        transition-all
+      "
+    >
+      <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
+
+      <div className="flex-1 min-w-0">
+        <p className="font-black text-xs sm:text-sm text-white">{asset.symbol}</p>
+
+        <p className="text-[8px] sm:text-[10px] text-white/70 capitalize mt-0.5">
+          {asset.chain || selectedChain}
+        </p>
+      </div>
+
+      <div className="text-right">
+        <p className="font-black text-xs sm:text-sm text-white">
+          {showBalance ? formatNumber(asset.balance, { maxDecimals: 6 }) : '••••'}
+        </p>
+
+        <AssetValueLine asset={asset} className="text-[8px] sm:text-[10px] text-white/70 mt-0.5" />
+      </div>
+
+      <span className="text-white/15 ml-1">›</span>
+    </button>
+  );
+
   const [detailsAsset, setDetailsAsset] = useState(null);
   const [sendAsset, setSendAsset] = useState(null);
   const [isSendOpen, setIsSendOpen] = useState(false);
@@ -247,7 +308,6 @@ const Assets = () => {
       if (refreshed) setAssets(refreshed.assets || []);
     } catch {}
   }, [user?.email, selectedChain]);
-
 
   const handleCopyAddress = useCallback(
     async (message = 'Address copied!') => {
@@ -587,43 +647,7 @@ const Assets = () => {
               </p>
             </div>
           ) : (
-            filteredAssets.map((asset) => (
-              <button
-                key={asset._key}
-                onClick={() => setDetailsAsset(asset)}
-                className="
-                  w-full flex items-center gap-2.5 sm:gap-3.5
-                  px-3 sm:px-4
-                  py-3 sm:py-4
-                  text-left
-                  hover:bg-white/[0.035]
-                  transition-all
-                "
-              >
-                <AssetLogo asset={asset} size="w-9 h-9 sm:w-11 sm:h-11" showChainBadge />
-
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-xs sm:text-sm text-white">{asset.symbol}</p>
-
-                  <p className="text-[8px] sm:text-[10px] text-white/70 capitalize mt-0.5">
-                    {asset.chain || selectedChain}
-                  </p>
-                </div>
-
-                <div className="text-right">
-                  <p className="font-black text-xs sm:text-sm text-white">
-                    {showBalance ? formatNumber(asset.balance, { maxDecimals: 6 }) : '••••'}
-                  </p>
-
-                  <AssetValueLine
-                    asset={asset}
-                    className="text-[8px] sm:text-[10px] text-white/70 mt-0.5"
-                  />
-                </div>
-
-                <span className="text-white/15 ml-1">›</span>
-              </button>
-            ))
+            sortedAssets.map(renderAssetRow)
           )}
         </div>
       </div>

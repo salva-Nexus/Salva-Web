@@ -92,6 +92,12 @@ const sanitizeAmount = (raw, maxDecimals = 18) => {
 
 const cleanAmount = (value) => String(value ?? '').replace(/\.$/, '');
 
+const withCommas = (v) => {
+  const [i, ...r] = String(v ?? '').split('.');
+  const int = i.length >= 5 ? i.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : i;
+  return r.length ? `${int}.${r.join('')}` : int;
+};
+
 // Backend values may arrive as numbers in scientific notation; always return a plain decimal string.
 const plainDecimal = (value) => {
   const raw = String(value ?? '').trim();
@@ -1000,7 +1006,7 @@ const SwapSheet = ({
                     type="text"
                     inputMode="decimal"
                     placeholder="0.00"
-                    value={amount}
+                    value={withCommas(amount)}
                     onChange={(e) => {
                       setActionError('');
                       setAmount(sanitizeAmount(e.target.value, amountDecimals));

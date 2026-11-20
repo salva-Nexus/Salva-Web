@@ -28,7 +28,11 @@ import {
 } from '../utils/rpcUrls.js';
 import { _getBalance, _getDecimals } from './balanceServices.js';
 
-async function estimateDeploymentFee(safe, chain) {
+// ==================================================================================
+// DEPLOYMENT / POOL INVENTORY
+// ==================================================================================
+
+export async function estimateDeploymentFee(safe, chain) {
   if (!chain || typeof chain !== 'string') {
     return {
       status: false,
@@ -55,7 +59,413 @@ async function estimateDeploymentFee(safe, chain) {
 
 // ==================================================================================
 
-async function estimateTransferFee(pkey, safe, tokenAddress, to, amount, chain) {
+export async function _buildFactoryData(owner) {
+  const saltNonce = 0;
+  const setupCalldata = setup(owner.address);
+
+  const factoryIface = new ethers.Interface(SAFE_PROXY_FACTORY);
+  const factoryCalldata = factoryIface.encodeFunctionData('createProxyWithNonce', [
+    keyValue('safeL2Singleton'),
+    setupCalldata,
+    saltNonce,
+  ]);
+
+  const data = {
+    to: keyValue('safeFactory'),
+    value: 0n,
+    data: factoryCalldata,
+  };
+  return data;
+}
+
+export async function estimatePoolDeploymentFee(pkey, safe, chain) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const code = await provider.getCode(safe);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safe, chain);
+  }
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
+  const tx = {
+    contractAddr: [getPoolFactoryAddress(chain)],
+    to: [keyValue('treasury')],
+    amount: [0n],
+    contract: [poolFactoryContract],
+    sig: ['deployPool'],
+  };
+  const data = await _buildPoolDeploymentData(safe, pkey, tx, provider, sponsor, chain);
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildPoolDeploymentData(
+  safeAddress,
+  privateKey,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(privateKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+
+  const poolFactory = getPoolFactoryAddress(chain);
+  let to = [];
+  let value = [];
+  let callData = [];
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === poolFactory ? [] : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function estimateDeployInvFee(
+  safe,
+  pkey,
+  poolAddress,
+  base,
+  quote,
+  baseFeed,
+  quoteFeed,
+  floor,
+  spread,
+  amount,
+  allowSwapBelowFloor,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const contract =
+    base !== ethers.ZeroAddress ? new ethers.Contract(base, ERC20, provider) : undefined;
+  const decimals = contract ? await _getDecimals(contract) : 18;
+  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  const approve = base !== ethers.ZeroAddress ? 'approve' : undefined;
+  const bpsValue = Math.round(parseFloat(spread) * 100);
+  const spreadBps = BigInt(bpsValue);
+  const tx = {
+    contractAddr: approve ? [base, poolAddress] : [poolAddress],
+    to: approve ? [poolAddress, '0x'] : ['0x'],
+    amount: approve ? [amountWei, amountWei] : [amountWei],
+    contract: approve ? [erc20Contract, poolContract] : [poolContract],
+    param: {
+      in: quote,
+      out: base,
+      inFeed: quoteFeed,
+      outFeed: baseFeed,
+      floor: ethers.parseEther(String(floor)),
+      spread: spreadBps,
+      allow: allowSwapBelowFloor,
+    },
+    sig: approve ? [approve, 'deployInv'] : ['deployInv'],
+  };
+
+  const data = await _buildDeployInvData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildDeployInvData(
+  safeAddress,
+  pkey,
+  poolAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(pkey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      const isEth = tx.param.out === ethers.ZeroAddress;
+      to.push(tx.contractAddr[i]);
+      value.push(isEth ? tx.amount[i] : 0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === poolAddress
+            ? [
+                tx.param.in,
+                tx.param.out,
+                tx.param.inFeed,
+                tx.param.outFeed,
+                tx.param.floor,
+                tx.param.spread,
+                isEth ? 0n : tx.amount[i],
+                tx.param.allow,
+              ]
+            : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function estimateUpdateSpreadFee(safe, pkey, poolAddress, base, quote, spread, chain) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const bpsValue = Math.round(parseFloat(spread) * 100);
+  const spreadBps = BigInt(bpsValue);
+  const tx = {
+    contractAddr: [poolAddress],
+    to: ['0x'],
+    amount: [0n],
+    contract: [poolContract],
+    param: {
+      base: base,
+      quote: quote,
+      spread: spreadBps,
+    },
+    sig: ['updateSpread'],
+  };
+
+  const data = await _buildUpdateSpreadData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildUpdateSpreadData(
+  safeAddress,
+  pkey,
+  poolAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(pkey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === poolAddress
+            ? [tx.param.base, tx.param.quote, tx.param.spread]
+            : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function estimateWithdrawFee(
+  safe,
+  pkey,
+  poolAddress,
+  base,
+  quote,
+  assetOut,
+  amount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const contract =
+    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
+  const decimals = contract ? await _getDecimals(contract) : 18;
+  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+
+  const tx = {
+    contractAddr: [poolAddress],
+    to: ['0x'],
+    amount: [amountWei],
+    contract: [poolContract],
+    param: {
+      base: base,
+      quote: quote,
+      assetOut: assetOut,
+    },
+    sig: ['removeLiquidity'],
+  };
+  const data = await _buildWithdrawData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildWithdrawData(
+  safeAddress,
+  pkey,
+  poolAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(pkey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] === poolAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(tx.sig[i], [
+          tx.param.base,
+          tx.param.quote,
+          tx.param.assetOut,
+          tx.amount[i],
+        ])
+      );
+    } else if ((tx.contractAddr[i] !== poolAddress && tx.contractAddr[i]) !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(tx.contract[i].encodeFunctionData(tx.sig[i], [tx.to[i], tx.amount[i]]));
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function estimateAddLiquidityFee(safe, pkey, poolAddress, base, quote, amount, chain) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const isEth = base === ethers.ZeroAddress;
+  const tokenContract = isEth ? undefined : new ethers.Contract(base, ERC20, provider);
+  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
+  const amountWei = ethers.parseUnits(amount.toString(), decimals);
+  const approve = !isEth ? 'approve' : undefined;
+
+  const tx = {
+    contractAddr: approve ? [base, poolAddress] : [poolAddress],
+    to: approve ? [poolAddress, '0x'] : ['0x'],
+    amount: approve ? [amountWei, amountWei] : [amountWei],
+    contract: approve ? [erc20Contract, poolContract] : [poolContract],
+    param: {
+      base: base,
+      quote: quote,
+    },
+    sig: approve ? [approve, 'addLiquidity'] : ['addLiquidity'],
+  };
+
+  const data = await _buildAddLiquidityData(safe, pkey, tx, provider, sponsor, chain);
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildAddLiquidityData(safeAddress, pkey, tx, provider, sponsor, chain) {
+  const signerPack = new ethers.Wallet(pkey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  const isEth = tx.param.base === ethers.ZeroAddress;
+
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.sig[i] === 'addLiquidity') {
+      to.push(tx.contractAddr[i]);
+      value.push(isEth ? tx.amount[i] : 0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(tx.sig[i], [
+          tx.param.base,
+          tx.param.quote,
+          isEth ? 0n : tx.amount[i],
+        ])
+      );
+    } else if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(tx.contract[i].encodeFunctionData(tx.sig[i], [tx.to[i], tx.amount[i]]));
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+// ==================================================================================
+// TRANSFER
+// ==================================================================================
+
+export async function estimateTransferFee(pkey, safe, tokenAddress, to, amount, chain) {
   const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
   const code = await provider.getCode(safe);
   if (code === '0x') {
@@ -79,7 +489,7 @@ async function estimateTransferFee(pkey, safe, tokenAddress, to, amount, chain) 
   return await _getFee(safe, gasCost, provider, chain);
 }
 
-async function _buildTransferData(senderKey, senderSafe, tx, provider, sponsor, chain) {
+export async function _buildTransferData(senderKey, senderSafe, tx, provider, sponsor, chain) {
   const signerPack = new ethers.Wallet(senderKey, provider);
   const safe = new ethers.Contract(senderSafe, SAFE, sponsor);
   const erc20Contract = new ethers.Interface(ERC20);
@@ -105,6 +515,607 @@ async function _buildTransferData(senderKey, senderSafe, tx, provider, sponsor, 
   };
   return await _completeTxBuild(safe, senderSafe, signerPack, fData, chain);
 }
+
+// ==================================================================================
+// SWAP
+// ==================================================================================
+
+export async function estimateSwapExactInputFee(
+  safe,
+  pkey,
+  poolAddress,
+  assetin,
+  assetOut,
+  amountIn,
+  minAmountOut,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const code = await provider.getCode(safe);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safe, chain);
+  }
+  const contract =
+    assetin !== ethers.ZeroAddress ? new ethers.Contract(assetin, ERC20, provider) : undefined;
+  const decimals = contract ? await _getDecimals(contract) : 18;
+  const amountWei = ethers.parseUnits(amountIn.toString(), decimals);
+  const contract1 =
+    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
+  const decimals1 = contract1 ? await _getDecimals(contract1) : 18;
+  const minAmountOutWei = ethers.parseUnits(minAmountOut.toString(), decimals1);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const approve = assetin !== ethers.ZeroAddress ? 'approve' : undefined;
+  const tx = {
+    contractAddr: approve ? [assetin, poolAddress] : [poolAddress],
+    to: approve ? [poolAddress, poolAddress] : [poolAddress],
+    amount: approve ? [amountWei, amountWei] : [amountWei],
+    contract: approve ? [erc20Contract, poolContract] : [poolContract],
+    param: {
+      tokenIn: assetin,
+      tokenOut: assetOut,
+      amountThreshold: minAmountOutWei,
+    },
+    sig: approve ? [approve, 'swapExactInput'] : ['swapExactInput'],
+  };
+  const data = await _buildSwapData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function estimateSwapExactOutputFee(
+  safe,
+  pkey,
+  poolAddress,
+  assetIn,
+  assetOut,
+  amountOut,
+  maxAmountIn,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const code = await provider.getCode(safe);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safe, chain);
+  }
+
+  // Parse decimals for tokenOut (amountOut) and tokenIn (maxAmountIn)
+  const outContract =
+    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
+  const outDecimals = outContract ? await _getDecimals(outContract) : 18;
+  const amountOutWei = ethers.parseUnits(amountOut.toString(), outDecimals);
+  const inContract =
+    assetIn !== ethers.ZeroAddress ? new ethers.Contract(assetIn, ERC20, provider) : undefined;
+  const inDecimals = inContract ? await _getDecimals(inContract) : 18;
+  const maxAmountInWei = ethers.parseUnits(maxAmountIn.toString(), inDecimals);
+  const poolContract = new ethers.Interface(POOL_IFACE);
+  const erc20Contract = new ethers.Interface(ERC20);
+  const approve = assetIn !== ethers.ZeroAddress ? 'approve' : undefined;
+
+  const tx = {
+    contractAddr: approve ? [assetIn, poolAddress] : [poolAddress],
+    to: approve ? [poolAddress, poolAddress] : [poolAddress],
+    amount: approve ? [maxAmountInWei, amountOutWei] : [amountOutWei],
+    contract: approve ? [erc20Contract, poolContract] : [poolContract],
+    param: {
+      tokenIn: assetIn,
+      tokenOut: assetOut,
+      amountThreshold: maxAmountInWei,
+    },
+    sig: approve ? [approve, 'swapExactOutput'] : ['swapExactOutput'],
+  };
+
+  const data = await _buildSwapData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, chain);
+}
+
+export async function _buildSwapData(
+  safeAddress,
+  privateKey,
+  poolAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(privateKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      const isEth = tx.param.tokenIn === ethers.ZeroAddress;
+      to.push(tx.contractAddr[i]);
+      value.push(isEth ? tx.amount[i] : 0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === poolAddress
+            ? [
+                tx.param.tokenIn,
+                tx.param.tokenOut,
+                isEth ? 0n : tx.amount[i],
+                tx.param.amountThreshold,
+              ]
+            : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+// ==================================================================================
+// CDP
+// ==================================================================================
+
+export async function _estimateReg_Deposit_CollateralFee(
+  safeAddress,
+  pkey,
+  managerAddress,
+  tokenAddress,
+  ratioBps,
+  collateralAmount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const code = await provider.getCode(safeAddress);
+  if (code === '0x') {
+    return await estimateDeploymentFee(safeAddress, chain);
+  }
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const isEth = tokenAddress === ethers.ZeroAddress;
+  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
+  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
+  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
+
+  const cdpIface = new ethers.Interface(CDP_ABI);
+  const erc20Iface = new ethers.Interface(ERC20);
+  const approveAction = !isEth ? 'approve' : undefined;
+
+  const tx = {
+    contractAddr: approveAction
+      ? [tokenAddress, managerAddress, managerAddress]
+      : [managerAddress, managerAddress],
+    to: approveAction
+      ? [managerAddress, managerAddress, managerAddress]
+      : [managerAddress, managerAddress],
+    amount: approveAction ? [amountWei, 0n, amountWei] : [0n, amountWei],
+    contract: approveAction ? [erc20Iface, cdpIface, cdpIface] : [cdpIface, cdpIface],
+    param: {
+      token: tokenAddress,
+      ratio: ratioBps,
+    },
+    sig: approveAction
+      ? [approveAction, 'registerCollateral', 'depositCollateral']
+      : ['registerCollateral', 'depositCollateral'],
+  };
+
+  const data = await _buildReg_Deposit_CollateralTx(
+    safeAddress,
+    pkey,
+    managerAddress,
+    tx,
+    provider,
+    sponsor,
+    chain
+  );
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safeAddress, gasCost, provider, chain);
+}
+
+export async function _estimate_Deposit_CollateralFee(
+  safeAddress,
+  pkey,
+  managerAddress,
+  tokenAddress,
+  collateralAmount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const isEth = tokenAddress === ethers.ZeroAddress;
+  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
+  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
+  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
+
+  const cdpIface = new ethers.Interface(CDP_ABI);
+  const erc20Iface = new ethers.Interface(ERC20);
+  const approveAction = !isEth ? 'approve' : undefined;
+
+  const tx = {
+    contractAddr: approveAction ? [tokenAddress, managerAddress] : [managerAddress],
+    to: approveAction ? [managerAddress, managerAddress] : [managerAddress],
+    amount: approveAction ? [amountWei, amountWei] : [amountWei],
+    contract: approveAction ? [erc20Iface, cdpIface] : [cdpIface],
+    param: {
+      token: tokenAddress,
+    },
+    sig: approveAction ? [approveAction, 'depositCollateral'] : ['depositCollateral'],
+  };
+
+  const data = await _buildReg_Deposit_CollateralTx(
+    safeAddress,
+    pkey,
+    managerAddress,
+    tx,
+    provider,
+    sponsor,
+    chain
+  );
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safeAddress, gasCost, provider, chain);
+}
+
+export async function _buildReg_Deposit_CollateralTx(
+  safeAddress,
+  privateKey,
+  managerAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(privateKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      const isEth = tx.param.token === ethers.ZeroAddress;
+      to.push(tx.contractAddr[i]);
+      value.push(isEth && tx.sig[i] === 'depositCollateral' ? tx.amount[i] : 0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === managerAddress && tx.sig[i] === 'registerCollateral'
+            ? [tx.param.token, tx.param.ratio]
+            : tx.contractAddr[i] === managerAddress && tx.sig[i] === 'depositCollateral'
+              ? [tx.param.token, isEth ? 0n : tx.amount[i]]
+              : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function _estimate_Open_Position_Fee(
+  safeAddress,
+  pkey,
+  managerAddress,
+  tokenAddress,
+  ngnsAmount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const amountWei = ethers.parseEther(ngnsAmount.toString());
+  const cdpIface = new ethers.Interface(CDP_ABI);
+
+  const tx = {
+    contractAddr: [managerAddress],
+    to: [managerAddress],
+    amount: [amountWei],
+    contract: [cdpIface],
+    param: {
+      token: tokenAddress,
+    },
+    sig: ['openPosition'],
+  };
+
+  const data = await _buildPositionTx(
+    safeAddress,
+    pkey,
+    managerAddress,
+    tx,
+    provider,
+    sponsor,
+    chain
+  );
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safeAddress, gasCost, provider, chain);
+}
+
+export async function _estimate_Settle_Position_Fee(
+  safeAddress,
+  pkey,
+  managerAddress,
+  tokenAddress,
+  ngnsAmount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const amountWei = ethers.parseEther(ngnsAmount.toString());
+  const cdpIface = new ethers.Interface(CDP_ABI);
+
+  const tx = {
+    contractAddr: [managerAddress],
+    to: [managerAddress],
+    amount: [amountWei],
+    contract: [cdpIface],
+    param: {
+      token: tokenAddress,
+    },
+    sig: ['settlePosition'],
+  };
+
+  const data = await _buildPositionTx(
+    safeAddress,
+    pkey,
+    managerAddress,
+    tx,
+    provider,
+    sponsor,
+    chain
+  );
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safeAddress, gasCost, provider, chain);
+}
+
+export async function _buildPositionTx(
+  safeAddress,
+  privateKey,
+  managerAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(privateKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === managerAddress
+            ? [tx.param.token, tx.amount[i]]
+            : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function _estimate_Withdraw_CollateralFee(
+  safeAddress,
+  pkey,
+  managerAddress,
+  tokenAddress,
+  receiver,
+  collateralAmount,
+  chain
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const isEth = tokenAddress === ethers.ZeroAddress;
+  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
+  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
+  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
+
+  const cdpIface = new ethers.Interface(CDP_ABI);
+
+  const tx = {
+    contractAddr: [managerAddress],
+    to: [managerAddress],
+    amount: [amountWei],
+    contract: [cdpIface],
+    param: {
+      token: tokenAddress,
+      receiver: receiver,
+    },
+    sig: ['withdraw'],
+  };
+
+  const data = await _buildWithdrawCollateralTx(
+    safeAddress,
+    pkey,
+    managerAddress,
+    tx,
+    provider,
+    sponsor,
+    chain
+  );
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safeAddress, gasCost, provider, chain);
+}
+
+export async function _buildWithdrawCollateralTx(
+  safeAddress,
+  privateKey,
+  managerAddress,
+  tx,
+  provider,
+  sponsor,
+  chain
+) {
+  const signerPack = new ethers.Wallet(privateKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  let to = [];
+  let value = [];
+  let callData = [];
+
+  for (let i = 0; i < tx.contractAddr.length; i++) {
+    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
+      to.push(tx.contractAddr[i]);
+      value.push(0n);
+      callData.push(
+        tx.contract[i].encodeFunctionData(
+          tx.sig[i],
+          tx.contractAddr[i] === managerAddress
+            ? [tx.param.token, tx.param.receiver, tx.amount[i]]
+            : [tx.to[i], tx.amount[i]]
+        )
+      );
+    } else {
+      to.push(tx.to[i]);
+      value.push(tx.amount[i]);
+      callData.push('0x');
+    }
+  }
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+// ==================================================================================
+// SNS — LINK / UNLINK
+// ==================================================================================
+
+export async function estimateLinkFee(safe) {
+  const provider = new ethers.JsonRpcProvider(keyValue('baseRpcUrl'));
+  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
+  const data = await _buildLinkData(
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    provider,
+    sponsor,
+    'link'
+  );
+
+  const gasCost = await sponsor.estimateGas(data.estData);
+  return await _getFee(safe, gasCost, provider, 'base');
+}
+
+export async function _buildLinkData(
+  safeKey = keyValue('dummyKey'),
+  safeAddress = keyValue('dummySafe'),
+  name = '03243546@sant',
+  address = keyValue('dummySafe'),
+  feeToken = keyValue('ngnsBaseAddress'),
+  feeWei = '1',
+  provider,
+  sponsor,
+  type
+) {
+  const chain = 'base';
+  const sns = new SNS(keyValue('singleton'), safeKey, keyValue('baseRpcUrl'));
+  const signerPack = new ethers.Wallet(safeKey, provider);
+  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
+  const parsed = sns.parseHandle(name);
+  const dataToBytes = sns.parse32(address);
+  const firstTx =
+    type === 'link'
+      ? [parsed.nameHash, parsed.nsKey, dataToBytes]
+      : [parsed.nameHash, parsed.nsKey];
+  const secondTx = [keyValue('treasury'), feeWei];
+
+  const to = [keyValue('singleton'), feeToken];
+  const value = [0n, 0n];
+  const erc20Contract = new ethers.Interface(ERC20);
+  const singletonContract = new ethers.Interface(SINGLETON);
+  const tx1Hex = singletonContract.encodeFunctionData(type, firstTx);
+  const tx2Hex = erc20Contract.encodeFunctionData('transfer', secondTx);
+  const encodedData = [tx1Hex, tx2Hex];
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: encodedData,
+  };
+  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
+}
+
+export async function _buildProposeData(
+  adminSafeKey,
+  adminSafeAddress,
+  txData,
+  provider,
+  sponsor,
+  chain
+) {
+  const multisig = getMultisigAddress(chain);
+  const signerPack = new ethers.Wallet(adminSafeKey, provider);
+  const safe = new ethers.Contract(adminSafeAddress, SAFE, sponsor);
+  const mSig = new ethers.Contract(multisig, MULTISIG, sponsor);
+  const to = [multisig];
+  const value = [0n];
+  const multisigContract = new ethers.Interface(MULTISIG);
+  const txHex =
+    txData.type === 'propose'
+      ? multisigContract.encodeFunctionData(txData.type, [txData.target, txData.value, txData.data])
+      : txData.type === 'approve'
+        ? multisigContract.encodeFunctionData(txData.type, [txData.data])
+        : multisigContract.encodeFunctionData(txData.type, [
+            txData.target,
+            txData.value,
+            txData.data,
+            txData.nonce,
+          ]);
+  const callData = [txHex];
+
+  const fData = {
+    to: to,
+    value: value,
+    callData: callData,
+  };
+  return {
+    data: await _completeTxBuild(safe, adminSafeAddress, signerPack, fData, chain),
+    multisig: mSig,
+  };
+}
+
+// ==================================================================================
+// SHARED / INTERNAL
+// ==================================================================================
 
 async function _completeTxBuild(safeConfig, safeAddress, signerPack, data, chain) {
   const currentNonce = await safeConfig.nonce();
@@ -166,7 +1177,7 @@ async function _completeTxBuild(safeConfig, safeAddress, signerPack, data, chain
   };
 }
 
-async function _getTransactionHash(contract, data) {
+export async function _getTransactionHash(contract, data) {
   const hash = await contract.getTransactionHash(
     data.to,
     data.value,
@@ -182,30 +1193,11 @@ async function _getTransactionHash(contract, data) {
   return hash;
 }
 
-function _appendSafeReq(sig) {
+export function _appendSafeReq(sig) {
   const v = Number(ethers.toBigInt(`0x${sig.slice(-2)}`));
   const newV = ethers.toBeHex(BigInt(v + 4)).slice(-2);
   const cutSig = sig.slice(0, sig.length - 2);
   return `${cutSig}${newV}`;
-}
-
-async function _buildFactoryData(owner) {
-  const saltNonce = 0;
-  const setupCalldata = setup(owner.address);
-
-  const factoryIface = new ethers.Interface(SAFE_PROXY_FACTORY);
-  const factoryCalldata = factoryIface.encodeFunctionData('createProxyWithNonce', [
-    keyValue('safeL2Singleton'),
-    setupCalldata,
-    saltNonce,
-  ]);
-
-  const data = {
-    to: keyValue('safeFactory'),
-    value: 0n,
-    data: factoryCalldata,
-  };
-  return data;
 }
 
 async function _ethCostInUsd(etherCost, provider, chain) {
@@ -259,927 +1251,6 @@ async function _ethCostInUsd(etherCost, provider, chain) {
   }
 }
 
-async function estimatePoolDeploymentFee(pkey, safe, chain) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const code = await provider.getCode(safe);
-  if (code === '0x') {
-    return await estimateDeploymentFee(safe, chain);
-  }
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const poolFactoryContract = new ethers.Interface(FACTORY_IFACE);
-  const tx = {
-    contractAddr: [getPoolFactoryAddress(chain)],
-    to: [keyValue('treasury')],
-    amount: [0n],
-    contract: [poolFactoryContract],
-    sig: ['deployPool'],
-  };
-  const data = await _buildPoolDeploymentData(safe, pkey, tx, provider, sponsor, chain);
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildPoolDeploymentData(safeAddress, privateKey, tx, provider, sponsor, chain) {
-  const signerPack = new ethers.Wallet(privateKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-
-  const poolFactory = getPoolFactoryAddress(chain);
-  let to = [];
-  let value = [];
-  let callData = [];
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === poolFactory ? [] : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateDeployInvFee(
-  safe,
-  pkey,
-  poolAddress,
-  base,
-  quote,
-  baseFeed,
-  quoteFeed,
-  floor,
-  spread,
-  amount,
-  allowSwapBelowFloor,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const erc20Contract = new ethers.Interface(ERC20);
-  const contract =
-    base !== ethers.ZeroAddress ? new ethers.Contract(base, ERC20, provider) : undefined;
-  const decimals = contract ? await _getDecimals(contract) : 18;
-  const amountWei = ethers.parseUnits(amount.toString(), decimals);
-  const approve = base !== ethers.ZeroAddress ? 'approve' : undefined;
-  const bpsValue = Math.round(parseFloat(spread) * 100);
-  const spreadBps = BigInt(bpsValue);
-  const tx = {
-    contractAddr: approve ? [base, poolAddress] : [poolAddress],
-    to: approve ? [poolAddress, '0x'] : ['0x'],
-    amount: approve ? [amountWei, amountWei] : [amountWei],
-    contract: approve ? [erc20Contract, poolContract] : [poolContract],
-    param: {
-      in: quote,
-      out: base,
-      inFeed: quoteFeed,
-      outFeed: baseFeed,
-      floor: ethers.parseEther(String(floor)),
-      spread: spreadBps,
-      allow: allowSwapBelowFloor,
-    },
-    sig: approve ? [approve, 'deployInv'] : ['deployInv'],
-  };
-
-  const data = await _buildDeployInvData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildDeployInvData(safeAddress, pkey, poolAddress, tx, provider, sponsor, chain) {
-  const signerPack = new ethers.Wallet(pkey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      const isEth = tx.param.out === ethers.ZeroAddress;
-      to.push(tx.contractAddr[i]);
-      value.push(isEth ? tx.amount[i] : 0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === poolAddress
-            ? [
-                tx.param.in,
-                tx.param.out,
-                tx.param.inFeed,
-                tx.param.outFeed,
-                tx.param.floor,
-                tx.param.spread,
-                isEth ? 0n : tx.amount[i],
-                tx.param.allow,
-              ]
-            : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateUpdateSpreadFee(safe, pkey, poolAddress, base, quote, spread, chain) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const bpsValue = Math.round(parseFloat(spread) * 100);
-  const spreadBps = BigInt(bpsValue);
-  const tx = {
-    contractAddr: [poolAddress],
-    to: ['0x'],
-    amount: [0n],
-    contract: [poolContract],
-    param: {
-      base: base,
-      quote: quote,
-      spread: spreadBps,
-    },
-    sig: ['updateSpread'],
-  };
-
-  const data = await _buildUpdateSpreadData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildUpdateSpreadData(
-  safeAddress,
-  pkey,
-  poolAddress,
-  tx,
-  provider,
-  sponsor,
-  chain
-) {
-  const signerPack = new ethers.Wallet(pkey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === poolAddress
-            ? [tx.param.base, tx.param.quote, tx.param.spread]
-            : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateWithdrawFee(safe, pkey, poolAddress, base, quote, assetOut, amount, chain) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const contract =
-    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
-  const decimals = contract ? await _getDecimals(contract) : 18;
-  const amountWei = ethers.parseUnits(amount.toString(), decimals);
-
-  const tx = {
-    contractAddr: [poolAddress],
-    to: ['0x'],
-    amount: [amountWei],
-    contract: [poolContract],
-    param: {
-      base: base,
-      quote: quote,
-      assetOut: assetOut,
-    },
-    sig: ['removeLiquidity'],
-  };
-  const data = await _buildWithdrawData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildWithdrawData(safeAddress, pkey, poolAddress, tx, provider, sponsor, chain) {
-  const signerPack = new ethers.Wallet(pkey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] === poolAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(tx.sig[i], [
-          tx.param.base,
-          tx.param.quote,
-          tx.param.assetOut,
-          tx.amount[i],
-        ])
-      );
-    } else if ((tx.contractAddr[i] !== poolAddress && tx.contractAddr[i]) !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(tx.contract[i].encodeFunctionData(tx.sig[i], [tx.to[i], tx.amount[i]]));
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateAddLiquidityFee(safe, pkey, poolAddress, base, quote, amount, chain) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const erc20Contract = new ethers.Interface(ERC20);
-  const isEth = base === ethers.ZeroAddress;
-  const tokenContract = isEth ? undefined : new ethers.Contract(base, ERC20, provider);
-  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
-  const amountWei = ethers.parseUnits(amount.toString(), decimals);
-  const approve = !isEth ? 'approve' : undefined;
-
-  const tx = {
-    contractAddr: approve ? [base, poolAddress] : [poolAddress],
-    to: approve ? [poolAddress, '0x'] : ['0x'],
-    amount: approve ? [amountWei, amountWei] : [amountWei],
-    contract: approve ? [erc20Contract, poolContract] : [poolContract],
-    param: {
-      base: base,
-      quote: quote,
-    },
-    sig: approve ? [approve, 'addLiquidity'] : ['addLiquidity'],
-  };
-
-  const data = await _buildAddLiquidityData(safe, pkey, tx, provider, sponsor, chain);
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildAddLiquidityData(safeAddress, pkey, tx, provider, sponsor, chain) {
-  const signerPack = new ethers.Wallet(pkey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  const isEth = tx.param.base === ethers.ZeroAddress;
-
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.sig[i] === 'addLiquidity') {
-      to.push(tx.contractAddr[i]);
-      value.push(isEth ? tx.amount[i] : 0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(tx.sig[i], [
-          tx.param.base,
-          tx.param.quote,
-          isEth ? 0n : tx.amount[i],
-        ])
-      );
-    } else if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(tx.contract[i].encodeFunctionData(tx.sig[i], [tx.to[i], tx.amount[i]]));
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateSwapExactInputFee(
-  safe,
-  pkey,
-  poolAddress,
-  assetin,
-  assetOut,
-  amountIn,
-  minAmountOut,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const code = await provider.getCode(safe);
-  if (code === '0x') {
-    return await estimateDeploymentFee(safe, chain);
-  }
-  const contract =
-    assetin !== ethers.ZeroAddress ? new ethers.Contract(assetin, ERC20, provider) : undefined;
-  const decimals = contract ? await _getDecimals(contract) : 18;
-  const amountWei = ethers.parseUnits(amountIn.toString(), decimals);
-  const contract1 =
-    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
-  const decimals1 = contract1 ? await _getDecimals(contract1) : 18;
-  const minAmountOutWei = ethers.parseUnits(minAmountOut.toString(), decimals1);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const erc20Contract = new ethers.Interface(ERC20);
-  const approve = assetin !== ethers.ZeroAddress ? 'approve' : undefined;
-  const tx = {
-    contractAddr: approve ? [assetin, poolAddress] : [poolAddress],
-    to: approve ? [poolAddress, poolAddress] : [poolAddress],
-    amount: approve ? [amountWei, amountWei] : [amountWei],
-    contract: approve ? [erc20Contract, poolContract] : [poolContract],
-    param: {
-      tokenIn: assetin,
-      tokenOut: assetOut,
-      amountThreshold: minAmountOutWei,
-    },
-    sig: approve ? [approve, 'swapExactInput'] : ['swapExactInput'],
-  };
-  const data = await _buildSwapData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function estimateSwapExactOutputFee(
-  safe,
-  pkey,
-  poolAddress,
-  assetIn,
-  assetOut,
-  amountOut,
-  maxAmountIn,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const code = await provider.getCode(safe);
-  if (code === '0x') {
-    return await estimateDeploymentFee(safe, chain);
-  }
-
-  // Parse decimals for tokenOut (amountOut) and tokenIn (maxAmountIn)
-  const outContract =
-    assetOut !== ethers.ZeroAddress ? new ethers.Contract(assetOut, ERC20, provider) : undefined;
-  const outDecimals = outContract ? await _getDecimals(outContract) : 18;
-  const amountOutWei = ethers.parseUnits(amountOut.toString(), outDecimals);
-  const inContract =
-    assetIn !== ethers.ZeroAddress ? new ethers.Contract(assetIn, ERC20, provider) : undefined;
-  const inDecimals = inContract ? await _getDecimals(inContract) : 18;
-  const maxAmountInWei = ethers.parseUnits(maxAmountIn.toString(), inDecimals);
-  const poolContract = new ethers.Interface(POOL_IFACE);
-  const erc20Contract = new ethers.Interface(ERC20);
-  const approve = assetIn !== ethers.ZeroAddress ? 'approve' : undefined;
-
-  const tx = {
-    contractAddr: approve ? [assetIn, poolAddress] : [poolAddress],
-    to: approve ? [poolAddress, poolAddress] : [poolAddress],
-    amount: approve ? [maxAmountInWei, amountOutWei] : [amountOutWei],
-    contract: approve ? [erc20Contract, poolContract] : [poolContract],
-    param: {
-      tokenIn: assetIn,
-      tokenOut: assetOut,
-      amountThreshold: maxAmountInWei,
-    },
-    sig: approve ? [approve, 'swapExactOutput'] : ['swapExactOutput'],
-  };
-
-  const data = await _buildSwapData(safe, pkey, poolAddress, tx, provider, sponsor, chain);
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, chain);
-}
-
-async function _buildSwapData(safeAddress, privateKey, poolAddress, tx, provider, sponsor, chain) {
-  const signerPack = new ethers.Wallet(privateKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      const isEth = tx.param.tokenIn === ethers.ZeroAddress;
-      to.push(tx.contractAddr[i]);
-      value.push(isEth ? tx.amount[i] : 0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === poolAddress
-            ? [
-                tx.param.tokenIn,
-                tx.param.tokenOut,
-                isEth ? 0n : tx.amount[i],
-                tx.param.amountThreshold,
-              ]
-            : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function _estimateReg_Deposit_CollateralFee(
-  safeAddress,
-  pkey,
-  managerAddress,
-  tokenAddress,
-  ratioBps,
-  collateralAmount,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const code = await provider.getCode(safeAddress);
-  if (code === '0x') {
-    return await estimateDeploymentFee(safeAddress, chain);
-  }
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const isEth = tokenAddress === ethers.ZeroAddress;
-  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
-  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
-  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
-
-  const cdpIface = new ethers.Interface(CDP_ABI);
-  const erc20Iface = new ethers.Interface(ERC20);
-  const approveAction = !isEth ? 'approve' : undefined;
-
-  const tx = {
-    contractAddr: approveAction
-      ? [tokenAddress, managerAddress, managerAddress]
-      : [managerAddress, managerAddress],
-    to: approveAction
-      ? [managerAddress, managerAddress, managerAddress]
-      : [managerAddress, managerAddress],
-    amount: approveAction ? [amountWei, 0n, amountWei] : [0n, amountWei],
-    contract: approveAction ? [erc20Iface, cdpIface, cdpIface] : [cdpIface, cdpIface],
-    param: {
-      token: tokenAddress,
-      ratio: ratioBps,
-    },
-    sig: approveAction
-      ? [approveAction, 'registerCollateral', 'depositCollateral']
-      : ['registerCollateral', 'depositCollateral'],
-  };
-
-  const data = await _buildReg_Deposit_CollateralTx(
-    safeAddress,
-    pkey,
-    managerAddress,
-    tx,
-    provider,
-    sponsor,
-    chain
-  );
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safeAddress, gasCost, provider, chain);
-}
-
-async function _estimate_Deposit_CollateralFee(
-  safeAddress,
-  pkey,
-  managerAddress,
-  tokenAddress,
-  collateralAmount,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const isEth = tokenAddress === ethers.ZeroAddress;
-  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
-  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
-  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
-
-  const cdpIface = new ethers.Interface(CDP_ABI);
-  const erc20Iface = new ethers.Interface(ERC20);
-  const approveAction = !isEth ? 'approve' : undefined;
-
-  const tx = {
-    contractAddr: approveAction ? [tokenAddress, managerAddress] : [managerAddress],
-    to: approveAction ? [managerAddress, managerAddress] : [managerAddress],
-    amount: approveAction ? [amountWei, amountWei] : [amountWei],
-    contract: approveAction ? [erc20Iface, cdpIface] : [cdpIface],
-    param: {
-      token: tokenAddress,
-    },
-    sig: approveAction ? [approveAction, 'depositCollateral'] : ['depositCollateral'],
-  };
-
-  const data = await _buildReg_Deposit_CollateralTx(
-    safeAddress,
-    pkey,
-    managerAddress,
-    tx,
-    provider,
-    sponsor,
-    chain
-  );
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safeAddress, gasCost, provider, chain);
-}
-
-async function _buildReg_Deposit_CollateralTx(
-  safeAddress,
-  privateKey,
-  managerAddress,
-  tx,
-  provider,
-  sponsor,
-  chain
-) {
-  const signerPack = new ethers.Wallet(privateKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      const isEth = tx.param.token === ethers.ZeroAddress;
-      to.push(tx.contractAddr[i]);
-      value.push(isEth && tx.sig[i] === 'depositCollateral' ? tx.amount[i] : 0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === managerAddress && tx.sig[i] === 'registerCollateral'
-            ? [tx.param.token, tx.param.ratio]
-            : tx.contractAddr[i] === managerAddress && tx.sig[i] === 'depositCollateral'
-              ? [tx.param.token, isEth ? 0n : tx.amount[i]]
-              : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function _estimate_Open_Position_Fee(
-  safeAddress,
-  pkey,
-  managerAddress,
-  tokenAddress,
-  ngnsAmount,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const amountWei = ethers.parseEther(ngnsAmount.toString());
-  const cdpIface = new ethers.Interface(CDP_ABI);
-
-  const tx = {
-    contractAddr: [managerAddress],
-    to: [managerAddress],
-    amount: [amountWei],
-    contract: [cdpIface],
-    param: {
-      token: tokenAddress,
-    },
-    sig: ['openPosition'],
-  };
-
-  const data = await _buildPositionTx(
-    safeAddress,
-    pkey,
-    managerAddress,
-    tx,
-    provider,
-    sponsor,
-    chain
-  );
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safeAddress, gasCost, provider, chain);
-}
-
-async function _estimate_Settle_Position_Fee(
-  safeAddress,
-  pkey,
-  managerAddress,
-  tokenAddress,
-  ngnsAmount,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const amountWei = ethers.parseEther(ngnsAmount.toString());
-  const cdpIface = new ethers.Interface(CDP_ABI);
-
-  const tx = {
-    contractAddr: [managerAddress],
-    to: [managerAddress],
-    amount: [amountWei],
-    contract: [cdpIface],
-    param: {
-      token: tokenAddress,
-    },
-    sig: ['settlePosition'],
-  };
-
-  const data = await _buildPositionTx(
-    safeAddress,
-    pkey,
-    managerAddress,
-    tx,
-    provider,
-    sponsor,
-    chain
-  );
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safeAddress, gasCost, provider, chain);
-}
-
-async function _buildPositionTx(
-  safeAddress,
-  privateKey,
-  managerAddress,
-  tx,
-  provider,
-  sponsor,
-  chain
-) {
-  const signerPack = new ethers.Wallet(privateKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === managerAddress
-            ? [tx.param.token, tx.amount[i]]
-            : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function _estimate_Withdraw_CollateralFee(
-  safeAddress,
-  pkey,
-  managerAddress,
-  tokenAddress,
-  receiver,
-  collateralAmount,
-  chain
-) {
-  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const isEth = tokenAddress === ethers.ZeroAddress;
-  const tokenContract = isEth ? undefined : new ethers.Contract(tokenAddress, ERC20, provider);
-  const decimals = tokenContract ? await _getDecimals(tokenContract) : 18;
-  const amountWei = ethers.parseUnits(collateralAmount.toString(), decimals);
-
-  const cdpIface = new ethers.Interface(CDP_ABI);
-
-  const tx = {
-    contractAddr: [managerAddress],
-    to: [managerAddress],
-    amount: [amountWei],
-    contract: [cdpIface],
-    param: {
-      token: tokenAddress,
-      receiver: receiver,
-    },
-    sig: ['withdraw'],
-  };
-
-  const data = await _buildWithdrawCollateralTx(
-    safeAddress,
-    pkey,
-    managerAddress,
-    tx,
-    provider,
-    sponsor,
-    chain
-  );
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safeAddress, gasCost, provider, chain);
-}
-
-async function _buildWithdrawCollateralTx(
-  safeAddress,
-  privateKey,
-  managerAddress,
-  tx,
-  provider,
-  sponsor,
-  chain
-) {
-  const signerPack = new ethers.Wallet(privateKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  let to = [];
-  let value = [];
-  let callData = [];
-
-  for (let i = 0; i < tx.contractAddr.length; i++) {
-    if (tx.contractAddr[i] !== ethers.ZeroAddress) {
-      to.push(tx.contractAddr[i]);
-      value.push(0n);
-      callData.push(
-        tx.contract[i].encodeFunctionData(
-          tx.sig[i],
-          tx.contractAddr[i] === managerAddress
-            ? [tx.param.token, tx.param.receiver, tx.amount[i]]
-            : [tx.to[i], tx.amount[i]]
-        )
-      );
-    } else {
-      to.push(tx.to[i]);
-      value.push(tx.amount[i]);
-      callData.push('0x');
-    }
-  }
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function estimateLinkFee(safe) {
-  const provider = new ethers.JsonRpcProvider(keyValue('baseRpcUrl'));
-  const sponsor = new ethers.Wallet(keyValue('sponsorKey'), provider);
-  const data = await _buildLinkData(
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    provider,
-    sponsor,
-    'link'
-  );
-
-  const gasCost = await sponsor.estimateGas(data.estData);
-  return await _getFee(safe, gasCost, provider, 'base');
-}
-
-async function _buildLinkData(
-  safeKey = keyValue('dummyKey'),
-  safeAddress = keyValue('dummySafe'),
-  name = '03243546@sant',
-  address = keyValue('dummySafe'),
-  feeToken = keyValue('ngnsBaseAddress'),
-  feeWei = '1',
-  provider,
-  sponsor,
-  type
-) {
-  const chain = 'base';
-  const sns = new SNS(keyValue('singleton'), safeKey, keyValue('baseRpcUrl'));
-  const signerPack = new ethers.Wallet(safeKey, provider);
-  const safe = new ethers.Contract(safeAddress, SAFE, sponsor);
-  const parsed = sns.parseHandle(name);
-  const dataToBytes = sns.parse32(address);
-  const firstTx =
-    type === 'link'
-      ? [parsed.nameHash, parsed.nsKey, dataToBytes]
-      : [parsed.nameHash, parsed.nsKey];
-  const secondTx = [keyValue('treasury'), feeWei];
-
-  const to = [keyValue('singleton'), feeToken];
-  const value = [0n, 0n];
-  const erc20Contract = new ethers.Interface(ERC20);
-  const singletonContract = new ethers.Interface(SINGLETON);
-  const tx1Hex = singletonContract.encodeFunctionData(type, firstTx);
-  const tx2Hex = erc20Contract.encodeFunctionData('transfer', secondTx);
-  const encodedData = [tx1Hex, tx2Hex];
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: encodedData,
-  };
-  return await _completeTxBuild(safe, safeAddress, signerPack, fData, chain);
-}
-
-async function _buildProposeData(adminSafeKey, adminSafeAddress, txData, provider, sponsor, chain) {
-  const multisig = getMultisigAddress(chain);
-  const signerPack = new ethers.Wallet(adminSafeKey, provider);
-  const safe = new ethers.Contract(adminSafeAddress, SAFE, sponsor);
-  const mSig = new ethers.Contract(multisig, MULTISIG, sponsor);
-  const to = [multisig];
-  const value = [0n];
-  const multisigContract = new ethers.Interface(MULTISIG);
-  const txHex =
-    txData.type === 'propose'
-      ? multisigContract.encodeFunctionData(txData.type, [txData.target, txData.value, txData.data])
-      : txData.type === 'approve'
-        ? multisigContract.encodeFunctionData(txData.type, [txData.data])
-        : multisigContract.encodeFunctionData(txData.type, [
-            txData.target,
-            txData.value,
-            txData.data,
-            txData.nonce,
-          ]);
-  const callData = [txHex];
-
-  const fData = {
-    to: to,
-    value: value,
-    callData: callData,
-  };
-  return {
-    data: await _completeTxBuild(safe, adminSafeAddress, signerPack, fData, chain),
-    multisig: mSig,
-  };
-}
-
 async function _getFee(safeAddress, gasCost, provider, chain) {
   const feeData = await provider.getFeeData();
   const gasPrice = feeData.gasPrice ?? feeData.maxFeePerGas ?? 0n;
@@ -1227,25 +1298,51 @@ async function _getFee(safeAddress, gasCost, provider, chain) {
   };
 }
 
-async function _getFeeAndToken(safeAddress, feeData, chain) {
+export async function _getFeeAndToken(
+  safeAddress,
+  feeData,
+  chain,
+  amountWei = 0n,
+  sendingToken = null
+) {
+  const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
+  const amount = BigInt(amountWei);
+  const sendingEth =
+    sendingToken !== null && String(sendingToken).toLowerCase() === ethers.ZeroAddress;
+  const ethBalance = sendingEth ? await provider.getBalance(safeAddress) : 0n;
+
+  // fee token that is also the token being sent and can't cover amount + fee,
+  // only used when no other token can cover the fee
+  let fallback = null;
+
+  const isConflict = (tokenAddress, balance, feeWei) =>
+    sendingToken !== null &&
+    String(tokenAddress).toLowerCase() === String(sendingToken).toLowerCase() &&
+    BigInt(balance) < amount + BigInt(feeWei);
+
   if (feeData.data.hasEth) {
     const rawFeeEth = Number(ethers.formatEther(feeData.data.feeEth));
     const feeEthString = rawFeeEth.toFixed(18);
+    const ethFeeWei = ethers.parseEther(feeEthString);
 
-    return {
+    const ethResult = {
       status: true,
       data: {
         feeHuman: rawFeeEth,
         feeToken: getNativeTokenSymbol(chain),
         feeTokenAddress: ethers.ZeroAddress,
-        feeToWei: ethers.parseEther(feeEthString),
+        feeToWei: ethFeeWei,
       },
     };
+
+    if (!isConflict(ethers.ZeroAddress, ethBalance, ethFeeWei)) {
+      return ethResult;
+    }
+    fallback = ethResult;
   }
   for (let i = 0; i < whitelistedTokens.length; i++) {
     const coin = whitelistedTokens[i];
     const isNgn = coin === 'NGNS' || coin === 'CNGN';
-    const provider = new ethers.JsonRpcProvider(getRpcUrlByChain(chain));
     const tokenAddress = getWhitelistedTokenAddress(coin, chain);
     if (!tokenAddress) continue;
     const contract = new ethers.Contract(tokenAddress, ERC20, provider);
@@ -1258,7 +1355,7 @@ async function _getFeeAndToken(safeAddress, feeData, chain) {
 
     if (Number(formattedBal) >= fee) {
       const feeWei = ethers.parseUnits(fee.toFixed(decimals), decimals);
-      return {
+      const result = {
         status: true,
         data: {
           feeHuman: fee,
@@ -1267,45 +1364,18 @@ async function _getFeeAndToken(safeAddress, feeData, chain) {
           feeToWei: feeWei,
         },
       };
+
+      if (!isConflict(tokenAddress, balanceData.balance, feeWei)) {
+        return result;
+      }
+      if (!fallback) fallback = result;
     }
   }
+
+  if (fallback) return fallback;
 
   return {
     status: false,
     message: 'Insufficient balance across all whitelisted tokens',
   };
 }
-
-export {
-  estimateDeploymentFee,
-  estimateTransferFee,
-  estimatePoolDeploymentFee,
-  estimateDeployInvFee,
-  estimateUpdateSpreadFee,
-  estimateWithdrawFee,
-  estimateAddLiquidityFee,
-  estimateSwapExactInputFee,
-  estimateSwapExactOutputFee,
-  estimateLinkFee,
-  _estimate_Deposit_CollateralFee,
-  _estimate_Open_Position_Fee,
-  _estimate_Settle_Position_Fee,
-  _estimateReg_Deposit_CollateralFee,
-  _estimate_Withdraw_CollateralFee,
-  _buildReg_Deposit_CollateralTx,
-  _buildWithdrawCollateralTx,
-  _buildPositionTx,
-  _buildUpdateSpreadData,
-  _buildWithdrawData,
-  _buildAddLiquidityData,
-  _buildLinkData,
-  _buildProposeData,
-  _buildSwapData,
-  _buildFactoryData,
-  _buildDeployInvData,
-  _buildPoolDeploymentData,
-  _buildTransferData,
-  _appendSafeReq,
-  _getTransactionHash,
-  _getFeeAndToken,
-};

@@ -108,7 +108,8 @@ async function checkAndAutoUpdateOracle(chain) {
   }
 }
 
-// Polling endpoint triggered by server keep-alive or cron
+
+// Polling endpoint triggered by server keep-alive sor cron
 const NGN_ORACLE_KEY = 'ngn-oracle-update'; // must match the key used by the admin panel
 
 router.get('/poll-update-ngn', async (req, res) => {
