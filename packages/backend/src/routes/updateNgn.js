@@ -6,10 +6,11 @@ import { getRpcUrlByChain, getNgnOracleAddressByChain } from '../utils/rpcUrls.j
 import { fetchRateEx, fetchRateFrank } from '../utils/fetchRate.js';
 import { UserCdpPosition, UpdateControl } from '../models/CDP.js';
 import { sendAlertToUser } from '../services/notificationServices.js';
+import { userPositionHealth } from '../services/cdpService.js';
 
 const router = express.Router();
 
-const CHAINS = ['base', 'bnb'];
+const CHAINS = ['base', 'bsc'];
 const STALE_THRESHOLD = 2 * 3600 + 45 * 60; // 2 hours 45 minutes in seconds
 const HEALTH_VIEW_ABI = [
   'function userPositionHealth(address user, address token, uint256 debtAmount) view returns (uint256)',
@@ -70,7 +71,18 @@ async function checkAndAutoUpdateOracle(chain) {
         const user = userPosition.userSafeAddress;
         const cToken = userPosition.collateralAddress;
         const pmContract = new ethers.Contract(pm, HEALTH_VIEW_ABI, provider);
-        const healthBps = await pmContract.userPositionHealth(user, cToken, 0n);
+        let healthBps;
+        try {
+          healthBps = await pmContract.userPositionHealth(user, cToken, 0n);
+        } catch {
+          healthBps = await userPositionHealth(
+            user,
+            userPosition.collateralSymbol,
+            0n,
+            chain,
+            userPosition.version
+          );
+        }
         const health = Number(healthBps) / 100;
         console.log(`User: ${user}`);
         console.log(`Collateral Token: ${userPosition.collateralSymbol}`);
@@ -107,7 +119,6 @@ async function checkAndAutoUpdateOracle(chain) {
     return { chain, updated: oracleUpdated, error: err.message };
   }
 }
-
 
 // Polling endpoint triggered by server keep-alive sor cron
 const NGN_ORACLE_KEY = 'ngn-oracle-update'; // must match the key used by the admin panel

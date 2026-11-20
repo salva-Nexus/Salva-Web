@@ -602,7 +602,7 @@ async function userPositionHealth(safeAddress, collateralTokenSymbol, debtAmount
     tokenInfo.tokenAddress === ethers.ZeroAddress
       ? 18
       : await _getDecimals(new ethers.Contract(tokenInfo.tokenAddress, ERC20, provider));
-  const debtWei = ethers.parseUnits(debtAmount.toString(), 18);
+  const debtWei = Number(debtAmount) > 0 ? ethers.parseUnits(debtAmount.toString(), 18) : 0n;
   try {
     const healthBps = await cdpContract.userPositionHealth(
       safeAddress,
