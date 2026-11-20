@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 import ngnLogo from '../assets/ngn-coin.png';
 import santLogo from '../assets/icon-only.png';
+import ChainBadge from '../components/ChainBadge';
 
 /* ============================================================================
    MANAGE ASSETS — SALVA
@@ -14,11 +15,6 @@ import santLogo from '../assets/icon-only.png';
 ============================================================================ */
 
 const SEARCH_DEBOUNCE_MS = 450;
-
-const CHAIN_BADGE_COLORS = {
-  base: '#0052FF',
-  bnb: '#F0B90B',
-};
 
 const LOCAL_LOGOS = {
   NGNS: ngnLogo,
@@ -47,8 +43,6 @@ const rowKey = (chain, tokenAddress) =>
     .trim()}`;
 
 const isValidAddress = (value) => /^0x[a-fA-F0-9]{40}$/.test(String(value || '').trim());
-
-const getChainColor = (chain) => CHAIN_BADGE_COLORS[String(chain || '').toLowerCase()] || '#71717A';
 
 /* ============================================================================
    ICONS — sized purely via className (w-/h- utilities), so every usage can
@@ -132,24 +126,6 @@ const Spinner = ({ small = false }) => (
   />
 );
 
-const ChainPill = ({ chain }) => {
-  const label = String(chain || 'unknown').toUpperCase();
-  const color = getChainColor(chain);
-
-  return (
-    <span
-      className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full border px-2 py-0.5 sm:px-2.5 sm:py-1 text-[7px] sm:text-[9px] font-bold tracking-[0.12em]"
-      style={{
-        borderColor: `${color}35`,
-        background: `${color}12`,
-        color,
-      }}
-    >
-      <span className="h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full" style={{ background: color }} />
-      {label}
-    </span>
-  );
-};
 
 const ModalShell = ({ open, children, onClose, mobileSheet = false }) => (
   <AnimatePresence>
@@ -315,7 +291,6 @@ const ConfirmModal = ({
 
 const AssetLogo = ({ logo, symbol, chain, size = 'h-10 w-10 sm:h-12 sm:w-12' }) => {
   const [failed, setFailed] = useState(false);
-  const badgeColor = getChainColor(chain);
   const localLogo = getLocalLogo(symbol);
   const resolvedLogo = localLogo || logo;
   const isNgNs = String(symbol || '').toUpperCase() === 'NGNS';
@@ -343,15 +318,7 @@ const AssetLogo = ({ logo, symbol, chain, size = 'h-10 w-10 sm:h-12 sm:w-12' }) 
         )}
       </div>
 
-      {chain && (
-        <span
-          className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 sm:h-4 sm:w-4 items-center justify-center rounded-full border-2 border-[#0b0b0d] text-[5px] sm:text-[6px] font-black text-white"
-          style={{ background: badgeColor }}
-          title={String(chain)}
-        >
-          {String(chain)[0]?.toUpperCase()}
-        </span>
-      )}
+      {chain && <ChainBadge chain={chain} className="w-3 h-3 sm:w-4 sm:h-4" ringColor="#0b0b0d" />}
     </div>
   );
 };
@@ -536,8 +503,6 @@ const AddAssetModal = ({ open, chain, onClose, onSubmit, requestJson, showMsg })
                 <span className="rounded-full border border-salvaGold/20 bg-salvaGold/[0.07] px-2 py-0.5 sm:px-2.5 sm:py-1 text-[7px] sm:text-[8px] font-bold uppercase tracking-[0.15em] text-salvaGold">
                   Step {step} / 2
                 </span>
-
-                <ChainPill chain={chain} />
               </div>
 
               <h3 className="text-base sm:text-xl font-semibold tracking-tight text-white">
@@ -1133,8 +1098,6 @@ const ManageAssets = () => {
                 Your assets
               </h1>
             </div>
-
-            <ChainPill chain={chain} />
           </div>
         </header>
 

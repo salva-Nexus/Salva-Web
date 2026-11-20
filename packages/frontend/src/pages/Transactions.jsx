@@ -6,6 +6,7 @@ import Stars from '../components/Stars';
 import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { ChainLogo } from '../components/ChainBadge';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
@@ -104,32 +105,12 @@ const truncateAddr = (addr, start = 6, end = 4) => {
   return addr;
 };
 
-const getNetwork = (tx) => {
-  if (tx.chain === 'bnb') {
-    return {
-      name: 'BNB Chain',
-      short: 'BNB',
-      icon: '◆',
-      className: 'text-yellow-300 bg-yellow-400/[0.08] border-yellow-400/15',
-    };
-  }
-
-  if (tx.chain === 'base') {
-    return {
-      name: 'Base',
-      short: 'BASE',
-      icon: '●',
-      className: 'text-blue-300 bg-blue-400/[0.08] border-blue-400/15',
-    };
-  }
-
-  return {
-    name: tx.chain || 'Unknown',
-    short: (tx.chain || 'Unknown').toUpperCase(),
-    icon: '◈',
-    className: 'text-purple-300 bg-purple-400/[0.08] border-purple-400/15',
-  };
+const chainDisplayName = (chain) => {
+  const s = String(chain || 'Unknown');
+  return s.charAt(0).toUpperCase() + s.slice(1);
 };
+
+const getNetwork = (tx) => ({ name: chainDisplayName(tx.chain) });
 
 const getStatus = (tx, user) => {
   const type = getDisplayType(tx, user);
@@ -505,22 +486,12 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
             {status.label}
           </span>
 
-          <span
-            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[7px] font-black uppercase tracking-wider ${network.className}`}
-          >
-            {network.icon}
-            {network.short}
-          </span>
+          <ChainLogo chain={tx.chain} className="w-4 h-4" />
         </div>
 
         {/* Desktop metadata */}
         <div className="hidden sm:flex items-center gap-2 mt-3 pl-[92px]">
-          <span
-            className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-[7px] font-black uppercase tracking-wider ${network.className}`}
-          >
-            <span>{network.icon}</span>
-            {network.name}
-          </span>
+          <ChainLogo chain={tx.chain} className="w-4 h-4" />
 
           <span className="text-[8px] text-white/70">
             {date.toLocaleDateString('en-US', {
@@ -905,8 +876,7 @@ const Transactions = () => {
     // of its own — a user's transaction history spans every chain they've
     // used — so there is no page-level BNB/Base flag to fall back on here,
     // by design.
-    const txChainIsBNB = tx.chain === 'bnb';
-    const txNetworkName = txChainIsBNB ? 'BNB' : 'Base';
+    const txNetworkName = chainDisplayName(tx.chain);
     const coin = coinLabel(tx);
     const hasFee = tx.fee && parseFloat(tx.fee) > 0;
 

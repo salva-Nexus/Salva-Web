@@ -14,11 +14,15 @@ import {
   CheckCircle2,
   Eye,
   EyeOff,
+  Trash2,
 } from 'lucide-react';
 import Stars from '../components/Stars';
 import { readWalletCache, writeWalletCache } from '../utils/walletCache';
 
 const VAPID_PUBLIC_KEY = process.env.REACT_APP_VAPID_PUBLIC_KEY || '';
+
+// Only these localStorage keys survive "Clear Cache" (email, safeAddress, username live in salva_user)
+const PRESERVED_STORAGE_KEYS = ['salva_user'];
 
 const urlBase64ToUint8Array = (b64) => {
   const padding = '='.repeat((4 - (b64.length % 4)) % 4);
@@ -193,28 +197,68 @@ const AccountSettings = () => {
     }
   };
 
-    const sendChangeOtp = async () => {
-      if (otpBusy) return;
-      setOtpBusy(true);
+  const clearAppCache = async () => {
+    setConfirmDialog((d) => ({ ...d, show: false }));
+
+    try {
+      const preserved = PRESERVED_STORAGE_KEYS.map((k) => [k, localStorage.getItem(k)]);
+
+      localStorage.clear();
+      preserved.forEach(([k, v]) => {
+        if (v !== null) localStorage.setItem(k, v);
+      });
+
       try {
-        const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.message || 'Failed to send verification code');
-        }
-        setOtpCode('');
-        setModalStep(2);
-        showMsg('Verification code sent to your email');
-      } catch (err) {
-        showMsg(err?.message || 'Failed to send verification code', 'error');
-      } finally {
-        setOtpBusy(false);
+        sessionStorage.clear();
+      } catch {}
+
+      if ('caches' in window) {
+        try {
+          const names = await caches.keys();
+          await Promise.all(names.map((n) => caches.delete(n)));
+        } catch {}
       }
-    };
+    } catch (err) {
+      showMsg(err?.message || 'Could not clear cache', 'error');
+      return;
+    }
+
+    // Hard reload resets the in-memory Maps (WALLET_CACHE, MEM, MEMORY) too
+    window.location.replace(backPath);
+  };
+
+  const askClearCache = () =>
+    setConfirmDialog({
+      show: true,
+      title: 'Clear cache?',
+      message:
+        'This removes all locally stored data. Your email and wallet address are kept, and everything reloads from the server.',
+      confirmLabel: 'Clear Now',
+      onConfirm: clearAppCache,
+    });
+
+  const sendChangeOtp = async () => {
+    if (otpBusy) return;
+    setOtpBusy(true);
+    try {
+      const res = await fetch(`${SALVA_API_URL}/api/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: user.email }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || 'Failed to send verification code');
+      }
+      setOtpCode('');
+      setModalStep(2);
+      showMsg('Verification code sent to your email');
+    } catch (err) {
+      showMsg(err?.message || 'Failed to send verification code', 'error');
+    } finally {
+      setOtpBusy(false);
+    }
+  };
 
     const verifyChangeOtp = async () => {
       if (otpBusy || !/^\d{6}$/.test(otpCode)) return;
@@ -476,6 +520,28 @@ const AccountSettings = () => {
             </div>
           </div>
 
+          {/* Clear cache */}
+          <button
+            onClick={askClearCache}
+            className="w-full group bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5 hover:border-red-500/30 transition-all text-left"
+          >
+            <div className="flex justify-between items-center">
+              <div>
+                <p className="text-[8px] sm:text-xs uppercase opacity-40 font-bold mb-0.5 sm:mb-1">
+                  Storage
+                </p>
+                <p className="text-sm sm:text-lg font-black">Clear Cache</p>
+                <p className="text-[9px] sm:text-xs opacity-50 mt-0.5">
+                  Removes locally stored data. Email and wallet address are kept.
+                </p>
+              </div>
+              <div className="p-2 sm:p-3 bg-white dark:bg-white/5 group-hover:bg-red-500 group-hover:text-white rounded-xl transition-all shadow-sm">
+                <Trash2 size={13} className="sm:hidden" />
+                <Trash2 size={18} className="hidden sm:block" />
+              </div>
+            </div>
+          </button>
+
           {/* Push notifications */}
           <div className="bg-gray-50 dark:bg-white/5 p-4 sm:p-6 rounded-2xl border border-gray-200 dark:border-white/5">
             <div className="flex justify-between items-center gap-3">
@@ -551,7 +617,7 @@ const AccountSettings = () => {
                       onClick={confirmDialog.onConfirm}
                       className="flex-1 py-2.5 sm:py-4 rounded-2xl bg-red-500 text-white font-bold text-xs sm:text-base hover:brightness-110 transition-all shadow-lg shadow-red-500/20"
                     >
-                      Unlink Now
+                      {confirmDialog.confirmLabel || 'Unlink Now'}
                     </button>
                   </div>
                 </div>

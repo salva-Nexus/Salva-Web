@@ -2,7 +2,7 @@ import { SALVA_API_URL } from '../config';
 
 export const POLL_INTERVAL_MS = 120000;
 
-const WALLET_CACHE_VERSION = 5;
+const WALLET_CACHE_VERSION = 6;
 const WALLET_CACHE_PREFIX = 'salva_wallet_snapshot:';
 const CHAIN_CACHE_PREFIX = 'salva_chain_metadata:';
 const POOL_CACHE_PREFIX = 'salva_pool_cache_v2';

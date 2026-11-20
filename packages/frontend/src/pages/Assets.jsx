@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import Stars from '../components/Stars';
 import { AssetDetailsModal, Notification } from './Dashboard';
 import SendTransferModal from './SendTransferModal';
+import ChainBadge from '../components/ChainBadge';
 
 import ngnLogo from '../assets/ngn-coin.png';
 import santLogo from '../assets/icon-only.png';
@@ -21,10 +22,6 @@ const LOCAL_LOGOS = {
   SANT: santLogo,
 };
 
-const CHAIN_BADGE_COLORS = {
-  base: '#0052FF',
-  bnb: '#F0B90B',
-};
 
 const formatNumber = (value, { minDecimals = 0, maxDecimals = 6 } = {}) => {
   if (value === null || value === undefined || value === '') return '0';
@@ -97,7 +94,6 @@ const AssetValueLine = ({ asset, className = '' }) => {
 
 const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = false }) => {
   const chain = (asset?.chain || '').toLowerCase();
-  const badgeColor = CHAIN_BADGE_COLORS[chain] || '#6B7280';
 
   const [attempt, setAttempt] = useState(0);
   const [broken, setBroken] = useState(false);
@@ -146,23 +142,6 @@ const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = f
           </span>
         )}
       </div>
-
-      {showChainBadge && chain && (
-        <span
-          className="
-            absolute -bottom-0.5 -right-0.5
-            w-3.5 h-3.5 sm:w-4 sm:h-4
-            rounded-full
-            border-2 border-[#0A0A0B]
-            flex items-center justify-center
-            text-[6px] sm:text-[7px]
-            font-black text-white
-          "
-          style={{ background: badgeColor }}
-        >
-          {chain[0].toUpperCase()}
-        </span>
-      )}
     </div>
   );
 };

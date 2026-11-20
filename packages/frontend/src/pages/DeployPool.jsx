@@ -457,7 +457,12 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
     <div className="relative min-h-[70vh] overflow-hidden text-white">
       <Stars />
 
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }} className="relative z-10 space-y-4 sm:space-y-6">
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="relative z-10 space-y-4 sm:space-y-6"
+      >
         <section className="relative overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#0d0f14]/90 p-4 sm:rounded-[28px] sm:p-7">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(245,183,60,.08),transparent_32%)]" />
 
@@ -505,7 +510,7 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
               <p className="text-[7px] font-black uppercase tracking-[.22em] text-white/70">
                 Chain
               </p>
-              <p className="mt-0.5 text-base font-black capitalize sm:text-lg">{chain}</p>
+              <p className="mt-0.5 text-base font-black uppercase sm:text-lg">{chain}</p>
             </div>
           </div>
         </section>
@@ -623,7 +628,12 @@ const DeployPool = ({ user: suppliedUser, showMsg }) => {
               setTxResult(null);
               await poll({ force: true });
               if (txResult.poolAddress) {
-                navigate(`/pools/${encodeURIComponent(user.safeAddress)}/${encodeURIComponent(chain)}/${encodeURIComponent(txResult.poolAddress)}`, { replace: true });
+                navigate(
+                  `/pools/${encodeURIComponent(user.safeAddress)}/${encodeURIComponent(
+                    chain
+                  )}/${encodeURIComponent(txResult.poolAddress)}`,
+                  { replace: true }
+                );
               }
             }}
           />

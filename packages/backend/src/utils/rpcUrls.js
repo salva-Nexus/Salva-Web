@@ -9,7 +9,6 @@ export const getRpcUrlByChain = (chain) => {
 
   const chainRpcKeys = {
     base: 'baseRpcUrl',
-    bnb: 'bnbRpcUrl',
     bsc: 'bnbRpcUrl',
   };
 
@@ -36,15 +35,8 @@ export function getChainlinkFeedByChainAndSymbol(tokenSymbol, chain) {
       USDC: 'chainlinkUsdcBaseFeed',
       LINK: 'chainlinkLinkBaseFeed',
     },
-    bnb: {
-      BNB: 'chainlinkBnbFeed',
-      BSC: 'chainlinkBnbFeed',
-      USDT: 'chainlinkUsdtBnbFeed',
-      USDC: 'chainlinkUsdcBnbFeed',
-      LINK: 'chainlinkLinkBnbFeed',
-    },
     bsc: {
-      BNB: 'chainlinkBnbFeed',
+      BSC: 'chainlinkBnbFeed',
       USDT: 'chainlinkUsdtBnbFeed',
       USDC: 'chainlinkUsdcBnbFeed',
       LINK: 'chainlinkLinkBnbFeed',
@@ -60,7 +52,7 @@ export const getMultiSendAddress = (chain) => {
 
   const keyMap = {
     base: 'baseMultisend',
-    bnb: 'bnbMultisend',
+    bsc: 'bnbMultisend',
   };
 
   const key = keyMap[chain.toLowerCase().trim()];
@@ -94,7 +86,7 @@ export const getWhitelistedTokenAddress = (symbol, chain) => {
       USDT: 'usdtBaseAddress',
       USDC: 'usdcBaseAddress',
     },
-    bnb: {
+    bsc: {
       NGNS: 'ngnsBnbAddress',
       CNGN: 'cngnBnbAddress',
       USDT: 'usdtBnbAddress',
@@ -121,7 +113,6 @@ export function getNativeTokenSymbol(chain) {
 
   const chainMap = {
     base: 'ETH',
-    bnb: 'BNB',
     bsc: 'BNB',
     binance: 'BNB',
   };
@@ -154,7 +145,6 @@ export const getMultisigAddress = (chain) => {
 
   const keyMap = {
     base: 'multisigBase',
-    bnb: 'multisigBnb',
     bsc: 'multisigBnb',
     binance: 'multisigBnb',
   };
@@ -177,7 +167,6 @@ export function getNgnsAddressByChain(chain) {
 
   const chainToKeyMap = {
     base: 'ngnsBaseAddress',
-    bnb: 'ngnsBnbAddress',
     bsc: 'ngnsBnbAddress',
   };
 
@@ -194,7 +183,6 @@ export const getPoolFactoryAddress = (chain) => {
 
   const keyMap = {
     base: 'basePoolFactory',
-    bnb: 'bnbPoolFactory',
     bsc: 'bnbPoolFactory',
     binance: 'bnbPoolFactory',
   };
@@ -217,7 +205,6 @@ export function getNgnOracleAddressByChain(chain) {
 
   const chainToKeyMap = {
     base: 'ngnOracleBase',
-    bnb: 'ngnOracleBnb',
     bsc: 'ngnOracleBnb',
   };
 

@@ -1203,7 +1203,6 @@ export function _appendSafeReq(sig) {
 async function _ethCostInUsd(etherCost, provider, chain) {
   const chainKeyMap = {
     base: 'chainlinkBaseFeed',
-    bnb: 'chainlinkBnbFeed',
     bsc: 'chainlinkBnbFeed',
   };
 

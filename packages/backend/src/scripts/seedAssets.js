@@ -13,7 +13,7 @@ const NATIVE_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 const TRUSTWALLET_CHAIN_MAP = {
   base: 'base',
-  bnb: 'binance',
+  bsc: 'binance',
 };
 
 // Static URLs for stablecoins
@@ -45,7 +45,7 @@ const getLogoUrl = (chain, tokenAddress, symbol) => {
 
 const nativeAssets = [
   { chain: 'base', symbol: 'ETH', decimals: 18 },
-  { chain: 'bnb', symbol: 'BNB', decimals: 18 },
+  { chain: 'bsc', symbol: 'BNB', decimals: 18 },
 ];
 
 const tokenConfigs = [
@@ -57,12 +57,12 @@ const tokenConfigs = [
   { chain: 'base', key: 'santAddress', fallbackSymbol: 'SANT', fallbackDecimals: 18 },
   { chain: 'base', key: 'linkBaseAddress', fallbackSymbol: 'LINK', fallbackDecimals: 18 },
 
-  // BNB
-  { chain: 'bnb', key: 'ngnsBnbAddress', fallbackSymbol: 'NGNS', fallbackDecimals: 18 },
-  { chain: 'bnb', key: 'cngnBnbAddress', fallbackSymbol: 'cNGN', fallbackDecimals: 6 },
-  { chain: 'bnb', key: 'usdtBnbAddress', fallbackSymbol: 'USDT', fallbackDecimals: 18 },
-  { chain: 'bnb', key: 'usdcBnbAddress', fallbackSymbol: 'USDC', fallbackDecimals: 18 },
-  { chain: 'bnb', key: 'linkBnbAddress', fallbackSymbol: 'LINK', fallbackDecimals: 18 },
+  // BSC
+  { chain: 'bsc', key: 'ngnsBnbAddress', fallbackSymbol: 'NGNS', fallbackDecimals: 18 },
+  { chain: 'bsc', key: 'cngnBnbAddress', fallbackSymbol: 'cNGN', fallbackDecimals: 6 },
+  { chain: 'bsc', key: 'usdtBnbAddress', fallbackSymbol: 'USDT', fallbackDecimals: 18 },
+  { chain: 'bsc', key: 'usdcBnbAddress', fallbackSymbol: 'USDC', fallbackDecimals: 18 },
+  { chain: 'bsc', key: 'linkBnbAddress', fallbackSymbol: 'LINK', fallbackDecimals: 18 },
 ];
 
 async function seedAssets() {

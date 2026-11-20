@@ -5,7 +5,7 @@ import { readWalletCache } from './walletCache';
 
 export const CDP_POLL_INTERVAL_MS = 120000;
 
-const CDP_CACHE_VERSION = 3;
+const CDP_CACHE_VERSION = 2;
 const CDP_CACHE_PREFIX = 'salva_cdp_cache:';
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const MEM = new Map();

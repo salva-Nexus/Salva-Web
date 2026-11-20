@@ -19,7 +19,7 @@ const evmChainsToSeed = [
     isActive: true,
   },
   {
-    chainName: 'bnb',
+    chainName: 'bsc',
     chainId: 56,
     logo: `${TRUST_WALLET_BASE}/binance/info/logo.png`,
     isActive: true,
@@ -34,7 +34,7 @@ const evmChainsToSeed = [
     isActive: true,
   },
   {
-    chainName: 'bnb',
+    chainName: 'bsc',
     chainId: 97,
     logo: `${TRUST_WALLET_BASE}/binance/info/logo.png`,
     type: 'TESTNET',

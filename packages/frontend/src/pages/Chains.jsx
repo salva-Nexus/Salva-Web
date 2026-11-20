@@ -7,7 +7,8 @@ const normalizeChain = (chain) =>
     .trim()
     .toLowerCase();
 
-const displayChainName = (chain) => chain?.chainName || chain?.name || 'Unknown network';
+const displayChainName = (chain) =>
+  String(chain?.chainName || chain?.name || 'Unknown network').toUpperCase();
 
 const ChainLogo = ({ chain }) => {
   const name = displayChainName(chain);

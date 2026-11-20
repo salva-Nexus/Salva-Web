@@ -7,6 +7,7 @@ import Stars from '../components/Stars';
 import SantTab from './SantTab';
 import Chains from './Chains';
 import SendTransferModal from './SendTransferModal';
+import ChainBadge from '../components/ChainBadge';
 import ngnLogo from '../assets/ngn-coin.png';
 import santLogo from '../assets/icon-only.png';
 import {
@@ -637,15 +638,11 @@ const QRScannerModal = ({ onScan, onClose }) => {
    ASSET LOGO
 ============================================================================ */
 
-const CHAIN_BADGE_COLORS = {
-  base: '#0052FF',
-  bnb: '#F0B90B',
-};
 
 const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = false }) => {
   const chain = (asset?.chain || '').toLowerCase();
 
-  const badgeColor = CHAIN_BADGE_COLORS[chain] || '#6B7280';
+
 
   const [attempt, setAttempt] = useState(0);
   const [broken, setBroken] = useState(false);
@@ -695,22 +692,7 @@ const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = f
         )}
       </div>
 
-      {showChainBadge && chain && (
-        <span
-          className="
-            absolute -bottom-0.5 -right-0.5
-            w-3.5 h-3.5 sm:w-4 sm:h-4
-            rounded-full
-            border-2 border-[#0A0A0B]
-            flex items-center justify-center
-            text-[6.6px] sm:text-[7px]
-            font-black text-white
-          "
-          style={{ background: badgeColor }}
-        >
-          {chain[0].toUpperCase()}
-        </span>
-      )}
+      {showChainBadge && chain && <ChainBadge chain={chain} />}
     </div>
   );
 };
@@ -770,7 +752,7 @@ export const AssetDetailsModal = ({
 
           <h3 className="font-black text-[1.2375rem] sm:text-xl mt-3">{asset.symbol}</h3>
 
-          <p className="text-[9.9px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+          <p className="text-[9.9px] sm:text-[10px] text-white/75 uppercase mt-0.5">
             {asset.chain || 'Unknown chain'}
           </p>
 
@@ -1573,7 +1555,7 @@ const Dashboard = () => {
       <div className="flex-1 min-w-0">
         <p className="font-black text-[0.825rem] sm:text-sm text-white">{asset.symbol}</p>
 
-        <p className="text-[8.8px] sm:text-[10px] text-white/75 capitalize mt-0.5">
+        <p className="text-[8.8px] sm:text-[10px] text-white/75 uppercase mt-0.5">
           {asset.chain || selectedChain}
         </p>
       </div>
@@ -1936,7 +1918,7 @@ const Dashboard = () => {
                     Network
                   </p>
 
-                  <p className="font-black text-[9.9px] sm:text-sm capitalize truncate">
+                  <p className="font-black text-[9.9px] sm:text-sm uppercase truncate">
                     {activeChainData?.chainName || selectedChain}
                   </p>
                 </div>
@@ -2118,7 +2100,7 @@ const Dashboard = () => {
                 <h3 className="text-[0.9625rem] sm:text-2xl font-black mt-1">{user.username}</h3>
 
                 <p className="text-[8.8px] sm:text-[9px] text-white/75 mt-1">
-                  {selectedChain} wallet
+                  <span className="uppercase">{selectedChain}</span> wallet
                   {receiveAsset ? ` · ${receiveAsset.symbol}` : ''}
                 </p>
               </div>

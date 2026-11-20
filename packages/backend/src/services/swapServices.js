@@ -109,7 +109,6 @@ async function swapExactInput(
   minAmountOut,
   chain
 ) {
-  console.log(amountIn);
   const pool = await _findPoolOrRetry(poolAddress, assetOut, assetIn, chain);
   const initiator = await User.findOne({ email });
   const pinData = await verify_Pin(email, pin);

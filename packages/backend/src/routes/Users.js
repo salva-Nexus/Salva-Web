@@ -26,7 +26,6 @@ router.get('/user/:email/:chain', authLimiter, async (req, res) => {
         errorMsg: 'User not found',
       });
     }
-
     // Client copy only. Never saved back to the DB.
     const meta = record.toObject();
     meta.ownerPrivateKey = null;
