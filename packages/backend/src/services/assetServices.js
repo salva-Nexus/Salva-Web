@@ -24,7 +24,7 @@ async function userAssetsData(safe, chain) {
   if (!hasChainTokens) {
     const updated = await _updateConfig(user.email);
     if (!updated) {
-     return { status: false, assetData: [] }; 
+      return { status: false, assetData: [] };
     }
   }
 
@@ -54,7 +54,11 @@ async function userAssetsData(safe, chain) {
       const safeConfigSymbol = (config.tokenSymbol || '').toUpperCase();
 
       if (hasValidFeed) {
-        usdPrice = await fetchTokenUsdPrice(safeConfigSymbol, normalizedChain, feedAddress);
+        usdPrice = await fetchTokenUsdPrice(
+          safeConfigSymbol,
+          normalizedChain,
+          safeConfigSymbol === 'NGNS' || safeConfigSymbol === 'CNGN' ? null : feedAddress
+        );
 
         if (usdPrice > 0) {
           ngnRate = rawUsdPerNgn;
@@ -67,7 +71,6 @@ async function userAssetsData(safe, chain) {
 
       // Guard against missing DB entries in Assets collection
       if (!details) {
-
         const uContract = new ethers.Contract(config.tokenAddress, ERC20, provider);
         const uData = await _getBalance(uContract, safe);
 
@@ -148,7 +151,12 @@ async function userCummulativeNgnBalance(safe) {
           asset.address,
           asset.symbol,
           currentChain,
-          !asset.extra.feed || asset.extra.feed === null ? undefined : asset.extra.feed
+          !asset.extra.feed ||
+            asset.extra.feed === null ||
+            asset.symbol === 'NGNS' ||
+            asset.symbol === 'CNGN'
+            ? undefined
+            : asset.extra.feed
         );
         if (nValue?.status && nValue?.data?.ngnValue) {
           cumulativeNgnBalance += nValue.data.ngnValue;
