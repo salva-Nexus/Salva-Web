@@ -7,7 +7,47 @@ import { Capacitor } from '@capacitor/core';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { ChainLogo } from '../components/ChainBadge';
+import { readWalletCache } from '../utils/walletCache';
+import ngnLogo from '../assets/ngn-coin.png';
+import santLogo from '../assets/icon-only.png';
 
+const LOCAL_LOGOS = {
+  NGNS: ngnLogo,
+  SANT: santLogo,
+};
+
+// Builds "chain:SYMBOL" -> logo from the wallet caches (the same cache Dashboard fills).
+// "*:SYMBOL" is a chain-agnostic fallback.
+const buildTxLogoIndex = (email, txs) => {
+  const index = new Map();
+  if (!email) return index;
+
+  const chains = new Set(txs.map((tx) => String(tx.chain || '').toLowerCase()).filter(Boolean));
+  chains.add((localStorage.getItem('salva_chain') || 'base').toLowerCase());
+
+  chains.forEach((chain) => {
+    const snapshot = readWalletCache(email, chain, LOCAL_LOGOS);
+    (snapshot?.assets || []).forEach((asset) => {
+      const symbol = String(asset?.symbol || '').toUpperCase();
+      if (!symbol || !asset?.logo) return;
+      index.set(`${chain}:${symbol}`, asset.logo);
+      if (!index.has(`*:${symbol}`)) index.set(`*:${symbol}`, asset.logo);
+    });
+  });
+
+  // Locally owned logos always win
+  Object.entries(LOCAL_LOGOS).forEach(([symbol, logo]) => {
+    index.set(`*:${symbol}`, logo);
+  });
+
+  return index;
+};
+
+const findAssetLogo = (index, chain, symbol) => {
+  if (!index || !symbol) return null;
+  const c = String(chain || '').toLowerCase();
+  return index.get(`${c}:${symbol}`) || index.get(`*:${symbol}`) || null;
+};
 // ─────────────────────────────────────────────────────────────────────────────
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -270,8 +310,16 @@ const Icon = ({ name, size = 18, strokeWidth = 1.8, className = '' }) => {
 // ASSET ICON
 // ─────────────────────────────────────────────────────────────────────────────
 
-const AssetIcon = ({ tx, size = 'md' }) => {
+const AssetIcon = ({ tx, logoIndex, size = 'md' }) => {
   const coin = coinLabel(tx).toUpperCase();
+  const symbol = coin === 'NGN' ? 'NGNS' : coin;
+  const logo = findAssetLogo(logoIndex, tx.chain, symbol);
+
+  const [broken, setBroken] = useState(false);
+
+  useEffect(() => {
+    setBroken(false);
+  }, [logo]);
 
   const dimensions =
     size === 'lg'
@@ -280,22 +328,25 @@ const AssetIcon = ({ tx, size = 'md' }) => {
       ? 'w-8 h-8'
       : 'w-10 h-10 sm:w-11 sm:h-11';
 
+  const showImg = Boolean(logo) && !broken;
+
   return (
     <div
-      className={`${dimensions} rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden border border-white/10 bg-gradient-to-br from-white/[0.09] to-white/[0.02]`}
+      className={`${dimensions} rounded-full flex items-center justify-center flex-shrink-0 relative overflow-hidden border border-white/10 bg-white/[0.06]`}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,.12),transparent_55%)]" />
-
-      {coin === 'NGNS' || coin === 'NGN' ? (
-        <span className="relative text-salvaGold font-black text-xs">₦</span>
-      ) : coin === 'BNB' ? (
-        <span className="relative text-yellow-300 text-sm font-black">◆</span>
-      ) : coin === 'ETH' ? (
-        <span className="relative text-blue-300 text-sm font-black">◇</span>
-      ) : coin === 'USDC' ? (
-        <span className="relative text-blue-300 text-[9px] font-black">$</span>
+      {showImg ? (
+        <img
+          src={logo}
+          alt={symbol}
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-cover"
+          style={
+            symbol === 'NGNS' ? { objectPosition: '48% 60%', transform: 'scale(2)' } : undefined
+          }
+          onError={() => setBroken(true)}
+        />
       ) : (
-        <span className="relative text-white/80 text-[8px] font-black">{coin.slice(0, 4)}</span>
+        <span className="relative text-salvaGold text-[8px] font-black">{symbol.slice(0, 4)}</span>
       )}
     </div>
   );
@@ -369,7 +420,7 @@ const DetailRow = ({ label, value, mono = false, gold = false, copyable = false,
 // TX CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
-const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
+const TxCard = ({ tx, user, index, onDownload, showMsg, logoIndex }) => {
   const [expanded, setExpanded] = useState(false);
 
   const dType = getDisplayType(tx, user);
@@ -544,7 +595,7 @@ const TxCard = ({ tx, user, index, onDownload, showMsg }) => {
               <div className="rounded-xl border border-white/[0.055] bg-black/20 p-3 sm:p-4 mb-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
-                    <AssetIcon tx={tx} size="sm" />
+                    <AssetIcon tx={tx} logoIndex={logoIndex} size="sm" />
 
                     <div>
                       <p className="text-[8px] uppercase tracking-[0.16em] text-white/70 font-black">
@@ -843,6 +894,11 @@ const Transactions = () => {
 
     return list;
   }, [transactions, filter, search, user]);
+
+  const logoIndex = useMemo(
+    () => buildTxLogoIndex(user?.email, transactions),
+    [user?.email, transactions]
+  );
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -1402,6 +1458,7 @@ const Transactions = () => {
                   index={i}
                   onDownload={downloadReceipt}
                   showMsg={showMsg}
+                  logoIndex={logoIndex}
                 />
               ))}
             </div>
