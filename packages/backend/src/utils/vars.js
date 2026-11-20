@@ -73,8 +73,8 @@ const NGN_ORACLE = {
     mainnet: '0xf0Ed0652d5150606a84C7EF9726d9585478532Bc',
   }),
   bnb: pickByMode({
-    testnet: '0x3Ad5c68BF82bB402F81379124DCf513015CAafF1',
-    mainnet: '0x97F0BCA29304E39936dbf4C58b887DEAE5D9A75B',
+    testnet: '0xc266F667C29034e4f6e87A04bB4E1c5065AaBb58',
+    mainnet: '0x97F0BCA29304E39936dbf4C58b887DEAE5D9A75B', 
   }),
 };
 
@@ -109,7 +109,7 @@ const TOKEN_ON_BASE = {
 
 const TOKEN_ON_BNB = {
   NGNS: pickByMode({
-    testnet: '0x4A9D58566A5F778e090c78258f0C54189a1095Ae',
+    testnet: '0x3c75c735a3161cD435d19937845b125D59f8A45B',
     mainnet: '0x80C2436b19BD1fbCc5c35375D5d5Ff1FB28Ae323',
   }),
   CNGN: pickByMode({
@@ -164,7 +164,7 @@ const POOL_FACTORY = {
     mainnet: '0x0F32230D2A196079a1Df735195DC52BFDE76b04f',
   }),
   bnb: pickByMode({
-    testnet: '0x92E5C845a7F0a23541C69c69ec9EC209e6de829C',
+    testnet: '0x24B521b2BB663F53E2E769998152f6180ac295da',
     mainnet: '0x5c9126e73adBD87B5CF1f5706040d6d06a494f74',
   }),
 };
