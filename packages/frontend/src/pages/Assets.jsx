@@ -142,6 +142,8 @@ const AssetLogo = ({ asset, size = 'w-9 h-9 sm:w-11 sm:h-11', showChainBadge = f
           </span>
         )}
       </div>
+
+      {showChainBadge && chain && <ChainBadge chain={chain} />}
     </div>
   );
 };
@@ -239,10 +241,6 @@ const Assets = () => {
 
       <div className="flex-1 min-w-0">
         <p className="font-black text-xs sm:text-sm text-white">{asset.symbol}</p>
-
-        <p className="text-[8px] sm:text-[10px] text-white/70 capitalize mt-0.5">
-          {asset.chain || selectedChain}
-        </p>
       </div>
 
       <div className="text-right">

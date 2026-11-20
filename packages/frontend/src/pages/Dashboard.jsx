@@ -1554,10 +1554,6 @@ const Dashboard = () => {
 
       <div className="flex-1 min-w-0">
         <p className="font-black text-[0.825rem] sm:text-sm text-white">{asset.symbol}</p>
-
-        <p className="text-[8.8px] sm:text-[10px] text-white/75 uppercase mt-0.5">
-          {asset.chain || selectedChain}
-        </p>
       </div>
 
       <div className="text-right">
