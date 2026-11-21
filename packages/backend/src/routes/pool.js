@@ -220,17 +220,16 @@ router.get('/assets-pool/:chain/:safeAddress', async (req, res) => {
     const normalizedChain = chain.toLowerCase();
     const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
 
-    const [asset1, asset2] = await Promise.all([
-      Assets.find({
-        chain: normalizedChain,
-        type: envType,
-      }).lean(),
+    const [user, asset2] = await Promise.all([
+      User.findOne({ safeAddress: safeAddress.toLowerCase() }).lean(),
       UserConfiguredAsset.find({
         ownerSafeAddress: safeAddress,
         chain: normalizedChain,
         type: envType,
       }).lean(),
     ]);
+
+    const asset1 = (user?.tokenConfig || []).filter((t) => t.chain === normalizedChain);
 
     const assets = [...asset1, ...asset2];
 
@@ -577,7 +576,6 @@ router.get('/pools/base/:baseSymbol/:chain', async (req, res) => {
 
       for (let j = 0; j < pool.inventories.length; j++) {
         const inv = pool.inventories[j];
-
         if (inv.baseSymbol.toUpperCase() === normalizedBase) {
           // Resolve decimals for base and quote addresses
           let bDec = 18;
@@ -838,12 +836,8 @@ router.post('/asset/upsert', async (req, res) => {
     }
 
     const envType = mode === 'development' ? 'TESTNET' : 'MAINNET';
-    const [listed, ownDuplicate] = await Promise.all([
-      Assets.findOne({
-        chain: normalizedChain,
-        type: envType,
-        $or: [{ tokenSymbol: normalizedSymbol }, { tokenAddress: normalizedTokenAddress }],
-      }).lean(),
+    const [user, ownDuplicate] = await Promise.all([
+      User.findOne({ safeAddress: ownerSafeAddress.toLowerCase() }),
       UserConfiguredAsset.findOne({
         ownerSafeAddress: ownerSafeAddress.toLowerCase(),
         chain: normalizedChain,
@@ -851,6 +845,18 @@ router.post('/asset/upsert', async (req, res) => {
         type: envType,
       }).lean(),
     ]);
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        errorMsg: 'User not found',
+      });
+    }
+    const listed = (user.tokenConfig || []).find(
+      (t) =>
+        t.chain === normalizedChain &&
+        (t.tokenSymbol === normalizedSymbol ||
+          String(t.tokenAddress || '').toLowerCase() === normalizedTokenAddress)
+    );
     if (listed) {
       return res.status(409).json({
         status: false,
@@ -873,6 +879,10 @@ router.post('/asset/upsert', async (req, res) => {
       resolvedLogo = foundAsset && foundAsset.logo ? foundAsset.logo : null;
     }
 
+    const tokenDecimals = Number(
+      await new ethers.Contract(normalizedTokenAddress, ERC20, provider(normalizedChain)).decimals()
+    );
+
     // Create new pair with resolved logos
     const pair = await UserConfiguredAsset.create({
       ownerSafeAddress: ownerSafeAddress,
@@ -883,6 +893,19 @@ router.post('/asset/upsert', async (req, res) => {
       chain: normalizedChain,
       type: mode === 'development' ? 'TESTNET' : 'MAINNET',
     });
+
+    const newTokenConfig = {
+      chain: normalizedChain,
+      tokenAddress: normalizedTokenAddress,
+      tokenSymbol: normalizedSymbol,
+      tokenDecimals,
+      logo: resolvedLogo,
+      priceFeedAddress: priceFeed.toLowerCase(),
+      isActive: true,
+    };
+
+    user.tokenConfig.push(newTokenConfig);
+    await user.save();
 
     return res.status(200).json({
       status: true,

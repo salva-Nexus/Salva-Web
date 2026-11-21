@@ -94,6 +94,13 @@ const Icon = ({
         <path d="m9 12 2 2 4-4" />
       </>
     ),
+    external: (
+      <>
+        <path d="M14 4h6v6" />
+        <path d="M20 4 10 14" />
+        <path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+      </>
+    ),
   };
 
   return (
@@ -411,6 +418,45 @@ const AssetRow = ({ asset, chain, busy, onAdd, onRemove }) => {
 };
 
 /* ============================================================================
+   CHAINLINK PRICE FEED GUIDE
+============================================================================ */
+
+const buildFeedUrl = (chain, symbol) => {
+  const network = /bnb|bsc/i.test(String(chain || '')) ? 'bnb-chain' : 'base';
+  const asset = encodeURIComponent(String(symbol || '').trim().toUpperCase());
+  return `https://docs.chain.link/data-feeds/price-feeds/addresses?network=${network}&search=${asset}%2FUSD`;
+};
+
+const PriceFeedGuide = ({ chain, symbol }) => {
+  const sym = String(symbol || '').trim().toUpperCase() || 'TOKEN';
+  const networkLabel = /bnb|bsc/i.test(String(chain || '')) ? 'BNB Chain' : 'Base';
+
+  return (
+    <div className="mb-2 rounded-xl sm:rounded-2xl border border-salvaGold/15 bg-salvaGold/[0.04] p-3 sm:p-3.5">
+      <p className="text-[9px] sm:text-[10px] leading-4 sm:leading-5 text-white/80">
+        A price feed is an on-chain Chainlink oracle that publishes the live USD price of{' '}
+        <span className="font-semibold text-white">{sym}</span>. Open the link below, find the{' '}
+        <span className="font-semibold text-white">{sym} / USD</span> row on {networkLabel}, and
+        copy the <span className="font-semibold text-salvaGold">Proxy</span> address only (the
+        standard proxy contract). Do not copy any other address on that row.
+      </p>
+
+      <a
+        href={buildFeedUrl(chain, sym)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-salvaGold/20 bg-salvaGold/[0.07] px-2.5 py-1.5 text-[9px] sm:text-[10px] font-semibold text-salvaGold transition hover:bg-salvaGold/[0.12]"
+      >
+        <span className="truncate">
+          View {sym} / USD feeds on {networkLabel}
+        </span>
+        <Icon name="external" className="h-[10px] w-[10px] shrink-0 sm:h-[12px] sm:w-[12px]" />
+      </a>
+    </div>
+  );
+};
+
+/* ============================================================================
    ADD CUSTOM ASSET
 ============================================================================ */
 
@@ -597,6 +643,8 @@ const AddAssetModal = ({ open, chain, onClose, onSubmit, requestJson, showMsg })
                 <label className="mb-1.5 sm:mb-2 block text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.14em] text-white/70">
                   Chainlink price feed <span className="normal-case text-white/55">(optional)</span>
                 </label>
+
+                <PriceFeedGuide chain={chain} symbol={tokenDetails?.symbol} />
 
                 <input
                   value={feedAddress}

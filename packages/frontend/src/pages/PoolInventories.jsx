@@ -1168,6 +1168,47 @@ const InfoPopover = ({ title, children, onClose }) => (
 
 const CHAINLINK_FEEDS_URL = 'https://docs.chain.link/data-feeds/price-feeds/addresses';
 
+const buildFeedUrl = (chain, symbol) => {
+  const network = /bnb|bsc/i.test(String(chain || '')) ? 'bnb-chain' : 'base';
+  const asset = encodeURIComponent(
+    String(symbol || '')
+      .trim()
+      .toUpperCase()
+  );
+  return `${CHAINLINK_FEEDS_URL}?network=${network}&search=${asset}%2FUSD`;
+};
+
+const PriceFeedGuide = ({ chain, symbol }) => {
+  const sym =
+    String(symbol || '')
+      .trim()
+      .toUpperCase() || 'TOKEN';
+  const networkLabel = /bnb|bsc/i.test(String(chain || '')) ? 'BNB Chain' : 'Base';
+
+  return (
+    <div className="mt-2 rounded-xl border border-salvaGold/15 bg-salvaGold/[0.04] p-3">
+      <p className="text-[9px] leading-relaxed text-white/90">
+        A price feed is an on-chain Chainlink oracle that publishes the live USD price of{' '}
+        <span className="font-black text-white">{sym}</span>. Open the link below, find the{' '}
+        <span className="font-black text-white">{sym} / USD</span> row on {networkLabel}, and copy
+        the <span className="font-black text-salvaGold">Proxy</span> address only (the standard
+        proxy contract). Do not copy any other address on that row.
+      </p>
+      <a
+        href={buildFeedUrl(chain, sym)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-lg border border-salvaGold/20 bg-salvaGold/[0.07] px-2.5 py-1.5 text-[9px] font-black text-salvaGold transition hover:bg-salvaGold/[0.12]"
+      >
+        <span className="truncate">
+          View {sym} / USD feeds on {networkLabel}
+        </span>
+        <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+      </a>
+    </div>
+  );
+};
+
 const ConfigField = ({
   label,
   required = false,
@@ -1218,6 +1259,9 @@ const DeployInventoryModal = ({
   const [cfg, setCfg] = useState({ symbol: '', address: '', logo: '', priceFeed: '' });
   const [cfgError, setCfgError] = useState('');
   const [cfgSaving, setCfgSaving] = useState(false);
+  const [cfgStep, setCfgStep] = useState(1);
+  const [cfgDecimals, setCfgDecimals] = useState(null);
+  const [cfgLookupLoading, setCfgLookupLoading] = useState(false);
   const setCfgField = (key) => (event) => {
     setCfgError('');
     setCfg((current) => ({ ...current, [key]: event.target.value }));
@@ -1280,6 +1324,44 @@ const DeployInventoryModal = ({
     };
   }, [base, quote, chain]);
 
+  const lookupConfigToken = async () => {
+    if (cfgLookupLoading) return;
+
+    const address = cfg.address.trim();
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address))
+      return setCfgError('Enter a valid token contract address (0x followed by 40 characters).');
+
+    setCfgError('');
+    setCfgLookupLoading(true);
+
+    try {
+      const response = await fetch(
+        `${SALVA_API_URL}/api/user/token-details/${encodeURIComponent(chain)}/${encodeURIComponent(
+          address
+        )}`,
+        { headers: { Accept: 'application/json' } }
+      );
+      const data = await parseResponse(response);
+
+      if (!data?.status || !data?.data)
+        throw new Error(data?.errorMsg || 'Could not fetch token details.');
+
+      setCfg((current) => ({
+        ...current,
+        symbol: String(data.data.symbol || '')
+          .trim()
+          .toUpperCase(),
+        address: String(data.data.address || address).trim(),
+      }));
+      setCfgDecimals(data.data.decimals ?? null);
+      setCfgStep(2);
+    } catch (lookupError) {
+      setCfgError(lookupError?.message || 'Could not fetch token details.');
+    } finally {
+      setCfgLookupLoading(false);
+    }
+  };
+
   const saveConfig = async () => {
     if (cfgSaving) return;
 
@@ -1319,6 +1401,8 @@ const DeployInventoryModal = ({
 
       setError('');
       setCfg({ symbol: '', address: '', logo: '', priceFeed: '' });
+      setCfgStep(1);
+      setCfgDecimals(null);
       setView('market');
     } catch (saveError) {
       setCfgError(saveError?.message || 'Could not save this asset.');
@@ -1363,125 +1447,175 @@ const DeployInventoryModal = ({
         <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-[8px] font-black uppercase tracking-[.3em] text-salvaGold">
-                Custom market
-              </p>
-              <h3 className="mt-1 text-xl font-black">Configure your asset</h3>
+              <span className="rounded-full border border-salvaGold/20 bg-salvaGold/[0.07] px-2 py-0.5 text-[7px] font-black uppercase tracking-[.2em] text-salvaGold">
+                Step {cfgStep} / 2
+              </span>
+              <h3 className="mt-2 text-xl font-black">
+                {cfgStep === 1 ? 'Add custom asset' : 'Asset details'}
+              </h3>
               <p className="mt-1 text-[10px] leading-relaxed text-white/90">
-                Register a token that is not listed yet. When it is saved you will return to the
-                market form with it already selected.
+                {cfgStep === 1
+                  ? 'Enter a contract address to identify the token on this network.'
+                  : 'Review the token, then add its logo and required price feed.'}
               </p>
             </div>
             <button
               type="button"
-              onClick={() => !cfgSaving && setView('market')}
-              disabled={cfgSaving}
+              onClick={() => !cfgSaving && !cfgLookupLoading && setView('market')}
+              disabled={cfgSaving || cfgLookupLoading}
               className="rounded-lg border border-white/10 p-2 text-white/90 disabled:opacity-40"
             >
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
 
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <ConfigField
-              label="Token symbol"
-              required
-              value={cfg.symbol}
-              onChange={setCfgField('symbol')}
-              placeholder="e.g. WETH"
-              disabled={cfgSaving}
-            />
-            <ConfigField
-              label="Logo URL"
-              value={cfg.logo}
-              onChange={setCfgField('logo')}
-              placeholder="https://…"
-              disabled={cfgSaving}
-            />
-            <div className="sm:col-span-2">
-              <ConfigField
-                label="Contract address"
-                required
-                mono
-                value={cfg.address}
-                onChange={setCfgField('address')}
-                placeholder="0x…"
-                disabled={cfgSaving}
-              />
-            </div>
-            <div className="sm:col-span-2">
-              <ConfigField
-                label="Token / USD price feed"
-                required
-                mono
-                value={cfg.priceFeed}
-                onChange={setCfgField('priceFeed')}
-                placeholder="0x… feed contract address"
-                disabled={cfgSaving}
-                action={
-                  <button
-                    type="button"
-                    aria-label="What is a price feed?"
-                    onClick={() => setInfoOpen('feed')}
-                    className="flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-black transition hover:scale-105"
-                  >
-                    <Info className="h-2.5 w-2.5" strokeWidth={3} />
-                  </button>
-                }
-                hint={
-                  <>
-                    Search your token as <span className="font-black text-white">TOKEN / USD</span>{' '}
-                    on{' '}
-                    <a
-                      href={CHAINLINK_FEEDS_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 font-black text-salvaGold underline underline-offset-2"
-                    >
-                      price feed addresses
-                      <ExternalLink className="h-2.5 w-2.5" />
-                    </a>
-                    , then paste the feed address here.
-                  </>
-                }
-              />
-            </div>
-          </div>
+          {cfgStep === 1 ? (
+            <>
+              <div className="mt-4">
+                <ConfigField
+                  label="Contract address"
+                  required
+                  mono
+                  value={cfg.address}
+                  onChange={(event) => {
+                    setCfgError('');
+                    setCfg((current) => ({ ...current, address: event.target.value.trim() }));
+                  }}
+                  placeholder="0x…"
+                  disabled={cfgLookupLoading}
+                  hint="The contract is queried directly for its token metadata."
+                />
+              </div>
 
-          {cfgError && (
-            <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-2.5 text-[10px] font-bold text-red-400">
-              {cfgError}
-            </p>
-          )}
-
-          <div className="mt-4 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setView('market')}
-              disabled={cfgSaving}
-              className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/90 disabled:opacity-40"
-            >
-              Back
-            </button>
-            <button
-              type="button"
-              onClick={saveConfig}
-              disabled={cfgSaving}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-wait disabled:opacity-50"
-            >
-              {cfgSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Saving…
-                </>
-              ) : (
-                <>
-                  Save & continue
-                  <ArrowUpRight className="h-3.5 w-3.5" />
-                </>
+              {cfgError && (
+                <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-2.5 text-[10px] font-bold text-red-400">
+                  {cfgError}
+                </p>
               )}
-            </button>
-          </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setView('market')}
+                  disabled={cfgLookupLoading}
+                  className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/90 disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={lookupConfigToken}
+                  disabled={cfgLookupLoading || !cfg.address}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {cfgLookupLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Fetching token…
+                    </>
+                  ) : (
+                    <>
+                      <Search className="h-3.5 w-3.5" />
+                      Continue
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] p-3">
+                <AssetLogo symbol={cfg.symbol} logo={cfg.logo} size="h-10 w-10" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-black text-white">{cfg.symbol || 'Unknown token'}</p>
+                  <p className="mt-0.5 truncate font-mono text-[8px] text-white/90">
+                    {cfg.address}
+                  </p>
+                  <p className="mt-0.5 text-[8px] font-bold text-white/90">
+                    {cfgDecimals ?? '—'} decimals
+                  </p>
+                </div>
+                <Check className="h-4 w-4 shrink-0 text-emerald-400" />
+              </div>
+
+              <div className="mt-2 grid gap-2">
+                <ConfigField
+                  label="Logo URL"
+                  value={cfg.logo}
+                  onChange={setCfgField('logo')}
+                  placeholder="https://…"
+                  disabled={cfgSaving}
+                />
+
+                <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[8px] font-black uppercase tracking-[.25em] text-white/90">
+                      Token / USD price feed
+                    </label>
+                    <span className="text-[9px] font-black text-red-400">*</span>
+                    <button
+                      type="button"
+                      aria-label="What is a price feed?"
+                      onClick={() => setInfoOpen('feed')}
+                      className="flex h-4 w-4 items-center justify-center rounded-full bg-yellow-400 text-black transition hover:scale-105"
+                    >
+                      <Info className="h-2.5 w-2.5" strokeWidth={3} />
+                    </button>
+                  </div>
+
+                  <PriceFeedGuide chain={chain} symbol={cfg.symbol} />
+
+                  <input
+                    value={cfg.priceFeed}
+                    onChange={setCfgField('priceFeed')}
+                    disabled={cfgSaving}
+                    placeholder="0x… proxy address"
+                    spellCheck="false"
+                    autoComplete="off"
+                    className="mt-2 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-3 font-mono text-[10px] font-black text-white outline-none placeholder:text-white/60 focus:border-salvaGold/40 disabled:opacity-50"
+                  />
+                </div>
+              </div>
+
+              {cfgError && (
+                <p className="mt-3 rounded-xl border border-red-500/20 bg-red-500/5 p-2.5 text-[10px] font-bold text-red-400">
+                  {cfgError}
+                </p>
+              )}
+
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCfgError('');
+                    setCfgStep(1);
+                  }}
+                  disabled={cfgSaving}
+                  className="rounded-xl border border-white/10 py-3 text-[10px] font-black text-white/90 disabled:opacity-40"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={saveConfig}
+                  disabled={cfgSaving}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-salvaGold py-3 text-[8px] font-black text-black disabled:cursor-wait disabled:opacity-50"
+                >
+                  {cfgSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      Save & continue
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="max-h-[90vh] overflow-y-auto p-4 sm:p-6">

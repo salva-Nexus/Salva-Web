@@ -1,5 +1,6 @@
 import Assets from '../models/Assets.js';
 import { User } from '../models/Users.js';
+import { UserConfiguredAsset } from '../models/UserConfiguredAsset.js';
 import { ethers } from 'ethers';
 import { _getBalance, fetchTokenUsdPrice } from './balanceServices.js';
 import { ERC20 } from '../utils/abi.js';
@@ -315,6 +316,13 @@ async function removeAsset(safe, chain, tokenAddress) {
 
     user.tokenConfig = updatedTokenConfig;
     await user.save();
+
+    await UserConfiguredAsset.deleteOne({
+      ownerSafeAddress: safe.toLowerCase().trim(),
+      chain: normalizedChain,
+      tokenAddress: normalizedAddress,
+      type: mode === 'development' ? 'TESTNET' : 'MAINNET',
+    });
 
     return {
       status: true,

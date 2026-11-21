@@ -41,7 +41,7 @@ const CHAINLINK_FEED_ON_BASE = {
     mainnet: '0xd0Dc8c910565D94D408729D16bE5467B5d7633Ad',
   }),
   LINK_USD: pickByMode({
-    testnet: '0x90c069C4538adAc136......................', // TODO: incomplete address
+    testnet: '0x1B329402Cb1825C6F30A0d92aB9E2862BE47333f', // TODO: incomplete address
     mainnet: '0x17CAb8FE31E32f08326e5E27412894e49B0f9D65',
   }),
 };
@@ -61,7 +61,7 @@ const CHAINLINK_FEED_ON_BNB = {
   }),
   LINK_USD: pickByMode({
     testnet: '0x90c069C4538adAc136......................', // TODO: incomplete address
-    mainnet: '0xca236E327F629f9Fc2c30A4E95775EbF0B89fac8',
+    mainnet: '0x5063761448577804901448773359da2fAF5d001e',
   }),
 };
 
